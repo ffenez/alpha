@@ -123,6 +123,27 @@ object PixelIcons {
         )
     }
 
+    /** Настройки: chunky gear, four teeth and a hollow center. */
+    val Gear: ImageVector by lazy {
+        pixelIcon(
+            "pixel_gear",
+            listOf(
+                ".....##.....",
+                "..#..##..#..",
+                ".##########.",
+                ".##########.",
+                "..##....##..",
+                "####....####",
+                "####....####",
+                "..##....##..",
+                ".##########.",
+                ".##########.",
+                "..#..##..#..",
+                ".....##.....",
+            ),
+        )
+    }
+
     /** История: clock face, hands at ten past ten-ish. */
     val History: ImageVector by lazy {
         pixelIcon(

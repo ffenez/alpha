@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -41,6 +43,7 @@ import app.radiacode.ui.components.PixelBox
 import app.radiacode.ui.components.PixelButton
 import app.radiacode.ui.components.PixelChart
 import app.radiacode.ui.components.PixelChartSpec
+import app.radiacode.ui.components.PixelIcons
 import app.radiacode.ui.components.PixelTag
 import app.radiacode.ui.components.PlacePickerDialog
 import app.radiacode.ui.components.StatusLine
@@ -57,6 +60,7 @@ import app.radiacode.ui.logic.statusHeadline
 import app.radiacode.ui.theme.LocalPixelColors
 import app.radiacode.ui.theme.LocalPixelTypography
 import app.radiacode.ui.theme.PixelDimens
+import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.delay
@@ -131,7 +135,10 @@ fun MonitorScreen(graph: AppGraph, onOpenSettings: () -> Unit = {}) {
             .padding(PixelDimens.space4),
         verticalArrangement = Arrangement.spacedBy(PixelDimens.space4),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2),
+        ) {
             PixelTag(
                 text = (activePlace?.name ?: "МЕСТО?").uppercase(),
                 modifier = Modifier.clickable(
@@ -141,6 +148,18 @@ fun MonitorScreen(graph: AppGraph, onOpenSettings: () -> Unit = {}) {
             )
             Spacer(Modifier.weight(1f))
             FreshnessIndicator(freshness)
+            Icon(
+                imageVector = PixelIcons.Gear,
+                contentDescription = "Настройки",
+                tint = LocalPixelColors.current.textSecondary,
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onOpenSettings,
+                    ),
+            )
         }
 
         MainReading(

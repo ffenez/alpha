@@ -28,6 +28,7 @@ import app.radiacode.ui.screens.MonitorScreen
 import app.radiacode.ui.screens.OnboardingScreen
 import app.radiacode.ui.screens.SearchScreen
 import app.radiacode.ui.screens.SessionDetailScreen
+import app.radiacode.ui.screens.SettingsScreen
 import app.radiacode.ui.screens.SpectrumPlaceholder
 import app.radiacode.ui.theme.LocalPixelColors
 
@@ -78,11 +79,15 @@ private fun MainScaffold(graph: AppGraph) {
     }
 
     var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
-    // Overlays above the tab content; Settings opens separately (SPEC), a
-    // session detail comes from История. Back and tab switches dismiss them.
+    // Overlays above the tab content; Settings opens separately (SPEC, gear
+    // on Монитор), a session detail comes from История. Back and tab
+    // switches dismiss them.
+    var showSettings by rememberSaveable { mutableStateOf(false) }
     var sessionDetailId by rememberSaveable { mutableStateOf<Long?>(null) }
 
-    BackHandler(enabled = sessionDetailId != null) { sessionDetailId = null }
+    BackHandler(enabled = showSettings || sessionDetailId != null) {
+        if (showSettings) showSettings = false else sessionDetailId = null
+    }
 
     Column(Modifier.fillMaxSize()) {
         Box(
@@ -92,15 +97,18 @@ private fun MainScaffold(graph: AppGraph) {
                 .statusBarsPadding(),
         ) {
             val detailId = sessionDetailId
-            if (detailId != null) {
-                SessionDetailScreen(
+            when {
+                showSettings -> SettingsScreen(graph, onBack = { showSettings = false })
+                detailId != null -> SessionDetailScreen(
                     graph = graph,
                     sessionId = detailId,
                     onBack = { sessionDetailId = null },
                 )
-            } else {
-                when (tab) {
-                    AppTab.HOME -> MonitorScreen(graph)
+                else -> when (tab) {
+                    AppTab.HOME -> MonitorScreen(
+                        graph = graph,
+                        onOpenSettings = { showSettings = true },
+                    )
                     AppTab.SEARCH -> SearchScreen(graph)
                     AppTab.SPECTRUM -> SpectrumPlaceholder()
                     AppTab.MAP -> MapPlaceholder()
@@ -114,6 +122,7 @@ private fun MainScaffold(graph: AppGraph) {
         PixelNavBar(
             selected = tab,
             onSelect = {
+                showSettings = false
                 sessionDetailId = null
                 tab = it
             },
