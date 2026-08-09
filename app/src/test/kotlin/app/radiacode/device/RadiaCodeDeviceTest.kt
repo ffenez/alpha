@@ -1,0 +1,111 @@
+package app.radiacode.device
+
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+
+private class FakeLinkFactory(private val fake: FakeRadiaCode) : DeviceLinkFactory {
+    val links = mutableListOf<FakeDeviceLink>()
+    var failNextOpens = 0
+
+    override suspend fun open(address: String): DeviceLink {
+        if (failNextOpens > 0) {
+            failNextOpens -= 1
+            throw java.io.IOException("connect failed")
+        }
+        return FakeDeviceLink(fake).also { links += it }
+    }
+}
+
+@kotlinx.coroutines.ExperimentalCoroutinesApi
+class RadiaCodeDeviceTest {
+
+    @Test
+    fun `connects, exposes info and streams samples from 1 Hz polls`() = runTest {
+        val fake = FakeRadiaCode()
+        fake.dataBufPayloads += realTimeDataRecord(seq = 0, tsOffset10ms = 0, countRate = 9f, doseRate = 0.0005f)
+        val factory = FakeLinkFactory(fake)
+        val device = RadiaCodeDevice("AA:BB", factory, clock = { 1_000_000L + testScheduler.currentTime })
+
+        device.start(backgroundScope)
+
+        val sample = device.realTimeData.first()
+        assertEquals(9f, sample.countRate)
+        val state = device.connectionState.value
+        assertIs<ConnectionState.Connected>(state)
+        assertEquals("RC-110-001234", state.info.serialNumber)
+        assertEquals("RC-110-001234", device.deviceInfo?.serialNumber)
+    }
+
+    @Test
+    fun `reconnects after link loss and resets backoff on success`() = runTest {
+        val fake = FakeRadiaCode()
+        val factory = FakeLinkFactory(fake)
+        val device = RadiaCodeDevice("AA:BB", factory)
+
+        device.start(backgroundScope)
+        device.connectionState.first { it is ConnectionState.Connected }
+
+        factory.links[0].dropLink()
+        val reconnecting = device.connectionState.first { it is ConnectionState.Reconnecting }
+        assertEquals(2_000, (reconnecting as ConnectionState.Reconnecting).delayMillis)
+
+        device.connectionState.first { it is ConnectionState.Connected }
+        assertEquals(2, factory.links.size)
+        assertTrue(factory.links[0].closed)
+
+        // Successful connection reset the backoff: next failure waits 2 s again.
+        factory.links[1].dropLink()
+        val again = device.connectionState.first { it is ConnectionState.Reconnecting }
+        assertEquals(2_000, (again as ConnectionState.Reconnecting).delayMillis)
+    }
+
+    @Test
+    fun `backoff grows while connection attempts keep failing`() = runTest {
+        val fake = FakeRadiaCode()
+        val factory = FakeLinkFactory(fake)
+        factory.failNextOpens = 3
+        val device = RadiaCodeDevice("AA:BB", factory)
+
+        // Unconfined collector records every state transition synchronously.
+        val states = mutableListOf<ConnectionState>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            device.connectionState.collect { states += it }
+        }
+
+        device.start(backgroundScope)
+        device.connectionState.first { it is ConnectionState.Connected }
+
+        val delays = states.filterIsInstance<ConnectionState.Reconnecting>().map { it.delayMillis }
+        assertEquals(listOf(2_000L, 4_000L, 8_000L), delays)
+        val attempts = states.filterIsInstance<ConnectionState.Connecting>().map { it.attempt }
+        assertEquals(listOf(1, 2, 3, 4), attempts)
+    }
+
+    @Test
+    fun `spectrum operations require a connection`() = runTest {
+        val fake = FakeRadiaCode()
+        val device = RadiaCodeDevice("AA:BB", FakeLinkFactory(fake))
+        assertFailsWith<DeviceNotConnectedException> { device.readSpectrum() }
+    }
+
+    @Test
+    fun `stop returns to Disconnected`() = runTest {
+        val fake = FakeRadiaCode()
+        val factory = FakeLinkFactory(fake)
+        val device = RadiaCodeDevice("AA:BB", factory)
+
+        device.start(backgroundScope)
+        device.connectionState.first { it is ConnectionState.Connected }
+        device.stop()
+
+        assertEquals(ConnectionState.Disconnected, device.connectionState.value)
+        assertFailsWith<DeviceNotConnectedException> { device.resetDose() }
+    }
+}
