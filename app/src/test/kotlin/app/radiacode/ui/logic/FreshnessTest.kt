@@ -1,0 +1,39 @@
+package app.radiacode.ui.logic
+
+import kotlin.test.Test
+import kotlin.test.assertEquals
+
+class FreshnessTest {
+
+    @Test
+    fun `no samples ever means NoData`() {
+        assertEquals(Freshness.NoData, Freshness.of(null, nowMillis = 1_000_000))
+    }
+
+    @Test
+    fun `fresh up to the 10 s boundary inclusive`() {
+        assertEquals(Freshness.Fresh(0), Freshness.of(1_000_000, 1_000_000))
+        assertEquals(Freshness.Fresh(10), Freshness.of(1_000_000, 1_010_000))
+    }
+
+    @Test
+    fun `stale strictly after 10 s`() {
+        assertEquals(Freshness.Stale(11), Freshness.of(1_000_000, 1_011_000))
+        assertEquals(Freshness.Stale(34), Freshness.of(1_000_000, 1_034_000))
+    }
+
+    @Test
+    fun `device time base ahead of phone clock clamps to zero age`() {
+        // DATA_BUF timestamps derive from the device base time and can run
+        // ahead of the wall clock; a negative age must not look stale.
+        assertEquals(Freshness.Fresh(0), Freshness.of(1_005_000, 1_000_000))
+    }
+
+    @Test
+    fun `labels are honest about the stream state`() {
+        assertEquals("данных ещё нет", freshnessLabel(Freshness.NoData))
+        assertEquals("обновлено только что", freshnessLabel(Freshness.Fresh(1)))
+        assertEquals("обновлено 7 с назад", freshnessLabel(Freshness.Fresh(7)))
+        assertEquals("поток прерван 34 с назад", freshnessLabel(Freshness.Stale(34)))
+    }
+}
