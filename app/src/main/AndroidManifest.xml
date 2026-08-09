@@ -30,7 +30,7 @@
         android:required="true" />
 
     <application
-        android:label="radiacode"
+        android:label="alpha"
         android:allowBackup="true"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
