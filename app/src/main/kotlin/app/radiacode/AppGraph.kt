@@ -8,6 +8,7 @@ import app.radiacode.data.db.AppDatabase
 import app.radiacode.device.DeviceLinkFactory
 import app.radiacode.device.KableLinkFactory
 import app.radiacode.device.RadiaCodeScanner
+import app.radiacode.service.ServiceStatus
 
 /**
  * Manual dependency graph (no DI framework, ADR 001). One instance per process,
@@ -33,6 +34,9 @@ class AppGraph private constructor(context: Context) {
     val linkFactory: DeviceLinkFactory by lazy { KableLinkFactory() }
 
     val scanner: RadiaCodeScanner by lazy { RadiaCodeScanner() }
+
+    /** Live service/connection state for the UI (service is unbound). */
+    val serviceStatus: ServiceStatus = ServiceStatus()
 
     companion object {
         @Volatile

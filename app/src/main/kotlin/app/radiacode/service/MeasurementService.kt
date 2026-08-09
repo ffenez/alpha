@@ -74,6 +74,7 @@ class MeasurementService : Service() {
         graph = AppGraph.get(this)
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         createNotificationChannel()
+        graph.serviceStatus.onServiceStarted()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -103,6 +104,7 @@ class MeasurementService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        graph.serviceStatus.onServiceStopped()
         stopTracking()
         val current = device
         device = null
@@ -146,7 +148,10 @@ class MeasurementService : Service() {
             }
         }
         deviceJobs += scope.launch {
-            newDevice.connectionState.collect { updateNotification() }
+            newDevice.connectionState.collect { state ->
+                graph.serviceStatus.onConnectionState(state)
+                updateNotification()
+            }
         }
     }
 
@@ -326,6 +331,10 @@ class MeasurementService : Service() {
             Intent(context, MeasurementService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_DEVICE_ADDRESS, deviceAddress)
+
+        /** Resume the remembered device (no-op start when already measuring). */
+        fun resumeIntent(context: Context): Intent =
+            Intent(context, MeasurementService::class.java).setAction(ACTION_START)
 
         fun stopIntent(context: Context): Intent =
             Intent(context, MeasurementService::class.java).setAction(ACTION_STOP)

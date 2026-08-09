@@ -35,9 +35,17 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[LAST_DEVICE_ADDRESS] = address }
     }
 
+    /** Search-mode local background reference, CPS; null until measured. */
+    val searchBackgroundCps: Flow<Float?> = dataStore.data.map { it[SEARCH_BACKGROUND_CPS] }
+
+    suspend fun setSearchBackgroundCps(cps: Float) {
+        dataStore.edit { it[SEARCH_BACKGROUND_CPS] = cps }
+    }
+
     companion object {
         const val DEFAULT_HOTSPOT_THRESHOLD_MICRO_SV_H = 0.30f
         private val HOTSPOT_THRESHOLD = floatPreferencesKey("hotspot_threshold_usvh")
         private val LAST_DEVICE_ADDRESS = stringPreferencesKey("last_device_address")
+        private val SEARCH_BACKGROUND_CPS = floatPreferencesKey("search_background_cps")
     }
 }
