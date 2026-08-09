@@ -27,6 +27,7 @@ import app.radiacode.analysis.EnergyWindow
 import app.radiacode.analysis.SpectrumDisplay
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.db.SampleEntity
+import app.radiacode.data.toSpectrum
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
 import app.radiacode.protocol.Spectrum
@@ -141,8 +142,15 @@ private fun SpectrumContent(
     val hub = graph.spectrumHub
 
     var logScale by rememberSaveable { mutableStateOf(true) }
+    var minusBackground by rememberSaveable { mutableStateOf(false) }
+    var smoothing by rememberSaveable { mutableStateOf(false) }
     var window by remember { mutableStateOf<EnergyWindow?>(null) }
     var confirmReset by remember { mutableStateOf(false) }
+
+    val backgroundEntity by graph.measurementRepository.backgroundReference()
+        .collectAsState(initial = null)
+    val background = remember(backgroundEntity) { backgroundEntity?.toSpectrum() }
+    val subtractOn = minusBackground && background != null
 
     val calibration = remember(spectrum.a0, spectrum.a1, spectrum.a2) {
         EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2)
@@ -198,11 +206,44 @@ private fun SpectrumContent(
     val range = remember(visible, calibration, spectrum.counts.size) {
         SpectrumDisplay.channelRange(visible, calibration, spectrum.counts.size)
     }
-    val series = remember(spectrum) { spectrum.counts.map { it.toFloat() } }
+    // Display pipeline (raw counts never change): optional «минус фон» with
+    // time-ratio normalization, then optional display-only smoothing.
+    val baseSeries = remember(spectrum, background, subtractOn) {
+        if (subtractOn && background != null) {
+            SpectrumDisplay.subtractBackground(
+                current = spectrum.counts,
+                currentSeconds = spectrum.durationSeconds,
+                background = background.counts,
+                backgroundSeconds = background.durationSeconds,
+            )
+        } else {
+            spectrum.counts.map { it.toFloat() }
+        }
+    }
+    val series = remember(baseSeries, smoothing) {
+        if (smoothing) SpectrumDisplay.movingAverage(baseSeries) else baseSeries
+    }
     val columns = remember(series, range) {
         SpectrumDisplay.aggregateMax(series, range, COLUMN_COUNT)
     }
-    val dataMax = columns.maxOrNull() ?: 0f
+    // Overlay: the reference spectrum scaled to the current live time, shown
+    // only in the plain mode (subtracting it and overlaying it is double use).
+    val overlayColumns = remember(background, subtractOn, spectrum.durationSeconds, range) {
+        if (background == null || subtractOn) {
+            null
+        } else {
+            SpectrumDisplay.aggregateMax(
+                SpectrumDisplay.scaleToDuration(
+                    background.counts,
+                    backgroundSeconds = background.durationSeconds,
+                    currentSeconds = spectrum.durationSeconds,
+                ),
+                range,
+                COLUMN_COUNT,
+            )
+        }
+    }
+    val dataMax = maxOf(columns.maxOrNull() ?: 0f, overlayColumns?.maxOrNull() ?: 0f)
     val yTop = if (logScale) SpectrumDisplay.logTop(dataMax) else maxOf(dataMax * 1.15f, 10f)
 
     PixelBox(modifier = Modifier.fillMaxWidth()) {
@@ -221,9 +262,28 @@ private fun SpectrumContent(
                     selected = logScale,
                 )
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
+                PixelButton(
+                    text = "СПЕКТР",
+                    onClick = { minusBackground = false },
+                    selected = !subtractOn,
+                )
+                PixelButton(
+                    text = "−ФОН",
+                    onClick = { minusBackground = true },
+                    selected = subtractOn,
+                    enabled = background != null,
+                )
+                PixelButton(
+                    text = "СГЛАЖ.",
+                    onClick = { smoothing = !smoothing },
+                    selected = smoothing,
+                )
+            }
             SpectrumChart(
                 spec = SpectrumChartSpec(
                     columns = columns,
+                    overlay = overlayColumns,
                     logScale = logScale,
                     yTop = yTop,
                     energyTicks = SpectrumDisplay.energyTicks(visible),
@@ -256,6 +316,55 @@ private fun SpectrumContent(
                 text = "щипок по графику — масштаб, перетаскивание — сдвиг",
                 style = type.labelSmall,
                 color = colors.textMuted,
+            )
+            if (smoothing) {
+                Text(
+                    text = "сглаживание — только отображение, исходные данные не меняются",
+                    style = type.labelSmall,
+                    color = colors.textMuted,
+                )
+            }
+        }
+    }
+
+    // --- background reference (overlay / «минус фон») ---
+    PixelBox(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
+            Text("ОПОРНЫЙ ФОН", style = type.label, color = colors.text)
+            val bgEntity = backgroundEntity
+            if (background == null || bgEntity == null) {
+                Text(
+                    text = "Фон не записан. Накопите спектр в обычной обстановке и " +
+                        "запишите его — появятся наложение фона и режим «минус фон».",
+                    style = type.bodySmall,
+                    color = colors.textMuted,
+                )
+            } else {
+                Text(
+                    text = "записан " +
+                        HistoryFormat.dayTime(bgEntity.timestamp, System.currentTimeMillis()) +
+                        " · накопление " + HistoryFormat.duration(background.durationSeconds),
+                    style = type.labelSmall,
+                    color = colors.textSecondary,
+                )
+                if (overlayColumns != null) {
+                    Text(
+                        text = "точки на графике — фон, приведённый к текущему времени накопления",
+                        style = type.labelSmall,
+                        color = colors.textMuted,
+                    )
+                }
+                if (subtractOn) {
+                    Text(
+                        text = "показана разница: текущий спектр минус фон, не меньше нуля",
+                        style = type.labelSmall,
+                        color = colors.textMuted,
+                    )
+                }
+            }
+            PixelButton(
+                text = "ЗАПИСАТЬ ФОН",
+                onClick = { hub.request(SpectrumHub.Command.RECORD_BACKGROUND) },
             )
         }
     }
