@@ -29,7 +29,7 @@ import app.radiacode.ui.screens.OnboardingScreen
 import app.radiacode.ui.screens.SearchScreen
 import app.radiacode.ui.screens.SessionDetailScreen
 import app.radiacode.ui.screens.SettingsScreen
-import app.radiacode.ui.screens.SpectrumPlaceholder
+import app.radiacode.ui.screens.SpectrumScreen
 import app.radiacode.ui.theme.LocalPixelColors
 
 /** Remembered-device lookup: distinguishes "loading" from "no device yet". */
@@ -110,7 +110,7 @@ private fun MainScaffold(graph: AppGraph) {
                         onOpenSettings = { showSettings = true },
                     )
                     AppTab.SEARCH -> SearchScreen(graph)
-                    AppTab.SPECTRUM -> SpectrumPlaceholder()
+                    AppTab.SPECTRUM -> SpectrumScreen(graph)
                     AppTab.MAP -> MapPlaceholder()
                     AppTab.HISTORY -> HistoryScreen(
                         graph = graph,

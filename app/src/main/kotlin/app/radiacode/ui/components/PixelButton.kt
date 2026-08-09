@@ -25,6 +25,10 @@ import app.radiacode.ui.theme.PixelDimens
  *
  * [primary] renders a solid accent block for the single main action of a
  * screen (e.g. connect); at most one per screen.
+ *
+ * [selected] is the toggle state: an inverted solid block in text color (the
+ * same inversion as pressed), reserved for mode switches like ЛОГ/ЛИН — it
+ * deliberately avoids the accent so toggles never compete with the main value.
  */
 @Composable
 fun PixelButton(
@@ -33,6 +37,7 @@ fun PixelButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     primary: Boolean = false,
+    selected: Boolean = false,
 ) {
     val colors = LocalPixelColors.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -47,6 +52,10 @@ fun PixelButton(
         }
         primary || pressed -> {
             background = if (pressed && primary) colors.text else colors.accent
+            foreground = colors.ground
+        }
+        selected -> {
+            background = colors.text
             foreground = colors.ground
         }
         else -> {

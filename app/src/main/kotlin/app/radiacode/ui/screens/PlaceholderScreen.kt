@@ -58,17 +58,6 @@ fun PlaceholderScreen(title: String, planned: List<String>) {
 }
 
 @Composable
-fun SpectrumPlaceholder() = PlaceholderScreen(
-    title = "СПЕКТР",
-    planned = listOf(
-        "энергетический спектр (счёт / кэВ)",
-        "линейная и логарифмическая шкала",
-        "наложение и вычитание фона",
-        "осторожные подсказки изотопов — без категоричных выводов",
-    ),
-)
-
-@Composable
 fun MapPlaceholder() = PlaceholderScreen(
     title = "КАРТА",
     planned = listOf(
