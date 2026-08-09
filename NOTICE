@@ -1,0 +1,9 @@
+radiacode
+Copyright (c) 2026 radiacode contributors
+
+The RadiaCode BLE protocol implementation in the :protocol module is a Kotlin
+port of cdump/radiacode (https://github.com/cdump/radiacode), licensed under
+the MIT License, Copyright 2021 Maxim Andreev.
+
+Tricky protocol details were cross-checked against mkgeiger/RadiaCode
+(https://github.com/mkgeiger/RadiaCode), licensed under the MIT License.
