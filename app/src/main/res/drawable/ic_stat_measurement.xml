@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder status-bar icon (radiation trefoil, monochrome); designer pass replaces it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,10.5a1.5,1.5 0 1,0 0.001,0z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,2a10,10 0 0,1 8.66,5l-4.33,2.5A5,5 0 0,0 12,7Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M3.34,7A10,10 0 0,1 12,2V7a5,5 0 0,0 -4.33,2.5Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7.67,14.5a5,5 0 0,0 8.66,0l4.33,2.5a10,10 0 0,1 -17.32,0Z" />
+</vector>
