@@ -1,0 +1,83 @@
+package app.radiacode.data
+
+import app.radiacode.data.db.DownsampledSample
+import app.radiacode.data.db.EventDao
+import app.radiacode.data.db.EventEntity
+import app.radiacode.data.db.RareDataDao
+import app.radiacode.data.db.RareDataEntity
+import app.radiacode.data.db.SampleDao
+import app.radiacode.data.db.SampleEntity
+import app.radiacode.data.db.SpectrumDao
+import app.radiacode.data.db.SpectrumSnapshotEntity
+import app.radiacode.protocol.DataBufRecord
+import app.radiacode.protocol.Event
+import app.radiacode.protocol.RareData
+import app.radiacode.protocol.RealTimeData
+import app.radiacode.protocol.Spectrum
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * Persistence facade for measurement data. All flows are Room-backed and
+ * update automatically on writes; suitable for direct UI consumption.
+ */
+class MeasurementRepository(
+    private val sampleDao: SampleDao,
+    private val rareDataDao: RareDataDao,
+    private val eventDao: EventDao,
+    private val spectrumDao: SpectrumDao,
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
+
+    /** Persists one decoded DATA_BUF batch, routing record types to their tables. */
+    suspend fun record(records: List<DataBufRecord>) {
+        val samples = records.filterIsInstance<RealTimeData>().map { it.toEntity() }
+        if (samples.isNotEmpty()) sampleDao.insertAll(samples)
+
+        val rare = records.filterIsInstance<RareData>().map { it.toEntity() }
+        if (rare.isNotEmpty()) rareDataDao.insertAll(rare)
+
+        val events = records.filterIsInstance<Event>().map { it.toEntity() }
+        if (events.isNotEmpty()) eventDao.insertAll(events)
+    }
+
+    suspend fun recordHotspot(
+        timestamp: Long,
+        doseRate: Float,
+        latitude: Double?,
+        longitude: Double?,
+    ) {
+        eventDao.insert(
+            EventEntity(
+                timestamp = timestamp,
+                source = EventEntity.SOURCE_HOTSPOT,
+                code = 0,
+                name = "HOTSPOT",
+                param1 = 0,
+                flags = 0,
+                doseRate = doseRate,
+                latitude = latitude,
+                longitude = longitude,
+            ),
+        )
+    }
+
+    suspend fun saveSpectrum(spectrum: Spectrum, accumulated: Boolean): SpectrumSnapshotEntity {
+        val entity = spectrum.toEntity(timestamp = clock(), accumulated = accumulated)
+        spectrumDao.insert(entity)
+        return entity
+    }
+
+    fun latestSample(): Flow<SampleEntity?> = sampleDao.observeLatest()
+
+    fun samples(from: Long, to: Long): Flow<List<SampleEntity>> = sampleDao.observeRange(from, to)
+
+    suspend fun downsampledSamples(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> =
+        sampleDao.downsampledRange(from, to, bucketMillis)
+
+    fun latestRareData(): Flow<RareDataEntity?> = rareDataDao.observeLatest()
+
+    fun recentEvents(limit: Int = 100): Flow<List<EventEntity>> = eventDao.observeRecent(limit)
+
+    fun latestSpectrum(accumulated: Boolean): Flow<SpectrumSnapshotEntity?> =
+        spectrumDao.observeLatest(accumulated)
+}
