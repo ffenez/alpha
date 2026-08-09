@@ -1,5 +1,6 @@
 package app.radiacode.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,8 +23,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
+import androidx.compose.ui.unit.dp
 import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.EnergyWindow
+import app.radiacode.analysis.IsotopeMatcher
+import app.radiacode.analysis.PeakDetection
 import app.radiacode.analysis.SpectrumDisplay
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.db.SampleEntity
@@ -246,6 +250,27 @@ private fun SpectrumContent(
     val dataMax = maxOf(columns.maxOrNull() ?: 0f, overlayColumns?.maxOrNull() ?: 0f)
     val yTop = if (logScale) SpectrumDisplay.logTop(dataMax) else maxOf(dataMax * 1.15f, 10f)
 
+    // --- cautious isotope analysis (always on raw counts, never on display data) ---
+    val analysisReady = spectrum.durationSeconds >= IsotopeMatcher.MIN_ANALYSIS_SECONDS
+    val hints = remember(spectrum, calibration, analysisReady) {
+        if (analysisReady) {
+            IsotopeMatcher.match(PeakDetection.detect(spectrum.counts, calibration))
+        } else {
+            emptyList()
+        }
+    }
+    var highlightedIsotope by remember { mutableStateOf<String?>(null) }
+    val highlightedHint = hints.firstOrNull { it.isotope == highlightedIsotope } ?: hints.firstOrNull()
+    val highlightedColumns: Set<Int> = remember(highlightedHint, range, calibration) {
+        val hint = highlightedHint ?: return@remember emptySet()
+        val half = PeakDetection.halfWidthChannels(calibration, hint.peak.channel)
+        buildSet {
+            for (channel in (hint.peak.channel - half)..(hint.peak.channel + half)) {
+                SpectrumDisplay.columnForChannel(channel, range, COLUMN_COUNT)?.let { add(it) }
+            }
+        }
+    }
+
     PixelBox(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -286,6 +311,7 @@ private fun SpectrumContent(
                     overlay = overlayColumns,
                     logScale = logScale,
                     yTop = yTop,
+                    highlightedColumns = highlightedColumns,
                     energyTicks = SpectrumDisplay.energyTicks(visible),
                 ),
                 onGesture = { scale, pan, focus ->
@@ -365,6 +391,67 @@ private fun SpectrumContent(
             PixelButton(
                 text = "ЗАПИСАТЬ ФОН",
                 onClick = { hub.request(SpectrumHub.Command.RECORD_BACKGROUND) },
+            )
+        }
+    }
+
+    // --- cautious isotope hints (SPEC: never «обнаружен») ---
+    PixelBox(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
+            Text("ВОЗМОЖНЫЕ СОВПАДЕНИЯ", style = type.label, color = colors.text)
+            when {
+                !analysisReady -> Text(
+                    text = "мало данных для анализа — накопите хотя бы минуту",
+                    style = type.bodySmall,
+                    color = colors.textMuted,
+                )
+                hints.isEmpty() -> Text(
+                    text = "выраженных пиков над фоном не найдено",
+                    style = type.bodySmall,
+                    color = colors.textMuted,
+                )
+                else -> {
+                    hints.forEach { hint ->
+                        val selected = hint == highlightedHint
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { highlightedIsotope = hint.isotope },
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = (if (selected) "▸ " else "· ") + SpectrumFormat.hintLine(hint),
+                                style = type.labelSmall,
+                                color = if (selected) colors.text else colors.textSecondary,
+                            )
+                            SpectrumFormat.hintNote(hint)?.let {
+                                Text(
+                                    text = "  $it",
+                                    style = type.labelSmall,
+                                    color = colors.textMuted,
+                                )
+                            }
+                            SpectrumFormat.hintAlternatives(hint)?.let {
+                                Text(
+                                    text = "  $it",
+                                    style = type.labelSmall,
+                                    color = colors.textMuted,
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "красная метка на графике — пик подсвеченного кандидата",
+                        style = type.labelSmall,
+                        color = colors.textMuted,
+                    )
+                }
+            }
+            Text(
+                text = "Совпадение по пику — не обнаружение изотопа. Для вывода нужны " +
+                    "повторное накопление и дополнительные линии.",
+                style = type.bodySmall,
+                color = colors.textMuted,
             )
         }
     }
