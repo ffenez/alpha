@@ -1,5 +1,6 @@
 package app.radiacode.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,11 +22,12 @@ import app.radiacode.service.MeasurementService
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.PixelNavBar
 import app.radiacode.ui.components.crtOverlay
-import app.radiacode.ui.screens.HistoryPlaceholder
+import app.radiacode.ui.screens.HistoryScreen
 import app.radiacode.ui.screens.MapPlaceholder
 import app.radiacode.ui.screens.MonitorScreen
 import app.radiacode.ui.screens.OnboardingScreen
 import app.radiacode.ui.screens.SearchScreen
+import app.radiacode.ui.screens.SessionDetailScreen
 import app.radiacode.ui.screens.SpectrumPlaceholder
 import app.radiacode.ui.theme.LocalPixelColors
 
@@ -76,6 +78,12 @@ private fun MainScaffold(graph: AppGraph) {
     }
 
     var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
+    // Overlays above the tab content; Settings opens separately (SPEC), a
+    // session detail comes from История. Back and tab switches dismiss them.
+    var sessionDetailId by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    BackHandler(enabled = sessionDetailId != null) { sessionDetailId = null }
+
     Column(Modifier.fillMaxSize()) {
         Box(
             Modifier
@@ -83,14 +91,32 @@ private fun MainScaffold(graph: AppGraph) {
                 .fillMaxWidth()
                 .statusBarsPadding(),
         ) {
-            when (tab) {
-                AppTab.HOME -> MonitorScreen(graph)
-                AppTab.SEARCH -> SearchScreen(graph)
-                AppTab.SPECTRUM -> SpectrumPlaceholder()
-                AppTab.MAP -> MapPlaceholder()
-                AppTab.HISTORY -> HistoryPlaceholder()
+            val detailId = sessionDetailId
+            if (detailId != null) {
+                SessionDetailScreen(
+                    graph = graph,
+                    sessionId = detailId,
+                    onBack = { sessionDetailId = null },
+                )
+            } else {
+                when (tab) {
+                    AppTab.HOME -> MonitorScreen(graph)
+                    AppTab.SEARCH -> SearchScreen(graph)
+                    AppTab.SPECTRUM -> SpectrumPlaceholder()
+                    AppTab.MAP -> MapPlaceholder()
+                    AppTab.HISTORY -> HistoryScreen(
+                        graph = graph,
+                        onOpenSession = { sessionDetailId = it },
+                    )
+                }
             }
         }
-        PixelNavBar(selected = tab, onSelect = { tab = it })
+        PixelNavBar(
+            selected = tab,
+            onSelect = {
+                sessionDetailId = null
+                tab = it
+            },
+        )
     }
 }

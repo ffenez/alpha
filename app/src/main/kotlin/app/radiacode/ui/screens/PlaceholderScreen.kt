@@ -77,13 +77,3 @@ fun MapPlaceholder() = PlaceholderScreen(
         "участки маршрута с устойчивым повышением",
     ),
 )
-
-@Composable
-fun HistoryPlaceholder() = PlaceholderScreen(
-    title = "ИСТОРИЯ",
-    planned = listOf(
-        "сессии измерений со сводками: мин · ср · макс · доза",
-        "журнал событий прибора",
-        "экспорт данных",
-    ),
-)
