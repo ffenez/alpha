@@ -10,7 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -44,8 +44,9 @@ private sealed interface RememberedDevice {
 @Composable
 fun AppRoot(graph: AppGraph) {
     val colors = LocalPixelColors.current
-    val remembered by produceState<RememberedDevice>(RememberedDevice.Loading, graph) {
-        graph.settings.lastDeviceAddress.collect { value = RememberedDevice.Loaded(it) }
+    var remembered by remember { mutableStateOf<RememberedDevice>(RememberedDevice.Loading) }
+    LaunchedEffect(graph) {
+        graph.settings.lastDeviceAddress.collect { remembered = RememberedDevice.Loaded(it) }
     }
 
     Box(
