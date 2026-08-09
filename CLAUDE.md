@@ -16,9 +16,17 @@
 - BLE-протокол RadiaCode реверс-инжинирен сообществом; собственный код протокола писать по документации/идеям, код копировать только из совместимых по лицензии источников с атрибуцией (GPL-код не копировать).
 - Дозиметрические величины: хранить сырые значения и единицы (мкЗв/ч, cps), не терять точность при конвертации.
 
+## Commands
+
+- Сборка: `JAVA_HOME=/home/dev/.local/jdk ./gradlew :app:assembleDebug` (свежий APK автоматически копируется в `apk/app-debug.apk`)
+- Тесты: `JAVA_HOME=/home/dev/.local/jdk ./gradlew test` (JVM-тесты :protocol и :app)
+- Lint: `JAVA_HOME=/home/dev/.local/jdk ./gradlew :app:lintDebug`
+
 ## Key decisions
 
 - Протокол — чистый Kotlin-порт cdump/radiacode; Open-RadiaCode-Android без лицензии — только идеи, не код (ADR 001)
 - Один запрос в полёте, матчинг по эхо заголовка; канонический SPEC_ACCUM = 0x205
 - Устройство держит одного BLE-клиента: сосуществование с официальным приложением невозможно, это ограничение UX
 - Непрерывное измерение — foreground service + запрос исключения из battery optimization
+- UI — дизайн-система «8-bit hybrid» (docs/design/design-language.md): токены в `app/.../ui/theme`, компоненты в `app/.../ui/components`; экраны тонкие, вся тестируемая логика UI — в `ui/logic` (чистый JVM)
+- Pixelify Sans бандлится с локальным cmap-патчем: в upstream-шрифте нет заглавных кириллических О (U+041E) и П (U+041F), добавлены маппинги на идентичные глифы O и Π (см. `app/src/main/assets/licenses/pixelify_sans_NOTICE.txt`); при обновлении шрифта патч переприменить
