@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +28,12 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import app.radiacode.AppGraph
+import app.radiacode.baseline.AlarmSensitivity
+import app.radiacode.baseline.AlarmThresholds
+import app.radiacode.baseline.Baseline
+import app.radiacode.baseline.BaselineState
+import app.radiacode.baseline.alarmThresholds
+import app.radiacode.data.DoseUnitSetting
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
 import app.radiacode.service.BatteryOptimization
@@ -35,19 +42,25 @@ import app.radiacode.ui.components.PixelButton
 import app.radiacode.ui.components.PixelChart
 import app.radiacode.ui.components.PixelChartSpec
 import app.radiacode.ui.components.PixelTag
+import app.radiacode.ui.components.PlacePickerDialog
 import app.radiacode.ui.components.StatusLine
 import app.radiacode.ui.logic.ChartMapping
+import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.Freshness
 import app.radiacode.ui.logic.MonitorStatus
-import app.radiacode.ui.logic.formatMicroSv
+import app.radiacode.ui.logic.baselineCollectedWording
+import app.radiacode.ui.logic.cpsWording
 import app.radiacode.ui.logic.freshnessLabel
-import app.radiacode.ui.logic.statusWording
+import app.radiacode.ui.logic.learningWording
+import app.radiacode.ui.logic.statusDetail
+import app.radiacode.ui.logic.statusHeadline
 import app.radiacode.ui.theme.LocalPixelColors
 import app.radiacode.ui.theme.LocalPixelTypography
 import app.radiacode.ui.theme.PixelDimens
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val CHART_COLUMNS = 48
 private const val CHART_WINDOW_MILLIS = 60L * 60_000L
@@ -64,25 +77,25 @@ private data class HourChart(
 
 /**
  * Монитор (Главная): the 2-3 second answer — current dose rate, whether it
- * differs from usual, dose today, last hour trend. Status is currently a
- * fixed-threshold comparison; the baseline engine (roadmap #3) plugs into
- * [MonitorStatus] without touching this screen.
+ * differs from the usual level of this place, dose today, last hour trend.
+ * Baseline state and the live deviation picture come from the measurement
+ * service (single source); this screen only renders [MonitorStatus].
  */
 @Composable
-fun MonitorScreen(graph: AppGraph) {
+fun MonitorScreen(graph: AppGraph, onOpenSettings: () -> Unit = {}) {
+    val scope = rememberCoroutineScope()
     val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
     val connection by graph.serviceStatus.connection.collectAsState()
     val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
-    val thresholds by graph.settings.alarmThresholds.collectAsState(
-        initial = app.radiacode.baseline.alarmThresholds(
-            app.radiacode.baseline.AlarmSensitivity.NORMAL,
-            0f,
-            0f,
-        ),
-    )
-    val threshold = thresholds.l1MicroSvH
+    val baselineState by graph.serviceStatus.baseline.collectAsState()
+    val deviation by graph.serviceStatus.deviation.collectAsState()
+    val thresholds by graph.settings.alarmThresholds
+        .collectAsState(initial = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f))
+    val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
+    val places by graph.placeRepository.places().collectAsState(initial = emptyList())
+    val activePlace by graph.placeRepository.activePlace().collectAsState(initial = null)
 
-    // 1 s wall-clock ticker drives only the staleness indicator.
+    // 1 s wall-clock ticker drives the staleness indicator and held durations.
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -100,8 +113,16 @@ fun MonitorScreen(graph: AppGraph) {
         }
     }
 
+    var showPlacePicker by remember { mutableStateOf(false) }
+
     val doseMicroSvH = sample?.let { DoseUnits.rawToMicroSievertPerHour(it.doseRate) }
-    val status = MonitorStatus.of(doseMicroSvH, threshold)
+    val status = MonitorStatus.of(
+        doseRateMicroSvH = doseMicroSvH,
+        baselineState = baselineState,
+        deviation = deviation,
+        thresholds = thresholds,
+        nowMillis = nowMillis,
+    )
 
     Column(
         modifier = Modifier
@@ -111,29 +132,52 @@ fun MonitorScreen(graph: AppGraph) {
         verticalArrangement = Arrangement.spacedBy(PixelDimens.space4),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Place tag is static until the per-place baseline engine exists.
-            PixelTag(text = "ДОМ")
+            PixelTag(
+                text = (activePlace?.name ?: "МЕСТО?").uppercase(),
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { showPlacePicker = true },
+            )
             Spacer(Modifier.weight(1f))
             FreshnessIndicator(freshness)
         }
 
         MainReading(
             doseMicroSvH = doseMicroSvH,
-            cps = sample?.countRate,
+            cpsLine = cpsWording(sample?.countRate, baselineState),
             status = status,
-            thresholdMicroSvH = threshold,
+            baselineState = baselineState,
+            unit = unit,
             stale = freshness !is Freshness.Fresh,
             doseTodayMicroSv = hourChart?.doseTodayMicroSv,
         )
 
         HourChartPanel(
             chart = hourChart,
-            thresholdMicroSvH = threshold,
+            baseline = (baselineState as? BaselineState.Active)?.baseline,
+            thresholds = thresholds,
+            unit = unit,
         )
 
         BatteryBanner()
 
         ConnectionFooter(connection = connection, serviceRunning = serviceRunning)
+    }
+
+    if (showPlacePicker) {
+        PlacePickerDialog(
+            places = places,
+            activePlaceId = activePlace?.id,
+            onSelect = { id -> scope.launch { graph.placeRepository.setActive(id) } },
+            onCreate = { name ->
+                scope.launch {
+                    val id = graph.placeRepository.add(name)
+                    graph.placeRepository.setActive(id)
+                }
+            },
+            onDismiss = { showPlacePicker = false },
+        )
     }
 }
 
@@ -155,9 +199,10 @@ private fun FreshnessIndicator(freshness: Freshness) {
 @Composable
 private fun MainReading(
     doseMicroSvH: Float?,
-    cps: Float?,
+    cpsLine: String,
     status: MonitorStatus,
-    thresholdMicroSvH: Float,
+    baselineState: BaselineState?,
+    unit: DoseUnitSetting,
     stale: Boolean,
     doseTodayMicroSv: Double?,
 ) {
@@ -176,31 +221,57 @@ private fun MainReading(
                 null
             }
             val valueColor = when {
-                doseMicroSvH == null -> colors.textMuted
-                stale -> colors.textMuted
+                doseMicroSvH == null || stale -> colors.textMuted
                 else -> colors.accent
             }
             Text(
-                text = doseMicroSvH?.let { formatMicroSv(it) } ?: "—.—",
+                text = doseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—.—",
                 style = glow?.let { type.valueHuge.copy(shadow = it) } ?: type.valueHuge,
                 color = valueColor,
                 textAlign = TextAlign.Center,
             )
-            Text(text = "мкЗв/ч", style = type.label, color = colors.textSecondary)
+            Text(
+                text = DoseFormat.rateUnitLabel(unit),
+                style = type.label,
+                color = colors.textSecondary,
+            )
 
+            // Red is reserved for the confirmed alarm state; amber for «выше
+            // обычного»; normal states never shout (design rule).
             val statusColor = when {
-                stale || status == MonitorStatus.UNKNOWN -> colors.textMuted
-                status == MonitorStatus.ABOVE_THRESHOLD -> colors.aboveUsual
+                stale || status == MonitorStatus.Unknown -> colors.textMuted
+                status is MonitorStatus.Alert -> colors.chartAlarm
+                status is MonitorStatus.AboveUsual -> colors.aboveUsual
+                status is MonitorStatus.Fixed && status.above -> colors.aboveUsual
                 else -> colors.accent
             }
             Text(
-                text = statusWording(status, thresholdMicroSvH),
+                text = statusHeadline(status),
                 style = glow?.let { type.heading.copy(shadow = it) } ?: type.heading,
                 color = statusColor,
                 textAlign = TextAlign.Center,
             )
+            statusDetail(status, unit)?.let { detail ->
+                Text(
+                    text = detail,
+                    style = type.labelSmall,
+                    color = if (statusColor == colors.accent) colors.textSecondary else statusColor,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            // Baseline comparison is a distinct data category (SPEC).
+            if (status is MonitorStatus.Usual || status is MonitorStatus.AboveUsual) {
+                PixelTag(text = "сравнение с baseline")
+            }
+            (baselineState as? BaselineState.Learning)?.let { learning ->
+                StatusLine(
+                    text = learningWording(learning),
+                    cursor = true,
+                    color = colors.textMuted,
+                )
+            }
 
-            CpsPill(cps = cps)
+            CpsPill(cpsLine)
 
             if (doseTodayMicroSv != null) {
                 Row(
@@ -208,7 +279,7 @@ private fun MainReading(
                     horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2),
                 ) {
                     Text(
-                        text = "доза сегодня: ${formatMicroSv(doseTodayMicroSv.toFloat())} мкЗв",
+                        text = "доза сегодня: ${DoseFormat.doseWithUnit(doseTodayMicroSv, unit)}",
                         style = type.value,
                         color = colors.textSecondary,
                     )
@@ -220,15 +291,16 @@ private fun MainReading(
 }
 
 @Composable
-private fun CpsPill(cps: Float?) {
+private fun CpsPill(cpsLine: String) {
     val colors = LocalPixelColors.current
     val type = LocalPixelTypography.current
     var showHint by remember { mutableStateOf(false) }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = cps?.let { "${it.toInt()} CPS" } ?: "— CPS",
+            text = cpsLine,
             style = type.value,
             color = colors.textSecondary,
+            textAlign = TextAlign.Center,
             modifier = Modifier
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -250,7 +322,12 @@ private fun CpsPill(cps: Float?) {
 }
 
 @Composable
-private fun HourChartPanel(chart: HourChart?, thresholdMicroSvH: Float) {
+private fun HourChartPanel(
+    chart: HourChart?,
+    baseline: Baseline?,
+    thresholds: AlarmThresholds,
+    unit: DoseUnitSetting,
+) {
     val colors = LocalPixelColors.current
     val type = LocalPixelTypography.current
     PixelBox(modifier = Modifier.fillMaxWidth()) {
@@ -265,32 +342,46 @@ private fun HourChartPanel(chart: HourChart?, thresholdMicroSvH: Float) {
                     color = colors.textMuted,
                 )
             } else {
-                val yMax = ChartMapping.yMax(stats.max, thresholdMicroSvH)
+                val alarmLevel = thresholds.l1MicroSvH
+                val yMax = ChartMapping.yMax(
+                    maxOf(stats.max, baseline?.doseHighMicroSvH ?: 0f),
+                    alarmLevel,
+                )
                 PixelChart(
                     spec = PixelChartSpec(
                         columns = chart.columns,
                         yMax = yMax,
-                        alarmLevel = thresholdMicroSvH,
-                        // TODO(baseline engine): usual-range band per place.
-                        band = null,
+                        alarmLevel = alarmLevel,
+                        band = baseline?.let { it.doseLowMicroSvH..it.doseHighMicroSvH },
                         columnWidthPx = 2,
                         gapPx = 1,
                     ),
-                    yMaxLabel = "${formatMicroSv(yMax)} мкЗв/ч",
+                    yMaxLabel = DoseFormat.rateWithUnit(yMax, unit),
                     xStartLabel = "-60 мин",
                     xEndLabel = "сейчас",
                 )
-                val s = stats
                 Text(
-                    text = "мин ${formatMicroSv(s.min)} · ср ${formatMicroSv(s.avg)} · " +
-                        "макс ${formatMicroSv(s.max)} · σ ${formatMicroSv(s.sigma)}",
+                    text = "мин ${DoseFormat.rate(stats.min, unit)} · " +
+                        "ср ${DoseFormat.rate(stats.avg, unit)} · " +
+                        "макс ${DoseFormat.rate(stats.max, unit)} · " +
+                        "σ ${DoseFormat.rate(stats.sigma, unit)}",
                     style = type.labelSmall,
                     color = colors.textSecondary,
                 )
+                val legend = buildString {
+                    append("пунктир — тревога ")
+                    append(DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit))
+                    if (baseline != null) {
+                        append(". Штриховка — обычный диапазон этого места, ")
+                        append(baselineCollectedWording(baseline))
+                    } else {
+                        append(". Привычный диапазон появится, когда накопится ")
+                        append("история наблюдений")
+                    }
+                    append(".")
+                }
                 Text(
-                    text = "пунктир — порог ${formatMicroSv(thresholdMicroSvH)} мкЗв/ч. " +
-                        "Привычный диапазон появится, когда накопится история " +
-                        "наблюдений.",
+                    text = legend,
                     style = type.bodySmall,
                     color = colors.textMuted,
                 )
