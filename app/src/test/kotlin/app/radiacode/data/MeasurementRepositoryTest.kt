@@ -59,6 +59,8 @@ private class FakeSpectrumDao : SpectrumDao {
     override suspend fun insert(snapshot: SpectrumSnapshotEntity): Long { inserted += snapshot; return inserted.size.toLong() }
     override fun observeLatest(accumulated: Boolean): Flow<SpectrumSnapshotEntity?> =
         flowOf(inserted.lastOrNull { it.accumulated == accumulated })
+    override fun observeBackgroundReference(): Flow<SpectrumSnapshotEntity?> =
+        flowOf(inserted.lastOrNull { it.isBackgroundReference })
     override fun observeRange(from: Long, to: Long): Flow<List<SpectrumSnapshotEntity>> = flowOf(emptyList())
     override suspend fun countInRange(from: Long, to: Long): Int =
         inserted.count { it.timestamp in from..to }

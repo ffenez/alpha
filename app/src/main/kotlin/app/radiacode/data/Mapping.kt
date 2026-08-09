@@ -40,10 +40,15 @@ fun Event.toEntity(): EventEntity = EventEntity(
     flags = flags,
 )
 
-fun Spectrum.toEntity(timestamp: Long, accumulated: Boolean): SpectrumSnapshotEntity =
+fun Spectrum.toEntity(
+    timestamp: Long,
+    accumulated: Boolean,
+    isBackgroundReference: Boolean = false,
+): SpectrumSnapshotEntity =
     SpectrumSnapshotEntity(
         timestamp = timestamp,
         accumulated = accumulated,
+        isBackgroundReference = isBackgroundReference,
         durationSeconds = durationSeconds,
         a0 = a0,
         a1 = a1,

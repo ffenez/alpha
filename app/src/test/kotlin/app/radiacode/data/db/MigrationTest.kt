@@ -66,16 +66,8 @@ class MigrationTest {
         return result
     }
 
-    @Test
-    fun `migration 1 to 2 produces exactly the exported v2 schema`() {
-        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
-            createFromSchema(connection, schema(1))
-            MigrationSql.FROM_1_TO_2.forEach { sql ->
-                connection.createStatement().use { it.execute(sql) }
-            }
-
-            val v2 = schema(2)
-            val entities = v2.getJSONArray("entities")
+    private fun assertMatchesSchema(connection: Connection, expected: JSONObject) {
+        val entities = expected.getJSONArray("entities")
             for (i in 0 until entities.length()) {
                 val entity = entities.getJSONObject(i)
                 val table = entity.getString("tableName")
@@ -103,6 +95,56 @@ class MigrationTest {
                     }
                 }
                 assertEquals(expectedIndices, actualIndexNames(connection, table), "$table indices")
+        }
+    }
+
+    @Test
+    fun `migration 1 to 2 produces exactly the exported v2 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(1))
+            MigrationSql.FROM_1_TO_2.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(2))
+        }
+    }
+
+    @Test
+    fun `migration 2 to 3 produces exactly the exported v3 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(2))
+            MigrationSql.FROM_2_TO_3.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(3))
+        }
+    }
+
+    @Test
+    fun `migration 2 to 3 keeps saved spectra as non-background snapshots`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(2))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO spectra " +
+                        "(timestamp, accumulated, durationSeconds, a0, a1, a2, channelCount, counts) " +
+                        "VALUES (1000, 0, 120, -5.5, 2.4, 0.0004, 4, x'01000000020000000300000004000000')",
+                )
+            }
+
+            MigrationSql.FROM_2_TO_3.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT timestamp, durationSeconds, isBackgroundReference FROM spectra",
+                )
+                assertTrue(rows.next())
+                assertEquals(1000L, rows.getLong("timestamp"))
+                assertEquals(120L, rows.getLong("durationSeconds"))
+                assertEquals(0, rows.getInt("isBackgroundReference"))
+                assertTrue(!rows.next(), "exactly one row expected")
             }
         }
     }

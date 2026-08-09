@@ -10,6 +10,11 @@ package app.radiacode.data.db
  */
 object MigrationSql {
 
+    /** v2 → v3: spectra.isBackgroundReference (Спектр background overlay/subtraction). */
+    val FROM_2_TO_3: List<String> = listOf(
+        "ALTER TABLE `spectra` ADD COLUMN `isBackgroundReference` INTEGER NOT NULL DEFAULT 0",
+    )
+
     /** v1 → v2: places, measurement sessions, samples.placeId. */
     val FROM_1_TO_2: List<String> = listOf(
         """

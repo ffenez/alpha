@@ -35,12 +35,16 @@ import app.radiacode.protocol.RealTimeData
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -77,6 +81,10 @@ class MeasurementService : Service() {
 
     @Volatile
     private var lastSample: RealTimeData? = null
+
+    /** Spectrum auto-persist throttle (1/min while the Спектр tab is watched). */
+    @Volatile
+    private var lastSpectrumAutosaveAt: Long = 0L
 
     // --- baseline / sessions / alarm engine state ---
 
@@ -315,6 +323,83 @@ class MeasurementService : Service() {
                 graph.serviceStatus.onConnectionState(state)
                 onConnectionForSession(state)
                 updateNotification()
+            }
+        }
+        deviceJobs += scope.launch {
+            combine(newDevice.connectionState, graph.spectrumHub.watchers) { conn, watchers ->
+                if (conn is ConnectionState.Connected && watchers > 0) {
+                    conn.info.spectrumFormatVersion
+                } else {
+                    null
+                }
+            }.distinctUntilChanged().collectLatest { formatVersion ->
+                if (formatVersion == null) return@collectLatest
+                if (formatVersion !in SpectrumHub.SUPPORTED_FORMAT_VERSIONS) {
+                    graph.spectrumHub.onUnsupportedFormat(formatVersion)
+                    return@collectLatest
+                }
+                // Demand-driven spectrum poll: interleaves with the 1 Hz
+                // DATA_BUF poll on the single-in-flight ProtocolClient.
+                while (true) {
+                    pollSpectrum(newDevice)
+                    delay(SpectrumHub.POLL_INTERVAL_MILLIS)
+                }
+            }
+        }
+        deviceJobs += scope.launch {
+            graph.spectrumHub.commands.collect { command ->
+                onSpectrumCommand(newDevice, command)
+            }
+        }
+    }
+
+    // --- spectrum acquisition ---
+
+    private suspend fun pollSpectrum(device: RadiaCodeDevice) {
+        val spectrum = try {
+            device.readSpectrum()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return // link hiccup or timeout: the loop retries on the next tick
+        }
+        val now = System.currentTimeMillis()
+        graph.spectrumHub.onSpectrum(spectrum, now)
+        if (now - lastSpectrumAutosaveAt >= SpectrumHub.AUTOSAVE_INTERVAL_MILLIS) {
+            lastSpectrumAutosaveAt = now
+            graph.measurementRepository.saveSpectrum(spectrum, accumulated = false)
+        }
+    }
+
+    private suspend fun onSpectrumCommand(device: RadiaCodeDevice, command: SpectrumHub.Command) {
+        when (command) {
+            SpectrumHub.Command.RESET -> {
+                try {
+                    device.resetSpectrum()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    return // device unreachable; the UI still shows the old spectrum
+                }
+                graph.spectrumHub.onReset()
+                // The device also reports a SPECTRUM_RESET event via DATA_BUF,
+                // which lands in the journal through the regular record path.
+                pollSpectrum(device)
+            }
+            SpectrumHub.Command.SAVE_SNAPSHOT -> {
+                val spectrum = graph.spectrumHub.state.value.spectrum ?: return
+                val now = System.currentTimeMillis()
+                graph.measurementRepository.saveSpectrum(spectrum, accumulated = false)
+                graph.measurementRepository.recordSpectrumSaved(now, spectrum.durationSeconds)
+                graph.spectrumHub.onSaved(now)
+            }
+            SpectrumHub.Command.RECORD_BACKGROUND -> {
+                val spectrum = graph.spectrumHub.state.value.spectrum ?: return
+                graph.measurementRepository.saveSpectrum(
+                    spectrum,
+                    accumulated = false,
+                    isBackgroundReference = true,
+                )
             }
         }
     }

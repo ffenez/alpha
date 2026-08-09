@@ -240,6 +240,10 @@ interface SpectrumDao {
     @Query("SELECT * FROM spectra WHERE accumulated = :accumulated ORDER BY timestamp DESC LIMIT 1")
     fun observeLatest(accumulated: Boolean): Flow<SpectrumSnapshotEntity?>
 
+    /** Newest user-recorded background reference (Спектр overlay/subtraction). */
+    @Query("SELECT * FROM spectra WHERE isBackgroundReference = 1 ORDER BY timestamp DESC LIMIT 1")
+    fun observeBackgroundReference(): Flow<SpectrumSnapshotEntity?>
+
     @Query("SELECT * FROM spectra WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
     fun observeRange(from: Long, to: Long): Flow<List<SpectrumSnapshotEntity>>
 

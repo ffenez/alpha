@@ -88,6 +88,9 @@ data class EventEntity(
          * so History can honestly say «обычно здесь X» as of the event time.
          */
         const val SOURCE_DEVIATION = "deviation"
+
+        /** User saved a spectrum snapshot ([param1] = accumulation seconds). */
+        const val SOURCE_SPECTRUM = "spectrum"
     }
 }
 
@@ -161,6 +164,12 @@ data class SpectrumSnapshotEntity(
     val timestamp: Long,
     /** true = accumulated (lifetime) spectrum, false = current since last reset. */
     val accumulated: Boolean,
+    /**
+     * true = the user recorded this snapshot as the background reference for
+     * overlay/subtraction on the Спектр screen. The newest flagged row wins;
+     * older references stay as ordinary history snapshots.
+     */
+    val isBackgroundReference: Boolean = false,
     val durationSeconds: Long,
     val a0: Float,
     val a1: Float,

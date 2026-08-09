@@ -88,10 +88,32 @@ class MeasurementRepository(
         )
     }
 
-    suspend fun saveSpectrum(spectrum: Spectrum, accumulated: Boolean): SpectrumSnapshotEntity {
-        val entity = spectrum.toEntity(timestamp = clock(), accumulated = accumulated)
+    suspend fun saveSpectrum(
+        spectrum: Spectrum,
+        accumulated: Boolean,
+        isBackgroundReference: Boolean = false,
+    ): SpectrumSnapshotEntity {
+        val entity = spectrum.toEntity(
+            timestamp = clock(),
+            accumulated = accumulated,
+            isBackgroundReference = isBackgroundReference,
+        )
         spectrumDao.insert(entity)
         return entity
+    }
+
+    /** Journal entry for an explicit user save on the Спектр screen. */
+    suspend fun recordSpectrumSaved(timestamp: Long, accumulationSeconds: Long) {
+        eventDao.insert(
+            EventEntity(
+                timestamp = timestamp,
+                source = EventEntity.SOURCE_SPECTRUM,
+                code = 0,
+                name = "SPECTRUM_SAVED",
+                param1 = accumulationSeconds.toInt(),
+                flags = 0,
+            ),
+        )
     }
 
     fun latestSample(): Flow<SampleEntity?> = sampleDao.observeLatest()
@@ -107,4 +129,8 @@ class MeasurementRepository(
 
     fun latestSpectrum(accumulated: Boolean): Flow<SpectrumSnapshotEntity?> =
         spectrumDao.observeLatest(accumulated)
+
+    /** Newest background reference recorded on the Спектр screen; null = none yet. */
+    fun backgroundReference(): Flow<SpectrumSnapshotEntity?> =
+        spectrumDao.observeBackgroundReference()
 }

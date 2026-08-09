@@ -12,6 +12,7 @@ import app.radiacode.device.DeviceLinkFactory
 import app.radiacode.device.KableLinkFactory
 import app.radiacode.device.RadiaCodeScanner
 import app.radiacode.service.ServiceStatus
+import app.radiacode.service.SpectrumHub
 
 /**
  * Manual dependency graph (no DI framework, ADR 001). One instance per process,
@@ -61,6 +62,9 @@ class AppGraph private constructor(context: Context) {
 
     /** Live service/connection state for the UI (service is unbound). */
     val serviceStatus: ServiceStatus = ServiceStatus()
+
+    /** Spectrum acquisition bridge: UI attaches, service polls and executes commands. */
+    val spectrumHub: SpectrumHub = SpectrumHub()
 
     companion object {
         @Volatile
