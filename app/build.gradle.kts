@@ -37,6 +37,12 @@ android {
     }
 }
 
+// Exported Room schemas are committed (app/schemas) so migrations are
+// reviewable and JVM-testable without instrumentation.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
@@ -61,6 +67,10 @@ dependencies {
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
+    // Migration test: replay MigrationSql on a real SQLite built from the
+    // exported schema JSON (app/schemas) — no instrumentation needed.
+    testImplementation(libs.sqlite.jdbc)
+    testImplementation(libs.org.json)
 }
 
 // Repo convention: the fresh debug APK always lands in <repo>/apk/app-debug.apk.

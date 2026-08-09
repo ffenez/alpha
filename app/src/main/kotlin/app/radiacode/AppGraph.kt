@@ -2,7 +2,10 @@ package app.radiacode
 
 import android.content.Context
 import app.radiacode.data.AppSettings
+import app.radiacode.data.BaselineRepository
 import app.radiacode.data.MeasurementRepository
+import app.radiacode.data.PlaceRepository
+import app.radiacode.data.SessionRepository
 import app.radiacode.data.TrackRepository
 import app.radiacode.data.db.AppDatabase
 import app.radiacode.device.DeviceLinkFactory
@@ -30,6 +33,27 @@ class AppGraph private constructor(context: Context) {
     }
 
     val trackRepository: TrackRepository by lazy { TrackRepository(database.trackDao()) }
+
+    val placeRepository: PlaceRepository by lazy {
+        PlaceRepository(
+            placeDao = database.placeDao(),
+            sampleDao = database.sampleDao(),
+            settings = settings,
+        )
+    }
+
+    val baselineRepository: BaselineRepository by lazy { BaselineRepository(database.sampleDao()) }
+
+    val sessionRepository: SessionRepository by lazy {
+        SessionRepository(
+            sessionDao = database.sessionDao(),
+            sampleDao = database.sampleDao(),
+            placeDao = database.placeDao(),
+            spectrumDao = database.spectrumDao(),
+            trackDao = database.trackDao(),
+            eventDao = database.eventDao(),
+        )
+    }
 
     val linkFactory: DeviceLinkFactory by lazy { KableLinkFactory() }
 

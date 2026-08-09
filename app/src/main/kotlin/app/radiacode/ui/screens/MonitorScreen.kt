@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import app.radiacode.AppGraph
-import app.radiacode.data.AppSettings
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
 import app.radiacode.service.BatteryOptimization
@@ -74,8 +73,14 @@ fun MonitorScreen(graph: AppGraph) {
     val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
     val connection by graph.serviceStatus.connection.collectAsState()
     val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
-    val threshold by graph.settings.hotspotThresholdMicroSvH
-        .collectAsState(initial = AppSettings.DEFAULT_HOTSPOT_THRESHOLD_MICRO_SV_H)
+    val thresholds by graph.settings.alarmThresholds.collectAsState(
+        initial = app.radiacode.baseline.alarmThresholds(
+            app.radiacode.baseline.AlarmSensitivity.NORMAL,
+            0f,
+            0f,
+        ),
+    )
+    val threshold = thresholds.l1MicroSvH
 
     // 1 s wall-clock ticker drives only the staleness indicator.
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }

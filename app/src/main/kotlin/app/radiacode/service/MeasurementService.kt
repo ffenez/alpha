@@ -19,7 +19,15 @@ import androidx.core.content.ContextCompat
 import app.radiacode.AppGraph
 import app.radiacode.MainActivity
 import app.radiacode.R
-import app.radiacode.data.AppSettings
+import app.radiacode.baseline.ABOVE_USUAL_MIN_DWELL_SECONDS
+import app.radiacode.baseline.AlarmSensitivity
+import app.radiacode.baseline.AlarmThresholds
+import app.radiacode.baseline.BaselineState
+import app.radiacode.baseline.DeviationSnapshot
+import app.radiacode.baseline.PersistenceTracker
+import app.radiacode.baseline.aboveUsualMagnitude
+import app.radiacode.baseline.alarmThresholds
+import app.radiacode.baseline.deviationMagnitude
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
 import app.radiacode.device.RadiaCodeDevice
@@ -32,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -69,12 +78,64 @@ class MeasurementService : Service() {
     @Volatile
     private var lastSample: RealTimeData? = null
 
+    // --- baseline / sessions / alarm engine state ---
+
+    @Volatile
+    private var activePlaceId: Long? = null
+
+    @Volatile
+    private var baselineState: BaselineState? = null
+
+    @Volatile
+    private var thresholds: AlarmThresholds = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f)
+
+    private val sessionGate = SessionGate()
+
+    @Volatile
+    private var sessionId: Long? = null
+
+    /** Guarded by [alarmLock]: trackers are recreated on place/threshold change. */
+    private val alarmLock = Any()
+    private var aboveUsualTracker = PersistenceTracker(persistenceMillis = 0)
+    private var alertTracker = PersistenceTracker(persistenceMillis = 0)
+
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph.get(this)
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         createNotificationChannel()
         graph.serviceStatus.onServiceStarted()
+        rebuildTrackers()
+
+        scope.launch {
+            graph.placeRepository.ensureDefaultPlace()
+            // Sessions a killed process left open end at the last real sample.
+            graph.sessionRepository.closeStale()
+        }
+        scope.launch {
+            graph.settings.alarmThresholds.collect { next ->
+                val persistenceChanged = next.persistenceSeconds != thresholds.persistenceSeconds
+                thresholds = next
+                if (persistenceChanged) rebuildTrackers()
+                hotspotDetector?.thresholdMicroSvH = next.l1MicroSvH
+            }
+        }
+        scope.launch {
+            graph.placeRepository.activePlace().collect { place ->
+                val changed = place?.id != activePlaceId
+                activePlaceId = place?.id
+                if (changed) {
+                    rebuildTrackers()
+                    refreshBaseline()
+                }
+            }
+        }
+        scope.launch {
+            while (true) {
+                refreshBaseline()
+                delay(BASELINE_REFRESH_MILLIS)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -112,8 +173,109 @@ class MeasurementService : Service() {
             // Bounded: stop() only cancels the connection loop and joins it.
             runBlocking { current.stop() }
         }
+        val openSession = sessionId
+        sessionId = null
+        if (openSession != null) {
+            val endedAt = lastSample?.timestampMillis ?: System.currentTimeMillis()
+            // Bounded single UPDATE; scope is about to be cancelled.
+            runBlocking { graph.sessionRepository.close(openSession, endedAt) }
+        }
         scope.cancel()
         super.onDestroy()
+    }
+
+    // --- baseline & alarm engine ---
+
+    private fun rebuildTrackers() {
+        synchronized(alarmLock) {
+            aboveUsualTracker = PersistenceTracker(
+                persistenceMillis = ABOVE_USUAL_MIN_DWELL_SECONDS * 1000,
+            )
+            alertTracker = PersistenceTracker(
+                persistenceMillis = thresholds.persistenceSeconds * 1000L,
+            )
+            graph.serviceStatus.onDeviation(DeviationSnapshot())
+        }
+    }
+
+    private suspend fun refreshBaseline() {
+        val placeId = activePlaceId ?: return
+        val state = graph.baselineRepository.state(placeId)
+        baselineState = state
+        graph.serviceStatus.onBaseline(state)
+    }
+
+    /**
+     * 1 Hz alarm engine (ADR 002): deviation = magnitude AND persistence.
+     * A confirmed persistent deviation lands in the events journal once per
+     * excursion; the live picture goes to [ServiceStatus] for the UI.
+     */
+    private fun onSampleForAlarm(sample: RealTimeData) {
+        val microSvH = DoseUnits.rawToMicroSievertPerHour(sample.doseRate)
+        val baseline = (baselineState as? BaselineState.Active)?.baseline
+        val now = sample.timestampMillis
+
+        val snapshot: DeviationSnapshot
+        val alertFired: Boolean
+        synchronized(alarmLock) {
+            val above = aboveUsualTracker.onSample(
+                nowMillis = now,
+                conditionMet = aboveUsualMagnitude(microSvH, baseline),
+            )
+            val alert = alertTracker.onSample(
+                nowMillis = now,
+                conditionMet = deviationMagnitude(microSvH, baseline?.doseHighMicroSvH, thresholds),
+            )
+            alertFired = alert.fired
+            snapshot = DeviationSnapshot(
+                aboveUsualSince = when (val s = above.state) {
+                    is PersistenceTracker.State.Building -> s.sinceMillis
+                    is PersistenceTracker.State.Confirmed -> s.sinceMillis
+                    PersistenceTracker.State.Idle -> null
+                },
+                alertSince = (alert.state as? PersistenceTracker.State.Confirmed)?.sinceMillis,
+            )
+        }
+        graph.serviceStatus.onDeviation(snapshot)
+        if (alertFired) {
+            scope.launch {
+                graph.measurementRepository.recordDeviation(
+                    timestamp = now,
+                    doseRate = sample.doseRate,
+                    baselineHighMicroSvH = baseline?.doseHighMicroSvH,
+                )
+            }
+        }
+    }
+
+    // --- sessions ---
+
+    private fun onConnectionForSession(state: ConnectionState) {
+        val now = System.currentTimeMillis()
+        val lastSampleAt = lastSample?.timestampMillis
+        val action = when (state) {
+            is ConnectionState.Connected -> sessionGate.onConnected(now, lastSampleAt)
+            is ConnectionState.Reconnecting -> sessionGate.onLinkLost(now)
+            ConnectionState.Disconnected -> sessionGate.onDisconnected(now, lastSampleAt)
+            is ConnectionState.Connecting -> SessionGate.Action.None
+        }
+        when (action) {
+            SessionGate.Action.None -> Unit
+            SessionGate.Action.Open -> scope.launch {
+                sessionId = graph.sessionRepository.open(activePlaceId)
+            }
+            is SessionGate.Action.Reopen -> scope.launch {
+                sessionId?.let { graph.sessionRepository.close(it, action.closeAt) }
+                sessionId = graph.sessionRepository.open(activePlaceId)
+            }
+            is SessionGate.Action.Close -> {
+                val current = sessionId
+                sessionId = null
+                if (current != null) {
+                    scope.launch { graph.sessionRepository.close(current, action.closeAt) }
+                }
+            }
+        }
     }
 
     // --- measuring ---
@@ -138,11 +300,12 @@ class MeasurementService : Service() {
         newDevice.start(scope)
 
         deviceJobs += scope.launch {
-            newDevice.records.collect { graph.measurementRepository.record(it) }
+            newDevice.records.collect { graph.measurementRepository.record(it, activePlaceId) }
         }
         deviceJobs += scope.launch {
             newDevice.realTimeData.collect { sample ->
                 lastSample = sample
+                onSampleForAlarm(sample)
                 onSampleForHotspot(sample)
                 updateNotification()
             }
@@ -150,6 +313,7 @@ class MeasurementService : Service() {
         deviceJobs += scope.launch {
             newDevice.connectionState.collect { state ->
                 graph.serviceStatus.onConnectionState(state)
+                onConnectionForSession(state)
                 updateNotification()
             }
         }
@@ -161,11 +325,9 @@ class MeasurementService : Service() {
         if (trackSessionId != null) return
         if (!hasLocationPermission()) return
 
-        val detector = HotspotDetector(AppSettings.DEFAULT_HOTSPOT_THRESHOLD_MICRO_SV_H)
+        // Track hotspots share the alarm L1 level (single user-facing threshold).
+        val detector = HotspotDetector(thresholds.l1MicroSvH)
         hotspotDetector = detector
-        trackJobs += scope.launch {
-            graph.settings.hotspotThresholdMicroSvH.collect { detector.thresholdMicroSvH = it }
-        }
 
         val name = "Track " + LocalDateTime.now().format(TRACK_NAME_FORMAT)
         trackJobs += scope.launch {
@@ -326,6 +488,7 @@ class MeasurementService : Service() {
         private const val LOCATION_INTERVAL_MILLIS = 1_000L
 
         private val TRACK_NAME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+        private const val BASELINE_REFRESH_MILLIS = 10L * 60_000L
 
         fun startIntent(context: Context, deviceAddress: String): Intent =
             Intent(context, MeasurementService::class.java)

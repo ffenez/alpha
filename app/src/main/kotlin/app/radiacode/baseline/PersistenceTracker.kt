@@ -66,3 +66,13 @@ class PersistenceTracker(
         const val DEFAULT_GAP_TOLERANCE_MILLIS = 15_000L
     }
 }
+
+/**
+ * Live deviation picture published by the measurement service for the UI:
+ * epoch millis since the respective excursion started, or null when calm.
+ * [alertSince] = confirmed persistent deviation («Уровень радиации изменился»).
+ */
+data class DeviationSnapshot(
+    val aboveUsualSince: Long? = null,
+    val alertSince: Long? = null,
+)

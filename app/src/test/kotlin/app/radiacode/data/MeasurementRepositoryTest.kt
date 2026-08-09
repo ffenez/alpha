@@ -3,6 +3,7 @@ package app.radiacode.data
 import app.radiacode.data.db.DownsampledSample
 import app.radiacode.data.db.EventDao
 import app.radiacode.data.db.EventEntity
+import app.radiacode.data.db.RangeStats
 import app.radiacode.data.db.RareDataDao
 import app.radiacode.data.db.RareDataEntity
 import app.radiacode.data.db.SampleDao
@@ -27,7 +28,12 @@ private class FakeSampleDao : SampleDao {
     override fun observeLatest(): Flow<SampleEntity?> = flowOf(inserted.lastOrNull())
     override fun observeRange(from: Long, to: Long): Flow<List<SampleEntity>> = flowOf(emptyList())
     override suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
+    override suspend fun downsampledRangeForPlace(placeId: Long, from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
+    override suspend fun rangeStats(from: Long, to: Long): RangeStats =
+        RangeStats(0, null, null, null, null, null)
+    override suspend fun detachPlace(placeId: Long) {}
     override suspend fun count(): Long = inserted.size.toLong()
+    override suspend fun latestTimestamp(): Long? = inserted.maxOfOrNull { it.timestamp }
     override suspend fun deleteOlderThan(before: Long): Int = 0
 }
 
@@ -44,6 +50,8 @@ private class FakeEventDao : EventDao {
     override suspend fun insertAll(events: List<EventEntity>) { inserted += events }
     override fun observeRecent(limit: Int): Flow<List<EventEntity>> = flowOf(inserted.takeLast(limit))
     override fun observeRange(from: Long, to: Long): Flow<List<EventEntity>> = flowOf(emptyList())
+    override suspend fun inRangeBySource(from: Long, to: Long, sources: List<String>, limit: Int): List<EventEntity> =
+        inserted.filter { it.timestamp in from..to && it.source in sources }.take(limit)
 }
 
 private class FakeSpectrumDao : SpectrumDao {
@@ -52,6 +60,8 @@ private class FakeSpectrumDao : SpectrumDao {
     override fun observeLatest(accumulated: Boolean): Flow<SpectrumSnapshotEntity?> =
         flowOf(inserted.lastOrNull { it.accumulated == accumulated })
     override fun observeRange(from: Long, to: Long): Flow<List<SpectrumSnapshotEntity>> = flowOf(emptyList())
+    override suspend fun countInRange(from: Long, to: Long): Int =
+        inserted.count { it.timestamp in from..to }
 }
 
 class MeasurementRepositoryTest {

@@ -28,9 +28,13 @@ class MeasurementRepository(
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
 
-    /** Persists one decoded DATA_BUF batch, routing record types to their tables. */
-    suspend fun record(records: List<DataBufRecord>) {
-        val samples = records.filterIsInstance<RealTimeData>().map { it.toEntity() }
+    /**
+     * Persists one decoded DATA_BUF batch, routing record types to their
+     * tables. [placeId] stamps real-time samples with the place active at
+     * write time (per-place baseline input).
+     */
+    suspend fun record(records: List<DataBufRecord>, placeId: Long? = null) {
+        val samples = records.filterIsInstance<RealTimeData>().map { it.toEntity(placeId) }
         if (samples.isNotEmpty()) sampleDao.insertAll(samples)
 
         val rare = records.filterIsInstance<RareData>().map { it.toEntity() }
@@ -57,6 +61,29 @@ class MeasurementRepository(
                 doseRate = doseRate,
                 latitude = latitude,
                 longitude = longitude,
+            ),
+        )
+    }
+
+    /**
+     * Journal entry for a confirmed persistent baseline deviation (SPEC
+     * «Radiation level changed»). `param1` carries the baseline typical high
+     * in nSv/h at event time (0 = baseline was not active).
+     */
+    suspend fun recordDeviation(
+        timestamp: Long,
+        doseRate: Float,
+        baselineHighMicroSvH: Float?,
+    ) {
+        eventDao.insert(
+            EventEntity(
+                timestamp = timestamp,
+                source = EventEntity.SOURCE_DEVIATION,
+                code = 0,
+                name = "DEVIATION",
+                param1 = ((baselineHighMicroSvH ?: 0f) * 1000f).toInt(),
+                flags = 0,
+                doseRate = doseRate,
             ),
         )
     }

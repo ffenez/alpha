@@ -15,7 +15,10 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "samples",
-    indices = [Index(value = ["timestamp"], unique = true)],
+    indices = [
+        Index(value = ["timestamp"], unique = true),
+        Index(value = ["placeId", "timestamp"]),
+    ],
 )
 data class SampleEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -27,6 +30,12 @@ data class SampleEntity(
     val countRateErr: Float,
     val flags: Int,
     val realTimeFlags: Int,
+    /**
+     * Place active when the sample was recorded; null for samples measured
+     * before places existed or with no place selected. Deleting a place
+     * detaches its samples (sets null) instead of deleting measurements.
+     */
+    val placeId: Long? = null,
 )
 
 /** Battery / temperature / accumulated dose status (every few minutes). */
@@ -71,8 +80,43 @@ data class EventEntity(
     companion object {
         const val SOURCE_DEVICE = "device"
         const val SOURCE_HOTSPOT = "hotspot"
+
+        /**
+         * Persistent baseline deviation confirmed by the alarm engine.
+         * [doseRate] holds the raw dose rate; [param1] stores the baseline
+         * typical high at that moment in nSv/h (µSv/h × 1000, 0 = no baseline)
+         * so History can honestly say «обычно здесь X» as of the event time.
+         */
+        const val SOURCE_DEVIATION = "deviation"
     }
 }
+
+/** A named place («Дом», «Офис»…) with its own statistical baseline. */
+@Entity(tableName = "places")
+data class PlaceEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val createdAt: Long,
+)
+
+/**
+ * A measurement session: one continuous connected period of the measurement
+ * service (opened on device connect, closed on disconnect/stop). Sessions
+ * carry no measurements themselves — summaries aggregate `samples` by the
+ * [startedAt, endedAt] range, so the raw data stays single-sourced.
+ */
+@Entity(
+    tableName = "measurement_sessions",
+    indices = [Index("startedAt")],
+)
+data class MeasurementSessionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Place active at session start; null = no place selected. */
+    val placeId: Long?,
+    val startedAt: Long,
+    /** Null while the session is still running. */
+    val endedAt: Long? = null,
+)
 
 /** A recorded track (GPS walk with the dosimeter). */
 @Entity(tableName = "track_sessions")

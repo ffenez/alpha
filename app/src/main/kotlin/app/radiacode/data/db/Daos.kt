@@ -15,6 +15,16 @@ data class DownsampledSample(
     val sampleCount: Int,
 )
 
+/** Aggregate over one session's time range (see [SampleDao.rangeStats]). */
+data class RangeStats(
+    val sampleCount: Int,
+    val avgDoseRate: Float?,
+    val minDoseRate: Float?,
+    val maxDoseRate: Float?,
+    val avgCountRate: Float?,
+    val maxCountRate: Float?,
+)
+
 @Dao
 interface SampleDao {
 
@@ -47,11 +57,100 @@ interface SampleDao {
     )
     suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample>
 
+    /** Same bucketed aggregation restricted to one place (baseline input). */
+    @Query(
+        """
+        SELECT (timestamp / :bucketMillis) * :bucketMillis AS bucketStart,
+               AVG(doseRate) AS avgDoseRate,
+               MAX(doseRate) AS maxDoseRate,
+               AVG(countRate) AS avgCountRate,
+               COUNT(*) AS sampleCount
+        FROM samples
+        WHERE placeId = :placeId AND timestamp BETWEEN :from AND :to
+        GROUP BY timestamp / :bucketMillis
+        ORDER BY bucketStart
+        """,
+    )
+    suspend fun downsampledRangeForPlace(
+        placeId: Long,
+        from: Long,
+        to: Long,
+        bucketMillis: Long,
+    ): List<DownsampledSample>
+
+    /** One aggregate pass over a time range (session summaries). */
+    @Query(
+        """
+        SELECT COUNT(*) AS sampleCount,
+               AVG(doseRate) AS avgDoseRate,
+               MIN(doseRate) AS minDoseRate,
+               MAX(doseRate) AS maxDoseRate,
+               AVG(countRate) AS avgCountRate,
+               MAX(countRate) AS maxCountRate
+        FROM samples
+        WHERE timestamp BETWEEN :from AND :to
+        """,
+    )
+    suspend fun rangeStats(from: Long, to: Long): RangeStats
+
+    /** Detach measurements from a deleted place; the samples stay. */
+    @Query("UPDATE samples SET placeId = NULL WHERE placeId = :placeId")
+    suspend fun detachPlace(placeId: Long)
+
     @Query("SELECT COUNT(*) FROM samples")
     suspend fun count(): Long
 
+    @Query("SELECT MAX(timestamp) FROM samples")
+    suspend fun latestTimestamp(): Long?
+
     @Query("DELETE FROM samples WHERE timestamp < :before")
     suspend fun deleteOlderThan(before: Long): Int
+}
+
+@Dao
+interface PlaceDao {
+
+    @Insert
+    suspend fun insert(place: PlaceEntity): Long
+
+    @Query("UPDATE places SET name = :name WHERE id = :placeId")
+    suspend fun rename(placeId: Long, name: String)
+
+    @Query("DELETE FROM places WHERE id = :placeId")
+    suspend fun delete(placeId: Long)
+
+    @Query("SELECT * FROM places ORDER BY createdAt")
+    fun observeAll(): Flow<List<PlaceEntity>>
+
+    @Query("SELECT * FROM places ORDER BY createdAt")
+    suspend fun all(): List<PlaceEntity>
+
+    @Query("SELECT COUNT(*) FROM places")
+    suspend fun count(): Long
+}
+
+@Dao
+interface SessionDao {
+
+    @Insert
+    suspend fun insert(session: MeasurementSessionEntity): Long
+
+    @Query("UPDATE measurement_sessions SET endedAt = :endedAt WHERE id = :sessionId")
+    suspend fun close(sessionId: Long, endedAt: Long)
+
+    /** Crash recovery: close whatever a killed service left open. */
+    @Query("UPDATE measurement_sessions SET endedAt = :endedAt WHERE endedAt IS NULL")
+    suspend fun closeAllOpen(endedAt: Long)
+
+    @Query("SELECT * FROM measurement_sessions WHERE id = :sessionId")
+    suspend fun session(sessionId: Long): MeasurementSessionEntity?
+
+    /** Windowed page, newest first — History stays smooth on months of data. */
+    @Query("SELECT * FROM measurement_sessions ORDER BY startedAt DESC LIMIT :limit OFFSET :offset")
+    suspend fun page(limit: Int, offset: Int): List<MeasurementSessionEntity>
+
+    @Query("SELECT COUNT(*) FROM measurement_sessions")
+    suspend fun count(): Long
 }
 
 @Dao
@@ -81,6 +180,21 @@ interface EventDao {
 
     @Query("SELECT * FROM events WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
     fun observeRange(from: Long, to: Long): Flow<List<EventEntity>>
+
+    /** App-detected deviations/hotspots for History interleaving. */
+    @Query(
+        """
+        SELECT * FROM events
+        WHERE timestamp BETWEEN :from AND :to AND source IN (:sources)
+        ORDER BY timestamp DESC LIMIT :limit
+        """,
+    )
+    suspend fun inRangeBySource(
+        from: Long,
+        to: Long,
+        sources: List<String>,
+        limit: Int,
+    ): List<EventEntity>
 }
 
 @Dao
@@ -106,6 +220,15 @@ interface TrackDao {
 
     @Query("SELECT COUNT(*) FROM track_points WHERE sessionId = :sessionId")
     suspend fun pointCount(sessionId: Long): Int
+
+    /** Track sessions overlapping a time range (History «трек» badge). */
+    @Query(
+        """
+        SELECT COUNT(*) FROM track_sessions
+        WHERE startedAt <= :to AND COALESCE(endedAt, startedAt) >= :from
+        """,
+    )
+    suspend fun countOverlapping(from: Long, to: Long): Int
 }
 
 @Dao
@@ -119,4 +242,7 @@ interface SpectrumDao {
 
     @Query("SELECT * FROM spectra WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
     fun observeRange(from: Long, to: Long): Flow<List<SpectrumSnapshotEntity>>
+
+    @Query("SELECT COUNT(*) FROM spectra WHERE timestamp BETWEEN :from AND :to")
+    suspend fun countInRange(from: Long, to: Long): Int
 }

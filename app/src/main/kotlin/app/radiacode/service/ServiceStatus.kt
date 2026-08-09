@@ -1,5 +1,7 @@
 package app.radiacode.service
 
+import app.radiacode.baseline.BaselineState
+import app.radiacode.baseline.DeviationSnapshot
 import app.radiacode.device.ConnectionState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +20,14 @@ class ServiceStatus {
     private val _serviceRunning = MutableStateFlow(false)
     val serviceRunning: StateFlow<Boolean> = _serviceRunning.asStateFlow()
 
+    /** Baseline of the active place, computed by the service; null = unknown yet. */
+    private val _baseline = MutableStateFlow<BaselineState?>(null)
+    val baseline: StateFlow<BaselineState?> = _baseline.asStateFlow()
+
+    /** Live deviation picture from the alarm engine (single source of truth). */
+    private val _deviation = MutableStateFlow(DeviationSnapshot())
+    val deviation: StateFlow<DeviationSnapshot> = _deviation.asStateFlow()
+
     internal fun onServiceStarted() {
         _serviceRunning.value = true
     }
@@ -25,9 +35,18 @@ class ServiceStatus {
     internal fun onServiceStopped() {
         _serviceRunning.value = false
         _connection.value = ConnectionState.Disconnected
+        _deviation.value = DeviationSnapshot()
     }
 
     internal fun onConnectionState(state: ConnectionState) {
         _connection.value = state
+    }
+
+    internal fun onBaseline(state: BaselineState?) {
+        _baseline.value = state
+    }
+
+    internal fun onDeviation(snapshot: DeviationSnapshot) {
+        _deviation.value = snapshot
     }
 }
