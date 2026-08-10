@@ -12,20 +12,21 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SampleEntity::class,
         RareDataEntity::class,
         EventEntity::class,
-        PlaceEntity::class,
+        ProfileEntity::class,
+        ProfileNetworkEntity::class,
         MeasurementSessionEntity::class,
         TrackSessionEntity::class,
         TrackPointEntity::class,
         SpectrumSnapshotEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sampleDao(): SampleDao
     abstract fun rareDataDao(): RareDataDao
     abstract fun eventDao(): EventDao
-    abstract fun placeDao(): PlaceDao
+    abstract fun profileDao(): ProfileDao
     abstract fun sessionDao(): SessionDao
     abstract fun trackDao(): TrackDao
     abstract fun spectrumDao(): SpectrumDao
@@ -55,9 +56,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MigrationSql.FROM_5_TO_6.forEach(db::execSQL)
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "radiacode.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                )
                 .build()
     }
 }

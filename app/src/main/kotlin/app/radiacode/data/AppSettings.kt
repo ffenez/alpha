@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
 import app.radiacode.baseline.alarmThresholds
+import app.radiacode.context.ContextConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -62,11 +63,46 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[SEARCH_ENERGY_TONE] = enabled }
     }
 
-    /** Manually selected active place; null until the default place is created. */
-    val activePlaceId: Flow<Long?> = dataStore.data.map { it[ACTIVE_PLACE_ID] }
+    /**
+     * Last explicitly chosen profile; null until the first profiles exist.
+     * Falls back to the pre-v6 «active place» key so an update keeps the
+     * user's selection.
+     */
+    val activeProfileId: Flow<Long?> =
+        dataStore.data.map { it[ACTIVE_PROFILE_ID] ?: it[LEGACY_ACTIVE_PLACE_ID] }
 
-    suspend fun setActivePlaceId(placeId: Long) {
-        dataStore.edit { it[ACTIVE_PLACE_ID] = placeId }
+    suspend fun setActiveProfileId(profileId: Long) {
+        dataStore.edit { it[ACTIVE_PROFILE_ID] = profileId }
+    }
+
+    /**
+     * True while the user's explicit profile choice overrides the automatic
+     * Wi-Fi context (spec §3.2). «Вернуться к авто» sets it back to false.
+     */
+    val contextManual: Flow<Boolean> = dataStore.data.map { it[CONTEXT_MANUAL] ?: false }
+
+    suspend fun setContextManual(manual: Boolean) {
+        dataStore.edit { it[CONTEXT_MANUAL] = manual }
+    }
+
+    /** Grace period before the automatic context is given up, ms (spec §3.4). */
+    val contextGraceMillis: Flow<Long> = dataStore.data.map {
+        it[CONTEXT_GRACE_MILLIS] ?: ContextConfig.DEFAULT_GRACE_MILLIS
+    }
+
+    suspend fun setContextGraceMillis(millis: Long) {
+        dataStore.edit { it[CONTEXT_GRACE_MILLIS] = millis }
+    }
+
+    /**
+     * Manual baseline freeze — condition 7 of the admission pipeline
+     * (spec §4.2). Measurements keep being recorded; they simply do not join
+     * the statistics of any profile while this is on.
+     */
+    val baselineFrozen: Flow<Boolean> = dataStore.data.map { it[BASELINE_FROZEN] ?: false }
+
+    suspend fun setBaselineFrozen(frozen: Boolean) {
+        dataStore.edit { it[BASELINE_FROZEN] = frozen }
     }
 
     /** Alarm sensitivity (SPEC Simple mode): Обычная / Высокая / Своя. */
@@ -156,7 +192,13 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
         private val SEARCH_SOUND = booleanPreferencesKey("search_sound")
         private val SEARCH_VIBRATION = booleanPreferencesKey("search_vibration")
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")
-        private val ACTIVE_PLACE_ID = longPreferencesKey("active_place_id")
+        private val ACTIVE_PROFILE_ID = longPreferencesKey("active_profile_id")
+
+        /** Pre-v6 key; read-only fallback so an update keeps the selection. */
+        private val LEGACY_ACTIVE_PLACE_ID = longPreferencesKey("active_place_id")
+        private val CONTEXT_MANUAL = booleanPreferencesKey("context_manual")
+        private val CONTEXT_GRACE_MILLIS = longPreferencesKey("context_grace_millis")
+        private val BASELINE_FROZEN = booleanPreferencesKey("baseline_frozen")
         private val ALARM_SENSITIVITY = stringPreferencesKey("alarm_sensitivity")
         private val CUSTOM_ALARM_L1 = floatPreferencesKey("custom_alarm_l1_usvh")
         private val CUSTOM_ALARM_L2 = floatPreferencesKey("custom_alarm_l2_usvh")

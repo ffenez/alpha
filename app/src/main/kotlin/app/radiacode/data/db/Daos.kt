@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 /** Aggregated bucket for downsampled chart queries. */
@@ -31,6 +32,12 @@ data class RangeStats(
     val avgCountRate: Float?,
     val maxCountRate: Float?,
 )
+
+/**
+ * How many samples one baseline-admission verdict accounts for
+ * (`reason` = [app.radiacode.baseline.BaselineExclusion.storageKey]).
+ */
+data class ExclusionCount(val reason: String, val samples: Int)
 
 @Dao
 interface SampleDao {
@@ -64,7 +71,12 @@ interface SampleDao {
     )
     suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample>
 
-    /** Same bucketed aggregation restricted to one place (baseline input). */
+    /**
+     * Same bucketed aggregation restricted to one profile and to samples the
+     * admission pipeline let through (`baselineExcluded IS NULL`) — the only
+     * query that feeds baseline statistics. Excluded samples stay in the table
+     * and remain visible on charts and in История.
+     */
     @Query(
         """
         SELECT (timestamp / :bucketMillis) * :bucketMillis AS bucketStart,
@@ -73,17 +85,78 @@ interface SampleDao {
                AVG(countRate) AS avgCountRate,
                COUNT(*) AS sampleCount
         FROM samples
-        WHERE placeId = :placeId AND timestamp BETWEEN :from AND :to
+        WHERE placeId = :profileId AND timestamp BETWEEN :from AND :to
+              AND baselineExcluded IS NULL
         GROUP BY timestamp / :bucketMillis
         ORDER BY bucketStart
         """,
     )
-    suspend fun downsampledRangeForPlace(
-        placeId: Long,
+    suspend fun downsampledRangeForProfile(
+        profileId: Long,
         from: Long,
         to: Long,
         bucketMillis: Long,
     ): List<DownsampledSample>
+
+    /** Exclusion breakdown for one profile («Почему?» and профиль summary). */
+    @Query(
+        """
+        SELECT baselineExcluded AS reason, COUNT(*) AS samples
+        FROM samples
+        WHERE placeId = :profileId AND timestamp BETWEEN :from AND :to
+              AND baselineExcluded IS NOT NULL
+        GROUP BY baselineExcluded
+        ORDER BY samples DESC
+        """,
+    )
+    suspend fun exclusionCountsForProfile(
+        profileId: Long,
+        from: Long,
+        to: Long,
+    ): List<ExclusionCount>
+
+    /** Exclusion breakdown over a plain time range (session journal rows). */
+    @Query(
+        """
+        SELECT baselineExcluded AS reason, COUNT(*) AS samples
+        FROM samples
+        WHERE timestamp BETWEEN :from AND :to AND baselineExcluded IS NOT NULL
+        GROUP BY baselineExcluded
+        ORDER BY samples DESC
+        """,
+    )
+    suspend fun exclusionCountsInRange(from: Long, to: Long): List<ExclusionCount>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM samples
+        WHERE timestamp BETWEEN :from AND :to AND baselineExcluded IS NULL
+        """,
+    )
+    suspend fun admittedCountInRange(from: Long, to: Long): Int
+
+    /** История: move a session's measurements to another profile. */
+    @Query("UPDATE samples SET placeId = :profileId WHERE timestamp BETWEEN :from AND :to")
+    suspend fun reassignRange(from: Long, to: Long, profileId: Long?)
+
+    /**
+     * Re-evaluates the profile-dependent admission verdict over a range after
+     * the profile was reassigned: only the «learning off» reason can appear or
+     * disappear, every other reason describes the measurement itself and stays.
+     */
+    @Query(
+        """
+        UPDATE samples SET baselineExcluded = :reason
+        WHERE timestamp BETWEEN :from AND :to
+              AND (baselineExcluded IS NULL OR baselineExcluded = :learningOffReason)
+        """,
+    )
+    suspend fun rewriteLearningVerdict(
+        from: Long,
+        to: Long,
+        reason: String?,
+        learningOffReason: String,
+    )
 
     /** One aggregate pass over a time range (session summaries). */
     @Query(
@@ -100,9 +173,9 @@ interface SampleDao {
     )
     suspend fun rangeStats(from: Long, to: Long): RangeStats
 
-    /** Detach measurements from a deleted place; the samples stay. */
-    @Query("UPDATE samples SET placeId = NULL WHERE placeId = :placeId")
-    suspend fun detachPlace(placeId: Long)
+    /** Detach measurements from a deleted profile; the samples stay. */
+    @Query("UPDATE samples SET placeId = NULL WHERE placeId = :profileId")
+    suspend fun detachProfile(profileId: Long)
 
     @Query("SELECT COUNT(*) FROM samples")
     suspend fun count(): Long
@@ -115,25 +188,58 @@ interface SampleDao {
 }
 
 @Dao
-interface PlaceDao {
+interface ProfileDao {
 
     @Insert
-    suspend fun insert(place: PlaceEntity): Long
+    suspend fun insert(profile: ProfileEntity): Long
 
-    @Query("UPDATE places SET name = :name WHERE id = :placeId")
-    suspend fun rename(placeId: Long, name: String)
+    @Update
+    suspend fun update(profile: ProfileEntity)
 
-    @Query("DELETE FROM places WHERE id = :placeId")
-    suspend fun delete(placeId: Long)
+    @Query("UPDATE profiles SET name = :name WHERE id = :profileId")
+    suspend fun rename(profileId: Long, name: String)
 
-    @Query("SELECT * FROM places ORDER BY createdAt")
-    fun observeAll(): Flow<List<PlaceEntity>>
+    @Query("UPDATE profiles SET archived = :archived WHERE id = :profileId OR parentId = :profileId")
+    suspend fun setArchivedWithChildren(profileId: Long, archived: Boolean)
 
-    @Query("SELECT * FROM places ORDER BY createdAt")
-    suspend fun all(): List<PlaceEntity>
+    @Query("DELETE FROM profiles WHERE id = :profileId")
+    suspend fun delete(profileId: Long)
 
-    @Query("SELECT COUNT(*) FROM places")
+    /** Detach children of a deleted parent instead of cascading a delete. */
+    @Query("UPDATE profiles SET parentId = NULL WHERE parentId = :profileId")
+    suspend fun detachChildren(profileId: Long)
+
+    @Query("SELECT * FROM profiles ORDER BY createdAt")
+    fun observeAll(): Flow<List<ProfileEntity>>
+
+    @Query("SELECT * FROM profiles ORDER BY createdAt")
+    suspend fun all(): List<ProfileEntity>
+
+    @Query("SELECT * FROM profiles WHERE id = :profileId")
+    suspend fun byId(profileId: Long): ProfileEntity?
+
+    @Query("SELECT * FROM profiles WHERE role = :role ORDER BY createdAt LIMIT 1")
+    suspend fun byRole(role: String): ProfileEntity?
+
+    @Query("SELECT COUNT(*) FROM profiles")
     suspend fun count(): Long
+
+    // --- Wi-Fi bindings ---
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNetwork(network: ProfileNetworkEntity): Long
+
+    @Query("DELETE FROM profile_networks WHERE id = :id")
+    suspend fun deleteNetwork(id: Long)
+
+    @Query("DELETE FROM profile_networks WHERE profileId = :profileId")
+    suspend fun deleteNetworksOf(profileId: Long)
+
+    @Query("SELECT * FROM profile_networks ORDER BY createdAt")
+    fun observeNetworks(): Flow<List<ProfileNetworkEntity>>
+
+    @Query("SELECT * FROM profile_networks WHERE networkHash = :hash LIMIT 1")
+    suspend fun networkByHash(hash: String): ProfileNetworkEntity?
 }
 
 @Dao
@@ -151,6 +257,10 @@ interface SessionDao {
 
     @Query("SELECT * FROM measurement_sessions WHERE id = :sessionId")
     suspend fun session(sessionId: Long): MeasurementSessionEntity?
+
+    /** История: the user corrects which profile a past session belonged to. */
+    @Query("UPDATE measurement_sessions SET placeId = :profileId WHERE id = :sessionId")
+    suspend fun reassignProfile(sessionId: Long, profileId: Long?)
 
     /** Windowed page, newest first — History stays smooth on months of data. */
     @Query("SELECT * FROM measurement_sessions ORDER BY startedAt DESC LIMIT :limit OFFSET :offset")

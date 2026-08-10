@@ -11,7 +11,10 @@ import app.radiacode.protocol.Spectrum
 
 /** DATA_BUF records -> Room entities. Timestamps come pre-resolved from base_time. */
 
-fun RealTimeData.toEntity(placeId: Long? = null): SampleEntity = SampleEntity(
+fun RealTimeData.toEntity(
+    profileId: Long? = null,
+    baselineExcluded: String? = null,
+): SampleEntity = SampleEntity(
     timestamp = timestampMillis,
     doseRate = doseRate,
     doseRateErr = doseRateErr,
@@ -19,7 +22,8 @@ fun RealTimeData.toEntity(placeId: Long? = null): SampleEntity = SampleEntity(
     countRateErr = countRateErr,
     flags = flags,
     realTimeFlags = realTimeFlags,
-    placeId = placeId,
+    profileId = profileId,
+    baselineExcluded = baselineExcluded,
 )
 
 fun RareData.toEntity(): RareDataEntity = RareDataEntity(

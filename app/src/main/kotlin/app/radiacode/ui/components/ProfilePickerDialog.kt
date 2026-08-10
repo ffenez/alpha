@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
@@ -22,22 +23,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import app.radiacode.data.db.PlaceEntity
+import app.radiacode.data.db.ProfileEntity
+import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 
 /**
- * Place picker (SPEC «Personal baseline»: baseline per place, selected
- * manually). The active row carries a filled radio marker — state is never
- * color alone. Creating a place is inline; management (rename/delete) lives
- * in Настройки.
+ * Profile picker (spec §3): the profile decides which baseline the reading is
+ * compared against, so the dialog says what picking one does and offers the
+ * way back to automatic — a manual choice sticks until the user cancels it
+ * (spec §3.2).
+ *
+ * Nesting is shown by indentation only; the active row also carries a filled
+ * radio marker, so state is never colour alone.
  */
 @Composable
-fun PlacePickerDialog(
-    places: List<PlaceEntity>,
-    activePlaceId: Long?,
+fun ProfilePickerDialog(
+    profiles: List<ProfileEntity>,
+    activeProfileId: Long?,
+    manual: Boolean,
+    contextWording: String,
     onSelect: (Long) -> Unit,
+    onReturnToAuto: () -> Unit,
     onCreate: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -45,47 +53,52 @@ fun PlacePickerDialog(
     val type = LocalAppTypography.current
     var newName by remember { mutableStateOf("") }
     var adding by remember { mutableStateOf(false) }
+    val visible = ProfileTree.visible(profiles)
 
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text("Место измерения", style = type.title, color = colors.ink)
+                Text("Профиль измерения", style = type.title, color = colors.ink)
                 Text(
-                    text = "У каждого места свой обычный фон — выберите, где сейчас прибор.",
+                    text = "У каждого профиля свой обычный фон. Сейчас: $contextWording.",
                     style = type.bodySmall,
                     color = colors.muted,
                 )
 
-                places.forEach { place ->
-                    val isActive = place.id == activePlaceId
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .defaultMinSize(minHeight = Dimens.touchTarget)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) {
-                                onSelect(place.id)
-                                onDismiss()
-                            },
-                    ) {
-                        RadioMark(isActive)
-                        Text(
-                            text = place.name,
-                            style = type.label,
-                            color = colors.ink,
-                        )
-                    }
+                visible.forEach { profile ->
+                    ProfileRow(
+                        profile = profile,
+                        nested = profile.parentId != null,
+                        selected = profile.id == activeProfileId,
+                        onClick = {
+                            onSelect(profile.id)
+                            onDismiss()
+                        },
+                    )
+                }
+
+                if (manual) {
+                    AppButton(
+                        text = "Вернуться к авто",
+                        onClick = {
+                            onReturnToAuto()
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = "Автоматически профиль выбирается по знакомой сети Wi-Fi. " +
+                            "Геолокация для этого не нужна.",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
                 }
 
                 if (adding) {
                     AppTextField(
                         value = newName,
                         onValueChange = { newName = it },
-                        placeholder = "название места",
+                        placeholder = "название профиля",
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                         AppButton(
@@ -101,10 +114,41 @@ fun PlacePickerDialog(
                         AppButton(text = "Отмена", onClick = { adding = false })
                     }
                 } else {
-                    AppButton(text = "+ Новое место", onClick = { adding = true })
+                    AppButton(text = "+ Новый профиль", onClick = { adding = true })
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileRow(
+    profile: ProfileEntity,
+    nested: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTarget)
+            .padding(start = if (nested) Dimens.space4 else 0.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+    ) {
+        RadioMark(selected)
+        Text(
+            text = listOf(profile.icon, profile.name).filter { it.isNotBlank() }.joinToString(" "),
+            style = type.label,
+            color = colors.ink,
+        )
     }
 }
 

@@ -11,6 +11,66 @@ package app.radiacode.data.db
 object MigrationSql {
 
     /**
+     * v5 → v6: places become measurement profiles (spec §3) and every sample
+     * carries its baseline-admission verdict (spec §4.2).
+     *
+     * Strategy — migrate, never drop:
+     *  - `profiles` is created and filled from `places` **keeping the primary
+     *    keys**, so `samples.placeId` / `measurement_sessions.placeId` keep
+     *    pointing at the same environment; `places` is then dropped;
+     *  - the two `placeId` **columns keep their name**. Renaming them needs
+     *    `ALTER TABLE … RENAME COLUMN` (SQLite 3.25 = Android API 30) or a full
+     *    table rebuild, and `samples` holds ~86 400 rows per recorded day —
+     *    rebuilding it on a phone is a real risk for zero user value. The
+     *    Kotlin entities map the old columns to `profileId` instead;
+     *  - migrated profiles get `role='user'`, learning and auto-activation on,
+     *    no icon, no parent — exactly the behaviour places had;
+     *  - `profile_networks` starts empty: nothing in v5 knew about Wi-Fi;
+     *  - `samples.baselineExcluded` starts NULL for existing rows, i.e.
+     *    «admitted».
+     *    That matches how those samples were actually used before this version
+     *    (the whole place history fed the baseline), so no statistic changes
+     *    silently under the user.
+     */
+    val FROM_5_TO_6: List<String> = listOf(
+        """
+        CREATE TABLE IF NOT EXISTS `profiles` (
+            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            `name` TEXT NOT NULL,
+            `icon` TEXT NOT NULL,
+            `parentId` INTEGER,
+            `archived` INTEGER NOT NULL,
+            `autoActivate` INTEGER NOT NULL,
+            `baselineLearning` INTEGER NOT NULL,
+            `role` TEXT NOT NULL,
+            `createdAt` INTEGER NOT NULL
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS `index_profiles_parentId` ON `profiles` (`parentId`)",
+        """
+        INSERT INTO `profiles`
+            (`id`, `name`, `icon`, `parentId`, `archived`, `autoActivate`,
+             `baselineLearning`, `role`, `createdAt`)
+        SELECT `id`, `name`, '', NULL, 0, 1, 1, 'user', `createdAt` FROM `places`
+        """.trimIndent(),
+        "DROP TABLE `places`",
+        """
+        CREATE TABLE IF NOT EXISTS `profile_networks` (
+            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            `profileId` INTEGER NOT NULL,
+            `networkHash` TEXT NOT NULL,
+            `label` TEXT,
+            `createdAt` INTEGER NOT NULL
+        )
+        """.trimIndent(),
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_profile_networks_networkHash` " +
+            "ON `profile_networks` (`networkHash`)",
+        "CREATE INDEX IF NOT EXISTS `index_profile_networks_profileId` " +
+            "ON `profile_networks` (`profileId`)",
+        "ALTER TABLE `samples` ADD COLUMN `baselineExcluded` TEXT",
+    )
+
+    /**
      * v4 → v5: track_points.altitudeMeters — GPS altitude for flight-mode
      * detection and the dose-vs-altitude chart. Pre-v5 points stay NULL
      * (altitude was never recorded, no honest backfill exists).

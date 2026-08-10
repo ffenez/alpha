@@ -32,11 +32,27 @@ data class SampleEntity(
     val flags: Int,
     val realTimeFlags: Int,
     /**
-     * Place active when the sample was recorded; null for samples measured
-     * before places existed or with no place selected. Deleting a place
-     * detaches its samples (sets null) instead of deleting measurements.
+     * Measurement profile active when the sample was recorded; null for
+     * samples measured before profiles existed or with no profile selected.
+     * Deleting a profile detaches its samples (sets null) instead of deleting
+     * measurements.
+     *
+     * The **column** is still called `placeId` (v2 name). Renaming it would
+     * require a full table rebuild: SQLite gained `ALTER TABLE … RENAME
+     * COLUMN` only in 3.25 (Android API 30) and this app runs from API 26, so
+     * the portable path is copying every row — millions of them after a month
+     * of 1 Hz recording. The mapping stays in the entity instead; see
+     * MigrationSql.FROM_5_TO_6.
      */
-    val placeId: Long? = null,
+    @ColumnInfo(name = "placeId")
+    val profileId: Long? = null,
+    /**
+     * Baseline admission verdict at write time: null = admitted into baseline
+     * statistics, otherwise [app.radiacode.baseline.BaselineExclusion.storageKey]
+     * of the first unmet condition (spec §4.2). Raw values are stored either
+     * way — exclusion only keeps an anomaly from becoming «the new normal».
+     */
+    val baselineExcluded: String? = null,
 )
 
 /** Battery / temperature / accumulated dose status (every few minutes). */
@@ -101,11 +117,72 @@ data class EventEntity(
     }
 }
 
-/** A named place («Дом», «Офис»…) with its own statistical baseline. */
-@Entity(tableName = "places")
-data class PlaceEntity(
+/**
+ * Measurement profile / context (spec §3): a user-named environment with its
+ * own history and statistical baseline. Replaces the v2–v5 «place»: `Дом` is
+ * not a special GPS mode, just a profile that may carry automatic activation
+ * rules.
+ *
+ * Nesting is one level deep («Дом / Спальня»): [parentId] points at a root
+ * profile and a profile that already has children can never become a child
+ * itself (see `ui/logic/ProfileTree`). Deeper trees buy nothing here and make
+ * the picker unreadable on a phone.
+ */
+@Entity(
+    tableName = "profiles",
+    indices = [Index("parentId")],
+)
+data class ProfileEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
+    /** Single glyph shown before the name; empty = none. */
+    val icon: String = "",
+    /** Parent profile for nesting; null = root profile. */
+    val parentId: Long? = null,
+    /** Archived profiles stay in history but leave the picker. */
+    val archived: Boolean = false,
+    /** Wi-Fi bindings of this profile may activate it automatically. */
+    val autoActivate: Boolean = true,
+    /** Condition 1 of the baseline admission pipeline (spec §4.2). */
+    val baselineLearning: Boolean = true,
+    /** [ROLE_USER], [ROLE_TRANSIT] or [ROLE_NO_PLACE]. */
+    val role: String = ROLE_USER,
+    val createdAt: Long,
+) {
+    companion object {
+        /** Ordinary user profile. */
+        const val ROLE_USER = "user"
+
+        /** Activated when no known network is around after the grace period. */
+        const val ROLE_TRANSIT = "transit"
+
+        /** Activated when the context cannot be determined at all. */
+        const val ROLE_NO_PLACE = "no_place"
+    }
+}
+
+/**
+ * A Wi-Fi network bound to a profile, identified **without** the location
+ * permission (spec §3.2, CLAUDE.md privacy invariant).
+ *
+ * [networkHash] is a local one-way hash of the network's gateway/DHCP-server
+ * address taken from `LinkProperties` (see
+ * [app.radiacode.context.NetworkIdentity]) — not an SSID and not a BSSID.
+ * [label] holds a human-readable SSID only when the user has granted fine
+ * location and only for display; the binding never depends on it.
+ */
+@Entity(
+    tableName = "profile_networks",
+    indices = [
+        Index(value = ["networkHash"], unique = true),
+        Index("profileId"),
+    ],
+)
+data class ProfileNetworkEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val profileId: Long,
+    val networkHash: String,
+    val label: String? = null,
     val createdAt: Long,
 )
 
@@ -121,8 +198,13 @@ data class PlaceEntity(
 )
 data class MeasurementSessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    /** Place active at session start; null = no place selected. */
-    val placeId: Long?,
+    /**
+     * Profile active at session start; null = no profile selected. The user
+     * can correct it afterwards from История (spec §20). Column name kept from
+     * v2 for the same reason as [SampleEntity.profileId].
+     */
+    @ColumnInfo(name = "placeId")
+    val profileId: Long?,
     val startedAt: Long,
     /** Null while the session is still running. */
     val endedAt: Long? = null,

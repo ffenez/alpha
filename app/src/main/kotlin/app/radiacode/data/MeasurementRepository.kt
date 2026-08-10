@@ -31,11 +31,18 @@ class MeasurementRepository(
 
     /**
      * Persists one decoded DATA_BUF batch, routing record types to their
-     * tables. [placeId] stamps real-time samples with the place active at
-     * write time (per-place baseline input).
+     * tables. [profileId] stamps real-time samples with the profile active at
+     * write time (per-profile baseline input); [admission] decides per sample
+     * whether it may feed the baseline statistics — raw values are stored
+     * either way (spec §4.2, §22).
      */
-    suspend fun record(records: List<DataBufRecord>, placeId: Long? = null) {
-        val samples = records.filterIsInstance<RealTimeData>().map { it.toEntity(placeId) }
+    suspend fun record(
+        records: List<DataBufRecord>,
+        profileId: Long? = null,
+        admission: (RealTimeData) -> String? = { null },
+    ) {
+        val samples = records.filterIsInstance<RealTimeData>()
+            .map { it.toEntity(profileId, admission(it)) }
         if (samples.isNotEmpty()) sampleDao.insertAll(samples)
 
         val rare = records.filterIsInstance<RareData>().map { it.toEntity() }

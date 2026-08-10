@@ -20,9 +20,13 @@ import app.radiacode.AppGraph
 import app.radiacode.MainActivity
 import app.radiacode.R
 import app.radiacode.baseline.ABOVE_USUAL_MIN_DWELL_SECONDS
+import app.radiacode.baseline.Admission
+import app.radiacode.baseline.AdmissionInput
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
+import app.radiacode.baseline.BaselineAdmission
 import app.radiacode.baseline.BaselineState
+import app.radiacode.baseline.QuarantineWindow
 import app.radiacode.baseline.DeviationSnapshot
 import app.radiacode.baseline.PersistenceTracker
 import app.radiacode.baseline.aboveUsualMagnitude
@@ -92,7 +96,26 @@ class MeasurementService : Service() {
     // --- baseline / sessions / alarm engine state ---
 
     @Volatile
-    private var activePlaceId: Long? = null
+    private var activeProfileId: Long? = null
+
+    /** Condition 1 of the admission pipeline: profile-level learning switch. */
+    @Volatile
+    private var profileLearningEnabled: Boolean = true
+
+    /** Condition 2: the Wi-Fi context machine's confidence. */
+    @Volatile
+    private var contextReliable: Boolean = true
+
+    /** Condition 4: Поиск / experiment is on screen. */
+    @Volatile
+    private var experimentActive: Boolean = false
+
+    /** Condition 7: manual freeze from Настройки. */
+    @Volatile
+    private var baselineFrozen: Boolean = false
+
+    /** Condition 5: quarantine after a detected deviation episode. */
+    private val quarantine = QuarantineWindow()
 
     @Volatile
     private var baselineState: BaselineState? = null
@@ -123,10 +146,12 @@ class MeasurementService : Service() {
         rebuildTrackers()
 
         scope.launch {
-            graph.placeRepository.ensureDefaultPlace()
+            graph.profileRepository.ensureDefaultProfiles()
             // Sessions a killed process left open end at the last real sample.
             graph.sessionRepository.closeStale()
         }
+        // Wi-Fi context: no GPS involved (spec §3.3).
+        graph.contextController.start(scope)
         scope.launch {
             graph.settings.alarmThresholds.collect { next ->
                 val persistenceChanged = next.persistenceSeconds != thresholds.persistenceSeconds
@@ -139,13 +164,28 @@ class MeasurementService : Service() {
             graph.settings.doseUnit.collect { doseUnit = it }
         }
         scope.launch {
-            graph.placeRepository.activePlace().collect { place ->
-                val changed = place?.id != activePlaceId
-                activePlaceId = place?.id
+            graph.profileRepository.activeProfile().collect { profile ->
+                val changed = profile?.id != activeProfileId
+                activeProfileId = profile?.id
+                profileLearningEnabled = profile?.baselineLearning ?: false
                 if (changed) {
                     rebuildTrackers()
                     refreshBaseline()
                 }
+            }
+        }
+        scope.launch {
+            graph.contextHub.state.collect { contextReliable = it.isReliable }
+        }
+        scope.launch {
+            graph.settings.baselineFrozen.collect { baselineFrozen = it }
+        }
+        scope.launch {
+            // Поиск on screen = an experiment (spec §18): its interval must
+            // never teach the baseline, and the user must see why.
+            graph.fastPollHub.watchers.collect { watchers ->
+                experimentActive = watchers > 0
+                graph.serviceStatus.onExperiment(if (watchers > 0) "Поиск" else null)
             }
         }
         scope.launch {
@@ -184,6 +224,7 @@ class MeasurementService : Service() {
 
     override fun onDestroy() {
         graph.serviceStatus.onServiceStopped()
+        graph.contextController.stop()
         stopTracking()
         val current = device
         device = null
@@ -217,11 +258,33 @@ class MeasurementService : Service() {
     }
 
     private suspend fun refreshBaseline() {
-        val placeId = activePlaceId ?: return
-        val state = graph.baselineRepository.state(placeId)
+        val profileId = activeProfileId ?: return
+        val state = graph.baselineRepository.state(profileId)
         baselineState = state
         graph.serviceStatus.onBaseline(state)
     }
+
+    /**
+     * Baseline admission verdict for one sample (spec §4.2). Evaluated at
+     * write time so the reason reflects the state the measurement was actually
+     * taken in; the raw sample is stored either way.
+     */
+    private fun admissionOf(sample: RealTimeData, nowMillis: Long): Admission =
+        BaselineAdmission.evaluate(
+            AdmissionInput(
+                profileLearningEnabled = profileLearningEnabled,
+                contextReliable = contextReliable,
+                sampleAgeMillis = (nowMillis - sample.timestampMillis).coerceAtLeast(0L),
+                experimentActive = experimentActive,
+                quarantineUntilMillis = quarantine.untilMillis,
+                nowMillis = nowMillis,
+                doseRateMicroSvH = DoseUnits.rawToMicroSievertPerHour(sample.doseRate),
+                countRateCps = sample.countRate,
+                countRateErrPercent = sample.countRateErr,
+                doseRateErrPercent = sample.doseRateErr,
+                manuallyFrozen = baselineFrozen,
+            ),
+        )
 
     /**
      * 1 Hz alarm engine (ADR 002): deviation = magnitude AND persistence.
@@ -255,6 +318,14 @@ class MeasurementService : Service() {
             )
         }
         graph.serviceStatus.onDeviation(snapshot)
+        // Quarantine (admission condition 5) runs off the same live picture:
+        // the window is measured from the END of the excursion, so the tail of
+        // an episode cannot slip back into «usual».
+        quarantine.onSample(
+            nowMillis = now,
+            deviationActive = snapshot.aboveUsualSince != null || snapshot.alertSince != null,
+        )
+        graph.serviceStatus.onAdmission(admissionOf(sample, System.currentTimeMillis()))
         if (alertFired) {
             // Once per deviation episode: PersistenceTracker fires the rising
             // edge exactly once and re-arms only after the excursion ends.
@@ -320,11 +391,11 @@ class MeasurementService : Service() {
         when (action) {
             SessionGate.Action.None -> Unit
             SessionGate.Action.Open -> scope.launch {
-                sessionId = graph.sessionRepository.open(activePlaceId)
+                sessionId = graph.sessionRepository.open(activeProfileId)
             }
             is SessionGate.Action.Reopen -> scope.launch {
                 sessionId?.let { graph.sessionRepository.close(it, action.closeAt) }
-                sessionId = graph.sessionRepository.open(activePlaceId)
+                sessionId = graph.sessionRepository.open(activeProfileId)
             }
             is SessionGate.Action.Close -> {
                 val current = sessionId
@@ -358,7 +429,12 @@ class MeasurementService : Service() {
         newDevice.start(scope)
 
         deviceJobs += scope.launch {
-            newDevice.records.collect { graph.measurementRepository.record(it, activePlaceId) }
+            newDevice.records.collect { records ->
+                val now = System.currentTimeMillis()
+                graph.measurementRepository.record(records, activeProfileId) { sample ->
+                    admissionOf(sample, now).storageKey
+                }
+            }
         }
         deviceJobs += scope.launch {
             newDevice.realTimeData.collect { sample ->

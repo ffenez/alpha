@@ -26,6 +26,13 @@
          offline. No other code performs network requests. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Automatic measurement profile by known Wi-Fi (spec §3.2). A normal
+         permission with no runtime prompt: it only allows reading the state of
+         the current link. The network is identified by a local hash of the
+         gateway address from LinkProperties — no SSID, no location permission
+         and no GPS are involved (see context/NetworkIdentity). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />

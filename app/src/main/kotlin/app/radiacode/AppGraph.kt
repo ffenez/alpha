@@ -4,9 +4,12 @@ import android.content.Context
 import app.radiacode.data.AppSettings
 import app.radiacode.data.BaselineRepository
 import app.radiacode.data.MeasurementRepository
-import app.radiacode.data.PlaceRepository
+import app.radiacode.data.ProfileRepository
 import app.radiacode.data.SessionRepository
 import app.radiacode.data.TrackRepository
+import app.radiacode.context.ContextController
+import app.radiacode.context.ContextHub
+import app.radiacode.context.WifiNetworkSource
 import app.radiacode.data.db.AppDatabase
 import app.radiacode.device.DeviceLinkFactory
 import app.radiacode.device.KableLinkFactory
@@ -37,11 +40,24 @@ class AppGraph private constructor(context: Context) {
 
     val trackRepository: TrackRepository by lazy { TrackRepository(database.trackDao()) }
 
-    val placeRepository: PlaceRepository by lazy {
-        PlaceRepository(
-            placeDao = database.placeDao(),
+    val profileRepository: ProfileRepository by lazy {
+        ProfileRepository(
+            profileDao = database.profileDao(),
             sampleDao = database.sampleDao(),
             settings = settings,
+            contextProfileId = contextHub.activeProfileId,
+        )
+    }
+
+    /** Live measurement context (Wi-Fi auto profile, spec §3.4). */
+    val contextHub: ContextHub = ContextHub()
+
+    val contextController: ContextController by lazy {
+        ContextController(
+            wifi = WifiNetworkSource(context.applicationContext),
+            profileDao = database.profileDao(),
+            settings = settings,
+            hub = contextHub,
         )
     }
 
@@ -51,7 +67,7 @@ class AppGraph private constructor(context: Context) {
         SessionRepository(
             sessionDao = database.sessionDao(),
             sampleDao = database.sampleDao(),
-            placeDao = database.placeDao(),
+            profileDao = database.profileDao(),
             spectrumDao = database.spectrumDao(),
             trackDao = database.trackDao(),
             eventDao = database.eventDao(),

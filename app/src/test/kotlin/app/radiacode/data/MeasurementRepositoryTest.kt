@@ -1,6 +1,7 @@
 package app.radiacode.data
 
 import app.radiacode.data.db.DownsampledSample
+import app.radiacode.data.db.ExclusionCount
 import app.radiacode.data.db.EventDao
 import app.radiacode.data.db.EventEntity
 import app.radiacode.data.db.RangeStats
@@ -29,10 +30,15 @@ private class FakeSampleDao : SampleDao {
     override fun observeLatest(): Flow<SampleEntity?> = flowOf(inserted.lastOrNull())
     override fun observeRange(from: Long, to: Long): Flow<List<SampleEntity>> = flowOf(emptyList())
     override suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
-    override suspend fun downsampledRangeForPlace(placeId: Long, from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
+    override suspend fun downsampledRangeForProfile(profileId: Long, from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
+    override suspend fun exclusionCountsForProfile(profileId: Long, from: Long, to: Long): List<ExclusionCount> = emptyList()
+    override suspend fun exclusionCountsInRange(from: Long, to: Long): List<ExclusionCount> = emptyList()
+    override suspend fun admittedCountInRange(from: Long, to: Long): Int = 0
+    override suspend fun reassignRange(from: Long, to: Long, profileId: Long?) {}
+    override suspend fun rewriteLearningVerdict(from: Long, to: Long, reason: String?, learningOffReason: String) {}
     override suspend fun rangeStats(from: Long, to: Long): RangeStats =
         RangeStats(0, null, null, null, null, null)
-    override suspend fun detachPlace(placeId: Long) {}
+    override suspend fun detachProfile(profileId: Long) {}
     override suspend fun count(): Long = inserted.size.toLong()
     override suspend fun latestTimestamp(): Long? = inserted.maxOfOrNull { it.timestamp }
     override suspend fun deleteOlderThan(before: Long): Int = 0

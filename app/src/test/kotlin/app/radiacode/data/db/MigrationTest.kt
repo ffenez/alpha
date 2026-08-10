@@ -143,6 +143,88 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 5 to 6 produces exactly the exported v6 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(5))
+            MigrationSql.FROM_5_TO_6.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(6))
+        }
+    }
+
+    @Test
+    fun `migration 5 to 6 turns places into profiles keeping sample linkage`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(5))
+            connection.createStatement().use {
+                it.execute("INSERT INTO places (id, name, createdAt) VALUES (7, 'Дача', 900)")
+                it.execute("INSERT INTO places (id, name, createdAt) VALUES (8, 'Офис', 950)")
+                it.execute(
+                    "INSERT INTO samples " +
+                        "(timestamp, doseRate, doseRateErr, countRate, countRateErr, " +
+                        "flags, realTimeFlags, placeId) " +
+                        "VALUES (1000, 0.00001, 1.5, 21.0, 2.0, 0, 0, 7)",
+                )
+                it.execute(
+                    "INSERT INTO measurement_sessions (placeId, startedAt, endedAt) " +
+                        "VALUES (8, 500, 600)",
+                )
+            }
+
+            MigrationSql.FROM_5_TO_6.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            connection.createStatement().use { statement ->
+                val profiles = statement.executeQuery(
+                    "SELECT id, name, role, archived, autoActivate, baselineLearning, " +
+                        "parentId, icon FROM profiles ORDER BY id",
+                )
+                assertTrue(profiles.next())
+                assertEquals(7L, profiles.getLong("id"))
+                assertEquals("Дача", profiles.getString("name"))
+                assertEquals("user", profiles.getString("role"))
+                assertEquals(0, profiles.getInt("archived"))
+                assertEquals(1, profiles.getInt("autoActivate"))
+                assertEquals(1, profiles.getInt("baselineLearning"))
+                assertEquals("", profiles.getString("icon"))
+                profiles.getObject("parentId")
+                assertTrue(profiles.wasNull(), "migrated profiles start as roots")
+                assertTrue(profiles.next())
+                assertEquals(8L, profiles.getLong("id"))
+                assertTrue(!profiles.next(), "exactly two profiles expected")
+            }
+
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT placeId, baselineExcluded FROM samples",
+                )
+                assertTrue(rows.next())
+                assertEquals(7L, rows.getLong("placeId"), )
+                rows.getString("baselineExcluded")
+                assertTrue(rows.wasNull(), "existing samples stay admitted")
+            }
+
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery("SELECT placeId FROM measurement_sessions")
+                assertTrue(rows.next())
+                assertEquals(8L, rows.getLong("placeId"))
+            }
+
+            // The old table is gone, and nothing else lost its rows.
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT COUNT(*) AS n FROM sqlite_master " +
+                        "WHERE type = 'table' AND name = 'places'",
+                )
+                rows.next()
+                assertEquals(0, rows.getInt("n"), "places must be dropped")
+            }
+        }
+    }
+
+    @Test
     fun `migration 4 to 5 keeps existing track points with NULL altitude`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(4))

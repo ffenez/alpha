@@ -1,5 +1,6 @@
 package app.radiacode.service
 
+import app.radiacode.baseline.Admission
 import app.radiacode.baseline.BaselineState
 import app.radiacode.baseline.DeviationSnapshot
 import app.radiacode.device.ConnectionState
@@ -27,6 +28,21 @@ class ServiceStatus {
     /** Live deviation picture from the alarm engine (single source of truth). */
     private val _deviation = MutableStateFlow(DeviationSnapshot())
     val deviation: StateFlow<DeviationSnapshot> = _deviation.asStateFlow()
+
+    /**
+     * Live baseline-admission verdict for the current sample (spec §4.2).
+     * The Монитор shows it as a single honest line and «Почему?» expands it.
+     */
+    private val _admission = MutableStateFlow<Admission>(Admission.Admitted)
+    val admission: StateFlow<Admission> = _admission.asStateFlow()
+
+    /**
+     * Name of the running experiment («Поиск», later A/B runs) or null.
+     * Condition 4 of the admission pipeline: an experiment must never teach
+     * the baseline (spec §18).
+     */
+    private val _experiment = MutableStateFlow<String?>(null)
+    val experiment: StateFlow<String?> = _experiment.asStateFlow()
 
     /** Active track recording; null = not recording. */
     data class TrackRecording(val sessionId: Long, val startedAt: Long)
@@ -59,5 +75,14 @@ class ServiceStatus {
 
     internal fun onDeviation(snapshot: DeviationSnapshot) {
         _deviation.value = snapshot
+    }
+
+    internal fun onAdmission(admission: Admission) {
+        _admission.value = admission
+    }
+
+    /** Called by the service from the FastPollHub watcher count (Поиск). */
+    internal fun onExperiment(name: String?) {
+        _experiment.value = name
     }
 }
