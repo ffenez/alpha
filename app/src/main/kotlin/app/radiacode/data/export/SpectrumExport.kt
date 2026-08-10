@@ -68,25 +68,36 @@ object SpectrumExport {
         counts = SpectrumBlob.decode(entity.counts),
     )
 
+    /** Processing metadata lines of a snapshot (spec §22) — N42 `<Remark>`s. */
+    fun metadataLines(
+        entity: SpectrumSnapshotEntity,
+        appVersion: String? = null,
+    ): List<String> = ProcessingMetadata.of(entity, appVersion).lines()
+
     /**
      * RC-XML document for a snapshot, with the recorded background reference
      * as BackgroundEnergySpectrum when present. Wall-clock Start/EndTime
      * bracket the accumulation: end = when the snapshot was taken, start =
      * end − live time (both in millis here; the writer converts to seconds
      * resolution).
+     *
+     * `SampleInfo/Note` always carries the processing metadata of spec §22
+     * (normalization, background method, calibration, algorithm versions) —
+     * it is built from the row itself, so no export path can omit it.
      */
     fun toResultData(
         entity: SpectrumSnapshotEntity,
         background: SpectrumSnapshotEntity?,
         serialNumber: String?,
         zone: ZoneId = ZoneId.systemDefault(),
+        appVersion: String? = null,
     ): RcResultData {
         val serial = serialNumber?.trim()?.ifEmpty { null }
         val name = title(entity, zone)
         return RcResultData(
             deviceModel = modelFromSerial(serial),
             sampleName = name,
-            sampleNote = null,
+            sampleNote = ProcessingMetadata.of(entity, appVersion).asText(),
             startMillis = entity.timestamp - entity.durationSeconds * 1000L,
             endMillis = entity.timestamp,
             spectrum = toRcSpectrum(entity, serial, name),

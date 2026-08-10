@@ -40,6 +40,13 @@ object N42 {
         val counts: List<Int>,
     )
 
+    /**
+     * @param remarks processing metadata of spec §22 (normalization,
+     *   background method, calibration, algorithm versions). Written as
+     *   `<Remark>` elements — the first children of `RadInstrumentData`, where
+     *   the N42-2011 sequence puts them — so a file opened in another analysis
+     *   tool still states how its numbers were produced.
+     */
     fun write(
         foreground: Measurement,
         background: Measurement? = null,
@@ -48,12 +55,16 @@ object N42 {
         softwareVersion: String? = null,
         zone: ZoneId = ZoneId.systemDefault(),
         documentUuid: UUID = UUID.randomUUID(),
+        remarks: List<String> = emptyList(),
     ): String {
         val sb = StringBuilder(32 * 1024)
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
         sb.append("<RadInstrumentData xmlns=\"http://physics.nist.gov/N42/2011/N42\"")
         sb.append(" n42DocUUID=\"").append(documentUuid).append("\">\n")
 
+        for (remark in remarks) {
+            sb.append("  <Remark>").append(escape(remark)).append("</Remark>\n")
+        }
         sb.append("  <RadInstrumentDataCreatorName>app.radiacode alpha")
             .append("</RadInstrumentDataCreatorName>\n")
 
