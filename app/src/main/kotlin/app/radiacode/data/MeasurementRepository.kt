@@ -1,5 +1,6 @@
 package app.radiacode.data
 
+import app.radiacode.data.db.DoseBucketAggregate
 import app.radiacode.data.db.DownsampledSample
 import app.radiacode.data.db.EventDao
 import app.radiacode.data.db.EventEntity
@@ -154,6 +155,19 @@ class MeasurementRepository(
 
     suspend fun downsampledSamples(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> =
         sampleDao.downsampledRange(from, to, bucketMillis)
+
+    /** Bucketed moments (min/max/Σx/Σx²/n) for the fullscreen dose chart. */
+    suspend fun doseBuckets(from: Long, to: Long, bucketMillis: Long): List<DoseBucketAggregate> =
+        sampleDao.doseBucketRange(from, to, bucketMillis)
+
+    /** App-detected deviations and hotspots inside a range (chart episodes). */
+    suspend fun deviationEvents(from: Long, to: Long, limit: Int = 200): List<EventEntity> =
+        eventDao.inRangeBySource(
+            from = from,
+            to = to,
+            sources = listOf(EventEntity.SOURCE_DEVIATION, EventEntity.SOURCE_HOTSPOT),
+            limit = limit,
+        )
 
     fun latestRareData(): Flow<RareDataEntity?> = rareDataDao.observeLatest()
 

@@ -1,5 +1,6 @@
 package app.radiacode.data
 
+import app.radiacode.data.db.DoseBucketAggregate
 import app.radiacode.data.db.DownsampledSample
 import app.radiacode.data.db.EventDao
 import app.radiacode.data.db.EventEntity
@@ -30,6 +31,7 @@ private class FakeSampleDao : SampleDao {
     override fun observeRange(from: Long, to: Long): Flow<List<SampleEntity>> = flowOf(emptyList())
     override suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
     override suspend fun downsampledRangeForPlace(placeId: Long, from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
+    override suspend fun doseBucketRange(from: Long, to: Long, bucketMillis: Long): List<DoseBucketAggregate> = emptyList()
     override suspend fun rangeStats(from: Long, to: Long): RangeStats =
         RangeStats(0, null, null, null, null, null)
     override suspend fun detachPlace(placeId: Long) {}
