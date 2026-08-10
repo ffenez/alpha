@@ -256,7 +256,7 @@ private fun SensitivityOption(
 
 private fun presetDescription(thresholds: AlarmThresholds, unit: DoseUnitSetting): String =
     "от ${DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit)} или " +
-        "${formatFactor(thresholds.relativeFactor)}× обычного, " +
+        "${formatFactor(thresholds.relativeFactor)}× к P90 профиля, " +
         heldWording(thresholds.persistenceSeconds.toLong())
 
 private fun formatFactor(factor: Float): String =
@@ -940,7 +940,7 @@ private fun InterfaceSection(graph: AppGraph) {
             BlockToggleRow("Доза сегодня", blocks.doseToday) {
                 scope.launch { graph.settings.setMonitorBlocks(blocks.copy(doseToday = it)) }
             }
-            BlockToggleRow("Статистика под графиком (мин/медиана/макс/σ/n)", blocks.stats) {
+            BlockToggleRow("Статистика под графиком (мин/медиана/макс/SD/n)", blocks.stats) {
                 scope.launch { graph.settings.setMonitorBlocks(blocks.copy(stats = it)) }
             }
             BlockToggleRow("Подсказка о CPS", blocks.cpsHint) {

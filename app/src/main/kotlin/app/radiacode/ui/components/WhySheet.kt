@@ -44,6 +44,13 @@ fun WhySheet(input: WhyInput, onDismiss: () -> Unit) {
                     style = type.label,
                     color = colors.ink2,
                 )
+                // The verdict must say what it was compared with, right here
+                // (CHART SPEC §18) — not only inside the numbers below.
+                Text(
+                    text = WhyExplain.verdictExplanation(input.status),
+                    style = type.bodySmall,
+                    color = colors.muted,
+                )
                 AppDivider()
                 Column(
                     modifier = Modifier

@@ -226,7 +226,7 @@ private fun ChartCard(detail: SessionDetail, unit: DoseUnitSetting) {
                         StatCell(DoseFormat.rate(stats.min, unit), "мин"),
                         StatCell(DoseFormat.rate(stats.median, unit), "медиана"),
                         StatCell(DoseFormat.rate(stats.max, unit), "макс"),
-                        StatCell(DoseFormat.rate(stats.sigma, unit), "σ"),
+                        StatCell(DoseFormat.rate(stats.sigma, unit), "SD, ${DoseFormat.rateUnitLabel(unit)}"),
                         StatCell(HistoryFormat.count(detail.summary.stats.sampleCount), "n"),
                     ),
                 )

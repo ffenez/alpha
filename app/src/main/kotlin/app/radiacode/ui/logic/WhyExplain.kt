@@ -49,6 +49,25 @@ object WhyExplain {
 
     fun verdict(status: MonitorStatus): String = statusHeadline(status)
 
+    /**
+     * One sentence saying against what the verdict was made (CHART SPEC §18).
+     * It names the historical P10–P90 of the profile and never calls it a norm
+     * or a safe range: the band describes this place's own history.
+     */
+    fun verdictExplanation(status: MonitorStatus): String = when (status) {
+        MonitorStatus.Unknown -> "Текущего измерения нет — сравнивать не с чем."
+        is MonitorStatus.Fixed ->
+            "Исторический P10–P90 профиля ещё не собран, поэтому сравнение идёт " +
+                "только с порогом тревоги L1."
+        is MonitorStatus.Usual ->
+            "Текущая мощность дозы находится внутри исторического P10–P90 профиля."
+        is MonitorStatus.AboveUsual ->
+            "Текущая мощность дозы держится выше исторического P10–P90 профиля."
+        is MonitorStatus.Alert ->
+            "Превышение держится дольше заданного времени: это сравнение с порогом L1 " +
+                "и с историческим P10–P90 профиля, а не оценка опасности."
+    }
+
     fun lines(input: WhyInput): List<WhyLine> = buildList {
         add(
             WhyLine(
@@ -105,7 +124,7 @@ object WhyExplain {
             WhyLine(
                 label = "Порог тревоги",
                 value = "L1 ${DoseFormat.rateWithUnit(input.thresholds.l1MicroSvH, input.unit)} " +
-                    "или ${factorLabel(input.thresholds.relativeFactor)}× обычного",
+                    "или ${factorLabel(input.thresholds.relativeFactor)}× к P90 профиля",
                 evidence = Evidence.CALCULATED,
                 note = heldWording(input.thresholds.persistenceSeconds.toLong()) +
                     " — иначе тревоги нет",
@@ -130,7 +149,8 @@ object WhyExplain {
             value = DoseFormat.range(baseline.doseLowMicroSvH, baseline.doseHighMicroSvH, unit) +
                 " ${DoseFormat.rateUnitLabel(unit)}",
             evidence = Evidence.STATISTICALLY_DETECTED,
-            note = "P10–P90 профиля",
+            note = "P10–P90 профиля: около 80 % валидных исторических измерений " +
+                "этого места были внутри диапазона; это не норматив",
         ),
         WhyLine(
             label = "Медиана · P25–P75",

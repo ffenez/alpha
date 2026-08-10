@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class MonitorStatusTest {
 
@@ -43,13 +44,19 @@ class MonitorStatusTest {
     fun `no baseline - fixed threshold fallback`() {
         val below = MonitorStatus.of(0.12f, null, calm, thresholds, 0)
         assertEquals(MonitorStatus.Fixed(above = false, thresholdMicroSvH = 0.30f), below)
-        assertEquals("Фон в норме", statusHeadline(below))
-        assertNull(statusDetail(below, DoseUnitSetting.MICRO_SIEVERT))
+        assertEquals("Ниже порога L1", statusHeadline(below))
+        // The reference is shown even before a baseline exists (spec §18).
+        assertEquals(
+            "порог L1 0,30 мкЗв/ч · исторический диапазон профиля ещё не собран",
+            statusDetail(below, DoseUnitSetting.MICRO_SIEVERT),
+        )
 
         val above = MonitorStatus.of(0.35f, null, calm, thresholds, 0)
         assertEquals(MonitorStatus.Fixed(above = true, thresholdMicroSvH = 0.30f), above)
-        assertEquals("Выше порога", statusHeadline(above))
-        assertEquals("порог 0,30 мкЗв/ч", statusDetail(above, DoseUnitSetting.MICRO_SIEVERT))
+        assertEquals("Выше порога L1", statusHeadline(above))
+        assertTrue(
+            statusDetail(above, DoseUnitSetting.MICRO_SIEVERT)!!.startsWith("порог L1 0,30 мкЗв/ч"),
+        )
     }
 
     @Test
@@ -63,9 +70,10 @@ class MonitorStatusTest {
     fun `active baseline - usual wording with the place band`() {
         val status = MonitorStatus.of(0.12f, active, calm, thresholds, 0)
         assertEquals(MonitorStatus.Usual(baseline), status)
-        assertEquals("Обычный фон", statusHeadline(status))
+        assertEquals("В обычном диапазоне этого профиля", statusHeadline(status))
+        assertEquals("Обычный для этого места", statusHeadlineShort(status))
         assertEquals(
-            "P10–P90 места: 0,09–0,14 · собран 26 ч",
+            "P10–P90: 0,09–0,14 мкЗв/ч · baseline: 26 ч",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -84,9 +92,9 @@ class MonitorStatusTest {
         val held = DeviationSnapshot(aboveUsualSince = now - 4 * 60_000)
         val status = MonitorStatus.of(0.18f, active, held, thresholds, now)
         assertEquals(MonitorStatus.AboveUsual(baseline, heldSeconds = 240), status)
-        assertEquals("Выше обычного", statusHeadline(status))
+        assertEquals("Выше обычного диапазона профиля", statusHeadline(status))
         assertEquals(
-            "обычно здесь 0,09–0,14 · держится 4 мин",
+            "P10–P90 профиля: 0,09–0,14 мкЗв/ч · держится 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -102,7 +110,7 @@ class MonitorStatusTest {
         )
         assertEquals("Уровень радиации изменился", statusHeadline(status))
         assertEquals(
-            "обычно здесь 0,09–0,14 · держится 4 мин",
+            "P10–P90 профиля: 0,09–0,14 мкЗв/ч · держится 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -113,7 +121,7 @@ class MonitorStatusTest {
         val alert = DeviationSnapshot(alertSince = now - 130_000)
         val status = MonitorStatus.of(0.35f, null, alert, thresholds, now)
         assertEquals(
-            "порог 0,30 мкЗв/ч · держится 2 мин",
+            "порог L1 0,30 мкЗв/ч · держится 2 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -136,6 +144,50 @@ class MonitorStatusTest {
             learningWording(BaselineState.Learning(0, 10800)),
         )
         assertEquals("baseline собран за 26 ч наблюдений", baselineCollectedWording(baseline))
-        assertEquals("собран 26 ч", baselineCollectedShort(baseline))
+        assertEquals("26 ч", baselineCollectedShort(baseline))
+    }
+
+    /**
+     * CHART SPEC §18/§39: the main status is descriptive, never normative.
+     * These words must not appear in any status wording — a historical
+     * percentile of one place is not a safety statement.
+     */
+    @Test
+    fun `no status ever claims a norm or safety`() {
+        val statuses = listOf(
+            MonitorStatus.Unknown,
+            MonitorStatus.Fixed(above = false, thresholdMicroSvH = 0.30f),
+            MonitorStatus.Fixed(above = true, thresholdMicroSvH = 0.30f),
+            MonitorStatus.Usual(baseline),
+            MonitorStatus.AboveUsual(baseline, heldSeconds = 240),
+            MonitorStatus.Alert(baseline, heldSeconds = 240, thresholdMicroSvH = 0.30f),
+            MonitorStatus.Alert(null, heldSeconds = 240, thresholdMicroSvH = 0.30f),
+        )
+        val forbidden = listOf("норма", "норме", "норму", "безопас", "допустим", "привычн")
+        for (status in statuses) {
+            val texts = listOfNotNull(
+                statusHeadline(status),
+                statusHeadlineShort(status),
+                statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
+            )
+            for (text in texts) {
+                for (word in forbidden) {
+                    assertTrue(!text.lowercase().contains(word), "«$word» in «$text»")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `the status with a baseline always shows its reference`() {
+        for (status in listOf(
+            MonitorStatus.Usual(baseline),
+            MonitorStatus.AboveUsual(baseline, heldSeconds = 60),
+            MonitorStatus.Alert(baseline, heldSeconds = 60, thresholdMicroSvH = 0.3f),
+        )) {
+            val detail = statusDetail(status, DoseUnitSetting.MICRO_SIEVERT)!!
+            assertTrue(detail.contains("P10–P90"), detail)
+            assertTrue(detail.contains("мкЗв/ч"), detail)
+        }
     }
 }

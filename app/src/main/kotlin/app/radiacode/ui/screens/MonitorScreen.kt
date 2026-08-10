@@ -539,7 +539,7 @@ private fun HourChartCard(
                 Spacer(Modifier.weight(1f))
                 if (baseline != null) {
                     Text(
-                        text = "полоса — обычный диапазон",
+                        text = "полоса — P10–P90 профиля",
                         style = type.footnote,
                         color = colors.muted,
                     )
@@ -579,7 +579,7 @@ private fun HourChartCard(
                             StatCell(DoseFormat.rate(stats.min, unit), "мин"),
                             StatCell(DoseFormat.rate(stats.median, unit), "медиана"),
                             StatCell(DoseFormat.rate(stats.max, unit), "макс"),
-                            StatCell(DoseFormat.rate(stats.sigma, unit), "σ"),
+                            StatCell(DoseFormat.rate(stats.sigma, unit), "SD, ${DoseFormat.rateUnitLabel(unit)}"),
                             StatCell(HistoryFormat.count(chart.sampleCount), "n"),
                         ),
                     )

@@ -78,28 +78,52 @@ sealed interface MonitorStatus {
     }
 }
 
-/** The big status word(s). Never claims safety. */
+/**
+ * The big status word(s).
+ *
+ * CHART SPEC §18/§39: the verdict names **what it is compared with** and never
+ * uses «норма / безопасно / допустимо» — a historical percentile of one place
+ * is not a safety statement. «Обычный фон» is therefore spelled out as «В
+ * обычном диапазоне этого профиля»; [statusHeadlineShort] is the only shorter
+ * variant, for places where the line must physically fit.
+ */
 fun statusHeadline(status: MonitorStatus): String = when (status) {
     MonitorStatus.Unknown -> "Нет данных"
-    is MonitorStatus.Fixed -> if (status.above) "Выше порога" else "Фон в норме"
-    is MonitorStatus.Usual -> "Обычный фон"
-    is MonitorStatus.AboveUsual -> "Выше обычного"
+    is MonitorStatus.Fixed -> if (status.above) "Выше порога L1" else "Ниже порога L1"
+    is MonitorStatus.Usual -> "В обычном диапазоне этого профиля"
+    is MonitorStatus.AboveUsual -> "Выше обычного диапазона профиля"
     is MonitorStatus.Alert -> "Уровень радиации изменился"
 }
 
-/** Second line under the status: the honest context of the comparison. */
+/** Short variant for narrow slots; same meaning, same forbidden words. */
+fun statusHeadlineShort(status: MonitorStatus): String = when (status) {
+    is MonitorStatus.Usual -> "Обычный для этого места"
+    is MonitorStatus.AboveUsual -> "Выше обычного"
+    else -> statusHeadline(status)
+}
+
+/**
+ * Second line under the status — the reference is **always** shown (§18):
+ * which band, and how much history it is built on.
+ */
 fun statusDetail(status: MonitorStatus, unit: DoseUnitSetting): String? = when (status) {
     MonitorStatus.Unknown -> null
     is MonitorStatus.Fixed ->
-        if (status.above) "порог ${DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit)}" else null
+        "порог L1 ${DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit)} · " +
+            "исторический диапазон профиля ещё не собран"
     is MonitorStatus.Usual ->
-        "P10–P90 места: ${baselineRange(status.baseline, unit)} · " +
+        "P10–P90: ${baselineRange(status.baseline, unit)} " +
+            "${DoseFormat.rateUnitLabel(unit)} · baseline: " +
             baselineCollectedShort(status.baseline)
     is MonitorStatus.AboveUsual ->
-        "обычно здесь ${baselineRange(status.baseline, unit)} · ${heldWording(status.heldSeconds)}"
+        "P10–P90 профиля: ${baselineRange(status.baseline, unit)} " +
+            "${DoseFormat.rateUnitLabel(unit)} · ${heldWording(status.heldSeconds)}"
     is MonitorStatus.Alert -> {
-        val reference = status.baseline?.let { "обычно здесь ${baselineRange(it, unit)}" }
-            ?: "порог ${DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit)}"
+        val reference = status.baseline
+            ?.let {
+                "P10–P90 профиля: ${baselineRange(it, unit)} ${DoseFormat.rateUnitLabel(unit)}"
+            }
+            ?: "порог L1 ${DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit)}"
         "$reference · ${heldWording(status.heldSeconds)}"
     }
 }
@@ -128,9 +152,9 @@ fun learningWording(state: BaselineState.Learning): String {
 fun baselineCollectedWording(baseline: Baseline): String =
     "baseline собран за ${formatHours(baseline.accumulatedSeconds)} ч наблюдений"
 
-/** Status-line wording: «собран 26,4 ч». */
+/** Status-line reference (§18 «baseline: 18 h»): «26,4 ч». */
 fun baselineCollectedShort(baseline: Baseline): String =
-    "собран ${formatHours(baseline.accumulatedSeconds)} ч"
+    "${formatHours(baseline.accumulatedSeconds)} ч"
 
 private fun formatHours(seconds: Long): String {
     val hours = seconds / 3600.0

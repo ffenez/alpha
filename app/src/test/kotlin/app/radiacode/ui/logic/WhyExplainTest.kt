@@ -54,11 +54,37 @@ class WhyExplainTest {
 
     @Test
     fun `verdict repeats the main screen headline verbatim`() {
-        assertEquals("Обычный фон", WhyExplain.verdict(MonitorStatus.Usual(baseline)))
+        assertEquals(
+            "В обычном диапазоне этого профиля",
+            WhyExplain.verdict(MonitorStatus.Usual(baseline)),
+        )
         assertEquals(
             "Уровень радиации изменился",
             WhyExplain.verdict(MonitorStatus.Alert(baseline, 300, 0.3f)),
         )
+    }
+
+    @Test
+    fun `the verdict says what it was compared with`() {
+        assertEquals(
+            "Текущая мощность дозы находится внутри исторического P10–P90 профиля.",
+            WhyExplain.verdictExplanation(MonitorStatus.Usual(baseline)),
+        )
+        assertTrue(
+            WhyExplain.verdictExplanation(MonitorStatus.AboveUsual(baseline, 300))
+                .contains("P10–P90 профиля"),
+        )
+        val forbidden = listOf("норма", "безопас", "допустим")
+        for (status in listOf(
+            MonitorStatus.Unknown,
+            MonitorStatus.Fixed(above = true, thresholdMicroSvH = 0.3f),
+            MonitorStatus.Usual(baseline),
+            MonitorStatus.AboveUsual(baseline, 300),
+            MonitorStatus.Alert(baseline, 300, 0.3f),
+        )) {
+            val text = WhyExplain.verdictExplanation(status).lowercase()
+            for (word in forbidden) assertTrue(!text.contains(word), "«$word» in «$text»")
+        }
     }
 
     @Test
@@ -86,10 +112,19 @@ class WhyExplainTest {
     fun `baseline lines quote the band, the quartiles and the MAD`() {
         val input = input()
         assertEquals("0,09–0,16 мкЗв/ч", line(input, "Обычный диапазон").value)
-        assertEquals("P10–P90 профиля", line(input, "Обычный диапазон").note)
+        val note = line(input, "Обычный диапазон").note!!
+        assertTrue(note.startsWith("P10–P90 профиля"), note)
+        assertTrue(note.contains("не норматив"), note)
         assertTrue(line(input, "Медиана · P25–P75").value.contains("0,10–0,14"))
         assertTrue(line(input, "MAD").value.startsWith("0,02"))
         assertTrue(line(input, "MAD").note!!.contains("median(|xᵢ − медиана|)"))
+    }
+
+    @Test
+    fun `the alarm factor names the statistic it multiplies`() {
+        val value = line(input(), "Порог тревоги").value
+        assertTrue(value.contains("к P90 профиля"), value)
+        assertTrue(!value.contains("обычного"), value)
     }
 
     @Test
