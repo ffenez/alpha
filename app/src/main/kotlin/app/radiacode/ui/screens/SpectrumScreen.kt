@@ -1,5 +1,7 @@
 package app.radiacode.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,11 +24,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -38,6 +42,9 @@ import app.radiacode.analysis.IsotopeMatcher
 import app.radiacode.analysis.Peak
 import app.radiacode.analysis.PeakDetection
 import app.radiacode.analysis.SpectrumDisplay
+import app.radiacode.data.export.RcXml
+import app.radiacode.data.export.SpectrumExport
+import app.radiacode.data.toEntity
 import app.radiacode.data.toSpectrum
 import app.radiacode.device.ConnectionState
 import app.radiacode.protocol.Spectrum
@@ -59,6 +66,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 /** Chart resolution: 1024 channels aggregate into this many line points. */
 private const val COLUMN_COUNT = 240
@@ -147,6 +155,112 @@ fun SpectrumScreen(graph: AppGraph) {
                 }
             }
             else -> SpectrumContent(graph, spectrum, connected, hubState)
+        }
+
+        FileActionsSection(
+            graph = graph,
+            spectrum = spectrum,
+            serialNumber = (connection as? ConnectionState.Connected)?.info?.serialNumber,
+        )
+    }
+}
+
+/**
+ * Обмен файлами спектров: импорт RC-XML через SAF и экспорт текущего
+ * накопления (с записанным фоном, если он есть). Доступен и без прибора —
+ * чужой файл можно изучать в Истории и сравнении.
+ */
+@Composable
+private fun FileActionsSection(
+    graph: AppGraph,
+    spectrum: Spectrum?,
+    serialNumber: String?,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val backgroundEntity by graph.measurementRepository.backgroundReference()
+        .collectAsState(initial = null)
+
+    var notice by remember { mutableStateOf<SpectrumFileNotice?>(null) }
+    var savedAtMillis by remember { mutableStateOf<Long?>(null) }
+    var pendingExport by remember { mutableStateOf<String?>(null) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/xml"),
+    ) { uri ->
+        val content = pendingExport
+        pendingExport = null
+        if (uri != null && content != null) {
+            scope.launch {
+                if (writeTextToUri(context, uri, content)) {
+                    savedAtMillis = System.currentTimeMillis()
+                } else {
+                    notice = SpectrumFileNotice(
+                        title = "Экспорт не удался",
+                        lines = listOf("Файл не записался — попробуйте другую папку."),
+                        isError = true,
+                    )
+                }
+            }
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch { notice = importRcXmlFile(graph, context, uri) }
+        }
+    }
+
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+        AppButton(
+            text = "Импорт из файла",
+            onClick = { importLauncher.launch(arrayOf("*/*")) },
+            modifier = Modifier.weight(1f),
+        )
+        AppButton(
+            text = "Экспорт XML",
+            onClick = {
+                if (spectrum == null) return@AppButton
+                val now = System.currentTimeMillis()
+                val entity = spectrum.toEntity(timestamp = now, accumulated = false)
+                pendingExport = RcXml.write(
+                    SpectrumExport.toResultData(entity, backgroundEntity, serialNumber),
+                )
+                exportLauncher.launch(SpectrumExport.fileName(now, "xml"))
+            },
+            enabled = spectrum != null,
+            modifier = Modifier.weight(1f),
+        )
+    }
+    Text(
+        text = buildString {
+            append("формат RadiaCode XML · импортированный снимок появится в Истории")
+            savedAtMillis?.let { append(" · файл сохранён в ").append(timeOfDay(it)) }
+        },
+        style = type.footnote,
+        color = colors.muted,
+        modifier = Modifier.padding(horizontal = Dimens.space1),
+    )
+
+    notice?.let { current ->
+        Dialog(onDismissRequest = { notice = null }) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    Text(
+                        text = current.title,
+                        style = type.title,
+                        color = if (current.isError) colors.warn else colors.ink,
+                    )
+                    current.lines.forEach { line ->
+                        Text(text = line, style = type.body, color = colors.ink2)
+                    }
+                    AppButton(text = "Понятно", onClick = { notice = null })
+                }
+            }
         }
     }
 }

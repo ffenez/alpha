@@ -58,12 +58,30 @@ private class FakeSpectrumDao : SpectrumDao {
     val inserted = mutableListOf<SpectrumSnapshotEntity>()
     override suspend fun insert(snapshot: SpectrumSnapshotEntity): Long { inserted += snapshot; return inserted.size.toLong() }
     override fun observeLatest(accumulated: Boolean): Flow<SpectrumSnapshotEntity?> =
-        flowOf(inserted.lastOrNull { it.accumulated == accumulated })
+        flowOf(
+            inserted.lastOrNull {
+                it.accumulated == accumulated && it.origin != SpectrumSnapshotEntity.ORIGIN_IMPORT
+            },
+        )
     override fun observeBackgroundReference(): Flow<SpectrumSnapshotEntity?> =
-        flowOf(inserted.lastOrNull { it.isBackgroundReference })
+        flowOf(
+            inserted.lastOrNull {
+                it.isBackgroundReference && it.origin != SpectrumSnapshotEntity.ORIGIN_IMPORT
+            },
+        )
     override fun observeRange(from: Long, to: Long): Flow<List<SpectrumSnapshotEntity>> = flowOf(emptyList())
     override suspend fun countInRange(from: Long, to: Long): Int =
-        inserted.count { it.timestamp in from..to }
+        inserted.count {
+            it.timestamp in from..to && it.origin != SpectrumSnapshotEntity.ORIGIN_IMPORT
+        }
+    override fun observeSaved(limit: Int): Flow<List<SpectrumSnapshotEntity>> =
+        flowOf(
+            inserted.filter {
+                it.origin != SpectrumSnapshotEntity.ORIGIN_AUTO || it.isBackgroundReference
+            }.sortedByDescending { it.timestamp }.take(limit),
+        )
+    override suspend fun byId(id: Long): SpectrumSnapshotEntity? =
+        inserted.getOrNull(id.toInt() - 1)
 }
 
 class MeasurementRepositoryTest {
@@ -125,6 +143,23 @@ class MeasurementRepositoryTest {
         val entity = spectrumDao.inserted.single()
         assertEquals(123_456L, entity.timestamp)
         assertEquals(false, entity.accumulated)
+        assertEquals(SpectrumSnapshotEntity.ORIGIN_AUTO, entity.origin)
         assertEquals(spectrum, entity.toSpectrum())
+    }
+
+    @Test
+    fun `imported spectrum keeps file time and label, falls back to clock`() = runTest {
+        val spectrum = Spectrum(3600, -6f, 2.4f, 0.0004f, List(1024) { it % 3 })
+
+        repository.importSpectrum(spectrum, label = "Th-232", timestamp = 42_000L)
+        repository.importSpectrum(spectrum, label = null, timestamp = null)
+
+        val withTime = spectrumDao.inserted[0]
+        assertEquals(SpectrumSnapshotEntity.ORIGIN_IMPORT, withTime.origin)
+        assertEquals("Th-232", withTime.label)
+        assertEquals(42_000L, withTime.timestamp)
+        assertEquals(spectrum, withTime.toSpectrum())
+
+        assertEquals(123_456L, spectrumDao.inserted[1].timestamp)
     }
 }

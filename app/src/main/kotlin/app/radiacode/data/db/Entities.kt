@@ -1,5 +1,6 @@
 package app.radiacode.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -170,6 +171,18 @@ data class SpectrumSnapshotEntity(
      * older references stay as ordinary history snapshots.
      */
     val isBackgroundReference: Boolean = false,
+    /**
+     * How the row appeared: [ORIGIN_AUTO] (periodic autosave), [ORIGIN_USER]
+     * (explicit «Сохранить»/«Записать фон»/comparator result) or
+     * [ORIGIN_IMPORT] (RC-XML file). History lists user+import rows; imported
+     * rows are excluded from device-data queries (latest spectrum, background
+     * reference, session badges) so foreign files never mix into device data.
+     * Rows saved before v4 are all 'auto' — they were indistinguishable.
+     */
+    @ColumnInfo(defaultValue = ORIGIN_AUTO)
+    val origin: String = ORIGIN_AUTO,
+    /** Display name: RC-XML sample name for imports, user label otherwise. */
+    val label: String? = null,
     val durationSeconds: Long,
     val a0: Float,
     val a1: Float,
@@ -181,4 +194,10 @@ data class SpectrumSnapshotEntity(
     // ByteArray needs manual equality; identity by id is enough for entities.
     override fun equals(other: Any?): Boolean = other is SpectrumSnapshotEntity && other.id == id
     override fun hashCode(): Int = id.hashCode()
+
+    companion object {
+        const val ORIGIN_AUTO = "auto"
+        const val ORIGIN_USER = "user"
+        const val ORIGIN_IMPORT = "import"
+    }
 }
