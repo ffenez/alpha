@@ -42,6 +42,7 @@ import app.radiacode.analysis.IsotopeMatcher
 import app.radiacode.analysis.Peak
 import app.radiacode.analysis.PeakDetection
 import app.radiacode.analysis.SpectrumDisplay
+import app.radiacode.data.export.N42
 import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.SpectrumExport
 import app.radiacode.data.toEntity
@@ -188,23 +189,34 @@ private fun FileActionsSection(
     var savedAtMillis by remember { mutableStateOf<Long?>(null) }
     var pendingExport by remember { mutableStateOf<String?>(null) }
 
-    val exportLauncher = rememberLauncherForActivityResult(
+    fun onWritten(ok: Boolean) {
+        if (ok) {
+            savedAtMillis = System.currentTimeMillis()
+        } else {
+            notice = SpectrumFileNotice(
+                title = "Экспорт не удался",
+                lines = listOf("Файл не записался — попробуйте другую папку."),
+                isError = true,
+            )
+        }
+    }
+
+    val exportXmlLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/xml"),
     ) { uri ->
         val content = pendingExport
         pendingExport = null
         if (uri != null && content != null) {
-            scope.launch {
-                if (writeTextToUri(context, uri, content)) {
-                    savedAtMillis = System.currentTimeMillis()
-                } else {
-                    notice = SpectrumFileNotice(
-                        title = "Экспорт не удался",
-                        lines = listOf("Файл не записался — попробуйте другую папку."),
-                        isError = true,
-                    )
-                }
-            }
+            scope.launch { onWritten(writeTextToUri(context, uri, content)) }
+        }
+    }
+    val exportN42Launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri ->
+        val content = pendingExport
+        pendingExport = null
+        if (uri != null && content != null) {
+            scope.launch { onWritten(writeTextToUri(context, uri, content)) }
         }
     }
     val importLauncher = rememberLauncherForActivityResult(
@@ -217,7 +229,7 @@ private fun FileActionsSection(
 
     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
         AppButton(
-            text = "Импорт из файла",
+            text = "Импорт",
             onClick = { importLauncher.launch(arrayOf("*/*")) },
             modifier = Modifier.weight(1f),
         )
@@ -230,7 +242,27 @@ private fun FileActionsSection(
                 pendingExport = RcXml.write(
                     SpectrumExport.toResultData(entity, backgroundEntity, serialNumber),
                 )
-                exportLauncher.launch(SpectrumExport.fileName(now, "xml"))
+                exportXmlLauncher.launch(SpectrumExport.fileName(now, "xml"))
+            },
+            enabled = spectrum != null,
+            modifier = Modifier.weight(1f),
+        )
+        AppButton(
+            text = "Экспорт N42",
+            onClick = {
+                if (spectrum == null) return@AppButton
+                val now = System.currentTimeMillis()
+                val entity = spectrum.toEntity(timestamp = now, accumulated = false)
+                pendingExport = N42.write(
+                    foreground = SpectrumExport.toN42Measurement(entity, N42.CLASS_FOREGROUND),
+                    background = backgroundEntity?.let {
+                        SpectrumExport.toN42Measurement(it, N42.CLASS_BACKGROUND)
+                    },
+                    serialNumber = serialNumber,
+                    model = SpectrumExport.modelFromSerial(serialNumber),
+                    softwareVersion = appVersionName(context),
+                )
+                exportN42Launcher.launch(SpectrumExport.fileName(now, "n42"))
             },
             enabled = spectrum != null,
             modifier = Modifier.weight(1f),
@@ -238,7 +270,8 @@ private fun FileActionsSection(
     }
     Text(
         text = buildString {
-            append("формат RadiaCode XML · импортированный снимок появится в Истории")
+            append("XML — формат приложения RadiaCode · N42 — стандарт программ анализа · ")
+            append("импортированный снимок появится в Истории")
             savedAtMillis?.let { append(" · файл сохранён в ").append(timeOfDay(it)) }
         },
         style = type.footnote,

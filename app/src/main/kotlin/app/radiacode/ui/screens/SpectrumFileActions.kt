@@ -60,6 +60,11 @@ internal fun SpectrumFileNoticeDialog(notice: SpectrumFileNotice, onDismiss: () 
     }
 }
 
+/** App version for export metadata; null if the package manager balks. */
+internal fun appVersionName(context: Context): String? = runCatching {
+    context.packageManager.getPackageInfo(context.packageName, 0).versionName
+}.getOrNull()
+
 /** Import size guard: honest refusal instead of an OOM on a wrong file. */
 private const val MAX_IMPORT_BYTES = 20 * 1024 * 1024
 

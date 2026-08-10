@@ -37,6 +37,7 @@ import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.SessionSummary
 import app.radiacode.data.db.EventEntity
 import app.radiacode.data.db.SpectrumSnapshotEntity
+import app.radiacode.data.export.N42
 import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.SpectrumExport
 import app.radiacode.device.DoseUnits
@@ -403,9 +404,7 @@ private fun SavedSpectraCard(graph: AppGraph, onCompare: (Long, Long) -> Unit) {
     var exportedNote by remember { mutableStateOf<String?>(null) }
     var pendingExport by remember { mutableStateOf<String?>(null) }
 
-    val exportXmlLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/xml"),
-    ) { uri ->
+    fun handleExportResult(uri: android.net.Uri?) {
         val content = pendingExport
         pendingExport = null
         if (uri != null && content != null) {
@@ -422,6 +421,13 @@ private fun SavedSpectraCard(graph: AppGraph, onCompare: (Long, Long) -> Unit) {
             }
         }
     }
+
+    val exportXmlLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/xml"),
+    ) { uri -> handleExportResult(uri) }
+    val exportN42Launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri -> handleExportResult(uri) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
@@ -505,6 +511,23 @@ private fun SavedSpectraCard(graph: AppGraph, onCompare: (Long, Long) -> Unit) {
                             )
                             exportXmlLauncher.launch(
                                 SpectrumExport.fileName(entity.timestamp, "xml"),
+                            )
+                            actionsFor = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppButton(
+                        text = "Экспорт N42",
+                        onClick = {
+                            pendingExport = N42.write(
+                                foreground = SpectrumExport.toN42Measurement(
+                                    entity,
+                                    N42.CLASS_FOREGROUND,
+                                ),
+                                softwareVersion = appVersionName(context),
+                            )
+                            exportN42Launcher.launch(
+                                SpectrumExport.fileName(entity.timestamp, "n42"),
                             )
                             actionsFor = null
                         },

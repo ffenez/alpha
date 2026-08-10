@@ -54,6 +54,20 @@ object SpectrumExport {
         counts = SpectrumBlob.decode(entity.counts),
     )
 
+    /** Snapshot → N42 measurement; start = snapshot time − live time. */
+    fun toN42Measurement(
+        entity: SpectrumSnapshotEntity,
+        classCode: String,
+    ): N42.Measurement = N42.Measurement(
+        classCode = classCode,
+        startMillis = entity.timestamp - entity.durationSeconds * 1000L,
+        durationSeconds = entity.durationSeconds,
+        a0 = entity.a0,
+        a1 = entity.a1,
+        a2 = entity.a2,
+        counts = SpectrumBlob.decode(entity.counts),
+    )
+
     /**
      * RC-XML document for a snapshot, with the recorded background reference
      * as BackgroundEnergySpectrum when present. Wall-clock Start/EndTime
