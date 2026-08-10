@@ -2,7 +2,7 @@ package app.radiacode.device
 
 import app.radiacode.protocol.Command
 import app.radiacode.protocol.DataBufDecoder
-import app.radiacode.protocol.DataBufRecord
+import app.radiacode.protocol.DataBufResult
 import app.radiacode.protocol.Spectrum
 import app.radiacode.protocol.SpectrumDecoder
 import app.radiacode.protocol.Vs
@@ -34,7 +34,7 @@ class DeviceConnection private constructor(
 ) {
 
     /** Drains buffered device records; poll at ~1 Hz for real-time data. */
-    suspend fun readDataBuf(): List<DataBufRecord> =
+    suspend fun readDataBuf(): DataBufResult =
         DataBufDecoder.decode(readVs(Vs.DATA_BUF), baseTimeMillis)
 
     /** Spectrum since the last spectrum reset. */

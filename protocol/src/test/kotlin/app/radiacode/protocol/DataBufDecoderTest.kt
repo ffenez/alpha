@@ -31,8 +31,10 @@ class DataBufDecoderTest {
             .f32(2.25f).f32(0.75f)
             .build()
 
-        val records = DataBufDecoder.decode(buf, baseTime)
+        val result = DataBufDecoder.decode(buf, baseTime)
+        val records = result.records
         assertEquals(5, records.size)
+        assertEquals(0, result.seqGaps)
 
         val rt = assertIs<RealTimeData>(records[0])
         assertEquals(baseTime - 128_000, rt.timestampMillis)
@@ -72,14 +74,48 @@ class DataBufDecoderTest {
     }
 
     @Test
-    fun `stops at a sequence jump and returns records parsed so far`() {
+    fun `resyncs after a sequence jump and keeps parsing, counting the gap`() {
         val buf = LeWriter()
             .u8(10).u8(0).u8(1).i32(0).f32(1f).f32(2f)
             .u8(12).u8(0).u8(1).i32(100).f32(3f).f32(4f) // seq jump: 11 expected
             .build()
-        val records = DataBufDecoder.decode(buf, baseTime)
-        assertEquals(1, records.size)
-        assertEquals(1f, assertIs<RawData>(records[0]).countRate)
+        val result = DataBufDecoder.decode(buf, baseTime)
+        assertEquals(2, result.records.size)
+        assertEquals(1, result.seqGaps)
+        assertEquals(1f, assertIs<RawData>(result.records[0]).countRate)
+        assertEquals(3f, assertIs<RawData>(result.records[1]).countRate)
+    }
+
+    @Test
+    fun `gap mid-buffer still yields later RareData and Event records`() {
+        val buf = LeWriter()
+            // seq=10, RawData
+            .u8(10).u8(0).u8(1).i32(0).f32(1f).f32(2f)
+            // seq=14 (three records lost), RareData
+            .u8(14).u8(0).u8(3).i32(100)
+            .u32(3600).f32(0.5f).u16(2456).u16(9900).u16(0)
+            // seq=15, Event: SPECTRUM_RESET
+            .u8(15).u8(0).u8(7).i32(200).u8(19).u8(0).u16(0)
+            .build()
+        val result = DataBufDecoder.decode(buf, baseTime)
+        assertEquals(3, result.records.size)
+        assertEquals(1, result.seqGaps)
+        val rare = assertIs<RareData>(result.records[1])
+        assertEquals(3600L, rare.durationSeconds)
+        val event = assertIs<Event>(result.records[2])
+        assertEquals(EventId.SPECTRUM_RESET, event.eventId)
+    }
+
+    @Test
+    fun `counts each independent gap separately`() {
+        val buf = LeWriter()
+            .u8(1).u8(0).u8(1).i32(0).f32(1f).f32(2f)
+            .u8(5).u8(0).u8(1).i32(100).f32(3f).f32(4f) // gap 1
+            .u8(9).u8(0).u8(1).i32(200).f32(5f).f32(6f) // gap 2
+            .build()
+        val result = DataBufDecoder.decode(buf, baseTime)
+        assertEquals(3, result.records.size)
+        assertEquals(2, result.seqGaps)
     }
 
     @Test
@@ -88,7 +124,7 @@ class DataBufDecoderTest {
             .u8(1).u8(0).u8(1).i32(0).f32(1f).f32(2f)
             .u8(2).u8(9).u8(9).i32(0).raw(1, 2, 3, 4) // unknown eid/gid
             .build()
-        val records = DataBufDecoder.decode(buf, baseTime)
+        val records = DataBufDecoder.decode(buf, baseTime).records
         assertEquals(1, records.size)
     }
 
@@ -101,7 +137,7 @@ class DataBufDecoderTest {
             // seq=6, RawData
             .u8(6).u8(0).u8(1).i32(50).f32(9f).f32(8f)
             .build()
-        val records = DataBufDecoder.decode(buf, baseTime)
+        val records = DataBufDecoder.decode(buf, baseTime).records
         assertEquals(1, records.size)
         val raw = assertIs<RawData>(records[0])
         assertEquals(9f, raw.countRate)
@@ -113,14 +149,14 @@ class DataBufDecoderTest {
         val buf = LeWriter()
             .u8(0).u8(0).u8(7).i32(0).u8(200).u8(1).u16(0)
             .build()
-        val event = assertIs<Event>(DataBufDecoder.decode(buf, baseTime).single())
+        val event = assertIs<Event>(DataBufDecoder.decode(buf, baseTime).records.single())
         assertEquals(EventId.UNKNOWN, event.eventId)
         assertEquals(200, event.eventCode)
     }
 
     @Test
     fun `empty and truncated buffers produce no records`() {
-        assertEquals(0, DataBufDecoder.decode(ByteArray(0), baseTime).size)
-        assertEquals(0, DataBufDecoder.decode(byteArrayOf(1, 0, 0, 5, 0), baseTime).size)
+        assertEquals(0, DataBufDecoder.decode(ByteArray(0), baseTime).records.size)
+        assertEquals(0, DataBufDecoder.decode(byteArrayOf(1, 0, 0, 5, 0), baseTime).records.size)
     }
 }

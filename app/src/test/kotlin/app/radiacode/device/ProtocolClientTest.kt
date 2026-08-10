@@ -69,7 +69,7 @@ class ProtocolClientTest {
     }
 
     @Test
-    fun `throws on header mismatch`() = runTest {
+    fun `throws when the mismatch retry also mismatches, exactly one retry`() = runTest {
         val link = CapturingLink()
         val client = ProtocolClient(link)
         link.onRequest = { _ ->
@@ -77,6 +77,57 @@ class ProtocolClientTest {
         }
 
         assertFailsWith<ProtocolException> { client.execute(Command.GET_STATUS) }
+        // Bounded: the original attempt plus a single retry.
+        assertEquals(2, link.completedRequests.size)
+    }
+
+    @Test
+    fun `recovers from a header mismatch by retrying once with a fresh seq`() = runTest {
+        val link = CapturingLink()
+        val client = ProtocolClient(link)
+        var attempt = 0
+        link.onRequest = { request ->
+            attempt++
+            if (attempt == 1) {
+                client.onNotification(Wire.frame(byteArrayOf(0x0A, 0, 0, 0x7F)))
+            } else {
+                client.onNotification(Wire.frame(request.copyOfRange(0, 4) + byteArrayOf(5)))
+            }
+        }
+
+        val startedAt = testScheduler.currentTime
+        val reader = client.execute(Command.GET_STATUS)
+
+        assertContentEquals(byteArrayOf(5), reader.bytes())
+        assertEquals(2, link.completedRequests.size)
+        // The retry is a fresh request: new sequence number in the header echo.
+        assertTrue(link.completedRequests[0][3] != link.completedRequests[1][3])
+        // Backoff before the retry lets stale BLE traffic land first.
+        assertTrue(
+            testScheduler.currentTime - startedAt >=
+                ProtocolClient.MISMATCH_RETRY_BACKOFF_MILLIS,
+        )
+    }
+
+    @Test
+    fun `pending stale responses are flushed before the mismatch retry`() = runTest {
+        val link = CapturingLink()
+        val client = ProtocolClient(link)
+        var attempt = 0
+        link.onRequest = { request ->
+            attempt++
+            if (attempt == 1) {
+                // Two stale frames: the first triggers the mismatch, the second
+                // must be drained — otherwise the retry would consume it.
+                client.onNotification(Wire.frame(byteArrayOf(0x0A, 0, 0, 0x7F)))
+                client.onNotification(Wire.frame(byteArrayOf(0x0B, 0, 0, 0x7E)))
+            } else {
+                client.onNotification(Wire.frame(request.copyOfRange(0, 4) + byteArrayOf(42)))
+            }
+        }
+
+        val reader = client.execute(Command.GET_STATUS)
+        assertContentEquals(byteArrayOf(42), reader.bytes())
     }
 
     @Test

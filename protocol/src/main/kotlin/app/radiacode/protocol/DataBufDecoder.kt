@@ -5,9 +5,25 @@
 package app.radiacode.protocol
 
 /**
+ * Result of one DATA_BUF decode pass. [seqGaps] counts sequence-number
+ * discontinuities: records the device dropped (buffer overflow between
+ * polls) — a diagnostic, not an error, because record boundaries stay
+ * intact (each record is self-delimiting by its eid/gid).
+ */
+data class DataBufResult(
+    val records: List<DataBufRecord>,
+    val seqGaps: Int,
+)
+
+/**
  * Decoder for the VS DATA_BUF payload: a sequence of records, each
  * `<u8 seq><u8 eid><u8 gid><i32 tsOffset(10ms units)>` followed by a
  * group-specific body. Port of cdump's `decode_VS_DATA_BUF`.
+ *
+ * A sequence-number gap does not stop the parse (qtradiacode approach):
+ * the stream stays record-aligned, so decoding resyncs on the next record
+ * and only counts the gap in [DataBufResult.seqGaps]. Rare records
+ * (accumulated dose, battery) and events after a gap are not lost.
  */
 object DataBufDecoder {
 
@@ -17,10 +33,11 @@ object DataBufDecoder {
      *        `baseTimeMillis + tsOffset * 10 ms`. cdump sets the base to
      *        (host time at init + 128 s).
      */
-    fun decode(payload: ByteArray, baseTimeMillis: Long): List<DataBufRecord> {
+    fun decode(payload: ByteArray, baseTimeMillis: Long): DataBufResult {
         val r = BytesReader(payload)
         val ret = mutableListOf<DataBufRecord>()
         var nextSeq: Int? = null
+        var seqGaps = 0
 
         while (r.remaining() >= 7) {
             val seq = r.readU8()
@@ -29,7 +46,7 @@ object DataBufDecoder {
             val tsOffset = r.readI32()
             val ts = baseTimeMillis + tsOffset.toLong() * 10
 
-            if (nextSeq != null && nextSeq != seq) break
+            if (nextSeq != null && nextSeq != seq) seqGaps++
             nextSeq = (seq + 1) % 256
 
             when {
@@ -120,10 +137,12 @@ object DataBufDecoder {
                 eid == 1 && gid == 2 -> skipSampleBlock(r, 16)
                 eid == 1 && gid == 3 -> skipSampleBlock(r, 14)
 
-                else -> return ret // unknown record type: stop, remaining bytes unparseable
+                // Unknown record type: stop — its body length is unknown, so
+                // the remaining bytes cannot be re-aligned.
+                else -> return DataBufResult(ret, seqGaps)
             }
         }
-        return ret
+        return DataBufResult(ret, seqGaps)
     }
 
     /** `<u16 samplesNum><u32 smplTimeMs>` + samplesNum * sampleSize bytes. */

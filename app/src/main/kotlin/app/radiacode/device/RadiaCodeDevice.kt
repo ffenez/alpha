@@ -62,6 +62,11 @@ class RadiaCodeDevice(
     /** Every decoded DATA_BUF batch, for persistence. */
     val records: SharedFlow<List<DataBufRecord>> = _records.asSharedFlow()
 
+    /** Cumulative DATA_BUF sequence gaps this device object observed (diagnostics). */
+    @Volatile
+    var seqGapTotal: Int = 0
+        private set
+
     @Volatile
     private var connection: DeviceConnection? = null
     private var job: Job? = null
@@ -137,7 +142,9 @@ class RadiaCodeDevice(
 
         while (true) {
             val startedAt = clock()
-            dispatch(conn.readDataBuf())
+            val result = conn.readDataBuf()
+            if (result.seqGaps > 0) seqGapTotal += result.seqGaps
+            dispatch(result.records)
             val elapsed = clock() - startedAt
             delay((pollIntervalMillis - elapsed).coerceAtLeast(0))
         }

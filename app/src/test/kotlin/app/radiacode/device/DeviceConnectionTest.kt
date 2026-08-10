@@ -91,9 +91,10 @@ class DeviceConnectionTest {
         )
         val (conn, _) = establish(fake)
 
-        val records = conn.readDataBuf()
-        assertEquals(1, records.size)
-        val rt = records[0] as RealTimeData
+        val result = conn.readDataBuf()
+        assertEquals(1, result.records.size)
+        assertEquals(0, result.seqGaps)
+        val rt = result.records[0] as RealTimeData
         assertEquals(now + 128_000 - 2_500, rt.timestampMillis)
         assertEquals(12.5f, rt.countRate)
         assertEquals(0.0005f, rt.doseRate)
