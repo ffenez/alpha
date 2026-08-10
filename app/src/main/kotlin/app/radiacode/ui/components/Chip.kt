@@ -25,6 +25,9 @@ import app.radiacode.ui.theme.LocalAppTypography
  * Small bordered chip: surface fill, hairline border, 9dp radius, mono
  * label. [dot] prepends a 7dp status dot (color + adjacent words carry the
  * status together — never color alone). [onClick] makes it tappable.
+ * [selected] raises it onto surface-2 with a brighter border — the «on» state
+ * of a chip used as a control (chart period, scale); state is carried by fill
+ * and border, not by colour alone.
  */
 @Composable
 fun Chip(
@@ -32,6 +35,7 @@ fun Chip(
     modifier: Modifier = Modifier,
     color: Color = LocalAppColors.current.ink2,
     dot: Color? = null,
+    selected: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
@@ -41,8 +45,8 @@ fun Chip(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = modifier
             .clip(shape)
-            .background(colors.surface)
-            .border(Dimens.border, colors.line, shape)
+            .background(if (selected) colors.surface2 else colors.surface)
+            .border(Dimens.border, if (selected) colors.muted else colors.line, shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 9.dp, vertical = 5.dp),
     ) {
