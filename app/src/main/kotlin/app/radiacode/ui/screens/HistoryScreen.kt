@@ -1,5 +1,7 @@
 package app.radiacode.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -22,15 +24,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.SessionSummary
 import app.radiacode.data.db.EventEntity
+import app.radiacode.data.db.SpectrumSnapshotEntity
+import app.radiacode.data.export.N42
+import app.radiacode.data.export.RcXml
+import app.radiacode.data.export.SpectrumExport
 import app.radiacode.device.DoseUnits
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
@@ -44,12 +53,14 @@ import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.DailyDose
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.HistoryFormat
+import app.radiacode.ui.logic.SpectrumFormat
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val PAGE_SIZE = 20
 private const val REFRESH_MILLIS = 30_000L
@@ -102,6 +113,19 @@ fun HistoryScreen(graph: AppGraph, onOpenSession: (Long) -> Unit) {
         }
     }
 
+    // Comparator flow is self-contained in История: picking two snapshots
+    // swaps the screen for the comparator; back returns to the list.
+    var comparePair by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    comparePair?.let { (firstId, secondId) ->
+        SpectrumCompareScreen(
+            graph = graph,
+            firstId = firstId,
+            secondId = secondId,
+            onBack = { comparePair = null },
+        )
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -122,6 +146,10 @@ fun HistoryScreen(graph: AppGraph, onOpenSession: (Long) -> Unit) {
             }
         } else {
             AccumulatedDoseCard(m, unit)
+
+            SavedSpectraCard(graph, onCompare = { first, second ->
+                comparePair = first to second
+            })
 
             if (m.items.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -344,6 +372,247 @@ private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
             // param1 of a deviation stores the baseline typical high, nSv/h.
             if (event.source == EventEntity.SOURCE_DEVIATION && event.param1 > 0) {
                 DataItem("обычно", DoseFormat.rate(event.param1 / 1000f, unit))
+            }
+        }
+    }
+}
+
+// --- saved spectra: export + comparator entry ---
+
+private const val SPECTRA_LIMIT = 30
+
+/**
+ * Сохранённые и импортированные спектры: экспорт в файл и вход в сравнение
+ * («Сравнить» → выбрать два снимка → экран сравнения). Автоснимки раз в
+ * минуту сюда не попадают — только явные сохранения, фоны и импорт.
+ */
+@Composable
+private fun SavedSpectraCard(graph: AppGraph, onCompare: (Long, Long) -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val spectra by graph.measurementRepository.savedSpectra(SPECTRA_LIMIT)
+        .collectAsState(initial = emptyList())
+    if (spectra.isEmpty()) return
+
+    var compareMode by remember { mutableStateOf(false) }
+    var firstPickId by remember { mutableStateOf<Long?>(null) }
+    var actionsFor by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
+    var notice by remember { mutableStateOf<SpectrumFileNotice?>(null) }
+    var exportedNote by remember { mutableStateOf<String?>(null) }
+    var pendingExport by remember { mutableStateOf<String?>(null) }
+
+    fun handleExportResult(uri: android.net.Uri?) {
+        val content = pendingExport
+        pendingExport = null
+        if (uri != null && content != null) {
+            scope.launch {
+                if (writeTextToUri(context, uri, content)) {
+                    exportedNote = "файл сохранён"
+                } else {
+                    notice = SpectrumFileNotice(
+                        title = "Экспорт не удался",
+                        lines = listOf("Файл не записался — попробуйте другую папку."),
+                        isError = true,
+                    )
+                }
+            }
+        }
+    }
+
+    val exportXmlLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/xml"),
+    ) { uri -> handleExportResult(uri) }
+    val exportN42Launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri -> handleExportResult(uri) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Спектры".uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                    modifier = Modifier.weight(1f),
+                )
+                if (spectra.size >= 2) {
+                    Chip(
+                        text = if (compareMode) "отмена" else "сравнить",
+                        color = if (compareMode) colors.ink2 else colors.dataText,
+                        onClick = {
+                            compareMode = !compareMode
+                            firstPickId = null
+                        },
+                    )
+                }
+            }
+            Text(
+                text = if (compareMode) {
+                    "выберите два снимка — откроется сравнение"
+                } else {
+                    "снимок открывает экспорт и сравнение"
+                },
+                style = type.footnote,
+                color = colors.muted,
+                modifier = Modifier.padding(top = 3.dp, bottom = 5.dp),
+            )
+            spectra.forEachIndexed { index, entity ->
+                if (index > 0) AppDivider()
+                SavedSpectrumRow(
+                    entity = entity,
+                    marker = if (compareMode && firstPickId == entity.id) "A" else null,
+                    onClick = {
+                        if (compareMode) {
+                            val first = firstPickId
+                            when {
+                                first == null -> firstPickId = entity.id
+                                first == entity.id -> firstPickId = null
+                                else -> {
+                                    compareMode = false
+                                    firstPickId = null
+                                    onCompare(first, entity.id)
+                                }
+                            }
+                        } else {
+                            actionsFor = entity
+                        }
+                    },
+                )
+            }
+            exportedNote?.let {
+                Text(text = it, style = type.footnote, color = colors.muted)
+            }
+        }
+    }
+
+    actionsFor?.let { entity ->
+        Dialog(onDismissRequest = { actionsFor = null }) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    Text(
+                        text = SpectrumExport.title(entity),
+                        style = type.title,
+                        color = colors.ink,
+                    )
+                    Text(
+                        text = HistoryFormat.dayTime(entity.timestamp, System.currentTimeMillis()) +
+                            " · Δt " + SpectrumFormat.accumulationClock(entity.durationSeconds),
+                        style = type.footnote,
+                        color = colors.ink2,
+                    )
+                    AppButton(
+                        text = "Экспорт XML",
+                        onClick = {
+                            pendingExport = RcXml.write(
+                                SpectrumExport.toResultData(entity, null, null),
+                            )
+                            exportXmlLauncher.launch(
+                                SpectrumExport.fileName(entity.timestamp, "xml"),
+                            )
+                            actionsFor = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppButton(
+                        text = "Экспорт N42",
+                        onClick = {
+                            pendingExport = N42.write(
+                                foreground = SpectrumExport.toN42Measurement(
+                                    entity,
+                                    N42.CLASS_FOREGROUND,
+                                ),
+                                softwareVersion = appVersionName(context),
+                            )
+                            exportN42Launcher.launch(
+                                SpectrumExport.fileName(entity.timestamp, "n42"),
+                            )
+                            actionsFor = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppButton(
+                        text = "Сравнить с другим…",
+                        onClick = {
+                            compareMode = true
+                            firstPickId = entity.id
+                            actionsFor = null
+                        },
+                        enabled = spectra.size >= 2,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppButton(
+                        text = "Закрыть",
+                        onClick = { actionsFor = null },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+    }
+
+    notice?.let { current ->
+        SpectrumFileNoticeDialog(notice = current, onDismiss = { notice = null })
+    }
+}
+
+@Composable
+private fun SavedSpectrumRow(
+    entity: SpectrumSnapshotEntity,
+    marker: String?,
+    onClick: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val now = System.currentTimeMillis()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = 9.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (marker != null) {
+                Text(
+                    text = "$marker ▸",
+                    style = type.label,
+                    color = colors.dataText,
+                    modifier = Modifier.padding(end = 6.dp),
+                )
+            }
+            Text(
+                text = SpectrumExport.title(entity),
+                style = type.label,
+                color = colors.ink,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = HistoryFormat.dayTime(entity.timestamp, now),
+                style = type.footnote,
+                color = colors.ink2,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+            DataItem("Δt", SpectrumFormat.accumulationClock(entity.durationSeconds))
+            val badges = listOfNotNull(
+                "импорт".takeIf { entity.origin == SpectrumSnapshotEntity.ORIGIN_IMPORT },
+                "фон".takeIf { entity.isBackgroundReference },
+            )
+            if (badges.isNotEmpty()) {
+                Text(
+                    text = badges.joinToString(" · "),
+                    style = type.valueSmall,
+                    color = colors.ink2,
+                )
             }
         }
     }

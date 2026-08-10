@@ -29,6 +29,7 @@ import app.radiacode.baseline.aboveUsualMagnitude
 import app.radiacode.baseline.alarmThresholds
 import app.radiacode.baseline.deviationMagnitude
 import app.radiacode.data.DoseUnitSetting
+import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
 import app.radiacode.device.RadiaCodeDevice
@@ -438,7 +439,11 @@ class MeasurementService : Service() {
             SpectrumHub.Command.SAVE_SNAPSHOT -> {
                 val spectrum = graph.spectrumHub.state.value.spectrum ?: return
                 val now = System.currentTimeMillis()
-                graph.measurementRepository.saveSpectrum(spectrum, accumulated = false)
+                graph.measurementRepository.saveSpectrum(
+                    spectrum,
+                    accumulated = false,
+                    origin = SpectrumSnapshotEntity.ORIGIN_USER,
+                )
                 graph.measurementRepository.recordSpectrumSaved(now, spectrum.durationSeconds)
                 graph.spectrumHub.onSaved(now)
             }
@@ -448,6 +453,7 @@ class MeasurementService : Service() {
                     spectrum,
                     accumulated = false,
                     isBackgroundReference = true,
+                    origin = SpectrumSnapshotEntity.ORIGIN_USER,
                 )
             }
         }

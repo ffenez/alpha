@@ -121,6 +121,49 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 3 to 4 produces exactly the exported v4 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(3))
+            MigrationSql.FROM_3_TO_4.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(4))
+        }
+    }
+
+    @Test
+    fun `migration 3 to 4 keeps existing snapshots as auto-origin unlabeled rows`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(3))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO spectra (timestamp, accumulated, isBackgroundReference, " +
+                        "durationSeconds, a0, a1, a2, channelCount, counts) " +
+                        "VALUES (2000, 0, 1, 300, -5.5, 2.4, 0.0004, 4, " +
+                        "x'01000000020000000300000004000000')",
+                )
+            }
+
+            MigrationSql.FROM_3_TO_4.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT timestamp, isBackgroundReference, origin, label FROM spectra",
+                )
+                assertTrue(rows.next())
+                assertEquals(2000L, rows.getLong("timestamp"))
+                assertEquals(1, rows.getInt("isBackgroundReference"))
+                assertEquals("auto", rows.getString("origin"))
+                rows.getString("label")
+                assertTrue(rows.wasNull(), "pre-migration snapshots must have NULL label")
+                assertTrue(!rows.next(), "exactly one row expected")
+            }
+        }
+    }
+
+    @Test
     fun `migration 2 to 3 keeps saved spectra as non-background snapshots`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(2))

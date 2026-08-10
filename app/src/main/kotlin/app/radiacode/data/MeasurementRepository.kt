@@ -99,11 +99,35 @@ class MeasurementRepository(
         spectrum: Spectrum,
         accumulated: Boolean,
         isBackgroundReference: Boolean = false,
+        origin: String = SpectrumSnapshotEntity.ORIGIN_AUTO,
+        label: String? = null,
     ): SpectrumSnapshotEntity {
         val entity = spectrum.toEntity(
             timestamp = clock(),
             accumulated = accumulated,
             isBackgroundReference = isBackgroundReference,
+            origin = origin,
+            label = label,
+        )
+        spectrumDao.insert(entity)
+        return entity
+    }
+
+    /**
+     * Persists an imported RC-XML spectrum. [timestamp] is the file's own
+     * measurement time when it carries one (raw data preserved), otherwise the
+     * import moment. Imported rows never mix into device-data queries.
+     */
+    suspend fun importSpectrum(
+        spectrum: Spectrum,
+        label: String?,
+        timestamp: Long? = null,
+    ): SpectrumSnapshotEntity {
+        val entity = spectrum.toEntity(
+            timestamp = timestamp ?: clock(),
+            accumulated = false,
+            origin = SpectrumSnapshotEntity.ORIGIN_IMPORT,
+            label = label,
         )
         spectrumDao.insert(entity)
         return entity
@@ -140,4 +164,10 @@ class MeasurementRepository(
     /** Newest background reference recorded on the Спектр screen; null = none yet. */
     fun backgroundReference(): Flow<SpectrumSnapshotEntity?> =
         spectrumDao.observeBackgroundReference()
+
+    /** User-saved and imported snapshots for История (autosaves excluded). */
+    fun savedSpectra(limit: Int = 50): Flow<List<SpectrumSnapshotEntity>> =
+        spectrumDao.observeSaved(limit)
+
+    suspend fun spectrumById(id: Long): SpectrumSnapshotEntity? = spectrumDao.byId(id)
 }

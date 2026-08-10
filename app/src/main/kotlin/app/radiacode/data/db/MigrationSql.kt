@@ -10,6 +10,16 @@ package app.radiacode.data.db
  */
 object MigrationSql {
 
+    /**
+     * v3 → v4: spectra.origin (auto/user/import) + spectra.label — RC-XML
+     * import and the История snapshot list. Pre-v4 rows become 'auto': user
+     * saves were not distinguishable from autosaves before this version.
+     */
+    val FROM_3_TO_4: List<String> = listOf(
+        "ALTER TABLE `spectra` ADD COLUMN `origin` TEXT NOT NULL DEFAULT 'auto'",
+        "ALTER TABLE `spectra` ADD COLUMN `label` TEXT",
+    )
+
     /** v2 → v3: spectra.isBackgroundReference (Спектр background overlay/subtraction). */
     val FROM_2_TO_3: List<String> = listOf(
         "ALTER TABLE `spectra` ADD COLUMN `isBackgroundReference` INTEGER NOT NULL DEFAULT 0",

@@ -44,11 +44,15 @@ fun Spectrum.toEntity(
     timestamp: Long,
     accumulated: Boolean,
     isBackgroundReference: Boolean = false,
+    origin: String = SpectrumSnapshotEntity.ORIGIN_AUTO,
+    label: String? = null,
 ): SpectrumSnapshotEntity =
     SpectrumSnapshotEntity(
         timestamp = timestamp,
         accumulated = accumulated,
         isBackgroundReference = isBackgroundReference,
+        origin = origin,
+        label = label,
         durationSeconds = durationSeconds,
         a0 = a0,
         a1 = a1,

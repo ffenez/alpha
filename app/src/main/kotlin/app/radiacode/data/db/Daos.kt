@@ -251,16 +251,50 @@ interface SpectrumDao {
     @Insert
     suspend fun insert(snapshot: SpectrumSnapshotEntity): Long
 
-    @Query("SELECT * FROM spectra WHERE accumulated = :accumulated ORDER BY timestamp DESC LIMIT 1")
+    /** Latest device-measured spectrum; imported files never count as one. */
+    @Query(
+        """
+        SELECT * FROM spectra WHERE accumulated = :accumulated AND origin != 'import'
+        ORDER BY timestamp DESC LIMIT 1
+        """,
+    )
     fun observeLatest(accumulated: Boolean): Flow<SpectrumSnapshotEntity?>
 
     /** Newest user-recorded background reference (Спектр overlay/subtraction). */
-    @Query("SELECT * FROM spectra WHERE isBackgroundReference = 1 ORDER BY timestamp DESC LIMIT 1")
+    @Query(
+        """
+        SELECT * FROM spectra WHERE isBackgroundReference = 1 AND origin != 'import'
+        ORDER BY timestamp DESC LIMIT 1
+        """,
+    )
     fun observeBackgroundReference(): Flow<SpectrumSnapshotEntity?>
 
     @Query("SELECT * FROM spectra WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
     fun observeRange(from: Long, to: Long): Flow<List<SpectrumSnapshotEntity>>
 
-    @Query("SELECT COUNT(*) FROM spectra WHERE timestamp BETWEEN :from AND :to")
+    /** Device snapshots in a session range («спектр» badge); imports excluded. */
+    @Query(
+        """
+        SELECT COUNT(*) FROM spectra
+        WHERE timestamp BETWEEN :from AND :to AND origin != 'import'
+        """,
+    )
     suspend fun countInRange(from: Long, to: Long): Int
+
+    /**
+     * История list: explicit user saves, imported files and background
+     * references — the periodic autosaves stay out (one row per minute would
+     * drown the list).
+     */
+    @Query(
+        """
+        SELECT * FROM spectra
+        WHERE origin IN ('user', 'import') OR isBackgroundReference = 1
+        ORDER BY timestamp DESC LIMIT :limit
+        """,
+    )
+    fun observeSaved(limit: Int): Flow<List<SpectrumSnapshotEntity>>
+
+    @Query("SELECT * FROM spectra WHERE id = :id")
+    suspend fun byId(id: Long): SpectrumSnapshotEntity?
 }
