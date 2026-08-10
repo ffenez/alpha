@@ -44,11 +44,18 @@ class MeasurementRepository(
         if (events.isNotEmpty()) eventDao.insertAll(events)
     }
 
+    /**
+     * Track hotspot: a threshold crossing while recording. `param1` carries
+     * the baseline typical high in nSv/h at event time (0 = no baseline),
+     * same convention as deviations — the map card can honestly say
+     * «обычно здесь X» as of that moment.
+     */
     suspend fun recordHotspot(
         timestamp: Long,
         doseRate: Float,
         latitude: Double?,
         longitude: Double?,
+        baselineHighMicroSvH: Float? = null,
     ) {
         eventDao.insert(
             EventEntity(
@@ -56,7 +63,7 @@ class MeasurementRepository(
                 source = EventEntity.SOURCE_HOTSPOT,
                 code = 0,
                 name = "HOTSPOT",
-                param1 = 0,
+                param1 = ((baselineHighMicroSvH ?: 0f) * 1000f).toInt(),
                 flags = 0,
                 doseRate = doseRate,
                 latitude = latitude,

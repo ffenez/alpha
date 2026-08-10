@@ -82,3 +82,16 @@ val LightColors = AppColors(
 )
 
 val LocalAppColors = staticCompositionLocalOf { DarkColors }
+
+/**
+ * Map dose ramp (design-language.md), light→dark = low→high. One ramp for
+ * both themes: the amber steps hold contrast on the dark map style and on
+ * positron alike, and the legend always pairs them with min/max numbers —
+ * status is never color alone.
+ */
+val DoseRampColors = listOf(
+    Color(0xFFE8CB93),
+    Color(0xFFC4831E),
+    Color(0xFF8F5312),
+    Color(0xFF5C300A),
+)

@@ -418,6 +418,9 @@ class MeasurementService : Service() {
         trackJobs += scope.launch {
             val sessionId = graph.trackRepository.startSession(name)
             trackSessionId = sessionId
+            graph.serviceStatus.onTrackRecording(
+                ServiceStatus.TrackRecording(sessionId, System.currentTimeMillis()),
+            )
             registerLocationUpdates(sessionId)
             startForegroundWithCurrentTypes()
         }
@@ -433,6 +436,7 @@ class MeasurementService : Service() {
         hotspotDetector = null
         val sessionId = trackSessionId
         trackSessionId = null
+        graph.serviceStatus.onTrackRecording(null)
         if (sessionId != null) {
             scope.launch { graph.trackRepository.endSession(sessionId) }
             startForegroundWithCurrentTypes()
@@ -477,12 +481,14 @@ class MeasurementService : Service() {
         val microSvH = DoseUnits.rawToMicroSievertPerHour(sample.doseRate)
         if (detector.onSample(microSvH)) {
             val location = lastLocation
+            val baseline = (baselineState as? BaselineState.Active)?.baseline
             scope.launch {
                 graph.measurementRepository.recordHotspot(
                     timestamp = sample.timestampMillis,
                     doseRate = sample.doseRate,
                     latitude = location?.latitude,
                     longitude = location?.longitude,
+                    baselineHighMicroSvH = baseline?.doseHighMicroSvH,
                 )
             }
         }

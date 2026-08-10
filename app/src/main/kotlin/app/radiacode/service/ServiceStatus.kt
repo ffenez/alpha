@@ -28,6 +28,12 @@ class ServiceStatus {
     private val _deviation = MutableStateFlow(DeviationSnapshot())
     val deviation: StateFlow<DeviationSnapshot> = _deviation.asStateFlow()
 
+    /** Active track recording; null = not recording. */
+    data class TrackRecording(val sessionId: Long, val startedAt: Long)
+
+    private val _trackRecording = MutableStateFlow<TrackRecording?>(null)
+    val trackRecording: StateFlow<TrackRecording?> = _trackRecording.asStateFlow()
+
     internal fun onServiceStarted() {
         _serviceRunning.value = true
     }
@@ -36,6 +42,11 @@ class ServiceStatus {
         _serviceRunning.value = false
         _connection.value = ConnectionState.Disconnected
         _deviation.value = DeviationSnapshot()
+        _trackRecording.value = null
+    }
+
+    internal fun onTrackRecording(recording: TrackRecording?) {
+        _trackRecording.value = recording
     }
 
     internal fun onConnectionState(state: ConnectionState) {

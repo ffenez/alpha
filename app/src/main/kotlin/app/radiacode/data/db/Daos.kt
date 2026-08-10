@@ -212,6 +212,20 @@ interface TrackDao {
     @Query("SELECT * FROM track_sessions WHERE id = :sessionId")
     suspend fun session(sessionId: Long): TrackSessionEntity?
 
+    /** Newest track session — the map shows it when nothing is recording. */
+    @Query("SELECT * FROM track_sessions ORDER BY startedAt DESC LIMIT 1")
+    suspend fun latestSession(): TrackSessionEntity?
+
+    /** Track sessions overlapping a time range (open map from a measurement session). */
+    @Query(
+        """
+        SELECT * FROM track_sessions
+        WHERE startedAt <= :to AND COALESCE(endedAt, startedAt) >= :from
+        ORDER BY startedAt
+        """,
+    )
+    suspend fun sessionsOverlapping(from: Long, to: Long): List<TrackSessionEntity>
+
     @Insert
     suspend fun insertPoint(point: TrackPointEntity): Long
 

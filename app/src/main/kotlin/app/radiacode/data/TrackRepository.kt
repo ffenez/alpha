@@ -43,4 +43,13 @@ class TrackRepository(
     fun sessions(): Flow<List<TrackSessionEntity>> = trackDao.observeSessions()
 
     fun points(sessionId: Long): Flow<List<TrackPointEntity>> = trackDao.observePoints(sessionId)
+
+    suspend fun session(sessionId: Long): TrackSessionEntity? = trackDao.session(sessionId)
+
+    /** Newest track session; null = nothing was ever recorded. */
+    suspend fun latestSession(): TrackSessionEntity? = trackDao.latestSession()
+
+    /** Track sessions overlapping a measurement-session time range. */
+    suspend fun sessionsOverlapping(from: Long, to: Long): List<TrackSessionEntity> =
+        trackDao.sessionsOverlapping(from, to)
 }

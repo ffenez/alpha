@@ -79,6 +79,12 @@ data class EventEntity(
 ) {
     companion object {
         const val SOURCE_DEVICE = "device"
+
+        /**
+         * Track hotspot (threshold crossing while recording). Carries lat/lon;
+         * [param1] stores the baseline typical high in nSv/h at event time
+         * (0 = no baseline), same convention as [SOURCE_DEVIATION].
+         */
         const val SOURCE_HOTSPOT = "hotspot"
 
         /**
