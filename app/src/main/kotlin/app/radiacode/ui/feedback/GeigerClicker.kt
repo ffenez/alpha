@@ -8,6 +8,7 @@ import android.media.AudioManager
 import android.media.AudioTrack
 import app.radiacode.ui.logic.ClickRate
 import app.radiacode.ui.logic.ClickWaveform
+import app.radiacode.ui.logic.EnergyTone
 import kotlin.random.Random
 
 /**
@@ -45,9 +46,21 @@ class GeigerClicker(context: Context) {
         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
         .build()
 
+    @Volatile
+    private var toneBand: EnergyTone.Band? = null
+
     /** Clicks per second; thread-safe, applied within one render chunk. */
     fun setRate(clicksPerSecond: Float) {
         rate = clicksPerSecond
+    }
+
+    /**
+     * «Тон по энергии»: pitch band for upcoming clicks, null = the default
+     * tick (no fresh spectrum data or the mode is off). Applied at the next
+     * click start — a click already sounding keeps its pitch.
+     */
+    fun setToneBand(band: EnergyTone.Band?) {
+        toneBand = band
     }
 
     fun start() {
@@ -83,7 +96,11 @@ class GeigerClicker(context: Context) {
     }
 
     private fun renderLoop() {
-        val click = ClickWaveform.pcm16(SAMPLE_RATE)
+        val defaultClick = ClickWaveform.pcm16(SAMPLE_RATE)
+        val bandClicks = EnergyTone.Band.entries.associateWith { band ->
+            ClickWaveform.pcm16(SAMPLE_RATE, EnergyTone.frequencyHz(band))
+        }
+        var click = defaultClick
         val minBuffer = AudioTrack.getMinBufferSize(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_OUT_MONO,
@@ -126,6 +143,8 @@ class GeigerClicker(context: Context) {
                     if (clickPos < 0 && framesToNext <= 0) {
                         if (r > 0f) {
                             clickPos = 0
+                            // Pitch chosen per click: energy band or default.
+                            click = toneBand?.let { bandClicks[it] } ?: defaultClick
                             framesToNext = intervalFrames(r)
                         } else {
                             framesToNext = CHUNK_FRAMES.toLong() // re-check next chunk

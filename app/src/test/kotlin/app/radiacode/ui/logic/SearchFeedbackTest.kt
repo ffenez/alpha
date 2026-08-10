@@ -146,4 +146,52 @@ class ClickWaveformTest {
         val tail = pcm.takeLast(pcm.size / 3).maxOf { abs(it.toInt()) }
         assertTrue(head > tail)
     }
+
+    // --- «тон по энергии» ---
+
+    @Test
+    fun `energy tone bands split at 300 and 1000 keV, higher keV higher pitch`() {
+        assertEquals(EnergyTone.Band.LOW, EnergyTone.bandForMeanEnergy(60f))
+        assertEquals(EnergyTone.Band.LOW, EnergyTone.bandForMeanEnergy(299f))
+        assertEquals(EnergyTone.Band.MID, EnergyTone.bandForMeanEnergy(300f))
+        assertEquals(EnergyTone.Band.MID, EnergyTone.bandForMeanEnergy(662f))
+        assertEquals(EnergyTone.Band.MID, EnergyTone.bandForMeanEnergy(1000f))
+        assertEquals(EnergyTone.Band.HIGH, EnergyTone.bandForMeanEnergy(1461f))
+
+        val low = EnergyTone.frequencyHz(EnergyTone.Band.LOW)
+        val mid = EnergyTone.frequencyHz(EnergyTone.Band.MID)
+        val high = EnergyTone.frequencyHz(EnergyTone.Band.HIGH)
+        assertTrue(low < mid && mid < high)
+        // MID is the classic default tick — plain clicks and mid-energy
+        // clicks are indistinguishable by design.
+        assertEquals(ClickWaveform.FREQUENCY_HZ, mid, 0f)
+    }
+
+    @Test
+    fun `no or empty spectrum data yields no band - plain clicks`() {
+        assertEquals(null, EnergyTone.bandForMeanEnergy(null))
+        assertEquals(null, EnergyTone.bandForMeanEnergy(0f))
+    }
+
+    @Test
+    fun `stale slices stop steering the pitch after 15 s`() {
+        assertTrue(EnergyTone.isFresh(sliceAtMillis = 1_000L, nowMillis = 15_000L))
+        assertFalse(EnergyTone.isFresh(sliceAtMillis = 1_000L, nowMillis = 17_000L))
+    }
+
+    @Test
+    fun `band waveforms actually differ in pitch`() {
+        val low = ClickWaveform.pcm16(44_100, EnergyTone.frequencyHz(EnergyTone.Band.LOW))
+        val high = ClickWaveform.pcm16(44_100, EnergyTone.frequencyHz(EnergyTone.Band.HIGH))
+        assertEquals(low.size, high.size) // same envelope, different tone
+        assertTrue(zeroCrossings(high) > zeroCrossings(low))
+    }
+
+    private fun zeroCrossings(pcm: ShortArray): Int {
+        var crossings = 0
+        for (i in 1 until pcm.size) {
+            if (pcm[i - 1] < 0 != pcm[i] < 0) crossings++
+        }
+        return crossings
+    }
 }

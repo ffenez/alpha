@@ -94,8 +94,9 @@ class VibrationPolicy {
 
 /**
  * The click waveform, generated programmatically (no bundled audio assets):
- * a 2.6 kHz sine with a fast exponential decay — a dry, short «tick».
- * Returned as 16-bit PCM samples for the given sample rate.
+ * a short sine with a fast exponential decay — a dry «tick». The default
+ * pitch is 2.6 kHz; «тон по энергии» renders the same tick at the band
+ * pitch. Returned as 16-bit PCM samples for the given sample rate.
  */
 object ClickWaveform {
 
@@ -104,12 +105,52 @@ object ClickWaveform {
     const val DECAY_SECONDS = 0.0012f
     const val AMPLITUDE = 0.55f
 
-    fun pcm16(sampleRate: Int): ShortArray {
+    fun pcm16(sampleRate: Int, frequencyHz: Float = FREQUENCY_HZ): ShortArray {
         val n = (sampleRate * DURATION_SECONDS).toInt().coerceAtLeast(1)
         return ShortArray(n) { i ->
             val t = i / sampleRate.toFloat()
-            val v = sin(2.0 * Math.PI * FREQUENCY_HZ * t) * exp(-t / DECAY_SECONDS) * AMPLITUDE
+            val v = sin(2.0 * Math.PI * frequencyHz * t) * exp(-t / DECAY_SECONDS) * AMPLITUDE
             (v * Short.MAX_VALUE).toInt().toShort()
         }
     }
+}
+
+/**
+ * «Тон по энергии» (Поиск): the click pitch follows the mean photon energy
+ * of the latest spectrogram interval slice (5 s cadence). Three bands are
+ * deliberate — CsI(Tl) resolution and 5 s statistics do not support a finer
+ * musical scale, and three pitches are instantly tellable apart by ear:
+ *
+ *  - LOW  < 300 keV            → 1.8 kHz («мягкий» — scattered/low-energy);
+ *  - MID  300–1000 keV         → 2.6 kHz (the classic default tick);
+ *  - HIGH > 1000 keV           → 3.4 kHz («звонкий» — hard gammas, K-40 etc).
+ *
+ * Higher keV → higher pitch. Without fresh spectrum data the mode honestly
+ * falls back to the plain default click ([bandForMeanEnergy] = null).
+ */
+object EnergyTone {
+
+    enum class Band { LOW, MID, HIGH }
+
+    const val LOW_MAX_KEV = 300f
+    const val MID_MAX_KEV = 1000f
+
+    /** Spectrum slices older than this no longer steer the pitch (3 polls). */
+    const val STALE_MILLIS = 15_000L
+
+    fun bandForMeanEnergy(meanKeV: Float?): Band? = when {
+        meanKeV == null || meanKeV <= 0f -> null
+        meanKeV < LOW_MAX_KEV -> Band.LOW
+        meanKeV <= MID_MAX_KEV -> Band.MID
+        else -> Band.HIGH
+    }
+
+    fun frequencyHz(band: Band): Float = when (band) {
+        Band.LOW -> 1800f
+        Band.MID -> ClickWaveform.FREQUENCY_HZ
+        Band.HIGH -> 3400f
+    }
+
+    fun isFresh(sliceAtMillis: Long, nowMillis: Long): Boolean =
+        nowMillis - sliceAtMillis <= STALE_MILLIS
 }

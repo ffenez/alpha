@@ -54,6 +54,14 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[SEARCH_VIBRATION] = enabled }
     }
 
+    /** Search mode: click pitch follows the mean photon energy. Off by default. */
+    val searchEnergyToneEnabled: Flow<Boolean> =
+        dataStore.data.map { it[SEARCH_ENERGY_TONE] ?: false }
+
+    suspend fun setSearchEnergyToneEnabled(enabled: Boolean) {
+        dataStore.edit { it[SEARCH_ENERGY_TONE] = enabled }
+    }
+
     /** Manually selected active place; null until the default place is created. */
     val activePlaceId: Flow<Long?> = dataStore.data.map { it[ACTIVE_PLACE_ID] }
 
@@ -147,6 +155,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
         private val SEARCH_BACKGROUND_CPS = floatPreferencesKey("search_background_cps")
         private val SEARCH_SOUND = booleanPreferencesKey("search_sound")
         private val SEARCH_VIBRATION = booleanPreferencesKey("search_vibration")
+        private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")
         private val ACTIVE_PLACE_ID = longPreferencesKey("active_place_id")
         private val ALARM_SENSITIVITY = stringPreferencesKey("alarm_sensitivity")
         private val CUSTOM_ALARM_L1 = floatPreferencesKey("custom_alarm_l1_usvh")

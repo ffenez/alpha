@@ -42,6 +42,7 @@ import app.radiacode.ui.feedback.Feedback
 import app.radiacode.ui.feedback.GeigerClicker
 import app.radiacode.ui.logic.BackgroundRef
 import app.radiacode.ui.logic.ClickRate
+import app.radiacode.ui.logic.EnergyTone
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.VibrationPolicy
 import app.radiacode.ui.logic.backgroundBand
@@ -80,6 +81,7 @@ fun SearchScreen(graph: AppGraph) {
     val storedBackground by graph.settings.searchBackgroundCps.collectAsState(initial = null)
     val soundEnabled by graph.settings.searchSoundEnabled.collectAsState(initial = false)
     val vibrationEnabled by graph.settings.searchVibrationEnabled.collectAsState(initial = false)
+    val energyToneEnabled by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
 
     // Last 60 s of CPS, fed by the 1 Hz sample flow; survives tab switches
     // only while composed — Search is a live mode, not a log.
@@ -115,6 +117,33 @@ fun SearchScreen(graph: AppGraph) {
     DisposableEffect(clickerActive) {
         if (clickerActive) clicker.start()
         onDispose { clicker.stop() }
+    }
+    // «Тон по энергии»: needs the 5 s spectrum poll — attach a hub watcher
+    // while active, then steer the click pitch from the newest interval
+    // slice's mean photon energy; stale/no data honestly falls back to the
+    // plain default tick.
+    val toneActive = clickerActive && energyToneEnabled
+    DisposableEffect(toneActive) {
+        if (toneActive) graph.spectrumHub.attach()
+        onDispose {
+            if (toneActive) graph.spectrumHub.detach()
+            clicker.setToneBand(null)
+        }
+    }
+    LaunchedEffect(toneActive) {
+        while (toneActive) {
+            val slice = graph.spectrogramStore.latest.value
+            val band = if (
+                slice != null &&
+                EnergyTone.isFresh(slice.timestampMillis, System.currentTimeMillis())
+            ) {
+                EnergyTone.bandForMeanEnergy(slice.meanEnergyKeV)
+            } else {
+                null
+            }
+            clicker.setToneBand(band)
+            delay(1_000)
+        }
     }
     // Honest silence: no fresh samples — no clicks, whatever the last CPS was.
     LaunchedEffect(clickerActive) {
@@ -182,6 +211,39 @@ fun SearchScreen(graph: AppGraph) {
                 onClick = {
                     scope.launch { graph.settings.setSearchVibrationEnabled(!vibrationEnabled) }
                 },
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
+            Chip(
+                text = "тон по энергии",
+                color = if (energyToneEnabled) colors.dataText else colors.muted,
+                dot = if (energyToneEnabled) colors.data else null,
+                onClick = {
+                    scope.launch { graph.settings.setSearchEnergyToneEnabled(!energyToneEnabled) }
+                },
+            )
+            if (energyToneEnabled) {
+                Text(
+                    text = if (soundEnabled) {
+                        "клик выше при жёстких гамма — 3 ступени по среднему кэВ"
+                    } else {
+                        "заработает вместе со «звук»"
+                    },
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
+        }
+        if (energyToneEnabled && soundEnabled) {
+            Text(
+                text = "тон: <300 кэВ — ниже · 300–1000 — обычный · >1000 — выше; " +
+                    "по среднему кэВ спектра за 5 с, без потока спектра — обычные клики",
+                style = type.footnote,
+                color = colors.muted,
             )
         }
 
