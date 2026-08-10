@@ -97,6 +97,9 @@ private fun MainScaffold(graph: AppGraph) {
     var showSpectrogram by rememberSaveable { mutableStateOf(false) }
     var sessionDetailId by rememberSaveable { mutableStateOf<Long?>(null) }
     var trackMapSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // «Продолжить накопление»: snapshot id the Спектр tab merges with the live
+    // stream; survives tab switches until the user turns it off.
+    var continueSpectrumId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     BackHandler(
         enabled = showSettings || showLiveChart || showSpectrogram ||
@@ -145,11 +148,17 @@ private fun MainScaffold(graph: AppGraph) {
                     AppTab.SPECTRUM -> SpectrumScreen(
                         graph = graph,
                         onOpenSpectrogram = { showSpectrogram = true },
+                        continueSnapshotId = continueSpectrumId,
+                        onStopContinuation = { continueSpectrumId = null },
                     )
                     AppTab.MAP -> MapScreen(graph)
                     AppTab.HISTORY -> HistoryScreen(
                         graph = graph,
                         onOpenSession = { sessionDetailId = it },
+                        onContinueSpectrum = {
+                            continueSpectrumId = it
+                            tab = AppTab.SPECTRUM
+                        },
                     )
                 }
             }

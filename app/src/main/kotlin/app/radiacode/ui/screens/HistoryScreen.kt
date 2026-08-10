@@ -33,8 +33,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
+import app.radiacode.analysis.EnergyCalibration
+import app.radiacode.analysis.SpectrumMerge
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.SessionSummary
+import app.radiacode.data.toSpectrum
+import app.radiacode.protocol.Spectrum
 import app.radiacode.data.db.EventEntity
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.data.export.N42
@@ -99,7 +103,11 @@ private data class HistoryModel(
  * Windowed pages keep months of data smooth; a session opens its detail.
  */
 @Composable
-fun HistoryScreen(graph: AppGraph, onOpenSession: (Long) -> Unit) {
+fun HistoryScreen(
+    graph: AppGraph,
+    onOpenSession: (Long) -> Unit,
+    onContinueSpectrum: (Long) -> Unit = {},
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
@@ -147,9 +155,11 @@ fun HistoryScreen(graph: AppGraph, onOpenSession: (Long) -> Unit) {
         } else {
             AccumulatedDoseCard(m, unit)
 
-            SavedSpectraCard(graph, onCompare = { first, second ->
-                comparePair = first to second
-            })
+            SavedSpectraCard(
+                graph = graph,
+                onCompare = { first, second -> comparePair = first to second },
+                onContinue = onContinueSpectrum,
+            )
 
             if (m.items.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -382,12 +392,19 @@ private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
 private const val SPECTRA_LIMIT = 30
 
 /**
- * Сохранённые и импортированные спектры: экспорт в файл и вход в сравнение
- * («Сравнить» → выбрать два снимка → экран сравнения). Автоснимки раз в
- * минуту сюда не попадают — только явные сохранения, фоны и импорт.
+ * Сохранённые и импортированные спектры: экспорт в файл, вход в сравнение
+ * («Сравнить» → выбрать два снимка → экран сравнения), объединение 2+
+ * снимков в один (каналы складываются, Δt суммируется; расходящиеся
+ * калибровки честно отклоняются) и «продолжить накопление» на Спектре.
+ * Автоснимки раз в минуту сюда не попадают — только явные сохранения,
+ * фоны и импорт.
  */
 @Composable
-private fun SavedSpectraCard(graph: AppGraph, onCompare: (Long, Long) -> Unit) {
+private fun SavedSpectraCard(
+    graph: AppGraph,
+    onCompare: (Long, Long) -> Unit,
+    onContinue: (Long) -> Unit,
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val context = LocalContext.current
@@ -399,6 +416,8 @@ private fun SavedSpectraCard(graph: AppGraph, onCompare: (Long, Long) -> Unit) {
 
     var compareMode by remember { mutableStateOf(false) }
     var firstPickId by remember { mutableStateOf<Long?>(null) }
+    var mergeMode by remember { mutableStateOf(false) }
+    var mergeIds by remember { mutableStateOf(setOf<Long>()) }
     var actionsFor by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
     var notice by remember { mutableStateOf<SpectrumFileNotice?>(null) }
     var exportedNote by remember { mutableStateOf<String?>(null) }
@@ -431,14 +450,17 @@ private fun SavedSpectraCard(graph: AppGraph, onCompare: (Long, Long) -> Unit) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+            ) {
                 Text(
                     text = "Спектры".uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                     modifier = Modifier.weight(1f),
                 )
-                if (spectra.size >= 2) {
+                if (spectra.size >= 2 && !mergeMode) {
                     Chip(
                         text = if (compareMode) "отмена" else "сравнить",
                         color = if (compareMode) colors.ink2 else colors.dataText,
@@ -448,12 +470,23 @@ private fun SavedSpectraCard(graph: AppGraph, onCompare: (Long, Long) -> Unit) {
                         },
                     )
                 }
+                if (spectra.size >= 2 && !compareMode) {
+                    Chip(
+                        text = if (mergeMode) "отмена" else "объединить",
+                        color = if (mergeMode) colors.ink2 else colors.dataText,
+                        onClick = {
+                            mergeMode = !mergeMode
+                            mergeIds = emptySet()
+                        },
+                    )
+                }
             }
             Text(
-                text = if (compareMode) {
-                    "выберите два снимка — откроется сравнение"
-                } else {
-                    "снимок открывает экспорт и сравнение"
+                text = when {
+                    compareMode -> "выберите два снимка — откроется сравнение"
+                    mergeMode -> "отметьте два и более снимков — каналы сложатся, " +
+                        "время накопления просуммируется"
+                    else -> "снимок открывает экспорт, сравнение и продолжение"
                 },
                 style = type.footnote,
                 color = colors.muted,
@@ -463,23 +496,58 @@ private fun SavedSpectraCard(graph: AppGraph, onCompare: (Long, Long) -> Unit) {
                 if (index > 0) AppDivider()
                 SavedSpectrumRow(
                     entity = entity,
-                    marker = if (compareMode && firstPickId == entity.id) "A" else null,
+                    marker = when {
+                        compareMode && firstPickId == entity.id -> "A"
+                        mergeMode && entity.id in mergeIds -> "✓"
+                        else -> null
+                    },
                     onClick = {
-                        if (compareMode) {
-                            val first = firstPickId
-                            when {
-                                first == null -> firstPickId = entity.id
-                                first == entity.id -> firstPickId = null
-                                else -> {
-                                    compareMode = false
-                                    firstPickId = null
-                                    onCompare(first, entity.id)
+                        when {
+                            compareMode -> {
+                                val first = firstPickId
+                                when {
+                                    first == null -> firstPickId = entity.id
+                                    first == entity.id -> firstPickId = null
+                                    else -> {
+                                        compareMode = false
+                                        firstPickId = null
+                                        onCompare(first, entity.id)
+                                    }
                                 }
                             }
-                        } else {
-                            actionsFor = entity
+                            mergeMode -> mergeIds = if (entity.id in mergeIds) {
+                                mergeIds - entity.id
+                            } else {
+                                mergeIds + entity.id
+                            }
+                            else -> actionsFor = entity
                         }
                     },
+                )
+            }
+            if (mergeMode) {
+                AppButton(
+                    text = "Объединить (${mergeIds.size})",
+                    enabled = mergeIds.size >= 2,
+                    onClick = {
+                        val chosen = spectra.filter { it.id in mergeIds }
+                        scope.launch {
+                            when (val saved = mergeSnapshots(graph, chosen)) {
+                                is MergeResult.Saved -> {
+                                    mergeMode = false
+                                    mergeIds = emptySet()
+                                    exportedNote = "объединённый снимок «${saved.label}» " +
+                                        "сохранён — он появился в списке"
+                                }
+                                is MergeResult.Refused -> notice = SpectrumFileNotice(
+                                    title = "Объединить нельзя",
+                                    lines = listOf(saved.reason),
+                                    isError = true,
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = Dimens.space2),
                 )
             }
             exportedNote?.let {
@@ -542,6 +610,20 @@ private fun SavedSpectraCard(graph: AppGraph, onCompare: (Long, Long) -> Unit) {
                         },
                         enabled = spectra.size >= 2,
                         modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppButton(
+                        text = "Продолжить накопление",
+                        onClick = {
+                            actionsFor = null
+                            onContinue(entity.id)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = "снимок сложится с текущим накоплением на экране " +
+                            "Спектр — прибор при этом копит независимо",
+                        style = type.footnote,
+                        color = colors.muted,
                     )
                     AppButton(
                         text = "Закрыть",
@@ -615,6 +697,62 @@ private fun SavedSpectrumRow(
                 )
             }
         }
+    }
+}
+
+/** Outcome of the История merge action. */
+private sealed interface MergeResult {
+    data class Saved(val label: String) : MergeResult
+    data class Refused(val reason: String) : MergeResult
+}
+
+/**
+ * Channel-wise merge of the chosen snapshots ([SpectrumMerge]) saved as a new
+ * user snapshot labeled «merge». Refusals (calibration/grid mismatch) come
+ * back verbatim — the math layer words them honestly.
+ */
+private suspend fun mergeSnapshots(
+    graph: AppGraph,
+    chosen: List<SpectrumSnapshotEntity>,
+): MergeResult {
+    val inputs = chosen.map { entity ->
+        val s = entity.toSpectrum()
+        SpectrumMerge.Input(
+            counts = s.counts,
+            durationSeconds = s.durationSeconds,
+            calibration = EnergyCalibration(s.a0, s.a1, s.a2),
+            name = SpectrumExport.title(entity),
+        )
+    }
+    return when (val outcome = SpectrumMerge.merge(inputs)) {
+        is SpectrumMerge.Outcome.Invalid -> MergeResult.Refused(outcome.reason)
+        is SpectrumMerge.Outcome.Ok -> {
+            val label = "merge · ${chosen.size} ${snapshotsPlural(chosen.size)}"
+            graph.measurementRepository.saveSpectrum(
+                Spectrum(
+                    durationSeconds = outcome.durationSeconds,
+                    a0 = outcome.calibration.a0,
+                    a1 = outcome.calibration.a1,
+                    a2 = outcome.calibration.a2,
+                    counts = outcome.counts,
+                ),
+                accumulated = false,
+                origin = SpectrumSnapshotEntity.ORIGIN_USER,
+                label = label,
+            )
+            MergeResult.Saved(label)
+        }
+    }
+}
+
+private fun snapshotsPlural(count: Int): String {
+    val mod10 = count % 10
+    val mod100 = count % 100
+    return when {
+        mod100 in 11..14 -> "снимков"
+        mod10 == 1 -> "снимок"
+        mod10 in 2..4 -> "снимка"
+        else -> "снимков"
     }
 }
 

@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +43,8 @@ import app.radiacode.analysis.IsotopeMatcher
 import app.radiacode.analysis.Peak
 import app.radiacode.analysis.PeakDetection
 import app.radiacode.analysis.SpectrumDisplay
+import app.radiacode.analysis.SpectrumMerge
+import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.data.export.N42
 import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.SpectrumExport
@@ -83,10 +86,14 @@ fun SpectrumScreen(
     graph: AppGraph,
     onOpenSpectrogram: () -> Unit = {},
     onOpenRadon: () -> Unit = {},
+    /** Snapshot id to continue accumulating on top of (История → снимок). */
+    continueSnapshotId: Long? = null,
+    onStopContinuation: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val hub = graph.spectrumHub
+    val scope = rememberCoroutineScope()
 
     // Acquisition runs only while this tab is composed (watcher refcount).
     DisposableEffect(hub) {
@@ -97,8 +104,79 @@ fun SpectrumScreen(
     val hubState by hub.state.collectAsState()
     val connection by graph.serviceStatus.connection.collectAsState()
 
-    val spectrum = hubState.spectrum
+    // --- «продолжить накопление»: saved snapshot + live stream, channel-wise.
+    // The device keeps accumulating on its own regardless; the sum exists for
+    // display and saving only (documented in the banner below).
+    var continuationEntity by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
+    LaunchedEffect(continueSnapshotId) {
+        continuationEntity = continueSnapshotId?.let { graph.measurementRepository.spectrumById(it) }
+    }
+    val contEntity = continuationEntity
+    val liveSpectrum = hubState.spectrum
+    val mergeOutcome = remember(contEntity, liveSpectrum) {
+        if (contEntity == null || liveSpectrum == null || liveSpectrum.counts.isEmpty()) {
+            null
+        } else {
+            val saved = contEntity.toSpectrum()
+            SpectrumMerge.merge(
+                listOf(
+                    SpectrumMerge.Input(
+                        counts = saved.counts,
+                        durationSeconds = saved.durationSeconds,
+                        calibration = EnergyCalibration(saved.a0, saved.a1, saved.a2),
+                        name = SpectrumExport.title(contEntity),
+                    ),
+                    SpectrumMerge.Input(
+                        counts = liveSpectrum.counts,
+                        durationSeconds = liveSpectrum.durationSeconds,
+                        calibration = EnergyCalibration(
+                            liveSpectrum.a0,
+                            liveSpectrum.a1,
+                            liveSpectrum.a2,
+                        ),
+                        name = "текущее накопление",
+                    ),
+                ),
+            )
+        }
+    }
+    val mergedSpectrum = (mergeOutcome as? SpectrumMerge.Outcome.Ok)?.let { ok ->
+        Spectrum(
+            durationSeconds = ok.durationSeconds,
+            a0 = ok.calibration.a0,
+            a1 = ok.calibration.a1,
+            a2 = ok.calibration.a2,
+            counts = ok.counts,
+        )
+    }
+    // Display priority: merged sum → live stream → the saved snapshot alone
+    // (continuation chosen while offline = an honest snapshot viewer).
+    val spectrum = mergedSpectrum
+        ?: liveSpectrum
+        ?: contEntity?.toSpectrum()
     val connected = connection is ConnectionState.Connected
+
+    val onSaveMerged: (() -> Unit)? =
+        if (contEntity != null && mergedSpectrum != null) {
+            {
+                scope.launch {
+                    val now = System.currentTimeMillis()
+                    graph.measurementRepository.saveSpectrum(
+                        mergedSpectrum,
+                        accumulated = false,
+                        origin = SpectrumSnapshotEntity.ORIGIN_USER,
+                        label = "продолжение: " + SpectrumExport.title(contEntity),
+                    )
+                    graph.measurementRepository.recordSpectrumSaved(
+                        now,
+                        mergedSpectrum.durationSeconds,
+                    )
+                    hub.onSaved(now)
+                }
+            }
+        } else {
+            null
+        }
 
     Column(
         modifier = Modifier
@@ -129,6 +207,15 @@ fun SpectrumScreen(
                 text = "Спектрограмма ▸",
                 color = colors.dataText,
                 onClick = onOpenSpectrogram,
+            )
+        }
+
+        if (contEntity != null) {
+            ContinuationBanner(
+                entity = contEntity,
+                merging = mergedSpectrum != null,
+                invalidReason = (mergeOutcome as? SpectrumMerge.Outcome.Invalid)?.reason,
+                onStop = onStopContinuation,
             )
         }
 
@@ -171,7 +258,7 @@ fun SpectrumScreen(
                     }
                 }
             }
-            else -> SpectrumContent(graph, spectrum, connected, hubState)
+            else -> SpectrumContent(graph, spectrum, connected, hubState, onSaveMerged)
         }
 
         FileActionsSection(
@@ -300,12 +387,73 @@ private fun FileActionsSection(
     }
 }
 
+/**
+ * Плашка режима «продолжить накопление»: честно объясняет семантику — прибор
+ * копит независимо, сумма существует только для показа и сохранения.
+ */
+@Composable
+private fun ContinuationBanner(
+    entity: SpectrumSnapshotEntity,
+    merging: Boolean,
+    invalidReason: String?,
+    onStop: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Продолжение накопления",
+                    style = type.label,
+                    color = colors.ink,
+                    modifier = Modifier.weight(1f),
+                )
+                Chip(text = "отключить", color = colors.ink2, onClick = onStop)
+            }
+            Text(
+                text = SpectrumExport.title(entity) +
+                    " · Δt снимка " + SpectrumFormat.accumulationClock(entity.durationSeconds),
+                style = type.valueSmall,
+                color = colors.ink2,
+            )
+            when {
+                invalidReason != null -> Text(
+                    text = "сумма невозможна: $invalidReason — показано текущее накопление",
+                    style = type.footnote,
+                    color = colors.warn,
+                )
+                merging -> Text(
+                    text = "показана сумма снимка и текущего накопления (каналы " +
+                        "складываются, Δt суммируется); «Сохранить» сохранит сумму",
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+                else -> Text(
+                    text = "живого накопления пока нет — показан сохранённый снимок",
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
+            Text(
+                text = "Прибор копит спектр независимо от приложения. Если снимок " +
+                    "сделан из текущего накопления без сброса, импульсы посчитаются " +
+                    "дважды — сначала сбросьте спектр.",
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+    }
+}
+
 @Composable
 private fun SpectrumContent(
     graph: AppGraph,
     spectrum: Spectrum,
     connected: Boolean,
     hubState: SpectrumHub.State,
+    /** Continuation mode: «Сохранить» persists the merged sum instead. */
+    onSaveOverride: (() -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -551,7 +699,7 @@ private fun SpectrumContent(
         )
         AppButton(
             text = "Сохранить",
-            onClick = { hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
+            onClick = onSaveOverride ?: { hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
             modifier = Modifier.weight(1f),
         )
         AppButton(
