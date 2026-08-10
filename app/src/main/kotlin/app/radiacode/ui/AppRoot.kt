@@ -117,6 +117,14 @@ private fun MainScaffold(graph: AppGraph) {
         }
     }
 
+    // The fullscreen chart is the one screen that owns the whole display: it
+    // renders above the tab bar (and handles its own system-bar insets), so
+    // the plot really does fill the screen instead of a strip in the middle.
+    if (showLiveChart) {
+        LiveChartScreen(graph, onBack = { showLiveChart = false })
+        return
+    }
+
     Column(Modifier.fillMaxSize()) {
         Box(
             Modifier
@@ -128,7 +136,6 @@ private fun MainScaffold(graph: AppGraph) {
             val trackMapId = trackMapSessionId
             when {
                 showSettings -> SettingsScreen(graph, onBack = { showSettings = false })
-                showLiveChart -> LiveChartScreen(graph, onBack = { showLiveChart = false })
                 showSpectrogram -> SpectrogramScreen(graph, onBack = { showSpectrogram = false })
                 showRadon -> RadonScreen(graph, onBack = { showRadon = false })
                 trackMapId != null -> SessionTrackMapScreen(
