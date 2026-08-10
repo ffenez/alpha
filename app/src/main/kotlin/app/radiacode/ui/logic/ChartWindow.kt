@@ -12,9 +12,9 @@ data class ChartWindow(val fromMillis: Long, val toMillis: Long) {
 
 object ChartWindows {
 
-    /** Zoom bounds: 1 minute … 7 days. */
+    /** Zoom bounds: 1 minute … 30 days. */
     const val MIN_SPAN_MILLIS = 60_000L
-    const val MAX_SPAN_MILLIS = 7L * 24 * 3_600_000L
+    const val MAX_SPAN_MILLIS = 30L * 24 * 3_600_000L
 
     /** Period chips of the fullscreen chart. */
     val PERIODS: List<Pair<String, Long>> = listOf(
@@ -22,8 +22,44 @@ object ChartWindows {
         "1ч" to 3_600_000L,
         "6ч" to 6L * 3_600_000L,
         "24ч" to 24L * 3_600_000L,
-        "7д" to MAX_SPAN_MILLIS,
+        "7д" to 7L * 24 * 3_600_000L,
+        "30д" to MAX_SPAN_MILLIS,
     )
+
+    /**
+     * Padding factor of the loaded range around the visible window. Gestures
+     * re-project an already-loaded snapshot, so the loader deliberately fetches
+     * a quarter-span of context on each side: a pan of up to 25 % of the window
+     * shows real data instantly and the debounced reload only refines the
+     * resolution afterwards.
+     */
+    const val LOAD_PADDING_FRACTION = 0.25f
+
+    /** Visible window → the range to ask the database for (right edge ≤ now). */
+    fun loadRange(window: ChartWindow, nowMillis: Long): ChartWindow {
+        val pad = (window.spanMillis * LOAD_PADDING_FRACTION).toLong()
+        val to = minOf(window.toMillis + pad, nowMillis)
+        return ChartWindow(window.fromMillis - pad, maxOf(to, window.toMillis))
+    }
+
+    /** True when [window] is fully inside an already-loaded [loaded] range. */
+    fun covers(loaded: ChartWindow, window: ChartWindow): Boolean =
+        loaded.fromMillis <= window.fromMillis && loaded.toMillis >= window.toMillis
+
+    /** Period chips visible in the control row (the mockup shows four). */
+    const val VISIBLE_PERIOD_CHIPS = 4
+
+    /**
+     * A window of [count] neighbouring period chips around the selection, so
+     * the control row keeps the touch targets big on a 360dp screen instead of
+     * squeezing in every period. Stepping through the list stays possible: the
+     * window slides with the selection.
+     */
+    fun periodChipRange(selectedIndex: Int, count: Int = VISIBLE_PERIOD_CHIPS): IntRange {
+        val visible = count.coerceIn(1, PERIODS.size)
+        val start = (selectedIndex - 1).coerceIn(0, PERIODS.size - visible)
+        return start until start + visible
+    }
 
     /** Window ending at now with the given span. */
     fun latest(spanMillis: Long, nowMillis: Long): ChartWindow {

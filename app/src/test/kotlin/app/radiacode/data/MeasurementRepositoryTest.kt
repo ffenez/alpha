@@ -1,5 +1,6 @@
 package app.radiacode.data
 
+import app.radiacode.data.db.DoseBucketAggregate
 import app.radiacode.data.db.DownsampledSample
 import app.radiacode.data.db.ExclusionCount
 import app.radiacode.data.db.EventDao
@@ -34,6 +35,7 @@ internal class FakeSampleDao : SampleDao {
         inserted.filter { it.timestamp in from..to }.sortedBy { it.timestamp }
     override suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
     override suspend fun downsampledRangeForProfile(profileId: Long, from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
+    override suspend fun doseBucketRange(from: Long, to: Long, bucketMillis: Long): List<DoseBucketAggregate> = emptyList()
     override suspend fun exclusionCountsForProfile(profileId: Long, from: Long, to: Long): List<ExclusionCount> = emptyList()
     override suspend fun exclusionCountsInRange(from: Long, to: Long): List<ExclusionCount> = emptyList()
     override suspend fun admittedCountInRange(from: Long, to: Long): Int = 0

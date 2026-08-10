@@ -139,6 +139,50 @@ class ChartWindowTest {
         assertEquals(1_000L, ChartWindows.bucketMillis(0L, 120))
     }
 
+    // --- loaded range with gesture headroom ---
+
+    @Test
+    fun `the loaded range pads the window so a small pan needs no query`() {
+        val w = ChartWindows.latest(hour, now - hour)
+        val load = ChartWindows.loadRange(w, now)
+        val pad = (hour * ChartWindows.LOAD_PADDING_FRACTION).toLong()
+        assertEquals(w.fromMillis - pad, load.fromMillis)
+        assertEquals(w.toMillis + pad, load.toMillis)
+        assertTrue(ChartWindows.covers(load, w))
+        // A pan of a fifth of the window still sits inside the loaded data.
+        assertTrue(ChartWindows.covers(load, ChartWindows.pan(w, -0.2f, now)))
+        // A pan of a whole window does not — that is when the reload happens.
+        assertFalse(ChartWindows.covers(load, ChartWindows.pan(w, -1f, now)))
+    }
+
+    @Test
+    fun `the loaded range never asks for the future`() {
+        val w = ChartWindows.latest(hour, now)
+        val load = ChartWindows.loadRange(w, now)
+        assertEquals(now, load.toMillis)
+        assertTrue(load.fromMillis < w.fromMillis)
+    }
+
+    // --- period chips ---
+
+    @Test
+    fun `the control row shows a sliding window of period chips`() {
+        val visible = ChartWindows.VISIBLE_PERIOD_CHIPS
+        for (selected in ChartWindows.PERIODS.indices) {
+            val range = ChartWindows.periodChipRange(selected)
+            assertEquals(visible, range.count())
+            assertTrue("selection $selected fell out of $range", selected in range)
+            assertTrue(range.first >= 0 && range.last < ChartWindows.PERIODS.size)
+        }
+    }
+
+    @Test
+    fun `every period is reachable and the longest is a month`() {
+        assertEquals("30д", ChartWindows.PERIODS.last().first)
+        assertEquals(ChartWindows.MAX_SPAN_MILLIS, ChartWindows.PERIODS.last().second)
+        assertTrue(ChartWindows.PERIODS.map { it.second }.zipWithNext().all { (a, b) -> a < b })
+    }
+
     // --- visible-window stats over a shifted window ---
 
     @Test

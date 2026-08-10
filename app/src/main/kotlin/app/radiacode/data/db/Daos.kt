@@ -16,6 +16,22 @@ data class DownsampledSample(
     val sampleCount: Int,
 )
 
+/**
+ * Bucket aggregate carrying the moments the fullscreen chart needs: the true
+ * extremes of the interval plus Σx and Σx², from which the pooled mean and the
+ * population σ of any group of buckets are exact (no average of averages).
+ * SQLite has no `stddev`, so the sums are reduced in Kotlin
+ * ([app.radiacode.ui.logic.DoseChartModel]).
+ */
+data class DoseBucketAggregate(
+    val bucketStart: Long,
+    val minDoseRate: Float,
+    val maxDoseRate: Float,
+    val sumDoseRate: Double,
+    val sumSqDoseRate: Double,
+    val sampleCount: Int,
+)
+
 /** Spectrum snapshot metadata without the counts blob (radon hourly thinning). */
 data class SpectrumMetaRow(
     val id: Long,
@@ -78,6 +94,31 @@ interface SampleDao {
         """,
     )
     suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample>
+
+    /**
+     * Bucketed moments for the fullscreen dose chart. One index range scan and
+     * a streaming group-by inside SQLite; the caller asks for a bounded number
+     * of buckets, so a 30-day window costs the same as a 15-minute one.
+     */
+    @Query(
+        """
+        SELECT (timestamp / :bucketMillis) * :bucketMillis AS bucketStart,
+               MIN(doseRate) AS minDoseRate,
+               MAX(doseRate) AS maxDoseRate,
+               SUM(doseRate) AS sumDoseRate,
+               SUM(doseRate * doseRate) AS sumSqDoseRate,
+               COUNT(*) AS sampleCount
+        FROM samples
+        WHERE timestamp BETWEEN :from AND :to
+        GROUP BY timestamp / :bucketMillis
+        ORDER BY bucketStart
+        """,
+    )
+    suspend fun doseBucketRange(
+        from: Long,
+        to: Long,
+        bucketMillis: Long,
+    ): List<DoseBucketAggregate>
 
     /**
      * Same bucketed aggregation restricted to one profile and to samples the
