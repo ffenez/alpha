@@ -66,7 +66,20 @@ class AlarmLevelsTest {
 
     @Test
     fun `above usual magnitude needs a margin over P90`() {
-        val baseline = Baseline(0.09f, 0.11f, 0.14f, 18f, 22f, 27f, 10800)
+        val baseline = Baseline(
+            doseLowMicroSvH = 0.09f,
+            doseMedianMicroSvH = 0.11f,
+            doseHighMicroSvH = 0.14f,
+            doseP25MicroSvH = 0.10f,
+            doseP75MicroSvH = 0.13f,
+            doseMadMicroSvH = 0.01f,
+            cpsLow = 18f,
+            cpsMedian = 22f,
+            cpsHigh = 27f,
+            accumulatedSeconds = 10800,
+            sampleCount = 10800,
+            bucketCount = 180,
+        )
         assertFalse(aboveUsualMagnitude(0.14f, baseline))
         assertFalse(aboveUsualMagnitude(0.146f, baseline)) // within 5 % margin
         assertTrue(aboveUsualMagnitude(0.16f, baseline))
