@@ -1,10 +1,13 @@
 package app.radiacode.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -14,6 +17,8 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
@@ -53,24 +58,59 @@ data class TrendChartSpec(
 
 private const val SMOOTH_RADIUS = 4
 
+/**
+ * @param height fixed chart height, or null to fill the parent's height
+ *   (fullscreen mode).
+ * @param onTransform enables pan/pinch on the time axis: reports the pan as a
+ *   fraction of the plot width (positive = finger moved right), the pinch
+ *   zoom factor, and the gesture centroid as a fraction (0..1) of the plot
+ *   width. The pad math matches the drawing code, so fractions map exactly
+ *   onto the plotted window.
+ */
 @Composable
 fun TrendChart(
     spec: TrendChartSpec,
     modifier: Modifier = Modifier,
-    height: Dp = 120.dp,
+    height: Dp? = 120.dp,
+    onTransform: ((panFraction: Float, zoomFactor: Float, focusFraction: Float) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val axisStyle = LocalAppTypography.current.axis
     val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
 
-    Canvas(modifier = modifier.fillMaxWidth().height(height)) {
+    // Left pad is shared by drawing and gesture mapping.
+    val padLpx = remember(spec.yTicks, axisStyle, textMeasurer, density) {
+        (spec.yTicks.maxOfOrNull {
+            textMeasurer.measure(it.second, axisStyle).size.width
+        } ?: 0) + with(density) { 5.dp.toPx() }
+    }
+    val padRpx = with(density) { 5.dp.toPx() }
+
+    val sizeModifier = modifier
+        .fillMaxWidth()
+        .then(if (height != null) Modifier.height(height) else Modifier.fillMaxHeight())
+    val gestureModifier = if (onTransform != null) {
+        Modifier.pointerInput(padLpx, padRpx) {
+            detectTransformGestures { centroid, pan, zoom, _ ->
+                val plotW = (size.width - padLpx - padRpx).coerceAtLeast(1f)
+                onTransform(
+                    pan.x / plotW,
+                    zoom,
+                    ((centroid.x - padLpx) / plotW).coerceIn(0f, 1f),
+                )
+            }
+        }
+    } else {
+        Modifier
+    }
+
+    Canvas(modifier = sizeModifier.then(gestureModifier)) {
         val axisColor = colors.muted
         val labelHeight = textMeasurer.measure("00:00", axisStyle).size.height
 
-        val padL = (spec.yTicks.maxOfOrNull {
-            textMeasurer.measure(it.second, axisStyle).size.width
-        } ?: 0) + 5.dp.toPx()
-        val padR = 5.dp.toPx()
+        val padL = padLpx
+        val padR = padRpx
         val padT = 6.dp.toPx()
         val padB = labelHeight + 3.dp.toPx()
         val plotW = size.width - padL - padR

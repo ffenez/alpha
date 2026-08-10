@@ -99,7 +99,11 @@ private data class HourChart(
  * only renders [MonitorStatus].
  */
 @Composable
-fun MonitorScreen(graph: AppGraph, onOpenSettings: () -> Unit = {}) {
+fun MonitorScreen(
+    graph: AppGraph,
+    onOpenSettings: () -> Unit = {},
+    onOpenChart: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
     val connection by graph.serviceStatus.connection.collectAsState()
@@ -195,6 +199,7 @@ fun MonitorScreen(graph: AppGraph, onOpenSettings: () -> Unit = {}) {
             thresholds = thresholds,
             unit = unit,
             alert = status is MonitorStatus.Alert,
+            onOpen = onOpenChart,
         )
 
         Text(
@@ -388,12 +393,24 @@ private fun HourChartCard(
     thresholds: AlarmThresholds,
     unit: DoseUnitSetting,
     alert: Boolean,
+    onOpen: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onOpen,
+            ),
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+            ) {
                 Text(
                     text = "Мощность дозы · час".uppercase(),
                     style = type.labelSmall,
@@ -407,6 +424,8 @@ private fun HourChartCard(
                         color = colors.muted,
                     )
                 }
+                // Tap affordance: the card opens the fullscreen live chart.
+                Text(text = "⤢", style = type.label, color = colors.ink2)
             }
 
             val stats = chart?.stats

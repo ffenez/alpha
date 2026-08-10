@@ -22,6 +22,7 @@ import app.radiacode.service.MeasurementService
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.NavBar
 import app.radiacode.ui.screens.HistoryScreen
+import app.radiacode.ui.screens.LiveChartScreen
 import app.radiacode.ui.screens.MapScreen
 import app.radiacode.ui.screens.MonitorScreen
 import app.radiacode.ui.screens.OnboardingScreen
@@ -82,12 +83,17 @@ private fun MainScaffold(graph: AppGraph) {
     // on Монитор), a session detail comes from История and can open its
     // track map on top. Back and tab switches dismiss them.
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showLiveChart by rememberSaveable { mutableStateOf(false) }
     var sessionDetailId by rememberSaveable { mutableStateOf<Long?>(null) }
     var trackMapSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
-    BackHandler(enabled = showSettings || sessionDetailId != null || trackMapSessionId != null) {
+    BackHandler(
+        enabled = showSettings || showLiveChart ||
+            sessionDetailId != null || trackMapSessionId != null,
+    ) {
         when {
             showSettings -> showSettings = false
+            showLiveChart -> showLiveChart = false
             trackMapSessionId != null -> trackMapSessionId = null
             else -> sessionDetailId = null
         }
@@ -104,6 +110,7 @@ private fun MainScaffold(graph: AppGraph) {
             val trackMapId = trackMapSessionId
             when {
                 showSettings -> SettingsScreen(graph, onBack = { showSettings = false })
+                showLiveChart -> LiveChartScreen(graph, onBack = { showLiveChart = false })
                 trackMapId != null -> SessionTrackMapScreen(
                     graph = graph,
                     sessionId = trackMapId,
@@ -119,6 +126,7 @@ private fun MainScaffold(graph: AppGraph) {
                     AppTab.HOME -> MonitorScreen(
                         graph = graph,
                         onOpenSettings = { showSettings = true },
+                        onOpenChart = { showLiveChart = true },
                     )
                     AppTab.SEARCH -> SearchScreen(graph)
                     AppTab.SPECTRUM -> SpectrumScreen(graph)
@@ -134,6 +142,7 @@ private fun MainScaffold(graph: AppGraph) {
             selected = tab,
             onSelect = {
                 showSettings = false
+                showLiveChart = false
                 sessionDetailId = null
                 trackMapSessionId = null
                 tab = it
