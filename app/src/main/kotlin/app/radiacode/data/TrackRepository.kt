@@ -26,6 +26,7 @@ class TrackRepository(
         accuracyMeters: Float,
         doseRate: Float?,
         countRate: Float?,
+        altitudeMeters: Double? = null,
     ) {
         trackDao.insertPoint(
             TrackPointEntity(
@@ -36,6 +37,7 @@ class TrackRepository(
                 accuracyMeters = accuracyMeters,
                 doseRate = doseRate,
                 countRate = countRate,
+                altitudeMeters = altitudeMeters,
             ),
         )
     }

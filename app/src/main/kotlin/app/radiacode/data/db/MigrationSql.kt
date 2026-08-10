@@ -11,6 +11,15 @@ package app.radiacode.data.db
 object MigrationSql {
 
     /**
+     * v4 → v5: track_points.altitudeMeters — GPS altitude for flight-mode
+     * detection and the dose-vs-altitude chart. Pre-v5 points stay NULL
+     * (altitude was never recorded, no honest backfill exists).
+     */
+    val FROM_4_TO_5: List<String> = listOf(
+        "ALTER TABLE `track_points` ADD COLUMN `altitudeMeters` REAL",
+    )
+
+    /**
      * v3 → v4: spectra.origin (auto/user/import) + spectra.label — RC-XML
      * import and the История snapshot list. Pre-v4 rows become 'auto': user
      * saves were not distinguishable from autosaves before this version.

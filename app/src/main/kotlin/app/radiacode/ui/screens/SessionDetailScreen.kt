@@ -35,11 +35,15 @@ import app.radiacode.ui.components.TrendChart
 import app.radiacode.ui.components.TrendChartSpec
 import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.DoseFormat
+import app.radiacode.ui.logic.FlightDetect
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.TimeAxis
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
+import androidx.compose.ui.unit.dp
+import java.util.Locale
+import kotlinx.coroutines.flow.first
 
 private const val CHART_COLUMNS = 48
 
@@ -51,6 +55,9 @@ private data class SessionDetail(
     val fromMillis: Long,
     val toMillis: Long,
     val events: List<EventEntity>,
+    /** Flight sessions: altitude per dose-chart column (same time grid). */
+    val altitudeColumns: List<Float?>? = null,
+    val flight: FlightDetect.Summary? = null,
 )
 
 /**
@@ -101,6 +108,9 @@ fun SessionDetailScreen(
             else -> {
                 SummaryCard(d.summary, unit, onOpenTrack)
                 ChartCard(d, unit)
+                if (d.altitudeColumns != null) {
+                    FlightCard(d, unit)
+                }
                 if (d.events.isNotEmpty()) EventsCard(d.events, unit)
             }
         }
@@ -159,12 +169,13 @@ private fun SummaryCard(summary: SessionSummary, unit: DoseUnitSetting, onOpenTr
                 )
             }
 
-            if (summary.hasSpectrum || summary.hasTrack) {
+            if (summary.hasSpectrum || summary.hasTrack || summary.hasFlight) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     if (summary.hasSpectrum) Chip(text = "спектр")
                     if (summary.hasTrack) {
                         Chip(text = "трек · на карте", onClick = onOpenTrack)
                     }
+                    if (summary.hasFlight) Chip(text = "полёт")
                 }
             }
         }
@@ -224,6 +235,84 @@ private fun ChartCard(detail: SessionDetail, unit: DoseUnitSetting) {
     }
 }
 
+/**
+ * Полётная сессия: высота на той же временной сетке, что и график дозы выше —
+ * два состыкованных графика с общей осью времени, никакой двойной оси. Ниже —
+ * честный множитель «на эшелоне фон ×N от наземной медианы этой же записи».
+ */
+@Composable
+private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val columns = detail.altitudeColumns ?: return
+    val flight = detail.flight
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Text(
+                text = "Высота · та же ось времени".uppercase(),
+                style = type.labelSmall,
+                color = colors.ink2,
+            )
+            val maxAltitude = columns.filterNotNull().maxOrNull()
+            if (maxAltitude == null) {
+                Text(
+                    text = "высотных точек для графика нет",
+                    style = type.bodySmall,
+                    color = colors.muted,
+                )
+            } else {
+                val yMax = maxAltitude * 1.15f
+                TrendChart(
+                    spec = TrendChartSpec(
+                        columns = columns,
+                        yMax = yMax,
+                        yTicks = ChartMapping.yTicks(yMax).map {
+                            it to HistoryFormat.count(it.toInt())
+                        },
+                        xLabels = TimeAxis.labels(detail.fromMillis, detail.toMillis),
+                    ),
+                    height = 80.dp,
+                )
+                Text(
+                    text = "метры GPS-высоты · график дозы выше делит с этим ту же ось " +
+                        "времени — шкалы не совмещаются",
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
+            if (flight != null) {
+                AppDivider()
+                val factor = flight.factor
+                when {
+                    factor != null -> Text(
+                        text = "на эшелоне фон ×" + String.format(Locale.US, "%.1f", factor)
+                            .replace('.', ',') +
+                            " от вашего наземного медианного " +
+                            "(${DoseFormat.rate(flight.flightMedianMicroSvH ?: 0f, unit)} " +
+                            "против ${DoseFormat.rate(flight.groundMedianMicroSvH ?: 0f, unit)} " +
+                            DoseFormat.rateUnitLabel(unit) + ", медианы этой записи)",
+                        style = type.bodySmall,
+                        color = colors.ink2,
+                    )
+                    flight.flightMedianMicroSvH != null -> Text(
+                        text = "наземных точек с дозой в этой записи нет — " +
+                            "множитель к наземному фону не считается",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+                Text(
+                    text = "рост фона на эшелоне — нормальное космическое излучение, " +
+                        "не неисправность",
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun EventsCard(events: List<EventEntity>, unit: DoseUnitSetting) {
     val colors = LocalAppColors.current
@@ -274,6 +363,37 @@ private suspend fun loadDetail(graph: AppGraph, sessionId: Long): SessionDetail?
     ) { DoseUnits.rawToMicroSievertPerHour(it.avgDoseRate) }
 
     val events = graph.sessionRepository.deviationEvents(from = summary.startedAt, to = to)
+
+    // Flight view: exact sustain detection on the session's track points
+    // (the list badge uses only an approximate count query).
+    var altitudeColumns: List<Float?>? = null
+    var flight: FlightDetect.Summary? = null
+    if (summary.hasTrack) {
+        val flightPoints = graph.trackRepository
+            .sessionsOverlapping(summary.startedAt, to)
+            .flatMap { track -> graph.trackRepository.points(track.id).first() }
+            .asSequence()
+            .filter { it.timestamp in summary.startedAt..to }
+            .map {
+                FlightDetect.Point(
+                    timestampMillis = it.timestamp,
+                    altitudeMeters = it.altitudeMeters,
+                    doseMicroSvH = it.doseRate?.let(DoseUnits::rawToMicroSievertPerHour),
+                )
+            }
+            .sortedBy { it.timestampMillis }
+            .toList()
+        if (FlightDetect.sustainedFlight(flightPoints)) {
+            altitudeColumns = FlightDetect.altitudeColumns(
+                points = flightPoints,
+                alignedFromMillis = alignedFrom,
+                bucketMillis = bucketMillis,
+                columnCount = CHART_COLUMNS,
+            )
+            flight = FlightDetect.summary(flightPoints)
+        }
+    }
+
     return SessionDetail(
         summary = summary,
         columns = columns,
@@ -281,5 +401,7 @@ private suspend fun loadDetail(graph: AppGraph, sessionId: Long): SessionDetail?
         fromMillis = alignedFrom,
         toMillis = to,
         events = events.sortedBy { it.timestamp },
+        altitudeColumns = altitudeColumns,
+        flight = flight,
     )
 }

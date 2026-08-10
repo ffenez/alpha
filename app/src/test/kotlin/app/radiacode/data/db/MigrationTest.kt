@@ -132,6 +132,48 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 4 to 5 produces exactly the exported v5 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(4))
+            MigrationSql.FROM_4_TO_5.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(5))
+        }
+    }
+
+    @Test
+    fun `migration 4 to 5 keeps existing track points with NULL altitude`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(4))
+            connection.createStatement().use {
+                it.execute("INSERT INTO track_sessions (id, name, startedAt) VALUES (1, 't', 500)")
+                it.execute(
+                    "INSERT INTO track_points " +
+                        "(sessionId, timestamp, latitude, longitude, accuracyMeters, doseRate, countRate) " +
+                        "VALUES (1, 1000, 55.75, 37.61, 4.5, 0.0001, 12.0)",
+                )
+            }
+
+            MigrationSql.FROM_4_TO_5.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT timestamp, latitude, altitudeMeters FROM track_points",
+                )
+                assertTrue(rows.next())
+                assertEquals(1000L, rows.getLong("timestamp"))
+                assertEquals(55.75, rows.getDouble("latitude"), 1e-9)
+                rows.getObject("altitudeMeters")
+                assertTrue(rows.wasNull(), "pre-migration points must have NULL altitude")
+                assertTrue(!rows.next(), "exactly one row expected")
+            }
+        }
+    }
+
+    @Test
     fun `migration 3 to 4 keeps existing snapshots as auto-origin unlabeled rows`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(3))

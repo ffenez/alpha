@@ -310,6 +310,7 @@ private fun SessionRow(summary: SessionSummary, unit: DoseUnitSetting, onClick: 
                 val badges = listOfNotNull(
                     "трек".takeIf { summary.hasTrack },
                     "спектр".takeIf { summary.hasSpectrum },
+                    "полёт".takeIf { summary.hasFlight },
                 )
                 if (badges.isNotEmpty()) {
                     Text(

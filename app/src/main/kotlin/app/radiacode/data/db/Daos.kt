@@ -250,6 +250,20 @@ interface TrackDao {
         """,
     )
     suspend fun countOverlapping(from: Long, to: Long): Int
+
+    /**
+     * Track points above an altitude in a time range (История «полёт» badge).
+     * Points arrive at ~1 Hz, so the count approximates seconds spent above
+     * the threshold; the exact sustain check runs on the loaded points in the
+     * session detail.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM track_points
+        WHERE timestamp BETWEEN :from AND :to AND altitudeMeters > :minAltitudeMeters
+        """,
+    )
+    suspend fun highAltitudePointCount(from: Long, to: Long, minAltitudeMeters: Double): Int
 }
 
 @Dao

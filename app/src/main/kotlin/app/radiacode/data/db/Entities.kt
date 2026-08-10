@@ -159,6 +159,12 @@ data class TrackPointEntity(
     /** Latest dose rate at this point, raw device units; null if not yet received. */
     val doseRate: Float?,
     val countRate: Float?,
+    /**
+     * GPS (ellipsoid) altitude, meters; null when the fix carries none or the
+     * point predates v5. Feeds flight detection (sustained >3000 м) and the
+     * dose-vs-altitude view of flight sessions.
+     */
+    val altitudeMeters: Double? = null,
 )
 
 /** A saved 1024-channel spectrum with its energy calibration. */

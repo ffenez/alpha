@@ -11,6 +11,7 @@ import app.radiacode.data.db.SessionDao
 import app.radiacode.data.db.SpectrumDao
 import app.radiacode.data.db.TrackDao
 import app.radiacode.ui.logic.ChartMapping
+import app.radiacode.ui.logic.FlightDetect
 
 /** One session with everything the History list shows. */
 data class SessionSummary(
@@ -25,6 +26,12 @@ data class SessionSummary(
     val doseMicroSv: Double,
     val hasSpectrum: Boolean,
     val hasTrack: Boolean,
+    /**
+     * ~2+ minutes of track points above 3000 м GPS altitude in the session
+     * range (1 Hz points ≈ seconds; the exact sustain check runs in the
+     * session detail on the loaded points).
+     */
+    val hasFlight: Boolean = false,
 )
 
 /**
@@ -113,6 +120,11 @@ class SessionRepository(
             doseMicroSv = ChartMapping.integrateDoseMicroSv(doseBuckets),
             hasSpectrum = spectrumDao.countInRange(session.startedAt, to) > 0,
             hasTrack = trackDao.countOverlapping(session.startedAt, to) > 0,
+            hasFlight = trackDao.highAltitudePointCount(
+                from = session.startedAt,
+                to = to,
+                minAltitudeMeters = FlightDetect.MIN_ALTITUDE_METERS,
+            ) >= FlightDetect.SUSTAIN_MILLIS / 1000L,
         )
     }
 

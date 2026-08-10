@@ -531,6 +531,8 @@ class MeasurementService : Service() {
                     accuracyMeters = location.accuracy,
                     doseRate = sample?.doseRate,
                     countRate = sample?.countRate,
+                    // GPS altitude feeds flight detection (полёт badge/chart).
+                    altitudeMeters = if (location.hasAltitude()) location.altitude else null,
                 )
             }
         }
