@@ -2,48 +2,42 @@ package app.radiacode.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import app.radiacode.ui.theme.LocalPixelColors
-import app.radiacode.ui.theme.LocalPixelTypography
-import app.radiacode.ui.theme.PixelDimens
+import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.LocalAppTypography
 
 /**
- * One console status line: `> ТЕКСТ █`. Status is never conveyed by color
- * alone (design-language.md) — the words carry the meaning, color assists.
+ * One status line: dot + bold words + optional muted context. Status is
+ * never conveyed by color alone (design-language.md) — the words carry the
+ * meaning, the dot and color assist.
  */
 @Composable
-fun StatusLine(
+fun StatusRow(
     text: String,
     modifier: Modifier = Modifier,
-    color: Color = LocalPixelColors.current.textSecondary,
-    cursor: Boolean = false,
-    trailing: @Composable RowScope.() -> Unit = {},
+    color: Color = LocalAppColors.current.ink2,
+    sub: String? = null,
 ) {
+    val type = LocalAppTypography.current
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Text(
-            text = ">",
-            style = LocalPixelTypography.current.label,
-            color = color,
-        )
-        Text(
-            text = text,
-            style = LocalPixelTypography.current.label,
-            color = color,
-        )
-        if (cursor) {
-            BlinkingCursor(size = DpSize(8.dp, 14.dp), color = color)
+        StatusDot(color)
+        Text(text = text, style = type.label, color = color)
+        if (sub != null) {
+            Text(
+                text = sub,
+                style = type.footnote,
+                color = LocalAppColors.current.ink2,
+                modifier = Modifier.weight(1f, fill = false),
+            )
         }
-        trailing()
     }
 }

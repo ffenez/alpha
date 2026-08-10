@@ -7,59 +7,45 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import app.radiacode.ui.theme.LocalPixelColors
-import app.radiacode.ui.theme.PixelDimens
+import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppColors
 
 /**
- * The 8-bit panel: radius 0, 3dp frame, 5dp hard chunk shadow offset
- * right-down with no blur. Content sits on [PixelColors.surface].
- *
- * The shadow is drawn outside the layout bounds, so parents should leave
- * [PixelDimens.shadowOffset] of room (screen padding on the pixel grid
- * already does).
+ * The terminal card: surface fill, 1dp hairline border, 14dp radius, no
+ * shadow (design-language.md — depth comes from the border and surface
+ * steps, not elevation).
  */
 @Composable
-fun PixelBox(
+fun Card(
     modifier: Modifier = Modifier,
-    contentPadding: Dp = PixelDimens.space4,
-    background: Color = LocalPixelColors.current.surface,
-    frame: Color = LocalPixelColors.current.frame,
+    contentPadding: Dp = Dimens.space3,
+    background: Color = LocalAppColors.current.surface,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val shadow = if (LocalPixelColors.current.isDark) Color.Black.copy(alpha = 0.55f)
-    else LocalPixelColors.current.frame.copy(alpha = 0.45f)
+    val shape = RoundedCornerShape(Dimens.radiusCard)
     Box(
         modifier = modifier
-            .drawBehind {
-                val off = PixelDimens.shadowOffset.toPx()
-                drawRect(
-                    color = shadow,
-                    topLeft = Offset(off, off),
-                    size = Size(size.width, size.height),
-                )
-            }
+            .clip(shape)
             .background(background)
-            .border(PixelDimens.frame, frame)
+            .border(Dimens.border, LocalAppColors.current.line, shape)
             .padding(contentPadding),
         content = content,
     )
 }
 
-/** Divider on the pixel grid: a 2dp hard line in frame color. */
+/** Hairline divider in line color. */
 @Composable
-fun PixelDivider(modifier: Modifier = Modifier) {
+fun AppDivider(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(2.dp)
-            .background(LocalPixelColors.current.frame),
+            .height(Dimens.border)
+            .background(LocalAppColors.current.line),
     )
 }

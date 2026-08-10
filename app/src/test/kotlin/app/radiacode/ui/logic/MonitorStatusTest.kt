@@ -44,7 +44,7 @@ class MonitorStatusTest {
         val above = MonitorStatus.of(0.35f, null, calm, thresholds, 0)
         assertEquals(MonitorStatus.Fixed(above = true, thresholdMicroSvH = 0.30f), above)
         assertEquals("Выше порога", statusHeadline(above))
-        assertEquals("порог 0.30 мкЗв/ч", statusDetail(above, DoseUnitSetting.MICRO_SIEVERT))
+        assertEquals("порог 0,30 мкЗв/ч", statusDetail(above, DoseUnitSetting.MICRO_SIEVERT))
     }
 
     @Test
@@ -60,7 +60,7 @@ class MonitorStatusTest {
         assertEquals(MonitorStatus.Usual(baseline), status)
         assertEquals("Обычный фон", statusHeadline(status))
         assertEquals(
-            "для этого места · 0.09–0.14 мкЗв/ч",
+            "P10–P90 места: 0,09–0,14 · собран 26 ч",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -81,7 +81,7 @@ class MonitorStatusTest {
         assertEquals(MonitorStatus.AboveUsual(baseline, heldSeconds = 240), status)
         assertEquals("Выше обычного", statusHeadline(status))
         assertEquals(
-            "обычно здесь 0.09–0.14 · держится 4 мин",
+            "обычно здесь 0,09–0,14 · держится 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -97,7 +97,7 @@ class MonitorStatusTest {
         )
         assertEquals("Уровень радиации изменился", statusHeadline(status))
         assertEquals(
-            "обычно здесь 0.09–0.14 · держится 4 мин",
+            "обычно здесь 0,09–0,14 · держится 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -108,7 +108,7 @@ class MonitorStatusTest {
         val alert = DeviationSnapshot(alertSince = now - 130_000)
         val status = MonitorStatus.of(0.35f, null, alert, thresholds, now)
         assertEquals(
-            "порог 0.30 мкЗв/ч · держится 2 мин",
+            "порог 0,30 мкЗв/ч · держится 2 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -121,21 +121,9 @@ class MonitorStatusTest {
     }
 
     @Test
-    fun `cps wording within and outside the usual band`() {
-        assertEquals("— CPS", cpsWording(null, active))
-        assertEquals("24 CPS · в обычном диапазоне", cpsWording(24f, active))
-        // 64 vs median 22 -> +190 %.
-        assertEquals("64 CPS · +190% к обычному", cpsWording(64f, active))
-        assertEquals("10 CPS · −54% к обычному", cpsWording(10f, active))
-        // No baseline: the number stands alone, no fake context.
-        assertEquals("24 CPS", cpsWording(24f, null))
-        assertEquals("24 CPS", cpsWording(24f, BaselineState.Learning(0, 10800)))
-    }
-
-    @Test
     fun `learning and collected wording`() {
         assertEquals(
-            "изучаю обычный фон — 1.5 ч из 3",
+            "изучаю обычный фон — 1,5 ч из 3",
             learningWording(BaselineState.Learning(5400, 10800)),
         )
         assertEquals(
@@ -143,5 +131,6 @@ class MonitorStatusTest {
             learningWording(BaselineState.Learning(0, 10800)),
         )
         assertEquals("baseline собран за 26 ч наблюдений", baselineCollectedWording(baseline))
+        assertEquals("собран 26 ч", baselineCollectedShort(baseline))
     }
 }

@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,79 +20,72 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.radiacode.ui.theme.LocalPixelColors
-import app.radiacode.ui.theme.LocalPixelTypography
-import app.radiacode.ui.theme.PixelDimens
+import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.LocalAppTypography
 
 /** The five data screens (SPEC navigation: Home/Search/Spectrum/Map/History). */
 enum class AppTab(val title: String) {
-    HOME("ДОМ"),
-    SEARCH("ПОИСК"),
-    SPECTRUM("СПЕКТР"),
-    MAP("КАРТА"),
-    HISTORY("ИСТОРИЯ"),
+    HOME("Главная"),
+    SEARCH("Поиск"),
+    SPECTRUM("Спектр"),
+    MAP("Карта"),
+    HISTORY("История"),
 }
 
 private val AppTab.icon: ImageVector
     get() = when (this) {
-        AppTab.HOME -> PixelIcons.Home
-        AppTab.SEARCH -> PixelIcons.Search
-        AppTab.SPECTRUM -> PixelIcons.Spectrum
-        AppTab.MAP -> PixelIcons.Map
-        AppTab.HISTORY -> PixelIcons.History
+        AppTab.HOME -> AppIcons.Home
+        AppTab.SEARCH -> AppIcons.Search
+        AppTab.SPECTRUM -> AppIcons.Spectrum
+        AppTab.MAP -> AppIcons.Map
+        AppTab.HISTORY -> AppIcons.History
     }
 
 /**
- * Bottom pixel nav: hard 3dp top frame, five equal cells. The selected cell
- * carries a 4dp accent block at the top and lights up; state is never color
- * alone — the block is a shape cue and the label brightens and bolds.
+ * Bottom nav: hairline top border, surface fill, five thin-line icons. The
+ * active item switches to the data-text color; the label is always present,
+ * so state is not color alone.
  */
 @Composable
-fun PixelNavBar(
+fun NavBar(
     selected: AppTab,
     onSelect: (AppTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = LocalPixelColors.current
+    val colors = LocalAppColors.current
     Column(modifier = modifier.fillMaxWidth().background(colors.surface)) {
-        Box(Modifier.fillMaxWidth().height(PixelDimens.frame).background(colors.frame))
+        AppDivider()
         Row(Modifier.fillMaxWidth().navigationBarsPadding()) {
             AppTab.entries.forEach { tab ->
                 val isSelected = tab == selected
-                val tint = if (isSelected) colors.accent else colors.textMuted
+                val tint = if (isSelected) colors.dataText else colors.muted
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                     modifier = Modifier
                         .weight(1f)
-                        .height(60.dp)
+                        .height(56.dp)
                         .semantics { this.selected = isSelected }
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                         ) { onSelect(tab) },
                 ) {
-                    Box(
-                        Modifier
-                            .size(width = 28.dp, height = 4.dp)
-                            .background(if (isSelected) colors.accent else colors.surface),
-                    )
                     Icon(
                         imageVector = tab.icon,
                         contentDescription = null,
                         tint = tint,
-                        modifier = Modifier.padding(top = 4.dp).size(24.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                     Text(
                         text = tab.title,
-                        style = LocalPixelTypography.current.labelSmall.copy(fontSize = 10.sp),
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        style = LocalAppTypography.current.label.copy(fontSize = 10.sp),
                         color = tint,
                         maxLines = 1,
-                        modifier = Modifier.padding(top = 2.dp),
+                        modifier = Modifier.padding(top = 3.dp),
                     )
                 }
             }

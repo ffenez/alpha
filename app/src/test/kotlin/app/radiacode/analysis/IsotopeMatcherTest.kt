@@ -3,7 +3,6 @@ package app.radiacode.analysis
 import app.radiacode.ui.logic.SpectrumFormat
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 private fun peak(energyKeV: Float, snr: Float, channel: Int = (energyKeV / 3f).toInt()) =
@@ -12,18 +11,16 @@ private fun peak(energyKeV: Float, snr: Float, channel: Int = (energyKeV / 3f).t
 class IsotopeMatcherTest {
 
     @Test
-    fun `strong tight Cs-137 peak reaches medium and uses the SPEC wording`() {
+    fun `strong tight Cs-137 peak reaches medium and names its confidence`() {
         val hints = IsotopeMatcher.match(listOf(peak(662f, snr = 12f)))
         assertEquals(1, hints.size)
         val hint = hints.single()
         assertEquals("Cs-137", hint.isotope)
         assertEquals(HintConfidence.MEDIUM, hint.confidence)
-        assertEquals(
-            "Возможное совпадение: Cs-137 · пик у 662 кэВ · " +
-                "уверенность: средняя · нужно подтверждение",
-            SpectrumFormat.hintLine(hint),
-        )
-        assertNull(SpectrumFormat.hintNote(hint), "Cs-137 is not natural background")
+        // The peak-table candidate cell always carries the confidence, never
+        // a bare isotope name (SPEC: «возможное совпадение», not detection).
+        assertEquals("Cs-137 · средняя ур.", SpectrumFormat.candidateCell(hint))
+        assertTrue(!hint.natural, "Cs-137 is not natural background")
     }
 
     @Test
@@ -56,16 +53,14 @@ class IsotopeMatcherTest {
     }
 
     @Test
-    fun `natural lines carry the calm background note`() {
+    fun `natural lines carry the calm природный marker`() {
         val k40 = IsotopeMatcher.match(listOf(peak(1460.8f, snr = 20f))).single()
-        assertEquals("K-40 — обычный природный фон", SpectrumFormat.hintNote(k40))
+        assertEquals("K-40 · природный", SpectrumFormat.candidateCell(k40))
 
         val bi214 = IsotopeMatcher.match(listOf(peak(609.3f, snr = 9f))).first()
         assertEquals("Bi-214", bi214.isotope)
-        assertEquals(
-            "Bi-214 — из цепочки Ra-226, обычный природный фон",
-            SpectrumFormat.hintNote(bi214),
-        )
+        assertEquals("Bi-214 · природный", SpectrumFormat.candidateCell(bi214))
+        assertEquals("Ra-226", bi214.chain, "daughter nuclides keep their chain")
     }
 
     @Test
@@ -83,10 +78,12 @@ class IsotopeMatcherTest {
             listOf(peak(661.7f, snr = 50f), peak(1460.8f, snr = 30f)),
         )
         for (hint in hints) {
-            val line = SpectrumFormat.hintLine(hint)
-            assertTrue("Возможное совпадение" in line, line)
-            assertTrue("нужно подтверждение" in line, line)
-            assertTrue("обнаруж" !in line.lowercase(), "wording must never claim detection: $line")
+            val cell = SpectrumFormat.candidateCell(hint)
+            assertTrue(
+                "природный" in cell || "ур." in cell,
+                "candidate always carries a qualifier: $cell",
+            )
+            assertTrue("обнаруж" !in cell.lowercase(), "wording must never claim detection: $cell")
         }
     }
 

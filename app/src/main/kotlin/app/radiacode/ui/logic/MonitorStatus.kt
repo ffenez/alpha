@@ -93,7 +93,8 @@ fun statusDetail(status: MonitorStatus, unit: DoseUnitSetting): String? = when (
     is MonitorStatus.Fixed ->
         if (status.above) "порог ${DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit)}" else null
     is MonitorStatus.Usual ->
-        "для этого места · ${baselineRange(status.baseline, unit)} ${DoseFormat.rateUnitLabel(unit)}"
+        "P10–P90 места: ${baselineRange(status.baseline, unit)} · " +
+            baselineCollectedShort(status.baseline)
     is MonitorStatus.AboveUsual ->
         "обычно здесь ${baselineRange(status.baseline, unit)} · ${heldWording(status.heldSeconds)}"
     is MonitorStatus.Alert -> {
@@ -116,47 +117,26 @@ fun heldWording(heldSeconds: Long): String {
     return "держится $text"
 }
 
-/**
- * CPS line (SPEC: «28 CPS · within your normal range», «64 CPS · +150%»).
- * Without an active baseline the number stands alone — no fake context.
- */
-fun cpsWording(cps: Float?, baselineState: BaselineState?): String {
-    if (cps == null) return "— CPS"
-    val value = "${cps.toInt()} CPS"
-    val baseline = (baselineState as? BaselineState.Active)?.baseline ?: return value
-    if (baseline.cpsMedian <= 0f) return value
-    return when {
-        cps > baseline.cpsHigh -> {
-            val percent = ((cps - baseline.cpsMedian) / baseline.cpsMedian * 100f).toInt()
-            "$value · +$percent% к обычному"
-        }
-        cps < baseline.cpsLow -> {
-            val percent = ((baseline.cpsMedian - cps) / baseline.cpsMedian * 100f).toInt()
-            "$value · −$percent% к обычному"
-        }
-        else -> "$value · в обычном диапазоне"
-    }
-}
-
-/** Learning progress: «изучаю обычный фон — 1.5 ч из 3». */
+/** Learning progress: «изучаю обычный фон — 1,5 ч из 3». */
 fun learningWording(state: BaselineState.Learning): String {
     val collected = formatHours(state.accumulatedSeconds)
     val required = formatHours(state.requiredSeconds)
     return "изучаю обычный фон — $collected ч из $required"
 }
 
-/** Chart footnote: «baseline собран за 26 ч наблюдений». */
+/** Settings wording: «baseline собран за 26 ч наблюдений». */
 fun baselineCollectedWording(baseline: Baseline): String =
     "baseline собран за ${formatHours(baseline.accumulatedSeconds)} ч наблюдений"
+
+/** Status-line wording: «собран 26,4 ч». */
+fun baselineCollectedShort(baseline: Baseline): String =
+    "собран ${formatHours(baseline.accumulatedSeconds)} ч"
 
 private fun formatHours(seconds: Long): String {
     val hours = seconds / 3600.0
     return if (hours >= 10 || hours == Math.floor(hours)) {
         "${hours.toLong()}"
     } else {
-        String.format(java.util.Locale.US, "%.1f", hours)
+        String.format(java.util.Locale.US, "%.1f", hours).replace('.', ',')
     }
 }
-
-/** 0.30 -> "0.30"; readings keep two decimals so digits don't jump. */
-fun formatMicroSv(value: Float): String = String.format(java.util.Locale.US, "%.2f", value)

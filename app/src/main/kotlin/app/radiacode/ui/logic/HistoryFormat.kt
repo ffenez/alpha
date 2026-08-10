@@ -36,6 +36,12 @@ object HistoryFormat {
         return "$day$year ${dateTime.format(TIME)}"
     }
 
+    /** «9 авг» — day and month only (chart edge labels). */
+    fun day(millis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+        val date = Instant.ofEpochMilli(millis).atZone(zone)
+        return "${date.dayOfMonth} ${MONTHS[date.monthValue - 1]}"
+    }
+
     /** Thousands grouped with a space: 29520 -> «29 520». */
     fun count(value: Int): String {
         val digits = value.toString()

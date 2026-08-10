@@ -35,17 +35,66 @@ object ChartMapping {
         return columns.toList()
     }
 
-    data class Stats(val min: Float, val avg: Float, val max: Float, val sigma: Float, val count: Int)
+    data class Stats(
+        val min: Float,
+        val avg: Float,
+        val median: Float,
+        val max: Float,
+        val sigma: Float,
+        val count: Int,
+    )
 
-    /** Population σ over present columns; null when nothing is present. */
+    /** Population σ and median over present columns; null when nothing is present. */
     fun stats(columns: List<Float?>): Stats? {
         val values = columns.filterNotNull()
         if (values.isEmpty()) return null
         val min = values.min()
         val max = values.max()
         val avg = values.sum() / values.size
+        val sorted = values.sorted()
+        val median = if (sorted.size % 2 == 1) {
+            sorted[sorted.size / 2]
+        } else {
+            (sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2f
+        }
         val variance = values.sumOf { val d = (it - avg).toDouble(); d * d } / values.size
-        return Stats(min = min, avg = avg, max = max, sigma = sqrt(variance).toFloat(), count = values.size)
+        return Stats(
+            min = min,
+            avg = avg,
+            median = median,
+            max = max,
+            sigma = sqrt(variance).toFloat(),
+            count = values.size,
+        )
+    }
+
+    /**
+     * «Nice» y-axis gridline values below [yMax]: step is 1/2/5·10^k chosen
+     * so that 2–5 lines fit. Values ascend and exclude 0 and [yMax] itself.
+     */
+    fun yTicks(yMax: Float): List<Float> {
+        if (yMax <= 0f) return emptyList()
+        var step = niceStep(yMax / 5.0)
+        if (yMax / step > 5.5) step = niceStep(yMax / 4.0)
+        val ticks = mutableListOf<Float>()
+        var v = step
+        while (v < yMax * 0.98) {
+            ticks += v.toFloat()
+            v += step
+        }
+        return ticks
+    }
+
+    private fun niceStep(raw: Double): Double {
+        val mag = Math.pow(10.0, floor(Math.log10(raw)))
+        val norm = raw / mag
+        val nice = when {
+            norm <= 1.0 -> 1.0
+            norm <= 2.0 -> 2.0
+            norm <= 5.0 -> 5.0
+            else -> 10.0
+        }
+        return nice * mag
     }
 
     /**

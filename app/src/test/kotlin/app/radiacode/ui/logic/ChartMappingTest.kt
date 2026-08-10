@@ -49,14 +49,33 @@ class ChartMappingTest {
     }
 
     @Test
-    fun `stats cover min avg max and population sigma`() {
+    fun `stats cover min avg median max and population sigma`() {
         val stats = ChartMapping.stats(listOf(1f, null, 3f, null, 5f))!!
         assertEquals(1f, stats.min)
         assertEquals(5f, stats.max)
         assertEquals(3f, stats.avg)
+        assertEquals(3f, stats.median)
         assertEquals(3, stats.count)
         // Population sigma of {1,3,5} = sqrt(8/3).
         assertTrue(abs(stats.sigma - 1.632993f) < 1e-4f)
+    }
+
+    @Test
+    fun `median of an even count averages the middle pair`() {
+        val stats = ChartMapping.stats(listOf(1f, 2f, 10f, 20f))!!
+        assertEquals(6f, stats.median)
+    }
+
+    @Test
+    fun `y ticks are nice steps below the top`() {
+        // yMax 0.42 -> step 0.1 -> 0.1/0.2/0.3/0.4.
+        val ticks = ChartMapping.yTicks(0.42f)
+        assertEquals(4, ticks.size)
+        assertTrue(abs(ticks[0] - 0.1f) < 1e-5f)
+        assertTrue(abs(ticks[3] - 0.4f) < 1e-5f)
+        // Ticks never reach the top itself.
+        assertTrue(ChartMapping.yTicks(50f).all { it < 50f })
+        assertTrue(ChartMapping.yTicks(0f).isEmpty())
     }
 
     @Test

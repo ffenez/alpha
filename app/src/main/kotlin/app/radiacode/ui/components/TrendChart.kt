@@ -1,181 +1,227 @@
 package app.radiacode.ui.components
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import app.radiacode.ui.logic.ChartMapping
-import app.radiacode.ui.theme.LocalPixelColors
-import app.radiacode.ui.theme.LocalPixelTypography
-import app.radiacode.ui.theme.PixelColors
+import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.LocalAppTypography
 
 /**
- * Pixel chart engine (design-language.md): the plot is rasterized into a
- * small offscreen bitmap (~144x52) and upscaled by an integer factor with
- * FilterQuality.None — chunky pixels, no smoothing. Missing columns stay
- * gaps; nothing is interpolated.
+ * Trend chart engine («Научный терминал», design-language.md): raw samples
+ * stay visible as dots (alpha 0.55), a smoothed line carries the shape, the
+ * baseline band is a translucent fill, axes are always labeled (y values
+ * left, time below, mono 10sp), the alarm line is dashed and named
+ * («L1 0,30»), and the freshest point is a ringed endpoint dot.
  *
- * Layers, bottom to top: dithered band (checker — dithering instead of
- * translucency), dotted gridlines, data columns with a bright head pixel,
- * dashed alarm row.
+ * Smoothing is display-only; missing columns stay gaps — nothing is
+ * interpolated across them.
  */
 @Immutable
-data class PixelChartSpec(
+data class TrendChartSpec(
     /** Raw values per column slot, null = no data in that slot. */
     val columns: List<Float?>,
     /** Top of the y scale, same unit as [columns]. */
     val yMax: Float,
-    /** Dashed alarm/threshold row, same unit; omitted when out of frame. */
+    /** Dashed named alarm line, same unit; omitted when out of frame. */
     val alarmLevel: Float? = null,
-    /** Dithered "usual range" band, same unit. */
+    /** Name drawn on the alarm line, e.g. «L1 0,30». */
+    val alarmLabel: String? = null,
+    /** «Usual range» band, same unit. */
     val band: ClosedFloatingPointRange<Float>? = null,
-    val columnWidthPx: Int = 2,
-    val gapPx: Int = 1,
-    val heightPx: Int = 52,
-) {
-    val widthPx: Int = (columns.size * (columnWidthPx + gapPx) - gapPx).coerceAtLeast(1)
-}
+    /** Value → label gridlines on the y axis. */
+    val yTicks: List<Pair<Float, String>> = emptyList(),
+    /** Fraction (0..1) → label ticks on the time axis. */
+    val xLabels: List<Pair<Float, String>> = emptyList(),
+    /** Paint the endpoint dot in the alarm color (confirmed alert only). */
+    val endpointAlert: Boolean = false,
+)
+
+private const val SMOOTH_RADIUS = 4
 
 @Composable
-fun PixelChart(
-    spec: PixelChartSpec,
+fun TrendChart(
+    spec: TrendChartSpec,
     modifier: Modifier = Modifier,
-    xStartLabel: String? = null,
-    xEndLabel: String? = null,
-    yMaxLabel: String? = null,
+    height: Dp = 120.dp,
 ) {
-    val colors = LocalPixelColors.current
-    val bitmap = remember(spec, colors) { renderChart(spec, colors) }
+    val colors = LocalAppColors.current
+    val axisStyle = LocalAppTypography.current.axis
+    val textMeasurer = rememberTextMeasurer()
 
-    Column(modifier = modifier) {
-        if (yMaxLabel != null) {
-            Text(
-                text = yMaxLabel,
-                style = LocalPixelTypography.current.labelSmall,
-                color = colors.textMuted,
-                modifier = Modifier.align(Alignment.End),
+    Canvas(modifier = modifier.fillMaxWidth().height(height)) {
+        val axisColor = colors.muted
+        val labelHeight = textMeasurer.measure("00:00", axisStyle).size.height
+
+        val padL = (spec.yTicks.maxOfOrNull {
+            textMeasurer.measure(it.second, axisStyle).size.width
+        } ?: 0) + 5.dp.toPx()
+        val padR = 5.dp.toPx()
+        val padT = 6.dp.toPx()
+        val padB = labelHeight + 3.dp.toPx()
+        val plotW = size.width - padL - padR
+        val plotH = size.height - padT - padB
+        if (plotW <= 0 || plotH <= 0 || spec.yMax <= 0f) return@Canvas
+
+        val n = spec.columns.size
+        fun x(index: Int): Float =
+            padL + if (n <= 1) 0f else index * plotW / (n - 1)
+        fun y(value: Float): Float =
+            padT + (1f - (value / spec.yMax).coerceIn(0f, 1f)) * plotH
+
+        // 1. Usual-range band.
+        spec.band?.let { band ->
+            val top = y(band.endInclusive)
+            val bottom = y(band.start)
+            drawRect(
+                color = colors.ink2.copy(alpha = 0.14f),
+                topLeft = Offset(padL, top),
+                size = Size(plotW, bottom - top),
             )
         }
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val density = LocalDensity.current
-            val scale = (constraints.maxWidth / spec.widthPx).coerceAtLeast(1)
-            val width = with(density) { (spec.widthPx * scale).toDp() }
-            val height = with(density) { (spec.heightPx * scale).toDp() }
-            Image(
-                painter = BitmapPainter(bitmap, filterQuality = FilterQuality.None),
-                contentDescription = null,
-                contentScale = ContentScale.FillBounds,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(vertical = 2.dp)
-                    .size(width, height),
+
+        // 2. Gridlines + y labels.
+        for ((value, label) in spec.yTicks) {
+            val yy = y(value)
+            drawLine(
+                color = colors.ink2.copy(alpha = 0.14f),
+                start = Offset(padL, yy),
+                end = Offset(size.width - padR, yy),
+                strokeWidth = 1f,
+            )
+            val measured = textMeasurer.measure(label, axisStyle)
+            drawText(
+                textLayoutResult = measured,
+                color = axisColor,
+                topLeft = Offset(
+                    padL - 5.dp.toPx() - measured.size.width,
+                    yy - measured.size.height / 2f,
+                ),
             )
         }
-        if (xStartLabel != null || xEndLabel != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = xStartLabel.orEmpty(),
-                    style = LocalPixelTypography.current.labelSmall,
-                    color = colors.textMuted,
-                )
-                Text(
-                    text = xEndLabel.orEmpty(),
-                    style = LocalPixelTypography.current.labelSmall,
-                    color = colors.textMuted,
+
+        // 3. Time labels.
+        for ((fraction, label) in spec.xLabels) {
+            val measured = textMeasurer.measure(label, axisStyle)
+            val xx = (padL + fraction * plotW - measured.size.width / 2f)
+                .coerceIn(0f, size.width - measured.size.width)
+            drawText(
+                textLayoutResult = measured,
+                color = axisColor,
+                topLeft = Offset(xx, size.height - labelHeight),
+            )
+        }
+
+        // 4. Named alarm line.
+        val alarm = spec.alarmLevel
+        if (alarm != null && alarm <= spec.yMax) {
+            val yy = y(alarm)
+            drawLine(
+                color = colors.crit.copy(alpha = 0.65f),
+                start = Offset(padL, yy),
+                end = Offset(size.width - padR, yy),
+                strokeWidth = 1.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(
+                    floatArrayOf(6.dp.toPx(), 5.dp.toPx()),
+                ),
+            )
+            spec.alarmLabel?.let { label ->
+                val measured = textMeasurer.measure(label, axisStyle)
+                drawText(
+                    textLayoutResult = measured,
+                    color = colors.crit,
+                    topLeft = Offset(
+                        padL + 4.dp.toPx(),
+                        (yy - 3.dp.toPx() - measured.size.height).coerceAtLeast(0f),
+                    ),
                 )
             }
+        }
+
+        // 5. Raw dots.
+        val dotRadius = 1.5.dp.toPx()
+        spec.columns.forEachIndexed { index, value ->
+            if (value == null) return@forEachIndexed
+            drawCircle(
+                color = colors.muted.copy(alpha = 0.55f),
+                radius = dotRadius,
+                center = Offset(x(index), y(value)),
+            )
+        }
+
+        // 6. Smoothed line, broken at gaps.
+        val smoothed = smoothColumns(spec.columns)
+        drawSmoothedPath(smoothed, colors.data, ::x, ::y)
+
+        // 7. Endpoint dot with a surface ring.
+        val lastIndex = smoothed.indexOfLast { it != null }
+        if (lastIndex >= 0) {
+            val center = Offset(x(lastIndex), y(smoothed[lastIndex]!!))
+            drawCircle(
+                color = if (spec.endpointAlert) colors.crit else colors.data,
+                radius = 4.dp.toPx(),
+                center = center,
+            )
+            drawCircle(
+                color = colors.surface,
+                radius = 4.dp.toPx(),
+                center = center,
+                style = Stroke(width = 2.dp.toPx()),
+            )
         }
     }
 }
 
-private fun renderChart(spec: PixelChartSpec, colors: PixelColors): ImageBitmap {
-    val w = spec.widthPx
-    val h = spec.heightPx
-    val bitmap = ImageBitmap(w, h)
-    val canvas = Canvas(bitmap)
-    val paint = Paint()
-
-    fun px(x: Int, y: Int, color: Color) {
-        paint.color = color
-        canvas.drawRect(x.toFloat(), y.toFloat(), (x + 1).toFloat(), (y + 1).toFloat(), paint)
-    }
-
-    // 1. Dithered band: checker pattern in a muted tone.
-    spec.band?.let { band ->
-        val top = ChartMapping.rowForLevel(band.endInclusive, spec.yMax, h) ?: 0
-        val bottom = ChartMapping.rowForLevel(band.start.coerceAtLeast(0.0001f), spec.yMax, h)
-            ?: (h - 1)
-        for (y in top..bottom) {
-            for (x in 0 until w) {
-                if ((x + y) % 2 == 0) px(x, y, colors.textMuted.copy(alpha = 0.5f))
-            }
+private fun DrawScope.drawSmoothedPath(
+    smoothed: List<Float?>,
+    color: Color,
+    x: (Int) -> Float,
+    y: (Float) -> Float,
+) {
+    val path = Path()
+    var penDown = false
+    smoothed.forEachIndexed { index, value ->
+        if (value == null) {
+            penDown = false
+        } else {
+            if (penDown) path.lineTo(x(index), y(value)) else path.moveTo(x(index), y(value))
+            penDown = true
         }
     }
-
-    // 2. Dotted gridlines at quarter heights.
-    for (quarter in 1..3) {
-        val y = h - 1 - (h - 1) * quarter / 4
-        for (x in 0 until w step 4) px(x, y, colors.frame)
-    }
-
-    // 3. Data columns, gap-preserving, bright head pixel.
-    val stride = spec.columnWidthPx + spec.gapPx
-    spec.columns.forEachIndexed { index, value ->
-        if (value == null) return@forEachIndexed
-        val height = ChartMapping.columnHeightPx(value, spec.yMax, h)
-        if (height == 0) return@forEachIndexed
-        val x0 = index * stride
-        val yTop = h - height
-        paint.color = colors.chartData
-        canvas.drawRect(
-            x0.toFloat(),
-            (yTop + 1).coerceAtMost(h).toFloat(),
-            (x0 + spec.columnWidthPx).toFloat(),
-            h.toFloat(),
-            paint,
-        )
-        // Head pixel row: the freshest, brightest mark of the column tip.
-        paint.color = if (colors.isDark) colors.accent else colors.text
-        canvas.drawRect(
-            x0.toFloat(),
-            yTop.toFloat(),
-            (x0 + spec.columnWidthPx).toFloat(),
-            (yTop + 1).toFloat(),
-            paint,
-        )
-    }
-
-    // 4. Dashed alarm row on top: 3 px on, 3 px off.
-    spec.alarmLevel?.let { alarm ->
-        val y = ChartMapping.rowForLevel(alarm, spec.yMax, h)
-        if (y != null) {
-            for (x in 0 until w) {
-                if (x % 6 < 3) px(x, y, colors.chartAlarm)
-            }
-        }
-    }
-
-    return bitmap
+    drawPath(
+        path = path,
+        color = color,
+        style = Stroke(
+            width = 2.2.dp.toPx(),
+            cap = StrokeCap.Round,
+        ),
+    )
 }
+
+/** Centered moving average over present neighbours; gaps stay gaps. */
+private fun smoothColumns(columns: List<Float?>, radius: Int = SMOOTH_RADIUS): List<Float?> =
+    columns.mapIndexed { index, value ->
+        if (value == null) return@mapIndexed null
+        var sum = 0f
+        var count = 0
+        for (j in (index - radius)..(index + radius)) {
+            val v = columns.getOrNull(j) ?: continue
+            sum += v
+            count++
+        }
+        sum / count
+    }

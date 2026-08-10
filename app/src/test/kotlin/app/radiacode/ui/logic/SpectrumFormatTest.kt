@@ -1,6 +1,9 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.analysis.EnergyWindow
+import app.radiacode.analysis.HintConfidence
+import app.radiacode.analysis.IsotopeHint
+import app.radiacode.analysis.Peak
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -18,4 +21,63 @@ class SpectrumFormatTest {
     fun `window label rounds to whole keV`() {
         assertEquals("0–3072 кэВ", SpectrumFormat.windowLabel(EnergyWindow(0.4f, 3071.7f)))
     }
+
+    @Test
+    fun `peak table cells - energy net snr`() {
+        assertEquals("661,9", SpectrumFormat.energyCell(661.94f))
+        assertEquals("1 240", SpectrumFormat.netCell(1240.3f))
+        assertEquals("890", SpectrumFormat.netCell(890.0f))
+        assertEquals("8,2σ", SpectrumFormat.snrCell(8.24f))
+    }
+
+    @Test
+    fun `candidate cell - natural is calm, the rest carries confidence`() {
+        assertEquals("Bi-214 · природный", SpectrumFormat.candidateCell(hint("Bi-214", natural = true)))
+        assertEquals(
+            "Cs-137 · средняя ур.",
+            SpectrumFormat.candidateCell(
+                hint("Cs-137", natural = false, confidence = HintConfidence.MEDIUM),
+            ),
+        )
+        assertEquals(
+            "I-131 · низкая ур.",
+            SpectrumFormat.candidateCell(
+                hint("I-131", natural = false, confidence = HintConfidence.LOW),
+            ),
+        )
+    }
+
+    @Test
+    fun `accumulation chip groups the pulse count`() {
+        assertEquals(
+            "Δt 12:34 · 184 302 имп",
+            SpectrumFormat.accumulationChip(754, 184_302),
+        )
+    }
+
+    @Test
+    fun `calibration line - comma decimals and superscript scientific a2`() {
+        assertEquals(
+            "калибровка: E = −5,6 + 2,41·ch + 4,1·10⁻⁴·ch² · 1024 канала",
+            SpectrumFormat.calibrationLine(-5.6f, 2.41f, 4.1e-4f, 1024),
+        )
+        assertEquals(
+            "калибровка: E = 0,0 + 3,00·ch − 1,0·10⁻³·ch² · 256 каналов",
+            SpectrumFormat.calibrationLine(0f, 3f, -1e-3f, 256),
+        )
+    }
+
+    private fun hint(
+        isotope: String,
+        natural: Boolean,
+        confidence: HintConfidence = HintConfidence.LOW,
+    ) = IsotopeHint(
+        isotope = isotope,
+        chain = null,
+        natural = natural,
+        peak = Peak(channel = 100, energyKeV = 661.9f, netCounts = 890f, snr = 5.1f),
+        lineEnergyKeV = 661.7f,
+        confidence = confidence,
+        alternatives = emptyList(),
+    )
 }

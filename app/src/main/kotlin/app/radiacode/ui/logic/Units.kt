@@ -45,13 +45,14 @@ object DoseFormat {
         DoseUnitSetting.MICRO_ROENTGEN -> "мкР"
     }
 
-    /** «0.09–0.14» — the baseline typical band, values in the display unit. */
+    /** «0,09–0,14» — the baseline typical band, values in the display unit. */
     fun range(lowMicroSvH: Float, highMicroSvH: Float, unit: DoseUnitSetting): String =
         "${rate(lowMicroSvH, unit)}–${rate(highMicroSvH, unit)}"
 
     /**
-     * µSv/h keeps two decimals (0.12); µR/h values are 100× larger, so one
-     * decimal below 100 (12.4) and whole numbers above (124).
+     * µSv/h keeps two decimals (0,12); µR/h values are 100× larger, so one
+     * decimal below 100 (12,4) and whole numbers above (124). Decimal comma —
+     * the app's copy is Russian (design-language.md).
      */
     private fun format(value: Float, unit: DoseUnitSetting): String = when (unit) {
         DoseUnitSetting.MICRO_SIEVERT -> String.format(Locale.US, "%.2f", value)
@@ -61,5 +62,5 @@ object DoseFormat {
             } else {
                 String.format(Locale.US, "%.1f", value)
             }
-    }
+    }.replace('.', ',')
 }
