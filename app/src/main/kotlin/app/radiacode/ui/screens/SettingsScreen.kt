@@ -47,8 +47,10 @@ import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.RadioMark
+import app.radiacode.ui.feedback.FeedbackSelfTest
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.NavConfig
+import app.radiacode.ui.logic.SelfTestText
 import app.radiacode.ui.logic.NavEntry
 import app.radiacode.ui.logic.Freshness
 import app.radiacode.ui.logic.baselineCollectedWording
@@ -63,7 +65,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Настройки (SPEC: opens separately, not a tab). Sections: Тревоги, Места,
- * Прибор, Единицы, Интерфейс, О приложении.
+ * Прибор, Единицы, Интерфейс, Проверка, О приложении.
  */
 @Composable
 fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
@@ -87,6 +89,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         DeviceSection(graph)
         UnitsSection(graph)
         InterfaceSection(graph)
+        SelfTestSection()
         AboutSection()
     }
 }
@@ -797,6 +800,75 @@ private fun BlockToggleRow(title: String, enabled: Boolean, onChange: (Boolean) 
             text = if (enabled) "вкл" else "выкл",
             style = type.value,
             color = if (enabled) colors.ink else colors.muted,
+        )
+    }
+}
+
+// --- Проверка ---
+
+/**
+ * Two probes that answer «does the feedback engine work at all», bypassing
+ * every gate of the Поиск screen. Without them a field report of «no sound»
+ * cannot be told apart from wrong wiring — and we have no logs from the
+ * user's phone.
+ */
+@Composable
+private fun SelfTestSection() {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val context = LocalContext.current
+    var soundResult by remember { mutableStateOf<String?>(null) }
+    var vibrationResult by remember { mutableStateOf<String?>(null) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle("Проверка")
+            Text(
+                text = "Короткая проба звука и вибрации — без прибора и без " +
+                    "настроек Поиска. Помогает понять, молчит сам телефон или " +
+                    "приложение не получает данные.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                AppButton(
+                    text = "Проверить звук",
+                    onClick = {
+                        soundResult = SelfTestText.sound(FeedbackSelfTest.playClicks(context))
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                AppButton(
+                    text = "Проверить вибрацию",
+                    onClick = {
+                        vibrationResult = SelfTestText.vibration(FeedbackSelfTest.pulse(context))
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            soundResult?.let { ResultLine(label = "звук", text = it) }
+            vibrationResult?.let { ResultLine(label = "вибрация", text = it) }
+        }
+    }
+}
+
+/** Honest one-line outcome: green only when nothing stood in the way. */
+@Composable
+private fun ResultLine(label: String, text: String) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val clean = text == "звук воспроизведён" || text == "импульс отправлен"
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+        Chip(
+            text = label,
+            color = if (clean) colors.ok else colors.warn,
+            dot = if (clean) colors.ok else colors.warn,
+        )
+        Text(
+            text = text,
+            style = type.bodySmall,
+            color = if (clean) colors.ink2 else colors.warn,
+            modifier = Modifier.weight(1f),
         )
     }
 }

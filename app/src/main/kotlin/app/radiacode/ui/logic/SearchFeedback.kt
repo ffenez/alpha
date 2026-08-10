@@ -48,6 +48,70 @@ object ClickRate {
 }
 
 /**
+ * The click renderer's state machine, extracted from the Android audio
+ * thread so it can be tested on the JVM: given a rate and a click waveform
+ * it fills PCM chunks with silence and «ticks» at exponential intervals.
+ *
+ * This is the part that used to be untestable — a wrong interval or a stuck
+ * state machine here means the Search screen is simply silent, with nothing
+ * on screen to say why.
+ *
+ * [random] returns a uniform [0, 1); injectable so tests are deterministic.
+ */
+class ClickEngine(
+    private val sampleRate: Int,
+    private val random: () -> Float,
+) {
+
+    private var clickPos = -1
+    private var active: ShortArray? = null
+    private var framesToNext = 0L
+    private var lastRate = -1f
+
+    /**
+     * Renders one chunk. [click] is the waveform for clicks *started* in this
+     * chunk (the pitch of «тон по энергии»); a click already sounding keeps
+     * the waveform it started with.
+     *
+     * A changed rate resamples the pending interval: exponential intervals
+     * are memoryless, so that is statistically exact, not an approximation.
+     */
+    fun fillChunk(out: ShortArray, rate: Float, click: ShortArray) {
+        if (rate != lastRate) {
+            lastRate = rate
+            framesToNext = intervalFrames(rate)
+        }
+        for (i in out.indices) {
+            if (clickPos < 0 && framesToNext <= 0) {
+                if (rate > 0f && click.isNotEmpty()) {
+                    clickPos = 0
+                    active = click
+                    framesToNext = intervalFrames(rate)
+                } else {
+                    // Silent: re-check on the next chunk instead of spinning.
+                    framesToNext = out.size.toLong()
+                }
+            }
+            framesToNext--
+            val waveform = active
+            if (waveform != null && clickPos >= 0 && clickPos < waveform.size) {
+                out[i] = waveform[clickPos]
+                clickPos++
+                if (clickPos >= waveform.size) clickPos = -1
+            } else {
+                out[i] = 0
+            }
+        }
+    }
+
+    private fun intervalFrames(rate: Float): Long {
+        val seconds = ClickRate.nextIntervalSeconds(rate, random())
+        if (seconds == Float.POSITIVE_INFINITY) return Long.MAX_VALUE
+        return (seconds * sampleRate).toLong().coerceAtLeast(1L)
+    }
+}
+
+/**
  * Vibration policy for Search: one short pulse each time the count rate
  * climbs to a new whole-σ step above the local background, starting at +2σ
  * (below that is ordinary Poisson fluctuation, ~95% band). σ = √background
@@ -55,6 +119,11 @@ object ClickRate {
  * below it, so boundary noise cannot buzz. Honest and quiet: a stationary
  * meter — even over a source — does not vibrate; only getting *closer*
  * (rising σ level) does.
+ *
+ * Consequence the UI must state out loud: **without a recorded local
+ * background there is no σ and no reference, so this never pulses.** That is
+ * a deliberate policy, not a failure — but silently never vibrating reads as
+ * a broken feature, so the Поиск screen says «фон не записан» ([FeedbackReason]).
  */
 class VibrationPolicy {
 
@@ -153,4 +222,93 @@ object EnergyTone {
 
     fun isFresh(sliceAtMillis: Long, nowMillis: Long): Boolean =
         nowMillis - sliceAtMillis <= STALE_MILLIS
+}
+
+/**
+ * Everything the Поиск screen knows about why feedback might be silent.
+ * Booleans only, so the wording is pure and JVM-testable.
+ */
+data class FeedbackState(
+    val soundEnabled: Boolean,
+    val vibrationEnabled: Boolean,
+    val deviceConnected: Boolean,
+    /** A sample arrived recently enough to drive clicks. */
+    val dataFresh: Boolean,
+    val dndBlocked: Boolean,
+    /** The audio engine could not be started at all (no track, no channel). */
+    val audioUnavailable: Boolean,
+    /** Media volume is at zero — the stream the clicks play on. */
+    val volumeZero: Boolean,
+    /** A local background reference exists; σ-steps are relative to it. */
+    val backgroundRecorded: Boolean,
+)
+
+/**
+ * Silence must be explainable. Instead of a screen that just says nothing,
+ * this returns the single most important reason no clicks or pulses are
+ * being produced right now — or null when feedback really is running.
+ */
+object FeedbackReason {
+
+    fun line(state: FeedbackState): String? = when {
+        !state.soundEnabled && !state.vibrationEnabled ->
+            "звук и вибрация выключены"
+        !state.deviceConnected ->
+            "прибор не подключён — клики и вибрация появятся после подключения"
+        !state.dataFresh ->
+            "нет данных с прибора — клики молчат, пока поток не восстановится"
+        state.dndBlocked ->
+            "режим «не беспокоить» — клики и вибрация молчат, пока он включён"
+        state.soundEnabled && state.audioUnavailable ->
+            "звук не запустился — система не дала звуковой канал; " +
+                "проверьте в Настройках → Проверка"
+        state.soundEnabled && state.volumeZero ->
+            "громкость мультимедиа на нуле — прибавьте громкость кнопкой"
+        state.vibrationEnabled && !state.backgroundRecorded ->
+            "фон не записан — вибрация включится после записи фона"
+        !state.soundEnabled ->
+            "звук выключен — работает только вибрация"
+        else -> null
+    }
+}
+
+/** What the «Проверить звук» self-test observed. */
+data class SoundCheck(
+    val trackInitialized: Boolean,
+    val focusGranted: Boolean,
+    val dndBlocked: Boolean,
+    val volumeZero: Boolean,
+)
+
+/** What the «Проверить вибрацию» self-test observed. */
+data class VibrationCheck(
+    val hasVibrator: Boolean,
+    val dndBlocked: Boolean,
+)
+
+/**
+ * Wording for Настройки → Проверка. The self-tests bypass every gate of the
+ * Search screen on purpose: they answer «does the engine work at all», so a
+ * field report can separate a broken engine from wrong wiring without us.
+ */
+object SelfTestText {
+
+    fun sound(check: SoundCheck): String = when {
+        !check.trackInitialized ->
+            "звук не воспроизведён: система не дала звуковой канал"
+        check.volumeZero ->
+            "звук воспроизведён, но громкость мультимедиа на нуле — прибавьте громкость"
+        check.dndBlocked ->
+            "звук воспроизведён; включён режим «не беспокоить» — в Поиске при нём клики молчат"
+        !check.focusGranted ->
+            "звук воспроизведён; аудиофокус занят другим приложением — громкость могла быть снижена"
+        else -> "звук воспроизведён"
+    }
+
+    fun vibration(check: VibrationCheck): String = when {
+        !check.hasVibrator -> "вибромотор недоступен"
+        check.dndBlocked ->
+            "импульс отправлен; включён режим «не беспокоить» — в Поиске при нём вибрация молчит"
+        else -> "импульс отправлен"
+    }
 }

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import app.radiacode.AppGraph
+import app.radiacode.device.ConnectionState
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.BarChart
 import app.radiacode.ui.components.BarChartSpec
@@ -43,6 +44,8 @@ import app.radiacode.ui.feedback.GeigerClicker
 import app.radiacode.ui.logic.BackgroundRef
 import app.radiacode.ui.logic.ClickRate
 import app.radiacode.ui.logic.EnergyTone
+import app.radiacode.ui.logic.FeedbackReason
+import app.radiacode.ui.logic.FeedbackState
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.VibrationPolicy
 import app.radiacode.ui.logic.backgroundBand
@@ -114,6 +117,23 @@ fun SearchScreen(graph: AppGraph) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val clickerActive = soundEnabled && resumed
+    // Silence must be explainable: these are polled once a second so the
+    // screen can name the actual reason instead of just staying quiet.
+    val connection by graph.serviceStatus.connection.collectAsState()
+    var dndBlocked by remember { mutableStateOf(false) }
+    var audioUnavailable by remember { mutableStateOf(false) }
+    var volumeZero by remember { mutableStateOf(false) }
+    var dataFresh by remember { mutableStateOf(false) }
+    LaunchedEffect(resumed) {
+        while (resumed) {
+            dndBlocked = !Feedback.dndAllowsFeedback(context)
+            audioUnavailable = clicker.audioUnavailable
+            volumeZero = clicker.volumeZero
+            dataFresh = lastSampleReceivedAt > 0 &&
+                System.currentTimeMillis() - lastSampleReceivedAt <= FEEDBACK_STALE_MILLIS
+            delay(1_000)
+        }
+    }
     DisposableEffect(clickerActive) {
         if (clickerActive) clicker.start()
         onDispose { clicker.stop() }
@@ -165,6 +185,7 @@ fun SearchScreen(graph: AppGraph) {
         if (vibrationEnabled && vibrationPolicy.onSample(s.countRate, storedBackground)) {
             Feedback.pulse(context)
         }
+        dataFresh = true
         measuring?.let { active ->
             when (val next = active.onSample(s.countRate)) {
                 is BackgroundRef.Ready -> {
@@ -245,6 +266,22 @@ fun SearchScreen(graph: AppGraph) {
                 style = type.footnote,
                 color = colors.muted,
             )
+        }
+
+        val reason = FeedbackReason.line(
+            FeedbackState(
+                soundEnabled = soundEnabled,
+                vibrationEnabled = vibrationEnabled,
+                deviceConnected = connection is ConnectionState.Connected,
+                dataFresh = dataFresh,
+                dndBlocked = dndBlocked,
+                audioUnavailable = audioUnavailable,
+                volumeZero = volumeZero,
+                backgroundRecorded = storedBackground != null,
+            ),
+        )
+        if (reason != null) {
+            Text(text = reason, style = type.footnote, color = colors.muted)
         }
 
         Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space4) {

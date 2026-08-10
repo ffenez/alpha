@@ -6,6 +6,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import app.radiacode.ui.logic.ClickEngine
 import app.radiacode.ui.logic.ClickRate
 import app.radiacode.ui.logic.ClickWaveform
 import app.radiacode.ui.logic.EnergyTone
@@ -15,13 +16,29 @@ import kotlin.random.Random
  * Geiger-style click synthesizer for the Search screen. A streaming
  * [AudioTrack] renders silence with programmatically generated PCM «ticks»
  * (no bundled audio assets) at Poisson-random intervals whose mean follows
- * the live CPS ([ClickRate]).
+ * the live CPS ([ClickRate]); the frame-by-frame state machine itself is the
+ * pure [ClickEngine], unit-tested on the JVM.
  *
  * Foreground-only by design: the owner starts/stops it with the screen
- * lifecycle. Politeness rules:
- *  - USAGE_ASSISTANCE_SONIFICATION audio attributes;
- *  - transient-may-duck audio focus, silenced while focus is lost;
- *  - silenced whenever Do-Not-Disturb is active (any filter except «all»).
+ * lifecycle.
+ *
+ * **Audio routing.** The clicks play with `USAGE_MEDIA`, i.e. on the music
+ * stream. They used to use `USAGE_ASSISTANCE_SONIFICATION`, which Android
+ * maps to `STREAM_SYSTEM` — a stream that is muted outright whenever the
+ * ringer is in vibrate or silent mode and whose level follows the ring
+ * volume slider. On a phone kept on vibrate that produced exactly what the
+ * field report describes: the mode is on, the engine runs, and nothing is
+ * audible with nothing on screen to explain it. These clicks are explicit,
+ * user-initiated, continuous feedback, so the media stream — the slider the
+ * user reaches for — is the honest carrier.
+ *
+ * **Audio focus.** We ask for transient-may-duck focus to be polite, but a
+ * *denied* request no longer silences us: denial is not the user's decision
+ * and would lock the feature off permanently with no way back. We do go
+ * quiet while focus is actively lost after having been granted.
+ *
+ * Do-Not-Disturb still silences the clicks (they are convenience feedback,
+ * not an alarm); [dndBlocked] surfaces that so the screen can say so.
  */
 class GeigerClicker(context: Context) {
 
@@ -35,19 +52,39 @@ class GeigerClicker(context: Context) {
     @Volatile
     private var running = false
 
+    /** Focus was granted and then actively lost — the only case we mute for. */
     @Volatile
     private var focusLost = false
+
+    /** The request was denied outright; we keep playing, but say so. */
+    @Volatile
+    var focusDenied = false
+        private set
+
+    /** The audio engine could not be started at all. Surfaced on screen. */
+    @Volatile
+    var audioUnavailable = false
+        private set
+
+    /** Do-Not-Disturb is silencing the clicks right now. */
+    @Volatile
+    var dndBlocked = false
+        private set
 
     private var thread: Thread? = null
     private var focusRequest: AudioFocusRequest? = null
 
     private val attributes = AudioAttributes.Builder()
-        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+        .setUsage(AudioAttributes.USAGE_MEDIA)
         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
         .build()
 
     @Volatile
     private var toneBand: EnergyTone.Band? = null
+
+    /** Media volume is at zero — the engine is fine, the slider is not. */
+    val volumeZero: Boolean
+        get() = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) == 0
 
     /** Clicks per second; thread-safe, applied within one render chunk. */
     fun setRate(clicksPerSecond: Float) {
@@ -67,18 +104,26 @@ class GeigerClicker(context: Context) {
         if (running) return
         running = true
         focusLost = false
+        audioUnavailable = false
 
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(attributes)
             .setOnAudioFocusChangeListener { change ->
-                focusLost = change == AudioManager.AUDIOFOCUS_LOSS ||
-                    change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
+                when (change) {
+                    AudioManager.AUDIOFOCUS_LOSS,
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                    -> focusLost = true
+                    AudioManager.AUDIOFOCUS_GAIN -> {
+                        focusLost = false
+                        focusDenied = false
+                    }
+                    else -> Unit // ducking: keep clicking, quieter
+                }
             }
             .build()
         focusRequest = request
-        if (audioManager.requestAudioFocus(request) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-            focusLost = true // keep rendering silence; focus may be granted later
-        }
+        focusDenied =
+            audioManager.requestAudioFocus(request) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED
 
         thread = Thread(::renderLoop, "geiger-clicker").apply {
             isDaemon = true
@@ -100,31 +145,19 @@ class GeigerClicker(context: Context) {
         val bandClicks = EnergyTone.Band.entries.associateWith { band ->
             ClickWaveform.pcm16(SAMPLE_RATE, EnergyTone.frequencyHz(band))
         }
-        var click = defaultClick
-        val minBuffer = AudioTrack.getMinBufferSize(
-            SAMPLE_RATE,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-        )
-        val track = AudioTrack(
-            attributes,
-            AudioFormat.Builder()
-                .setSampleRate(SAMPLE_RATE)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                .build(),
-            maxOf(minBuffer, CHUNK_FRAMES * 4),
-            AudioTrack.MODE_STREAM,
-            AudioManager.AUDIO_SESSION_ID_GENERATE,
-        )
+        val track = runCatching { createTrack() }.getOrNull()
+        if (track == null || track.state != AudioTrack.STATE_INITIALIZED) {
+            // Honest failure: no audio channel. The screen and the self-test
+            // in Настройки → Проверка report this instead of staying mute.
+            audioUnavailable = true
+            track?.release()
+            return
+        }
         try {
             track.play()
+            val engine = ClickEngine(SAMPLE_RATE) { Random.nextFloat() }
             val chunk = ShortArray(CHUNK_FRAMES)
-            var clickPos = -1
-            var framesToNext = 0L
-            var lastRate = -1f
             var lastDndCheckAt = 0L
-            var dndBlocked = false
 
             while (running) {
                 val now = System.currentTimeMillis()
@@ -132,52 +165,47 @@ class GeigerClicker(context: Context) {
                     lastDndCheckAt = now
                     dndBlocked = !Feedback.dndAllowsFeedback(appContext)
                 }
-                val r = if (focusLost || dndBlocked) 0f else rate
-                if (r != lastRate) {
-                    // Exponential intervals are memoryless: resampling on a
-                    // rate change is statistically exact, not an approximation.
-                    lastRate = r
-                    framesToNext = intervalFrames(r)
-                }
-                for (i in chunk.indices) {
-                    if (clickPos < 0 && framesToNext <= 0) {
-                        if (r > 0f) {
-                            clickPos = 0
-                            // Pitch chosen per click: energy band or default.
-                            click = toneBand?.let { bandClicks[it] } ?: defaultClick
-                            framesToNext = intervalFrames(r)
-                        } else {
-                            framesToNext = CHUNK_FRAMES.toLong() // re-check next chunk
-                        }
-                    }
-                    framesToNext--
-                    if (clickPos in click.indices) {
-                        chunk[i] = click[clickPos]
-                        clickPos++
-                        if (clickPos >= click.size) clickPos = -1
-                    } else {
-                        chunk[i] = 0
-                    }
-                }
+                val currentRate = if (focusLost || dndBlocked) 0f else rate
+                val click = toneBand?.let { bandClicks[it] } ?: defaultClick
+                engine.fillChunk(chunk, currentRate, click)
                 // Blocking write paces the loop at real time.
                 track.write(chunk, 0, chunk.size)
             }
+        } catch (error: IllegalStateException) {
+            audioUnavailable = true
         } finally {
-            runCatching {
-                track.stop()
-            }
+            runCatching { track.stop() }
             track.release()
         }
     }
 
-    private fun intervalFrames(rate: Float): Long {
-        val seconds = ClickRate.nextIntervalSeconds(rate, Random.nextFloat())
-        if (seconds == Float.POSITIVE_INFINITY) return Long.MAX_VALUE
-        return (seconds * SAMPLE_RATE).toLong().coerceAtLeast(1L)
+    private fun createTrack(): AudioTrack {
+        val minBuffer = AudioTrack.getMinBufferSize(
+            SAMPLE_RATE,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+        )
+        // Buffer size is in BYTES; a chunk is CHUNK_FRAMES *shorts*, i.e.
+        // twice as many bytes. Four chunks of headroom keeps the blocking
+        // write pacing smooth without adding audible latency (~185 ms).
+        val wanted = CHUNK_FRAMES * BYTES_PER_FRAME * 4
+        return AudioTrack(
+            attributes,
+            AudioFormat.Builder()
+                .setSampleRate(SAMPLE_RATE)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .build(),
+            maxOf(minBuffer, wanted),
+            AudioTrack.MODE_STREAM,
+            AudioManager.AUDIO_SESSION_ID_GENERATE,
+        )
     }
 
     companion object {
         private const val SAMPLE_RATE = 44_100
+        private const val BYTES_PER_FRAME = 2
+
         /** ~46 ms per chunk: rate changes and DND/focus apply promptly. */
         private const val CHUNK_FRAMES = 2_048
         private const val DND_CHECK_MILLIS = 1_000L

@@ -17,6 +17,11 @@ object Feedback {
     /**
      * Search clicks/pulses are convenience feedback, not an alarm, so any
      * active Do-Not-Disturb filter (priority/alarms-only/total) silences them.
+     *
+     * Note for diagnosis: `getCurrentInterruptionFilter` returns
+     * `INTERRUPTION_FILTER_UNKNOWN` when the app has no notification-policy
+     * access, and we treat unknown as «allowed» — an unreadable policy must
+     * not silence the feature.
      */
     fun dndAllowsFeedback(context: Context): Boolean {
         val manager =
@@ -29,12 +34,27 @@ object Feedback {
         }
     }
 
-    /** One short σ-step pulse (see VibrationPolicy); no-op under DND. */
-    fun pulse(context: Context) {
-        if (!dndAllowsFeedback(context)) return
-        vibrator(context)?.vibrate(
+    /** True when this device has a vibration motor at all. */
+    fun hasVibrator(context: Context): Boolean = vibrator(context)?.hasVibrator() == true
+
+    /**
+     * One short σ-step pulse (see VibrationPolicy); no-op under DND or with
+     * no motor. Returns whether the pulse was actually emitted, so the caller
+     * can explain silence instead of guessing.
+     */
+    fun pulse(context: Context): Boolean {
+        if (!dndAllowsFeedback(context)) return false
+        return pulseNow(context)
+    }
+
+    /** Emits a pulse regardless of DND — used only by the explicit self-test. */
+    fun pulseNow(context: Context): Boolean {
+        val vibrator = vibrator(context) ?: return false
+        if (!vibrator.hasVibrator()) return false
+        vibrator.vibrate(
             VibrationEffect.createOneShot(PULSE_MILLIS, VibrationEffect.DEFAULT_AMPLITUDE),
         )
+        return true
     }
 
     private fun vibrator(context: Context): Vibrator? =

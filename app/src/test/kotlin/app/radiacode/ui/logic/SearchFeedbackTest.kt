@@ -195,3 +195,238 @@ class ClickWaveformTest {
         return crossings
     }
 }
+
+/**
+ * The highest-value tests we were missing: the renderer's frame loop. A
+ * silent Search screen is exactly what a broken state machine here looks
+ * like, and nothing in the app or the field report could tell us apart.
+ */
+class ClickEngineTest {
+
+    private val sampleRate = 44_100
+    private val chunkFrames = 2_048
+
+    /** Rectangular «click» so onsets are unambiguous to count. */
+    private val click = ShortArray(4) { 1_000 }
+
+    private fun render(rate: Float, seconds: Double, seed: Int = 42): ShortArray {
+        val random = kotlin.random.Random(seed)
+        val engine = ClickEngine(sampleRate) { random.nextFloat() }
+        val chunks = (sampleRate * seconds / chunkFrames).toInt()
+        val out = ShortArray(chunks * chunkFrames)
+        val chunk = ShortArray(chunkFrames)
+        for (index in 0 until chunks) {
+            engine.fillChunk(chunk, rate, click)
+            chunk.copyInto(out, destinationOffset = index * chunkFrames)
+        }
+        return out
+    }
+
+    private fun countClicks(pcm: ShortArray): Int {
+        var count = 0
+        for (i in pcm.indices) {
+            if (pcm[i] != 0.toShort() && (i == 0 || pcm[i - 1] == 0.toShort())) count++
+        }
+        return count
+    }
+
+    @Test
+    fun `a non-zero rate produces non-zero samples`() {
+        val pcm = render(rate = 5f, seconds = 2.0)
+        assertTrue(pcm.any { it != 0.toShort() })
+    }
+
+    @Test
+    fun `zero rate renders pure silence`() {
+        val pcm = render(rate = 0f, seconds = 3.0)
+        assertTrue(pcm.all { it == 0.toShort() })
+    }
+
+    @Test
+    fun `click count tracks the requested rate`() {
+        val seconds = 20.0
+        for (rate in listOf(2f, 5f, 20f, 40f)) {
+            val clicks = countClicks(render(rate, seconds))
+            val expected = rate * seconds
+            assertTrue(
+                "rate $rate: $clicks clicks in $seconds s, expected around $expected",
+                clicks > expected * 0.5 && clicks < expected * 1.6,
+            )
+        }
+    }
+
+    /**
+     * Realistic RadiaCode background is 3–25 cps and a hot spot pushes into
+     * the hundreds; every one of those must be audible, not silence.
+     */
+    @Test
+    fun `every realistic cps produces clicks`() {
+        for (cps in listOf(1f, 3f, 12f, 25f, 60f, 200f)) {
+            val rate = ClickRate.clicksPerSecond(cps)
+            assertTrue("cps $cps mapped to rate $rate", rate > 0f)
+            val clicks = countClicks(render(rate, seconds = 4.0))
+            assertTrue("cps $cps produced no clicks", clicks > 0)
+        }
+    }
+
+    @Test
+    fun `clicks keep the waveform they started with`() {
+        // u = 0 gives the shortest allowed gap, so the click starts inside
+        // the first chunk and is still sounding in the second one.
+        val engine = ClickEngine(sampleRate) { 0f }
+        val positive = ShortArray(chunkFrames * 4) { 500 }
+        val chunk = ShortArray(chunkFrames)
+        engine.fillChunk(chunk, 40f, positive)
+        assertTrue("the click must start in the first chunk", chunk.any { it > 0 })
+        // The second chunk offers a different waveform («тон по энергии»
+        // switching pitch); the sounding click must not swap mid-flight.
+        val negative = ShortArray(chunkFrames * 4) { -500 }
+        engine.fillChunk(chunk, 40f, negative)
+        assertTrue("the click already sounding kept its waveform", chunk.all { it > 0 })
+    }
+
+    @Test
+    fun `rate changes take effect within a chunk`() {
+        val random = kotlin.random.Random(3)
+        val engine = ClickEngine(sampleRate) { random.nextFloat() }
+        val chunk = ShortArray(chunkFrames)
+        repeat(20) { engine.fillChunk(chunk, 0f, click) }
+        var heard = false
+        repeat(20) {
+            engine.fillChunk(chunk, 30f, click)
+            if (chunk.any { it != 0.toShort() }) heard = true
+        }
+        assertTrue("going from silence to 30/s must start clicking", heard)
+    }
+}
+
+class FeedbackReasonTest {
+
+    private val running = FeedbackState(
+        soundEnabled = true,
+        vibrationEnabled = true,
+        deviceConnected = true,
+        dataFresh = true,
+        dndBlocked = false,
+        audioUnavailable = false,
+        volumeZero = false,
+        backgroundRecorded = true,
+    )
+
+    @Test
+    fun `no reason when feedback really is running`() {
+        assertEquals(null, FeedbackReason.line(running))
+    }
+
+    @Test
+    fun `both switches off is stated plainly`() {
+        val reason = FeedbackReason.line(
+            running.copy(soundEnabled = false, vibrationEnabled = false),
+        )
+        assertEquals("звук и вибрация выключены", reason)
+    }
+
+    @Test
+    fun `a disconnected device outranks every other reason`() {
+        val reason = FeedbackReason.line(
+            running.copy(deviceConnected = false, dndBlocked = true, volumeZero = true),
+        )
+        assertTrue(reason, reason!!.startsWith("прибор не подключён"))
+    }
+
+    @Test
+    fun `a stalled stream is named`() {
+        val reason = FeedbackReason.line(running.copy(dataFresh = false))
+        assertTrue(reason, reason!!.startsWith("нет данных с прибора"))
+    }
+
+    @Test
+    fun `do not disturb is named`() {
+        val reason = FeedbackReason.line(running.copy(dndBlocked = true))
+        assertTrue(reason, reason!!.contains("не беспокоить"))
+    }
+
+    @Test
+    fun `a dead audio engine is named before volume`() {
+        val reason = FeedbackReason.line(running.copy(audioUnavailable = true, volumeZero = true))
+        assertTrue(reason, reason!!.contains("звук не запустился"))
+    }
+
+    @Test
+    fun `zero media volume is named`() {
+        val reason = FeedbackReason.line(running.copy(volumeZero = true))
+        assertTrue(reason, reason!!.contains("громкость"))
+    }
+
+    /** The silent-vibration trap: no background means no sigma, ever. */
+    @Test
+    fun `vibration without a recorded background says so`() {
+        val reason = FeedbackReason.line(running.copy(backgroundRecorded = false))
+        assertEquals("фон не записан — вибрация включится после записи фона", reason)
+    }
+
+    @Test
+    fun `a missing background is irrelevant when vibration is off`() {
+        val reason = FeedbackReason.line(
+            running.copy(vibrationEnabled = false, backgroundRecorded = false),
+        )
+        assertEquals(null, reason)
+    }
+
+    @Test
+    fun `sound off with vibration on is stated, not silent`() {
+        val reason = FeedbackReason.line(running.copy(soundEnabled = false))
+        assertEquals("звук выключен — работает только вибрация", reason)
+    }
+}
+
+class SelfTestTextTest {
+
+    private val ok = SoundCheck(
+        trackInitialized = true,
+        focusGranted = true,
+        dndBlocked = false,
+        volumeZero = false,
+    )
+
+    @Test
+    fun `a clean run says the sound played`() {
+        assertEquals("звук воспроизведён", SelfTestText.sound(ok))
+    }
+
+    @Test
+    fun `a dead audio channel is the first thing reported`() {
+        val text = SelfTestText.sound(ok.copy(trackInitialized = false, volumeZero = true))
+        assertTrue(text, text.contains("не дала звуковой канал"))
+    }
+
+    @Test
+    fun `zero volume is reported without claiming failure`() {
+        val text = SelfTestText.sound(ok.copy(volumeZero = true))
+        assertTrue(text, text.contains("воспроизведён") && text.contains("громкость"))
+    }
+
+    @Test
+    fun `do not disturb is explained as a Search-mode consequence`() {
+        val text = SelfTestText.sound(ok.copy(dndBlocked = true))
+        assertTrue(text, text.contains("не беспокоить"))
+    }
+
+    @Test
+    fun `denied focus is reported as a volume caveat, not a failure`() {
+        val text = SelfTestText.sound(ok.copy(focusGranted = false))
+        assertTrue(text, text.contains("воспроизведён") && text.contains("аудиофокус"))
+    }
+
+    @Test
+    fun `a missing motor is named`() {
+        val text = SelfTestText.vibration(VibrationCheck(hasVibrator = false, dndBlocked = false))
+        assertEquals("вибромотор недоступен", text)
+    }
+
+    @Test
+    fun `a working motor reports the pulse`() {
+        val text = SelfTestText.vibration(VibrationCheck(hasVibrator = true, dndBlocked = false))
+        assertEquals("импульс отправлен", text)
+    }
+}
