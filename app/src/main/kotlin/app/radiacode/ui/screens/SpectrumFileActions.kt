@@ -2,11 +2,23 @@ package app.radiacode.ui.screens
 
 import android.content.Context
 import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
 import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.RcXmlException
 import app.radiacode.protocol.Spectrum
+import app.radiacode.ui.components.AppButton
+import app.radiacode.ui.components.Card
 import app.radiacode.ui.logic.SpectrumFormat
+import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.LocalAppTypography
 import java.io.IOException
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +37,28 @@ internal data class SpectrumFileNotice(
     val lines: List<String>,
     val isError: Boolean = false,
 )
+
+/** Outcome dialog shared by the Спектр and История file flows. */
+@Composable
+internal fun SpectrumFileNoticeDialog(notice: SpectrumFileNotice, onDismiss: () -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(
+                    text = notice.title,
+                    style = type.title,
+                    color = if (notice.isError) colors.warn else colors.ink,
+                )
+                notice.lines.forEach { line ->
+                    Text(text = line, style = type.body, color = colors.ink2)
+                }
+                AppButton(text = "Понятно", onClick = onDismiss)
+            }
+        }
+    }
+}
 
 /** Import size guard: honest refusal instead of an OOM on a wrong file. */
 private const val MAX_IMPORT_BYTES = 20 * 1024 * 1024

@@ -247,21 +247,7 @@ private fun FileActionsSection(
     )
 
     notice?.let { current ->
-        Dialog(onDismissRequest = { notice = null }) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(
-                        text = current.title,
-                        style = type.title,
-                        color = if (current.isError) colors.warn else colors.ink,
-                    )
-                    current.lines.forEach { line ->
-                        Text(text = line, style = type.body, color = colors.ink2)
-                    }
-                    AppButton(text = "Понятно", onClick = { notice = null })
-                }
-            }
-        }
+        SpectrumFileNoticeDialog(notice = current, onDismiss = { notice = null })
     }
 }
 
