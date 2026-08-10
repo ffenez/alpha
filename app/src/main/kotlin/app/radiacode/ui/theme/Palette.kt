@@ -5,68 +5,80 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
- * Design tokens of the "8-bit hybrid" design language
- * (docs/design/design-language.md). Two fixed palettes: CRT (dark, primary)
- * and DMG (light). Semantic rules:
- *  - [accent] glow is reserved for the main reading and its status only;
- *  - [aboveUsual] (amber) appears ONLY next to words, never inside charts;
- *  - charts use exactly two mark colors: [chartData] and [chartAlarm].
+ * Design tokens of the «Научный терминал» design language
+ * (docs/design/design-language.md). Dark is the primary theme; the light
+ * palette mirrors it. Semantic rules:
+ *  - normal readings are neutral ink — the app never celebrates a value;
+ *  - [warn] (amber) means «выше обычного» and appears next to words, plus as
+ *    the highlighted-candidate mark on the spectrum chart;
+ *  - [crit] (red) is reserved for the confirmed persistent alarm and the
+ *    named alarm line on charts;
+ *  - [data] is chart/data teal — data, not status; [dataText] is its
+ *    text-contrast counterpart (nav active state, links to data).
  */
 @Immutable
-data class PixelColors(
+data class AppColors(
     val isDark: Boolean,
     /** Window ground behind everything. */
-    val ground: Color,
-    /** Panel background (PixelBox). */
+    val bg: Color,
+    /** Card background. */
     val surface: Color,
-    /** Secondary panel background (nested/pressed). */
+    /** Secondary surface: segmented-control track, inputs, plain buttons. */
     val surface2: Color,
-    /** 3dp frame color. */
-    val frame: Color,
+    /** 1dp hairline borders and dividers. */
+    val line: Color,
     /** Main text. */
-    val text: Color,
-    /** Phosphor accent: main number + status glow only. */
-    val accent: Color,
+    val ink: Color,
     /** Secondary text. */
-    val textSecondary: Color,
-    /** Muted text: hints, disabled, axis labels. */
-    val textMuted: Color,
-    /** "Above usual" wording, text-only. */
-    val aboveUsual: Color,
-    /** Chart mark: data. */
-    val chartData: Color,
-    /** Chart mark: alarm/threshold. */
-    val chartAlarm: Color,
+    val ink2: Color,
+    /** Muted text: hints, disabled, axis labels, footnotes. */
+    val muted: Color,
+    /** Normal / connected / ok status. */
+    val ok: Color,
+    /** «Выше обычного» — amber, next to words. */
+    val warn: Color,
+    /** Confirmed alarm; alarm line on charts. */
+    val crit: Color,
+    /** Data teal: chart series, primary button fill. */
+    val data: Color,
+    /** Data teal with text contrast: active nav item, emphasized data text. */
+    val dataText: Color,
+    /** Text on a [data]-filled surface (primary button label). */
+    val onData: Color,
 )
 
-val CrtColors = PixelColors(
+val DarkColors = AppColors(
     isDark = true,
-    ground = Color(0xFF0B1406),
-    surface = Color(0xFF12200C),
-    surface2 = Color(0xFF1A2C10),
-    frame = Color(0xFF2C4A18),
-    text = Color(0xFFC9EE9A),
-    accent = Color(0xFF9BE838),
-    textSecondary = Color(0xFF7FA45C),
-    textMuted = Color(0xFF557A38),
-    aboveUsual = Color(0xFFE8B93D),
-    chartData = Color(0xFF55A81E),
-    chartAlarm = Color(0xFFE05570),
+    bg = Color(0xFF0F1216),
+    surface = Color(0xFF151A20),
+    surface2 = Color(0xFF1B222A),
+    line = Color(0xFF232B34),
+    ink = Color(0xFFE7EAEE),
+    ink2 = Color(0xFF97A1AC),
+    muted = Color(0xFF5F6873),
+    ok = Color(0xFF55C08B),
+    warn = Color(0xFFE8A33D),
+    crit = Color(0xFFE86A5E),
+    data = Color(0xFF22A0B6),
+    dataText = Color(0xFF4FC3D8),
+    onData = Color(0xFF06222A),
 )
 
-val DmgColors = PixelColors(
+val LightColors = AppColors(
     isDark = false,
-    ground = Color(0xFFC4CFA1),
-    surface = Color(0xFFCDD8AC),
-    surface2 = Color(0xFFC4CFA1),
-    frame = Color(0xFF9AAA76),
-    text = Color(0xFF1E3009),
-    accent = Color(0xFF16260A),
-    textSecondary = Color(0xFF44622A),
-    textMuted = Color(0xFF44622A),
-    aboveUsual = Color(0xFF8A6206),
-    chartData = Color(0xFF3F7A14),
-    chartAlarm = Color(0xFFB3263C),
+    bg = Color(0xFFF4F6F8),
+    surface = Color(0xFFFFFFFF),
+    surface2 = Color(0xFFECF0F3),
+    line = Color(0xFFE1E6EB),
+    ink = Color(0xFF171C22),
+    ink2 = Color(0xFF5A6470),
+    muted = Color(0xFF8B95A0),
+    ok = Color(0xFF1E7A50),
+    warn = Color(0xFFA56410),
+    crit = Color(0xFFBC3E33),
+    data = Color(0xFF177E92),
+    dataText = Color(0xFF116273),
+    onData = Color(0xFFFFFFFF),
 )
 
-val LocalPixelColors = staticCompositionLocalOf { CrtColors }
+val LocalAppColors = staticCompositionLocalOf { DarkColors }

@@ -1,0 +1,13 @@
+IBM Plex Sans and IBM Plex Mono
+Copyright © 2017 IBM Corp. with Reserved Font Name "Plex"
+
+Bundled files (app resources, unmodified upstream builds):
+  res/font/ibm_plex_sans.ttf           IBM Plex Sans, variable (wdth,wght), latin + cyrillic
+  res/font/ibm_plex_mono_regular.ttf   IBM Plex Mono Regular (400), latin + cyrillic
+  res/font/ibm_plex_mono_semibold.ttf  IBM Plex Mono SemiBold (600), latin + cyrillic
+
+Source: https://github.com/google/fonts (ofl/ibmplexsans, ofl/ibmplexmono),
+upstream https://github.com/IBM/plex.
+
+Licensed under the SIL Open Font License, Version 1.1 — full texts in
+ibm_plex_sans_OFL.txt and ibm_plex_mono_OFL.txt next to this file.

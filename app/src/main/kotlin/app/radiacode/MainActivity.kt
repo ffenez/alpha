@@ -5,7 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import app.radiacode.ui.AppRoot
-import app.radiacode.ui.theme.PixelTheme
+import app.radiacode.ui.theme.AppTheme
 
 /** Single activity; all screens are Compose under [AppRoot]. */
 class MainActivity : ComponentActivity() {
@@ -13,7 +13,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            PixelTheme {
+            AppTheme {
                 AppRoot(AppGraph.get(this))
             }
         }
