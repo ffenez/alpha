@@ -15,14 +15,6 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0-alpha"
-
-        // MapLibre ships ~12 MB of native code per ABI. The target device is
-        // a Pixel with GrapheneOS (arm64-v8a only, CLAUDE.md), so the sideload
-        // APK carries just that ABI. Add ABIs here if an emulator build is
-        // ever needed.
-        ndk {
-            abiFilters += "arm64-v8a"
-        }
     }
 
     buildTypes {
@@ -67,7 +59,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
     implementation(libs.kable.core)
-    implementation(libs.maplibre.android)
+    implementation(libs.osmdroid.android)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)

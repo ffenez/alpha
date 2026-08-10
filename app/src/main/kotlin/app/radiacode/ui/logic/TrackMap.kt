@@ -10,7 +10,7 @@ import kotlin.math.sqrt
 /** Metric coloring the track (SPEC «Map»: dose rate by default, CPS toggle). */
 enum class TrackMetric { DOSE, CPS }
 
-/** One track point for map logic — no Room or MapLibre types (JVM-tested). */
+/** One track point for map logic — no Room or osmdroid types (JVM-tested). */
 data class MapTrackPoint(
     val timestamp: Long,
     val latitude: Double,
@@ -42,19 +42,19 @@ data class MapBounds(
 )
 
 /**
- * Pure track-map logic: ramp bucketing, downsampling, GeoJSON building,
- * summaries. The MapLibre bridge (`ui/map`) consumes only plain strings and
- * data classes from here.
+ * Pure track-map logic: ramp bucketing, downsampling, bounds, summaries and
+ * the screen-space hit test. The osmdroid bridge (`ui/map`) consumes only
+ * data classes from here and never puts map-engine types back.
  */
 object TrackMap {
 
     /**
-     * Rendering cap. MapLibre handles far more circles, but a multi-hour 1 Hz
-     * walk is tens of thousands of points with no visual gain at track scale —
-     * an even stride keeps the route shape and bounds while capping GeoJSON
-     * rebuild cost during live recording. Thresholds, legend and the summary
-     * are always computed from the FULL point list, so downsampling never
-     * changes reported numbers.
+     * Rendering cap. A multi-hour 1 Hz walk is tens of thousands of points
+     * with no visual gain at track scale — an even stride keeps the route
+     * shape and bounds while capping the per-frame projection cost of the
+     * osmdroid overlay. Thresholds, legend and the summary are always
+     * computed from the FULL point list, so downsampling never changes
+     * reported numbers.
      */
     const val MAX_RENDERED_POINTS = 2000
 
@@ -224,88 +224,34 @@ object TrackMap {
         )
     }
 
-    // --- GeoJSON ---
-
-    /** Feature property: ramp bucket 0..3; -1 = metric missing at this point. */
-    const val PROP_BUCKET = "b"
-    const val PROP_DOSE = "dose"
-    const val PROP_CPS = "cps"
-    const val PROP_TIME = "t"
-    const val PROP_ID = "id"
-    const val PROP_TYPICAL = "typ"
-    const val KIND_ROUTE = "route"
-    const val KIND_POINT = "pt"
-    const val KIND_HOTSPOT = "hs"
-    const val PROP_KIND = "kind"
+    // --- screen-space hit test ---
 
     /**
-     * Track FeatureCollection: one LineString (the route) + one Point feature
-     * per rendered fix with the ramp bucket and the tap-card raw values.
-     * Built by hand — the payload is machine-generated numbers only, and this
-     * keeps org.json/gson out of pure logic.
+     * Index of the rendered point nearest to a tap, or -1 when nothing is
+     * within [slopPx]. Screen coordinates only, so the whole tap-to-card
+     * behaviour is JVM-testable without a map engine: the osmdroid overlay
+     * only projects geo points to pixels and calls this.
      */
-    fun trackGeoJson(
-        points: List<MapTrackPoint>,
-        metric: TrackMetric,
-        thresholds: RampThresholds?,
-    ): String {
-        val sb = StringBuilder(points.size * 96 + 256)
-        sb.append("""{"type":"FeatureCollection","features":[""")
-        sb.append("""{"type":"Feature","properties":{"$PROP_KIND":"$KIND_ROUTE"},""")
-        sb.append(""""geometry":{"type":"LineString","coordinates":[""")
-        points.forEachIndexed { index, point ->
-            if (index > 0) sb.append(',')
-            appendLonLat(sb, point)
-        }
-        sb.append("]}}")
-        for (point in points) {
-            val value = metricValue(point, metric)
-            val bucket = if (value != null && thresholds != null) {
-                bucket(value, thresholds)
-            } else {
-                -1
+    fun nearestIndex(
+        xs: FloatArray,
+        ys: FloatArray,
+        tapX: Float,
+        tapY: Float,
+        slopPx: Float,
+    ): Int {
+        var best = -1
+        var bestDistance = slopPx * slopPx
+        for (index in xs.indices) {
+            val dx = xs[index] - tapX
+            val dy = ys[index] - tapY
+            val distance = dx * dx + dy * dy
+            if (distance <= bestDistance) {
+                bestDistance = distance
+                best = index
             }
-            sb.append(""",{"type":"Feature","properties":{"$PROP_KIND":"$KIND_POINT",""")
-            sb.append(""""$PROP_BUCKET":$bucket,"$PROP_TIME":${point.timestamp}""")
-            point.doseMicroSvH?.let { sb.append(""","$PROP_DOSE":${number(it)}""") }
-            point.cps?.let { sb.append(""","$PROP_CPS":${number(it)}""") }
-            sb.append("""},"geometry":{"type":"Point","coordinates":""")
-            appendLonLat(sb, point)
-            sb.append("}}")
         }
-        sb.append("]}")
-        return sb.toString()
+        return best
     }
-
-    /** Hotspot FeatureCollection (crit markers layer). */
-    fun hotspotGeoJson(hotspots: List<MapHotspot>): String {
-        val sb = StringBuilder(hotspots.size * 112 + 64)
-        sb.append("""{"type":"FeatureCollection","features":[""")
-        hotspots.forEachIndexed { index, hotspot ->
-            if (index > 0) sb.append(',')
-            sb.append("""{"type":"Feature","properties":{"$PROP_KIND":"$KIND_HOTSPOT",""")
-            sb.append(""""$PROP_ID":${hotspot.id},"$PROP_TIME":${hotspot.timestamp}""")
-            hotspot.doseMicroSvH?.let { sb.append(""","$PROP_DOSE":${number(it)}""") }
-            hotspot.typicalMicroSvH?.let { sb.append(""","$PROP_TYPICAL":${number(it)}""") }
-            sb.append("""},"geometry":{"type":"Point","coordinates":""")
-            sb.append('[').append(number(hotspot.longitude)).append(',')
-                .append(number(hotspot.latitude)).append(']')
-            sb.append("}}")
-        }
-        sb.append("]}")
-        return sb.toString()
-    }
-
-    private fun appendLonLat(sb: StringBuilder, point: MapTrackPoint) {
-        sb.append('[').append(number(point.longitude)).append(',')
-            .append(number(point.latitude)).append(']')
-    }
-
-    /** Locale-independent JSON number (Double/Float.toString may use E-notation — valid JSON). */
-    private fun number(value: Double): String = value.toString()
-
-    private fun number(value: Float): String =
-        if (value.isFinite()) value.toString() else "0"
 
     // --- hotspot dwell («показания устойчивы N с») ---
 

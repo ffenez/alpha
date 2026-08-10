@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -59,11 +60,12 @@ import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.MapBounds
 import app.radiacode.ui.logic.MapHotspot
 import app.radiacode.ui.logic.MapTrackPoint
+import app.radiacode.ui.logic.TileStatus
 import app.radiacode.ui.logic.TrackMap
 import app.radiacode.ui.logic.TrackMetric
 import app.radiacode.ui.map.MapLayerColors
-import app.radiacode.ui.map.MapSetup
 import app.radiacode.ui.map.MapTapInfo
+import app.radiacode.ui.map.TileStats
 import app.radiacode.ui.map.TrackMapView
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.DoseRampColors
@@ -77,7 +79,7 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.take
 
-/** GeoJSON rebuild cadence while recording (1 Hz points come in faster). */
+/** Overlay rebuild cadence while recording (1 Hz points come in faster). */
 private const val LIVE_THROTTLE_MILLIS = 5_000L
 private const val HOTSPOT_EVENT_LIMIT = 500
 
@@ -100,8 +102,9 @@ private data class TrackData(
 /** Derived rendering artifacts; recomputed on data or metric change. */
 @Immutable
 private data class RenderModel(
-    val trackGeoJson: String?,
-    val hotspotGeoJson: String?,
+    /** Downsampled for rendering; every number below is from the full list. */
+    val renderedPoints: List<MapTrackPoint>,
+    val thresholds: TrackMap.RampThresholds?,
     val bounds: MapBounds?,
     /** min/max of the selected metric over the full track. */
     val range: Pair<Float, Float>?,
@@ -370,14 +373,8 @@ private fun TrackMapCard(
         val metricValues = points.mapNotNull { TrackMap.metricValue(it, metric) }
         val thresholds = TrackMap.rampThresholds(metricValues)
         RenderModel(
-            trackGeoJson = if (points.isEmpty()) {
-                null
-            } else {
-                TrackMap.trackGeoJson(TrackMap.downsample(points), metric, thresholds)
-            },
-            hotspotGeoJson = data?.hotspots
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { TrackMap.hotspotGeoJson(it) },
+            renderedPoints = TrackMap.downsample(points),
+            thresholds = thresholds,
             bounds = TrackMap.bounds(points),
             range = TrackMap.valueRange(points, metric),
             summary = TrackMap.summary(points),
@@ -387,7 +384,17 @@ private fun TrackMapCard(
 
     var tap by remember { mutableStateOf<MapTapInfo?>(null) }
     var recenterTick by remember { mutableIntStateOf(0) }
-    var tilesUnavailable by remember { mutableStateOf(false) }
+    // Tile diagnostics: we are blind in the field, so the screen says whether
+    // tiles actually arrive and, if none ever do, names the likely cause.
+    var tiles by remember { mutableStateOf(TileStats(0, 0)) }
+    var mapShownAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var waitedMillis by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(mapShownAt, tiles.loaded) {
+        while (tiles.loaded == 0) {
+            waitedMillis = System.currentTimeMillis() - mapShownAt
+            delay(1_000)
+        }
+    }
 
     val layerColors = MapLayerColors(
         route = colors.ink2.toArgb(),
@@ -396,19 +403,19 @@ private fun TrackMapCard(
         hotspotFill = colors.crit.toArgb(),
         hotspotStroke = colors.surface.toArgb(),
     )
-    val backgroundHex = String.format("#%06X", colors.bg.toArgb() and 0xFFFFFF)
 
     Card(modifier = modifier, contentPadding = 0.dp) {
         TrackMapView(
-            styleUrl = MapSetup.styleUrl(colors.isDark),
-            fallbackStyleJson = MapSetup.fallbackStyleJson(backgroundHex),
+            dark = colors.isDark,
             layerColors = layerColors,
-            trackGeoJson = render.trackGeoJson,
-            hotspotGeoJson = render.hotspotGeoJson,
+            points = render.renderedPoints,
+            metric = metric,
+            thresholds = render.thresholds,
+            hotspots = data?.hotspots.orEmpty(),
             bounds = render.bounds,
             recenterTick = recenterTick,
             onTap = { tap = it },
-            onTilesUnavailable = { tilesUnavailable = it },
+            onTileStats = { tiles = it },
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -421,11 +428,22 @@ private fun TrackMapCard(
             if (render.distanceMeters > 0) {
                 Chip(text = TrackMap.formatDistance(render.distanceMeters))
             }
-            if (tilesUnavailable) {
-                Chip(
-                    text = "нет сети · тайлы недоступны, трек на пустом фоне",
-                    color = colors.warn,
-                )
+            // Honest tile state, always visible: «загружаются…» while the
+            // first tiles are on their way, a count once they arrive, and a
+            // named cause when nothing ever comes.
+            val hint = TileStatus.networkHint(tiles.loaded, tiles.failed, waitedMillis)
+            Chip(
+                text = TileStatus.line(tiles.loaded, tiles.failed, waitedMillis),
+                color = if (hint != null) colors.warn else colors.ink2,
+                dot = if (hint != null) colors.warn else null,
+            )
+            if (hint != null) {
+                Card(
+                    background = colors.surface,
+                    modifier = Modifier.widthIn(max = 260.dp),
+                ) {
+                    Text(text = hint, style = type.footnote, color = colors.warn)
+                }
             }
         }
 

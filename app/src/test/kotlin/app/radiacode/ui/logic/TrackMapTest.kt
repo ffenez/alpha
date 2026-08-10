@@ -6,7 +6,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
-import org.json.JSONObject
 
 private fun point(
     timestamp: Long = 0L,
@@ -211,97 +210,39 @@ class SummaryTest {
     }
 }
 
-class TrackGeoJsonTest {
+class NearestIndexTest {
 
-    private fun features(json: String) =
-        JSONObject(json).getJSONArray("features")
+    private val xs = floatArrayOf(0f, 100f, 200f)
+    private val ys = floatArrayOf(0f, 100f, 200f)
 
     @Test
-    fun `track collection has a route line and one feature per point`() {
-        val points = listOf(
-            point(timestamp = 1000, lat = 55.1, lon = 37.2, dose = 0.10f, cps = 21f),
-            point(timestamp = 2000, lat = 55.2, lon = 37.3, dose = 0.30f, cps = 44f),
-        )
-        val thresholds = TrackMap.rampThresholds(listOf(0.10f, 0.30f))
-        val json = TrackMap.trackGeoJson(points, TrackMetric.DOSE, thresholds)
-
-        val parsed = features(json)
-        assertEquals(3, parsed.length()) // route + 2 points
-
-        val route = parsed.getJSONObject(0)
-        assertEquals("route", route.getJSONObject("properties").getString("kind"))
-        val coords = route.getJSONObject("geometry").getJSONArray("coordinates")
-        assertEquals(2, coords.length())
-        // GeoJSON order is [lon, lat].
-        assertEquals(37.2, coords.getJSONArray(0).getDouble(0))
-        assertEquals(55.1, coords.getJSONArray(0).getDouble(1))
-
-        val first = parsed.getJSONObject(1)
-        val props = first.getJSONObject("properties")
-        assertEquals("pt", props.getString("kind"))
-        assertEquals(1000L, props.getLong("t"))
-        assertEquals(0.10, props.getDouble("dose"), 1e-6)
-        assertEquals(21.0, props.getDouble("cps"), 1e-6)
-        assertTrue(props.getInt("b") in 0..3)
-
-        val second = parsed.getJSONObject(2).getJSONObject("properties")
-        assertEquals(3, second.getInt("b")) // 0.30 is above q3 of {0.10, 0.30}
+    fun `tap inside the slop selects the nearest point`() {
+        assertEquals(1, TrackMap.nearestIndex(xs, ys, 104f, 96f, 16f))
     }
 
     @Test
-    fun `missing metric marks the point with bucket -1`() {
-        val points = listOf(point(dose = null, cps = null))
-        val json = TrackMap.trackGeoJson(points, TrackMetric.DOSE, null)
-        val props = features(json).getJSONObject(1).getJSONObject("properties")
-        assertEquals(-1, props.getInt("b"))
-        assertTrue(!props.has("dose"))
-        assertTrue(!props.has("cps"))
+    fun `tap outside the slop of every point selects nothing`() {
+        assertEquals(-1, TrackMap.nearestIndex(xs, ys, 150f, 150f, 16f))
     }
 
     @Test
-    fun `cps metric buckets by cps`() {
-        val points = listOf(point(dose = null, cps = 100f))
-        val thresholds = TrackMap.RampThresholds(10f, 20f, 30f)
-        val json = TrackMap.trackGeoJson(points, TrackMetric.CPS, thresholds)
-        val props = features(json).getJSONObject(1).getJSONObject("properties")
-        assertEquals(3, props.getInt("b"))
+    fun `the closest of two candidates wins`() {
+        val closeXs = floatArrayOf(0f, 10f)
+        val closeYs = floatArrayOf(0f, 0f)
+        assertEquals(1, TrackMap.nearestIndex(closeXs, closeYs, 8f, 0f, 20f))
+        assertEquals(0, TrackMap.nearestIndex(closeXs, closeYs, 2f, 0f, 20f))
     }
 
     @Test
-    fun `hotspot collection carries id dose and typical`() {
-        val hotspots = listOf(
-            MapHotspot(
-                id = 7,
-                timestamp = 5000,
-                latitude = 55.5,
-                longitude = 37.5,
-                doseMicroSvH = 0.42f,
-                typicalMicroSvH = 0.11f,
-            ),
-            MapHotspot(
-                id = 8,
-                timestamp = 6000,
-                latitude = 55.6,
-                longitude = 37.6,
-                doseMicroSvH = null,
-                typicalMicroSvH = null,
-            ),
-        )
-        val parsed = features(TrackMap.hotspotGeoJson(hotspots))
-        assertEquals(2, parsed.length())
-        val first = parsed.getJSONObject(0).getJSONObject("properties")
-        assertEquals(7L, first.getLong("id"))
-        assertEquals(0.42, first.getDouble("dose"), 1e-6)
-        assertEquals(0.11, first.getDouble("typ"), 1e-6)
-        val second = parsed.getJSONObject(1).getJSONObject("properties")
-        assertTrue(!second.has("dose"))
-        assertTrue(!second.has("typ"))
+    fun `slop is a radius, not a square`() {
+        // (12, 12) is 16.97 px away — outside a 16 px radius.
+        assertEquals(-1, TrackMap.nearestIndex(floatArrayOf(0f), floatArrayOf(0f), 12f, 12f, 16f))
+        assertEquals(0, TrackMap.nearestIndex(floatArrayOf(0f), floatArrayOf(0f), 11f, 11f, 16f))
     }
 
     @Test
-    fun `empty inputs produce valid empty collections`() {
-        assertEquals(1, features(TrackMap.trackGeoJson(emptyList(), TrackMetric.DOSE, null)).length())
-        assertEquals(0, features(TrackMap.hotspotGeoJson(emptyList())).length())
+    fun `no points - no hit`() {
+        assertEquals(-1, TrackMap.nearestIndex(FloatArray(0), FloatArray(0), 0f, 0f, 16f))
     }
 }
 
