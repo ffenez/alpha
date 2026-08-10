@@ -233,14 +233,9 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
     val chart: @Composable (Modifier) -> Unit = { chartModifier ->
         Box(chartModifier) {
             val f = frame
-            if (f == null || f.spec.buckets.isEmpty()) {
-                Text(
-                    text = if (snapshot == null) "читаем журнал…" else "в этом окне нет измерений",
-                    style = type.bodySmall,
-                    color = colors.muted,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-            } else {
+            // The chart is drawn even for an empty window: axes and gestures
+            // stay alive, so panning into a gap is never a dead end.
+            if (f != null) {
                 DoseChart(
                     spec = f.spec,
                     cursorFraction = cursorFraction,
@@ -273,6 +268,14 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
                     unit = unit,
                     baselineHigh = baseline?.doseHighMicroSvH,
                     alarmLevel = thresholds.l1MicroSvH,
+                )
+            }
+            if (f == null || f.spec.buckets.isEmpty()) {
+                Text(
+                    text = if (snapshot == null) "читаем журнал…" else "в этом окне нет измерений",
+                    style = type.bodySmall,
+                    color = colors.muted,
+                    modifier = Modifier.align(Alignment.Center),
                 )
             }
         }
