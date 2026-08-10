@@ -6,6 +6,8 @@ import app.radiacode.data.SessionAdmission
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class HistoryFormatTest {
 
@@ -74,6 +76,43 @@ class HistoryFormatTest {
         assertEquals(
             "в обычный фон: частично · вне обучения 10 мин — карантин после отклонения",
             line,
+        )
+    }
+    @Test
+    fun `dose projection wording states the condition and refuses the annual-dose claim`() {
+        val sentence = HistoryFormat.doseProjectionSentence("1 310 мкЗв")
+        assertEquals(
+            "если средняя измеренная внешняя фотонная мощность дозы останется такой же — " +
+                "за год ≈ 1 310 мкЗв",
+            sentence,
+        )
+        assertTrue(sentence.startsWith("если"), "the condition comes first, not the number")
+        assertFalse(sentence.contains("годовая"), "it is not an annual dose")
+        assertFalse(sentence.contains("эффективная"))
+        assertFalse(sentence.contains("вы получите"))
+    }
+
+    @Test
+    fun `dose projection basis names the mean rate and the measured time`() {
+        assertEquals(
+            "средняя измеренная мощность 0,13 мкЗв/ч за 26 ч измерений",
+            HistoryFormat.doseProjectionBasis("0,13 мкЗв/ч", 26 * 3600L),
+        )
+    }
+
+    @Test
+    fun `dose projection caveat lists what is not included`() {
+        val caveat = HistoryFormat.DOSE_PROJECTION_CAVEAT
+        assertTrue(caveat.contains("не годовая эффективная доза"))
+        assertTrue(caveat.contains("радон"))
+        assertTrue(caveat.contains("внутреннее"))
+    }
+
+    @Test
+    fun `too little measurement is said out loud`() {
+        assertEquals(
+            "измерений пока мало (12 мин) — за год пересчитывать не из чего",
+            HistoryFormat.doseProjectionUnavailable(720),
         )
     }
 }

@@ -23,6 +23,7 @@ import app.radiacode.service.MeasurementService
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.NavBar
 import app.radiacode.ui.logic.NavConfig
+import app.radiacode.ui.screens.AbExperimentScreen
 import app.radiacode.ui.screens.HistoryScreen
 import app.radiacode.ui.screens.LiveChartScreen
 import app.radiacode.ui.screens.MapScreen
@@ -96,6 +97,7 @@ private fun MainScaffold(graph: AppGraph) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showLiveChart by rememberSaveable { mutableStateOf(false) }
     var showSpectrogram by rememberSaveable { mutableStateOf(false) }
+    var showExperiments by rememberSaveable { mutableStateOf(false) }
     var showRadon by rememberSaveable { mutableStateOf(false) }
     var sessionDetailId by rememberSaveable { mutableStateOf<Long?>(null) }
     var trackMapSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -105,13 +107,14 @@ private fun MainScaffold(graph: AppGraph) {
 
     BackHandler(
         enabled = showSettings || showLiveChart || showSpectrogram || showRadon ||
-            sessionDetailId != null || trackMapSessionId != null,
+            showExperiments || sessionDetailId != null || trackMapSessionId != null,
     ) {
         when {
             showSettings -> showSettings = false
             showLiveChart -> showLiveChart = false
             showSpectrogram -> showSpectrogram = false
             showRadon -> showRadon = false
+            showExperiments -> showExperiments = false
             trackMapSessionId != null -> trackMapSessionId = null
             else -> sessionDetailId = null
         }
@@ -131,6 +134,10 @@ private fun MainScaffold(graph: AppGraph) {
                 showLiveChart -> LiveChartScreen(graph, onBack = { showLiveChart = false })
                 showSpectrogram -> SpectrogramScreen(graph, onBack = { showSpectrogram = false })
                 showRadon -> RadonScreen(graph, onBack = { showRadon = false })
+                showExperiments -> AbExperimentScreen(
+                    graph = graph,
+                    onBack = { showExperiments = false },
+                )
                 trackMapId != null -> SessionTrackMapScreen(
                     graph = graph,
                     sessionId = trackMapId,
@@ -153,6 +160,7 @@ private fun MainScaffold(graph: AppGraph) {
                         graph = graph,
                         onOpenSpectrogram = { showSpectrogram = true },
                         onOpenRadon = { showRadon = true },
+                        onOpenExperiments = { showExperiments = true },
                         continueSnapshotId = continueSpectrumId,
                         onStopContinuation = { continueSpectrumId = null },
                     )
@@ -176,6 +184,7 @@ private fun MainScaffold(graph: AppGraph) {
                 showLiveChart = false
                 showSpectrogram = false
                 showRadon = false
+                showExperiments = false
                 sessionDetailId = null
                 trackMapSessionId = null
                 tab = it

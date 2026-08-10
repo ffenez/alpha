@@ -62,6 +62,30 @@ object HistoryFormat {
         }
     }
 
+    /**
+     * Dose projection sentence (spec §6). The wording is fixed by the spec and
+     * pinned by a test: it must state the *condition*, must not call the
+     * result an annual (effective) dose, and must not promise anything about
+     * the person carrying the device.
+     */
+    fun doseProjectionSentence(doseWithUnit: String): String =
+        "если средняя измеренная внешняя фотонная мощность дозы останется такой же — " +
+            "за год ≈ $doseWithUnit"
+
+    /** «средняя измеренная мощность 0,13 мкЗв/ч за 26 ч измерений». */
+    fun doseProjectionBasis(rateWithUnit: String, measuredSeconds: Long): String =
+        "средняя измеренная мощность $rateWithUnit за ${duration(measuredSeconds)} измерений"
+
+    /** What the projection deliberately does not include (spec §6, §23). */
+    const val DOSE_PROJECTION_CAVEAT =
+        "Это не годовая эффективная доза человека: в неё не входят внутреннее " +
+            "облучение, радон, медицинские процедуры и всё время, когда прибор " +
+            "не измерял или не был рядом."
+
+    /** Shown instead of the projection when the window is too thin (spec §6). */
+    fun doseProjectionUnavailable(measuredSeconds: Long): String =
+        "измерений пока мало (${duration(measuredSeconds)}) — за год пересчитывать не из чего"
+
     /** Thousands grouped with a space: 29520 -> «29 520». */
     fun count(value: Int): String {
         val digits = value.toString()

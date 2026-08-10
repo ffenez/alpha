@@ -36,6 +36,7 @@ import app.radiacode.data.SpectrumBlob
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.data.export.RcResultData
 import app.radiacode.data.export.RcSpectrum
+import app.radiacode.data.export.ProcessingMetadata
 import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.SpectrumExport
 import app.radiacode.protocol.Spectrum
@@ -316,6 +317,18 @@ private fun IntervalSection(
                                 accumulated = false,
                                 origin = SpectrumSnapshotEntity.ORIGIN_USER,
                                 label = label,
+                                // Спец §22: производный снимок хранит метод и
+                                // версии алгоритмов, которыми получен.
+                                analysisMeta = ProcessingMetadata.stamp(
+                                    method = "interval_subtraction (A−B)",
+                                    algorithms = listOf("spectrum_compare"),
+                                    extra = mapOf(
+                                        "sourceIds" to "${first.id},${second.id}",
+                                        "intervalSeconds" to outcome.durationSeconds.toString(),
+                                        "calibrationToleranceKeV" to
+                                            SpectrumCompare.CALIBRATION_TOLERANCE_KEV.toString(),
+                                    ),
+                                ),
                             )
                             savedNote = "снимок «$label» сохранён — он появился в списке спектров"
                         }

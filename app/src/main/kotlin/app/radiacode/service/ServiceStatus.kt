@@ -37,12 +37,19 @@ class ServiceStatus {
     val admission: StateFlow<Admission> = _admission.asStateFlow()
 
     /**
-     * Name of the running experiment («Поиск», later A/B runs) or null.
+     * Name of the running experiment («Поиск», «A/B: прогон A») or null.
      * Condition 4 of the admission pipeline: an experiment must never teach
-     * the baseline (spec §18).
+     * the baseline (spec §4.2, §18).
+     *
+     * Several sources can declare an experiment at once (Поиск on screen while
+     * an A/B run records), so declarations are keyed by source and the flag
+     * clears only when the last one is withdrawn — one source stopping must not
+     * silently re-enable baseline learning under another.
      */
     private val _experiment = MutableStateFlow<String?>(null)
     val experiment: StateFlow<String?> = _experiment.asStateFlow()
+
+    private val experimentSources = LinkedHashMap<String, String>()
 
     /** Active track recording; null = not recording. */
     data class TrackRecording(val sessionId: Long, val startedAt: Long)
@@ -81,8 +88,23 @@ class ServiceStatus {
         _admission.value = admission
     }
 
-    /** Called by the service from the FastPollHub watcher count (Поиск). */
-    internal fun onExperiment(name: String?) {
-        _experiment.value = name
+    /**
+     * Declares (or withdraws, with a null [name]) a running experiment for one
+     * [source]. Called by the service for Поиск ([SOURCE_SEARCH]) and by the
+     * A/B screen for a recording run ([SOURCE_AB]).
+     */
+    fun onExperiment(source: String, name: String?) {
+        synchronized(experimentSources) {
+            if (name == null) experimentSources.remove(source) else experimentSources[source] = name
+            _experiment.value = experimentSources.values.firstOrNull()
+        }
+    }
+
+    companion object {
+        /** Поиск screen (FastPollHub watcher count). */
+        const val SOURCE_SEARCH = "search"
+
+        /** A/B experiment run in progress. */
+        const val SOURCE_AB = "ab_experiment"
     }
 }

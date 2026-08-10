@@ -88,6 +88,7 @@ fun SpectrumScreen(
     graph: AppGraph,
     onOpenSpectrogram: () -> Unit = {},
     onOpenRadon: () -> Unit = {},
+    onOpenExperiments: () -> Unit = {},
     /** Snapshot id to continue accumulating on top of (История → снимок). */
     continueSnapshotId: Long? = null,
     onStopContinuation: () -> Unit = {},
@@ -205,6 +206,11 @@ fun SpectrumScreen(
             horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
         ) {
             Spacer(Modifier.weight(1f))
+            Chip(
+                text = "A/B ▸",
+                color = colors.dataText,
+                onClick = onOpenExperiments,
+            )
             Chip(
                 text = "Спектрограмма ▸",
                 color = colors.dataText,
@@ -350,7 +356,12 @@ private fun FileActionsSection(
                 val now = System.currentTimeMillis()
                 val entity = spectrum.toEntity(timestamp = now, accumulated = false)
                 pendingExport = RcXml.write(
-                    SpectrumExport.toResultData(entity, backgroundEntity, serialNumber),
+                    SpectrumExport.toResultData(
+                        entity = entity,
+                        background = backgroundEntity,
+                        serialNumber = serialNumber,
+                        appVersion = appVersionName(context),
+                    ),
                 )
                 exportXmlLauncher.launch(SpectrumExport.fileName(now, "xml"))
             },
@@ -371,6 +382,9 @@ private fun FileActionsSection(
                     serialNumber = serialNumber,
                     model = SpectrumExport.modelFromSerial(serialNumber),
                     softwareVersion = appVersionName(context),
+                    // Спец §22: метод, нормализация, калибровка и версии
+                    // алгоритмов едут вместе с файлом.
+                    remarks = SpectrumExport.metadataLines(entity, appVersionName(context)),
                 )
                 exportN42Launcher.launch(SpectrumExport.fileName(now, "n42"))
             },
@@ -696,6 +710,14 @@ private fun SpectrumContent(
             )
         }
     }
+
+    // --- energy windows (спец §7): состав спектра, не мера опасности ---
+    EnergyWindowsCard(
+        graph = graph,
+        counts = spectrum.counts,
+        durationSeconds = spectrum.durationSeconds,
+        calibration = calibration,
+    )
 
     // --- actions ---
     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {

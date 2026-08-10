@@ -154,6 +154,20 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[NAV_TABS] = value }
     }
 
+    /**
+     * Energy-window bounds (spec §7), opaque here: parsing, validation and the
+     * fallback to the defaults live in
+     * [app.radiacode.analysis.EnergyWindows]. Null = defaults
+     * (100–300 / 300–700 / 700–1500 keV). These are **analysis parameters**,
+     * so they are stored next to the other analysis settings and exported with
+     * every experiment.
+     */
+    val energyWindowsRaw: Flow<String?> = dataStore.data.map { it[ENERGY_WINDOWS] }
+
+    suspend fun setEnergyWindowsRaw(value: String?) {
+        dataStore.edit { if (value == null) it.remove(ENERGY_WINDOWS) else it[ENERGY_WINDOWS] = value }
+    }
+
     /** Optional Монитор blocks; hero value, status and chart are fixed. */
     val monitorBlocks: Flow<MonitorBlocks> = dataStore.data.map { prefs ->
         MonitorBlocks(
@@ -204,6 +218,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
         private val CUSTOM_ALARM_L2 = floatPreferencesKey("custom_alarm_l2_usvh")
         private val DOSE_UNIT = stringPreferencesKey("dose_unit")
         private val NAV_TABS = stringPreferencesKey("nav_tabs")
+        private val ENERGY_WINDOWS = stringPreferencesKey("energy_windows_kev")
         private val MONITOR_SHOW_TREND = booleanPreferencesKey("monitor_show_trend")
         private val MONITOR_SHOW_DOSE_TODAY = booleanPreferencesKey("monitor_show_dose_today")
         private val MONITOR_SHOW_STATS = booleanPreferencesKey("monitor_show_stats")

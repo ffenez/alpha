@@ -47,4 +47,21 @@ class UnitsTest {
         assertEquals("мкЗв", DoseFormat.doseUnitLabel(DoseUnitSetting.MICRO_SIEVERT))
         assertEquals("мкР", DoseFormat.doseUnitLabel(DoseUnitSetting.MICRO_ROENTGEN))
     }
+    @Test
+    fun `projected dose is coarse, grouped and never falsely precise`() {
+        // A year at 0.15 µSv/h ≈ 1315 µSv — rounded to tens and grouped.
+        assertEquals(
+            "1 310 мкЗв",
+            DoseFormat.doseCoarseWithUnit(1314.9, DoseUnitSetting.MICRO_SIEVERT),
+        )
+        assertEquals("96,4 мкЗв", DoseFormat.doseCoarseWithUnit(96.4, DoseUnitSetting.MICRO_SIEVERT))
+        assertEquals("124 мкЗв", DoseFormat.doseCoarseWithUnit(123.7, DoseUnitSetting.MICRO_SIEVERT))
+        assertEquals("12,3 мкЗв", DoseFormat.doseCoarseWithUnit(12.34, DoseUnitSetting.MICRO_SIEVERT))
+        assertEquals("0,42 мкЗв", DoseFormat.doseCoarseWithUnit(0.42, DoseUnitSetting.MICRO_SIEVERT))
+        // µR values are 100× larger and stay grouped too.
+        assertEquals(
+            "131 490 мкР",
+            DoseFormat.doseCoarseWithUnit(1314.9, DoseUnitSetting.MICRO_ROENTGEN),
+        )
+    }
 }

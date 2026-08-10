@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
+import app.radiacode.analysis.DoseProjection
 import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.SpectrumMerge
 import app.radiacode.data.DoseUnitSetting
@@ -44,6 +46,7 @@ import app.radiacode.data.db.EventEntity
 import app.radiacode.data.db.ProfileEntity
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.data.export.N42
+import app.radiacode.data.export.ProcessingMetadata
 import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.SpectrumExport
 import app.radiacode.device.DoseUnits
@@ -53,12 +56,15 @@ import app.radiacode.ui.components.BarChart
 import app.radiacode.ui.components.BarChartSpec
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
+import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.components.RadioMark
+import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.DailyDose
 import app.radiacode.ui.logic.DoseFormat
+import app.radiacode.ui.logic.Evidence
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.SpectrumFormat
@@ -94,6 +100,9 @@ private data class HistoryModel(
     val dose30dMicroSv: Double,
     /** µSv per local day, oldest first, [DOSE_DAYS] entries. */
     val dailyDoseMicroSv: List<Float>,
+    /** Seconds of *actual measurement* behind the 7- and 30-day integrals. */
+    val measured7dSeconds: Long,
+    val measured30dSeconds: Long,
     val fromMillis: Long,
     val toMillis: Long,
     val items: List<HistoryItem>,
@@ -276,7 +285,78 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                 style = type.footnote,
                 color = colors.muted,
             )
+            AppDivider()
+            DoseProjectionBlock(model, unit)
         }
+    }
+}
+
+/**
+ * Проекция дозы (спец §6): D ≈ Ḋ·t как ЧИСТАЯ экстраполяция измеренной
+ * средней мощности дозы. Формулировка задана спецификацией и не подлежит
+ * упрощению: это не «годовая доза человека», а ответ на вопрос «сколько
+ * набежит, если мощность останется такой же».
+ */
+@Composable
+private fun DoseProjectionBlock(model: HistoryModel, unit: DoseUnitSetting) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    var windowIndex by rememberSaveable { mutableIntStateOf(1) }
+
+    val doseMicroSv = if (windowIndex == 0) model.dose7dMicroSv else model.dose30dMicroSv
+    val measuredSeconds =
+        if (windowIndex == 0) model.measured7dSeconds else model.measured30dSeconds
+    val projection = remember(doseMicroSv, measuredSeconds) {
+        DoseProjection.fromIntegral(doseMicroSv, measuredSeconds)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Проекция дозы".uppercase(),
+                style = type.labelSmall,
+                color = colors.ink2,
+            )
+            EvidenceTag(Evidence.CALCULATED, Modifier.padding(start = 6.dp))
+            Spacer(Modifier.weight(1f))
+            Segmented(
+                options = listOf("7 дней", "30 дней"),
+                selectedIndex = windowIndex,
+                onSelect = { windowIndex = it },
+                modifier = Modifier.weight(1.1f),
+            )
+        }
+        if (projection == null) {
+            Text(
+                text = HistoryFormat.doseProjectionUnavailable(measuredSeconds),
+                style = type.bodySmall,
+                color = colors.muted,
+            )
+        } else {
+            Text(
+                text = HistoryFormat.doseProjectionSentence(
+                    DoseFormat.doseCoarseWithUnit(projection.doseMicroSv, unit),
+                ),
+                style = type.body,
+                color = colors.ink,
+            )
+            Text(
+                text = HistoryFormat.doseProjectionBasis(
+                    DoseFormat.rateWithUnit(
+                        projection.meanRateMicroSvPerHour.toFloat(),
+                        unit,
+                    ),
+                    projection.measuredSeconds,
+                ),
+                style = type.footnote,
+                color = colors.ink2,
+            )
+        }
+        Text(
+            text = HistoryFormat.DOSE_PROJECTION_CAVEAT,
+            style = type.footnote,
+            color = colors.muted,
+        )
     }
 }
 
@@ -687,7 +767,12 @@ private fun SavedSpectraCard(
                         text = "Экспорт XML",
                         onClick = {
                             pendingExport = RcXml.write(
-                                SpectrumExport.toResultData(entity, null, null),
+                                SpectrumExport.toResultData(
+                                    entity = entity,
+                                    background = null,
+                                    serialNumber = null,
+                                    appVersion = appVersionName(context),
+                                ),
                             )
                             exportXmlLauncher.launch(
                                 SpectrumExport.fileName(entity.timestamp, "xml"),
@@ -705,6 +790,10 @@ private fun SavedSpectraCard(
                                     N42.CLASS_FOREGROUND,
                                 ),
                                 softwareVersion = appVersionName(context),
+                                remarks = SpectrumExport.metadataLines(
+                                    entity,
+                                    appVersionName(context),
+                                ),
                             )
                             exportN42Launcher.launch(
                                 SpectrumExport.fileName(entity.timestamp, "n42"),
@@ -851,6 +940,16 @@ private suspend fun mergeSnapshots(
                 accumulated = false,
                 origin = SpectrumSnapshotEntity.ORIGIN_USER,
                 label = label,
+                // Спец §22: сумма — производный результат, метод и версии
+                // алгоритмов едут вместе со снимком и в экспорт.
+                analysisMeta = ProcessingMetadata.stamp(
+                    method = "channel_sum (merge)",
+                    algorithms = listOf("spectrum_merge"),
+                    extra = mapOf(
+                        "sourceIds" to chosen.joinToString(",") { it.id.toString() },
+                        "durationSeconds" to outcome.durationSeconds.toString(),
+                    ),
+                ),
             )
             MergeResult.Saved(label)
         }
@@ -902,13 +1001,16 @@ private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryMode
         bucketMillis = 60_000L,
     )
 
+    val buckets7 = buckets30.filter { it.bucketStart >= now - 7L * 24 * 3600_000 }
     return HistoryModel(
         doseTodayMicroSv = ChartMapping.integrateDoseMicroSv(todayBuckets),
-        dose7dMicroSv = ChartMapping.integrateDoseMicroSv(
-            buckets30.filter { it.bucketStart >= now - 7L * 24 * 3600_000 },
-        ),
+        dose7dMicroSv = ChartMapping.integrateDoseMicroSv(buckets7),
         dose30dMicroSv = ChartMapping.integrateDoseMicroSv(buckets30),
         dailyDoseMicroSv = DailyDose.perDay(buckets30, now, zone, DOSE_DAYS),
+        // 1 Hz sampling: one sample ≈ one measured second, the same assumption
+        // the dose integral itself uses (ChartMapping.integrateDoseMicroSv).
+        measured7dSeconds = buckets7.sumOf { it.sampleCount.toLong() },
+        measured30dSeconds = buckets30.sumOf { it.sampleCount.toLong() },
         fromMillis = from30d,
         toMillis = now,
         items = items,

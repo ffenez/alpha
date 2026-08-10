@@ -184,9 +184,16 @@ class MeasurementService : Service() {
             // Поиск on screen = an experiment (spec §18): its interval must
             // never teach the baseline, and the user must see why.
             graph.fastPollHub.watchers.collect { watchers ->
-                experimentActive = watchers > 0
-                graph.serviceStatus.onExperiment(if (watchers > 0) "Поиск" else null)
+                graph.serviceStatus.onExperiment(
+                    ServiceStatus.SOURCE_SEARCH,
+                    if (watchers > 0) "Поиск" else null,
+                )
             }
+        }
+        scope.launch {
+            // Single source of truth for admission condition 4: whoever
+            // declared the experiment (Поиск, A/B run) flips the same flag.
+            graph.serviceStatus.experiment.collect { experimentActive = it != null }
         }
         scope.launch {
             while (true) {
