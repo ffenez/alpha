@@ -12,6 +12,7 @@ import app.radiacode.device.DeviceLinkFactory
 import app.radiacode.device.KableLinkFactory
 import app.radiacode.device.RadiaCodeScanner
 import app.radiacode.service.ServiceStatus
+import app.radiacode.service.SpectrogramStore
 import app.radiacode.service.SpectrumHub
 
 /**
@@ -65,6 +66,9 @@ class AppGraph private constructor(context: Context) {
 
     /** Spectrum acquisition bridge: UI attaches, service polls and executes commands. */
     val spectrumHub: SpectrumHub = SpectrumHub()
+
+    /** In-memory спектрограмма ring (~2 ч), fed by the service's spectrum poll. */
+    val spectrogramStore: SpectrogramStore = SpectrogramStore()
 
     companion object {
         @Volatile

@@ -415,6 +415,13 @@ class MeasurementService : Service() {
         }
         val now = System.currentTimeMillis()
         graph.spectrumHub.onSpectrum(spectrum, now)
+        val sample = lastSample
+        graph.spectrogramStore.onSpectrum(
+            spectrum = spectrum,
+            atMillis = now,
+            cps = sample?.countRate,
+            doseMicroSvH = sample?.let { DoseUnits.rawToMicroSievertPerHour(it.doseRate) },
+        )
         if (now - lastSpectrumAutosaveAt >= SpectrumHub.AUTOSAVE_INTERVAL_MILLIS) {
             lastSpectrumAutosaveAt = now
             graph.measurementRepository.saveSpectrum(spectrum, accumulated = false)
@@ -432,6 +439,7 @@ class MeasurementService : Service() {
                     return // device unreachable; the UI still shows the old spectrum
                 }
                 graph.spectrumHub.onReset()
+                graph.spectrogramStore.onReset()
                 // The device also reports a SPECTRUM_RESET event via DATA_BUF,
                 // which lands in the journal through the regular record path.
                 pollSpectrum(device)

@@ -32,6 +32,7 @@ import app.radiacode.ui.screens.SearchScreen
 import app.radiacode.ui.screens.SessionDetailScreen
 import app.radiacode.ui.screens.SessionTrackMapScreen
 import app.radiacode.ui.screens.SettingsScreen
+import app.radiacode.ui.screens.SpectrogramScreen
 import app.radiacode.ui.screens.SpectrumScreen
 import app.radiacode.ui.theme.LocalAppColors
 
@@ -93,16 +94,18 @@ private fun MainScaffold(graph: AppGraph) {
     // track map on top. Back and tab switches dismiss them.
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showLiveChart by rememberSaveable { mutableStateOf(false) }
+    var showSpectrogram by rememberSaveable { mutableStateOf(false) }
     var sessionDetailId by rememberSaveable { mutableStateOf<Long?>(null) }
     var trackMapSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     BackHandler(
-        enabled = showSettings || showLiveChart ||
+        enabled = showSettings || showLiveChart || showSpectrogram ||
             sessionDetailId != null || trackMapSessionId != null,
     ) {
         when {
             showSettings -> showSettings = false
             showLiveChart -> showLiveChart = false
+            showSpectrogram -> showSpectrogram = false
             trackMapSessionId != null -> trackMapSessionId = null
             else -> sessionDetailId = null
         }
@@ -120,6 +123,7 @@ private fun MainScaffold(graph: AppGraph) {
             when {
                 showSettings -> SettingsScreen(graph, onBack = { showSettings = false })
                 showLiveChart -> LiveChartScreen(graph, onBack = { showLiveChart = false })
+                showSpectrogram -> SpectrogramScreen(graph, onBack = { showSpectrogram = false })
                 trackMapId != null -> SessionTrackMapScreen(
                     graph = graph,
                     sessionId = trackMapId,
@@ -138,7 +142,10 @@ private fun MainScaffold(graph: AppGraph) {
                         onOpenChart = { showLiveChart = true },
                     )
                     AppTab.SEARCH -> SearchScreen(graph)
-                    AppTab.SPECTRUM -> SpectrumScreen(graph)
+                    AppTab.SPECTRUM -> SpectrumScreen(
+                        graph = graph,
+                        onOpenSpectrogram = { showSpectrogram = true },
+                    )
                     AppTab.MAP -> MapScreen(graph)
                     AppTab.HISTORY -> HistoryScreen(
                         graph = graph,
@@ -153,6 +160,7 @@ private fun MainScaffold(graph: AppGraph) {
             onSelect = {
                 showSettings = false
                 showLiveChart = false
+                showSpectrogram = false
                 sessionDetailId = null
                 trackMapSessionId = null
                 tab = it

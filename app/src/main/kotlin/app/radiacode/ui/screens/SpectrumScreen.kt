@@ -79,7 +79,11 @@ private const val COLUMN_COUNT = 240
  * (E | нетто | SNR | кандидат) with cautious isotope wording.
  */
 @Composable
-fun SpectrumScreen(graph: AppGraph) {
+fun SpectrumScreen(
+    graph: AppGraph,
+    onOpenSpectrogram: () -> Unit = {},
+    onOpenRadon: () -> Unit = {},
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val hub = graph.spectrumHub
@@ -113,6 +117,18 @@ fun SpectrumScreen(graph: AppGraph) {
                         it.counts.sumOf { c -> c.toLong() },
                     )
                 } ?: "нет данных",
+            )
+        }
+        // Advanced-режимы поверх вкладки; в нижнее меню они не выносятся.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
+            Spacer(Modifier.weight(1f))
+            Chip(
+                text = "Спектрограмма ▸",
+                color = colors.dataText,
+                onClick = onOpenSpectrogram,
             )
         }
 
