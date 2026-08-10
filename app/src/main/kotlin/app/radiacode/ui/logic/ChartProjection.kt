@@ -18,13 +18,27 @@ class ChartPixels(
     val source: IntArray,
     val x: FloatArray,
     val medianY: FloatArray,
-    val minY: FloatArray,
-    val maxY: FloatArray,
-    val sigmaLoY: FloatArray,
-    val sigmaHiY: FloatArray,
+    /** Outer robust envelope Q10–Q90 (CHART SPEC §6). */
+    val q10Y: FloatArray,
+    val q90Y: FloatArray,
+    /** Inner robust envelope Q25–Q75. */
+    val q25Y: FloatArray,
+    val q75Y: FloatArray,
     val plottable: BooleanArray,
 ) {
     val count: Int get() = x.size
+
+    /**
+     * Drawn column that came from [bucketIndex] of the source list, or null
+     * when that column is outside the frame. The projection keeps a
+     * contiguous slice, so this is arithmetic, not a search — the extremum
+     * markers use it once per frame.
+     */
+    fun indexOfBucket(bucketIndex: Int): Int? {
+        if (count == 0) return null
+        val k = bucketIndex - source[0]
+        return if (k in 0 until count) k else null
+    }
 
     /** Column nearest to a pixel x, or null when the frame is empty. */
     fun nearestIndex(xPx: Float): Int? {
@@ -86,10 +100,10 @@ object ChartProjection {
         val source = IntArray(n)
         val x = FloatArray(n)
         val medianY = FloatArray(n)
-        val minY = FloatArray(n)
-        val maxY = FloatArray(n)
-        val sigmaLoY = FloatArray(n)
-        val sigmaHiY = FloatArray(n)
+        val q10Y = FloatArray(n)
+        val q90Y = FloatArray(n)
+        val q25Y = FloatArray(n)
+        val q75Y = FloatArray(n)
         val plottable = BooleanArray(n)
 
         for (k in 0 until n) {
@@ -103,16 +117,15 @@ object ChartProjection {
             }
             plottable[k] = true
             medianY[k] = yOf(fMedian, topPx, heightPx)
-            minY[k] = yOf(scale.fractionOrNull(b.min) ?: 0f, topPx, heightPx)
-            maxY[k] = yOf(scale.fractionOrNull(b.max) ?: 1f, topPx, heightPx)
-            sigmaLoY[k] = yOf(
-                scale.fractionOrNull(b.mean - b.sigma) ?: scale.fractionOrNull(b.min) ?: 0f,
-                topPx,
-                heightPx,
-            )
-            sigmaHiY[k] = yOf(scale.fractionOrNull(b.mean + b.sigma) ?: 1f, topPx, heightPx)
+            // A quantile the scale cannot place (log scale, zero value) falls
+            // back to the median row: the envelope then collapses onto the
+            // line instead of being pinned to the frame floor.
+            q10Y[k] = yOf(scale.fractionOrNull(b.q10) ?: fMedian, topPx, heightPx)
+            q25Y[k] = yOf(scale.fractionOrNull(b.q25) ?: fMedian, topPx, heightPx)
+            q75Y[k] = yOf(scale.fractionOrNull(b.q75) ?: fMedian, topPx, heightPx)
+            q90Y[k] = yOf(scale.fractionOrNull(b.q90) ?: fMedian, topPx, heightPx)
         }
-        return ChartPixels(source, x, medianY, minY, maxY, sigmaLoY, sigmaHiY, plottable)
+        return ChartPixels(source, x, medianY, q10Y, q90Y, q25Y, q75Y, plottable)
     }
 
     /** Fraction (0 = bottom) → pixel row inside the plot rectangle. */

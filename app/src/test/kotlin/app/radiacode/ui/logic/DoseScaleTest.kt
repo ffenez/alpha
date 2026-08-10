@@ -40,8 +40,8 @@ class DoseScaleTest {
 
     @Test
     fun `dropped buckets are counted so the screen can say so`() {
-        val zero = ChartBucket(0, 1_000, 0f, 0f, 0f, 0f, 0f, 1)
-        val ok = ChartBucket(1_000, 2_000, 0.1f, 0.1f, 0.1f, 0.1f, 0f, 1)
+        val zero = ChartBucket(0, 1_000, 0f, 0f, 0f)
+        val ok = ChartBucket(1_000, 2_000, 0.1f, 0.1f, 0.1f)
         assertEquals(1, DoseScales.logDroppedBuckets(listOf(zero, ok, null)))
         assertEquals(0, DoseScales.logDroppedBuckets(listOf(ok)))
     }

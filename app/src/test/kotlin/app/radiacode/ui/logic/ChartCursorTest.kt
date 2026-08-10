@@ -14,8 +14,6 @@ class ChartCursorTest {
         min = value,
         max = value,
         median = value,
-        mean = value,
-        sigma = 0f,
         sampleCount = 1,
     )
 
@@ -81,18 +79,62 @@ class ChartCursorTest {
         assertNull(CursorReadout.nearestBucket(emptyList(), 0L))
     }
 
-    // --- ratio to the usual band ---
+    // --- ratio to a named statistic of the profile (spec §17) ---
 
     @Test
-    fun `the ratio only speaks about an excess over the usual band`() {
-        assertEquals(4.8f, CursorReadout.ratioToUsual(0.48f, 0.10f)!!, 1e-5f)
-        assertNull(CursorReadout.ratioToUsual(0.05f, 0.10f))
-        assertNull(CursorReadout.ratioToUsual(0.5f, null))
-        assertNull(CursorReadout.ratioToUsual(0.5f, 0f))
+    fun `the ratio only speaks about an excess over its denominator`() {
+        assertEquals(4.8f, CursorReadout.ratioTo(0.48f, 0.10f)!!, 1e-5f)
+        assertNull(CursorReadout.ratioTo(0.05f, 0.10f))
+        assertNull(CursorReadout.ratioTo(0.5f, null))
+        assertNull(CursorReadout.ratioTo(0.5f, 0f))
     }
 
     @Test
-    fun `the ratio label uses a decimal comma`() {
-        assertEquals("×4,8 к привычному", CursorReadout.ratioLabel(4.8f))
+    fun `the ratio label always names the denominator`() {
+        assertEquals(
+            "×4,8 к P90 профиля",
+            CursorReadout.ratioLabel(4.8f, RatioDenominator.BASELINE_P90),
+        )
+        assertEquals(
+            "×4,8 к медиане профиля",
+            CursorReadout.ratioLabel(4.8f, RatioDenominator.BASELINE_MEDIAN),
+        )
+        // «×4,8 к привычному» is the exact wording the spec forbids (§17, §39).
+        for (denominator in RatioDenominator.entries) {
+            val label = CursorReadout.ratioLabel(1.5f, denominator)
+            assertFalse(label.contains("привычн"), label)
+            assertFalse(label.contains("обычн"), label)
+            assertTrue(label.contains("профиля"), label)
+        }
+    }
+
+    @Test
+    fun `the ratio carries an explanation of what its denominator is`() {
+        val p90 = CursorReadout.ratioExplanation(RatioDenominator.BASELINE_P90)
+        assertTrue(p90.contains("90 %"), p90)
+        assertTrue(p90.contains("не норматив"), p90)
+        assertTrue(
+            CursorReadout.ratioExplanation(RatioDenominator.BASELINE_MEDIAN).contains("половина"),
+        )
+    }
+
+    // --- readout wording (spec §16) ---
+
+    @Test
+    fun `the readout names the interval the column covers, not one instant`() {
+        val label = CursorReadout.binRangeLabel(bucket(0)) { millis -> "t$millis" }
+        assertEquals("t0–t1000", label)
+    }
+
+    @Test
+    fun `an extremum time is an instant only when the aggregation knows it`() {
+        assertEquals(
+            "в t5000",
+            CursorReadout.extremeTimeLabel(5_000L, 1_000L) { millis -> "t$millis" },
+        )
+        assertEquals(
+            "в t5000–t65000",
+            CursorReadout.extremeTimeLabel(5_000L, 60_000L) { millis -> "t$millis" },
+        )
     }
 }

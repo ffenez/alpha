@@ -2,6 +2,7 @@ package app.radiacode.ui.screens
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,14 +59,19 @@ import app.radiacode.ui.logic.CursorReadout
 import app.radiacode.ui.logic.DoseAggregate
 import app.radiacode.ui.logic.DoseChartModel
 import app.radiacode.ui.logic.DoseEpisodes
+import app.radiacode.ui.logic.DoseExtremes
 import app.radiacode.ui.logic.DoseFormat
+import app.radiacode.ui.logic.DoseReference
 import app.radiacode.ui.logic.DoseHistogram
 import app.radiacode.ui.logic.DoseHistograms
 import app.radiacode.ui.logic.DoseScales
 import app.radiacode.ui.logic.DoseSnapshot
 import app.radiacode.ui.logic.Freshness
 import app.radiacode.ui.logic.HistoryFormat
+import app.radiacode.ui.logic.RatioDenominator
 import app.radiacode.ui.logic.TimeAxis
+import app.radiacode.ui.logic.referenceWording
+import app.radiacode.ui.logic.referenceWordingShort
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.WindowStats
 import app.radiacode.ui.theme.Dimens
@@ -96,12 +103,13 @@ private const val DEFAULT_PERIOD_INDEX = 2 // 6ч
  *
  * **Раскладка.** Компактная шапка (закрыть · заголовок · живое значение с
  * погрешностью · чип свежести/паузы) → график на всю оставшуюся высоту,
- * от края до края по горизонтали → полоса распределения значений окна → две
- * строки статистики (мин/P10/медиана/P90 · макс/σ/n/окно) → ряд управления
- * (периоды, лин/лог, «⌖ сейчас») → одна приглушённая строка о том, что здесь
- * измерено, а что рассчитано. В ландшафте график занимает весь экран,
- * статистика сжимается в одну моно-строку шапки, управление плавает чипами
- * над правым нижним углом.
+ * от края до края по горизонтали → полоса распределения значений окна →
+ * компактная статистика окна (P10 · медиана · P90 · n · окно, спец §13) →
+ * раскрываемая «расширенная статистика» (мин/Q25/Q75/макс, MAD/SD/IQR с
+ * единицами) → ряд управления (периоды, лин/лог, «⌖ сейчас») → одна
+ * приглушённая строка анатомии графика. В ландшафте график занимает весь
+ * экран, статистика сжимается в одну моно-строку шапки, управление плавает
+ * чипами над правым нижним углом.
  *
  * **Производительность.** Один запрос в БД на смену окна, с запасом по
  * четверти окна с каждой стороны ([ChartWindows.loadRange]); pan/pinch только
@@ -110,11 +118,15 @@ private const val DEFAULT_PERIOD_INDEX = 2 // 6ч
  * со своим тикером, поэтому 1 Гц поток не перерисовывает график. Слои графика
  * разделены и кэшируются, см. [DoseChart].
  *
- * **Достоверность (SPEC §2).** Линия — медиана корзины, заливки — конверт
- * мин–макс и ±σ: это РАСЧЁТ по измеренным корзинам, а не само измерение.
- * Полоса привычного — статистика профиля места. Эпизоды берут время из
- * журнала событий, длительность считается по корзинам. Строка под управлением
- * говорит это словами.
+ * **Достоверность (SPEC §2, спец графика §6/§7).** Линия — медиана корзины
+ * (Q50), заливки — квантильные конверты Q25–Q75 и Q10–Q90: это НАБЛЮДАЕМЫЙ
+ * РАЗБРОС измерений, не погрешность и не доверительный интервал. Мин/макс
+ * корзины НЕ заливаются полосой (экстремум растёт с числом отсчётов) —
+ * значимые экстремумы помечаются отдельными маркерами и раскрываются по
+ * тапу. Серая полоса — исторический P10–P90 профиля, статистика места, а не
+ * норматив. Эпизоды берут время из журнала событий, длительность считается
+ * по корзинам и всегда названа относительно своего порога. Строка под
+ * управлением говорит это словами.
  */
 @Composable
 fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
@@ -134,6 +146,7 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
     var logScale by rememberSaveable { mutableStateOf(false) }
     var follow by rememberSaveable { mutableStateOf(true) }
     var cursorActive by rememberSaveable { mutableStateOf(false) }
+    var statsExpanded by rememberSaveable { mutableStateOf(false) }
     // Crosshair position lives in its own State: the draw layer and the
     // readout card read it, so dragging never recomposes the screen.
     val cursorFraction = remember { mutableStateOf<Float?>(null) }
@@ -266,7 +279,7 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
                     buckets = f.spec.buckets,
                     window = window,
                     unit = unit,
-                    baselineHigh = baseline?.doseHighMicroSvH,
+                    baseline = baseline,
                     alarmLevel = thresholds.l1MicroSvH,
                 )
             }
@@ -332,22 +345,21 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
             Spacer(Modifier.fillMaxWidth().height(Dimens.space1))
         }
         val stats = frame?.stats
+        // CHART SPEC §13: the compact default is quantiles, n and the window;
+        // MIN/Q25/Q75/MAX/MAD/SD live one tap deeper so the main view is not
+        // a wall of numbers and SD never appears without its definition.
         StatGrid(
             cells = listOf(
-                StatCell(stats?.let { DoseFormat.rate(it.min, unit) } ?: "—", "мин"),
                 StatCell(stats?.let { DoseFormat.rate(it.p10, unit) } ?: "—", "P10"),
                 StatCell(stats?.let { DoseFormat.rate(it.median, unit) } ?: "—", "медиана"),
                 StatCell(stats?.let { DoseFormat.rate(it.p90, unit) } ?: "—", "P90"),
-            ),
-        )
-        StatGrid(
-            cells = listOf(
-                StatCell(stats?.let { DoseFormat.rate(it.max, unit) } ?: "—", "макс"),
-                StatCell(stats?.let { DoseFormat.rate(it.sigma, unit) } ?: "—", "σ"),
                 StatCell(stats?.let { HistoryFormat.count(it.sampleCount) } ?: "—", "n"),
                 StatCell(HistoryFormat.duration(window.spanMillis / 1000), "окно"),
             ),
         )
+        ExpandedStats(stats = stats, unit = unit, expanded = statsExpanded) {
+            statsExpanded = !statsExpanded
+        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
             verticalAlignment = Alignment.CenterVertically,
@@ -365,7 +377,12 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
             )
         }
         Text(
-            text = truthLine(logScale, frame?.logDropped ?: 0, baseline != null),
+            text = truthLine(
+                logScale = logScale,
+                logDropped = frame?.logDropped ?: 0,
+                hasBaseline = baseline != null,
+                quantilesExact = frame?.stats?.quantilesExact ?: true,
+            ),
             style = type.footnote,
             color = colors.muted,
             modifier = Modifier.padding(
@@ -526,12 +543,11 @@ private fun BoxScope.LandscapeTopBar(
 }
 
 private fun landscapeStatsLine(stats: WindowStats, unit: DoseUnitSetting): String = listOf(
-    "мин ${DoseFormat.rate(stats.min, unit)}",
     "P10 ${DoseFormat.rate(stats.p10, unit)}",
     "медиана ${DoseFormat.rate(stats.median, unit)}",
     "P90 ${DoseFormat.rate(stats.p90, unit)}",
-    "макс ${DoseFormat.rate(stats.max, unit)}",
-    "σ ${DoseFormat.rate(stats.sigma, unit)}",
+    "MAD ${DoseFormat.rate(stats.mad, unit)}",
+    "SD ${DoseFormat.rate(stats.sd, unit)} ${DoseFormat.rateUnitLabel(unit)}",
     "n ${HistoryFormat.count(stats.sampleCount)}",
 ).joinToString(" · ")
 
@@ -571,16 +587,93 @@ private fun RowScope.ControlChips(
     )
 }
 
-private fun truthLine(logScale: Boolean, logDropped: Int, hasBaseline: Boolean): String {
+/**
+ * «Расширенная статистика» (CHART SPEC §12, §13): MIN/Q25/Q75/MAX/MAD/SD, each
+ * named in full and with its unit — a bare «σ» is forbidden, and SD/MAD belong
+ * here rather than in the compact view.
+ */
+@Composable
+private fun ExpandedStats(
+    stats: WindowStats?,
+    unit: DoseUnitSetting,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val unitLabel = DoseFormat.rateUnitLabel(unit)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = Dimens.space3, vertical = Dimens.space1),
+    ) {
+        Text(
+            text = "расширенная статистика",
+            style = type.footnote,
+            color = colors.ink2,
+        )
+        Spacer(Modifier.weight(1f))
+        Text(text = if (expanded) "▴" else "▾", style = type.footnote, color = colors.ink2)
+    }
+    if (!expanded) return
+    StatGrid(
+        cells = listOf(
+            StatCell(stats?.let { DoseFormat.rate(it.min, unit) } ?: "—", "мин"),
+            StatCell(stats?.let { DoseFormat.rate(it.q25, unit) } ?: "—", "Q25"),
+            StatCell(stats?.let { DoseFormat.rate(it.q75, unit) } ?: "—", "Q75"),
+            StatCell(stats?.let { DoseFormat.rate(it.max, unit) } ?: "—", "макс"),
+        ),
+    )
+    StatGrid(
+        cells = listOf(
+            StatCell(stats?.let { DoseFormat.rate(it.mad, unit) } ?: "—", "MAD, $unitLabel"),
+            StatCell(stats?.let { DoseFormat.rate(it.sd, unit) } ?: "—", "SD, $unitLabel"),
+            StatCell(stats?.let { DoseFormat.rate(it.iqr, unit) } ?: "—", "IQR, $unitLabel"),
+        ),
+    )
+    Text(
+        text = "SD — наблюдаемый разброс значений · MAD = median(|xᵢ − медиана|), " +
+            "робастный разброс · IQR = Q75 − Q25",
+        style = type.footnote,
+        color = colors.muted,
+        modifier = Modifier.padding(
+            start = Dimens.space3,
+            end = Dimens.space3,
+            top = Dimens.space1,
+        ),
+    )
+}
+
+/**
+ * The one muted line that describes the anatomy of the chart exactly (CHART
+ * SPEC §6, §7, §8, §41): what is a level, what is observed spread, what is a
+ * historical statistic of the place, what is an event marker — and, when the
+ * window is long, that the quantiles are an approximation.
+ */
+private fun truthLine(
+    logScale: Boolean,
+    logDropped: Int,
+    hasBaseline: Boolean,
+    quantilesExact: Boolean,
+): String {
     val parts = mutableListOf(
-        "медиана, ±σ и конверт — расчёт по корзинам измерений",
+        "линия — медиана корзины (Q50)",
+        "Q25–Q75 и Q10–Q90 — наблюдаемый разброс измерений, не погрешность",
     )
     parts += if (hasBaseline) {
-        "полоса привычного — статистика профиля места"
+        "серая полоса — исторический P10–P90 профиля, это статистика места, а не норматив"
     } else {
-        "привычный фон места ещё не собран"
+        "исторический диапазон профиля ещё не собран"
     }
-    parts += "эпизоды — журнал событий, длительность расчётная"
+    parts += "▲ — экстремум корзины выше порога L1 (залит) или выше P90 профиля (контур)"
+    parts += "полосы эпизодов — журнал событий, длительность расчётная"
+    parts += if (quantilesExact) {
+        "квантили — точные по сырым отсчётам"
+    } else {
+        "квантили — оценка по под-корзинам (точный путь — на коротких окнах)"
+    }
     if (logScale && logDropped > 0) {
         parts += "лог-шкала: корзин с нулём не показано — $logDropped"
     }
@@ -600,7 +693,7 @@ private fun BoxScope.CursorCard(
     buckets: List<ChartBucket>,
     window: ChartWindow,
     unit: DoseUnitSetting,
-    baselineHigh: Float?,
+    baseline: Baseline?,
     alarmLevel: Float?,
 ) {
     val colors = LocalAppColors.current
@@ -609,40 +702,114 @@ private fun BoxScope.CursorCard(
     val time = ChartWindows.timeAt(window, fraction)
     val bucket = CursorReadout.nearestBucket(buckets, time) ?: return
     val above = alarmLevel != null && bucket.median >= alarmLevel
+    val clock: (Long) -> String = { millis ->
+        Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(CURSOR_TIME)
+    }
+    val extreme = DoseExtremes.classify(bucket, alarmLevel, baseline?.doseHighMicroSvH)
     Card(
         modifier = Modifier
             .align(if (fraction < 0.5f) Alignment.TopEnd else Alignment.TopStart)
             .padding(Dimens.space2),
         contentPadding = Dimens.space2,
     ) {
+        // CHART SPEC §16: interval, median, both envelopes, the exact extrema
+        // with their times, n — then the profile baseline block.
         Column {
             Text(
-                text = Instant.ofEpochMilli(bucket.midMillis)
-                    .atZone(ZoneId.systemDefault())
-                    .format(CURSOR_TIME),
+                text = CursorReadout.binRangeLabel(bucket, clock),
                 style = type.footnote,
                 color = colors.ink2,
             )
             Text(
-                text = "${DoseFormat.rate(bucket.median, unit)} ±" +
-                    DoseFormat.rate(bucket.sigma, unit),
+                text = DoseFormat.rate(bucket.median, unit),
                 style = type.value,
                 color = if (above) colors.crit else colors.ink,
             )
-            Text(
-                text = "n ${HistoryFormat.count(bucket.sampleCount)}" +
-                    (baselineHigh?.let { " · P90 фона ${DoseFormat.rate(it, unit)}" } ?: ""),
-                style = type.footnote,
-                color = colors.muted,
+            CursorRow("медиана", DoseFormat.rate(bucket.median, unit))
+            CursorRow(
+                "Q25–Q75",
+                DoseFormat.range(bucket.q25, bucket.q75, unit),
             )
-            CursorReadout.ratioToUsual(bucket.median, baselineHigh)?.let { ratio ->
+            CursorRow(
+                "Q10–Q90",
+                DoseFormat.range(bucket.q10, bucket.q90, unit),
+            )
+            CursorRow(
+                "мин",
+                DoseFormat.rate(bucket.min, unit) + " " +
+                    CursorReadout.extremeTimeLabel(
+                        bucket.minAtMillis,
+                        bucket.extremeWindowMillis,
+                        clock,
+                    ),
+            )
+            CursorRow(
+                "макс",
+                DoseFormat.rate(bucket.max, unit) + " " +
+                    CursorReadout.extremeTimeLabel(
+                        bucket.maxAtMillis,
+                        bucket.extremeWindowMillis,
+                        clock,
+                    ),
+            )
+            CursorRow("измерений", HistoryFormat.count(bucket.sampleCount))
+            if (extreme != null) {
                 Text(
-                    text = CursorReadout.ratioLabel(ratio),
+                    text = "▲ экстремум ${referenceWording(extreme)}",
+                    style = type.footnote,
+                    color = if (extreme == DoseReference.ALARM_L1) colors.crit else colors.warn,
+                )
+            }
+            if (!bucket.quantilesExact) {
+                Text(
+                    text = "квантили корзины — оценка по под-корзинам",
                     style = type.footnote,
                     color = colors.muted,
                 )
             }
+            if (baseline != null) {
+                AppDivider(Modifier.padding(vertical = 4.dp))
+                Text(
+                    text = "исторический профиль",
+                    style = type.footnote,
+                    color = colors.ink2,
+                )
+                CursorRow("медиана", DoseFormat.rate(baseline.doseMedianMicroSvH, unit))
+                CursorRow(
+                    "P10–P90",
+                    DoseFormat.range(
+                        baseline.doseLowMicroSvH,
+                        baseline.doseHighMicroSvH,
+                        unit,
+                    ),
+                )
+                CursorReadout.ratioTo(bucket.median, baseline.doseHighMicroSvH)?.let { ratio ->
+                    Text(
+                        text = CursorReadout.ratioLabel(ratio, RatioDenominator.BASELINE_P90),
+                        style = type.footnote,
+                        color = colors.ink2,
+                    )
+                    Text(
+                        text = CursorReadout.ratioExplanation(RatioDenominator.BASELINE_P90),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+            }
         }
+    }
+}
+
+/** One «label   value» line of the cursor card. */
+@Composable
+private fun CursorRow(label: String, value: String) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text = label, style = type.footnote, color = colors.ink2)
+        Spacer(Modifier.width(Dimens.space2))
+        Spacer(Modifier.weight(1f))
+        Text(text = value, style = type.footnote, color = colors.ink)
     }
 }
 
@@ -680,10 +847,16 @@ private fun buildFrame(
     }
     val alarm = thresholds.l1MicroSvH.takeIf { it > 0f }
     val band = baseline?.let { it.doseLowMicroSvH..it.doseHighMicroSvH }
+    // The frame is fitted to what is actually drawn. With raw dots on screen
+    // that is the true extremes; without them the envelopes stop at Q10–Q90,
+    // and a single off-scale spike is carried by its marker and the cursor
+    // card instead of stretching the whole axis (CHART SPEC §7 — an extremum
+    // grows with N, so it must not define the frame).
+    val dotsVisible = DoseChartModel.rawDotsVisible(snapshot.bucketMillis)
     val scale = DoseScales.of(
         logarithmic = logScale,
-        dataMin = snapshot.buckets.minOfOrNull { it.min },
-        dataMax = snapshot.buckets.maxOfOrNull { it.max },
+        dataMin = snapshot.buckets.minOfOrNull { if (dotsVisible) it.min else it.q10 },
+        dataMax = snapshot.buckets.maxOfOrNull { if (dotsVisible) it.max else it.q90 },
         alarmLevel = alarm,
         baselineHigh = baseline?.doseHighMicroSvH,
     )
@@ -692,7 +865,13 @@ private fun buildFrame(
         eventTimesMillis = snapshot.eventTimesMillis.filter {
             it >= window.fromMillis && it <= window.toMillis
         },
-        thresholdMicroSvH = alarm ?: Float.MAX_VALUE,
+        alarmMicroSvH = alarm,
+        baselineP90MicroSvH = baseline?.doseHighMicroSvH,
+    )
+    val markers = DoseExtremes.markers(
+        buckets = visible,
+        alarmMicroSvH = alarm,
+        baselineP90MicroSvH = baseline?.doseHighMicroSvH,
     )
     val histogram = DoseHistograms.build(
         aggregates = snapshot.aggregates,
@@ -701,11 +880,7 @@ private fun buildFrame(
         baseline = band,
         alarmLevel = alarm,
     )
-    val rawDots = if (DoseChartModel.rawDotsVisible(snapshot.bucketMillis)) {
-        snapshot.aggregates
-    } else {
-        emptyList()
-    }
+    val rawDots = if (dotsVisible) snapshot.aggregates else emptyList()
     return ChartFrame(
         spec = DoseChartSpec(
             buckets = visible,
@@ -717,7 +892,18 @@ private fun buildFrame(
             alarmLevel = alarm,
             alarmLabel = alarm?.let { "L1 ${DoseFormat.rate(it, unit)}" },
             episodes = episodes,
-            episodeLabels = episodes.map { HistoryFormat.duration(it.durationMillis / 1000) },
+            // §20: a band must name the reference it is above, not only its
+            // duration — «выше порога L1» and «выше исторического P90
+            // профиля» are different events.
+            episodeLabels = episodes.map {
+                "${referenceWording(it.reference)} · " +
+                    HistoryFormat.duration(it.durationMillis / 1000)
+            },
+            episodeShortLabels = episodes.map {
+                "${referenceWordingShort(it.reference)} · " +
+                    HistoryFormat.duration(it.durationMillis / 1000)
+            },
+            extremeMarkers = markers,
             yLabels = scale.ticks().map { it to DoseFormat.rate(it, unit) },
             xLabels = TimeAxis.autoLabels(window.fromMillis, window.toMillis, count = 4),
             unitLabel = DoseFormat.rateUnitLabel(unit),

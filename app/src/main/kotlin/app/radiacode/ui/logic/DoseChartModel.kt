@@ -1,6 +1,7 @@
 package app.radiacode.ui.logic
 
 import java.util.Arrays
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sqrt
 
@@ -11,7 +12,7 @@ import kotlin.math.sqrt
  * which is what keeps a 30-day window bounded (see [DoseChartModel]).
  *
  * [sumMicroSvH] and [sumSqMicroSvH] carry Σx and Σx² of the **raw** samples,
- * so the pooled mean and σ of any group of sub-buckets are exact, not an
+ * so the pooled mean and SD of any group of sub-buckets are exact, not an
  * average of averages.
  */
 data class DoseAggregate(
@@ -25,21 +26,36 @@ data class DoseAggregate(
     /** Mean dose rate of the sub-bucket, µSv/h. */
     val meanMicroSvH: Float
         get() = if (sampleCount > 0) (sumMicroSvH / sampleCount).toFloat() else 0f
+
+    /**
+     * True when the sub-bucket carries a single raw value: one sample, or
+     * several samples that were all equal (`MIN == MAX`). Then its mean **is**
+     * that raw value, and quantiles built from (value, weight) pairs are the
+     * exact quantiles of the raw samples — see [DoseChartModel.QuantileSource].
+     */
+    val singleValued: Boolean
+        get() = sampleCount <= 1 || minMicroSvH == maxMicroSvH
 }
 
 /**
- * One drawn column of the chart. The three layers the chart paints come from
- * here and each is a different statement about the data:
- *  - [median] — the **line**: robust level of the column (weighted median of
- *    its sub-bucket means; when a sub-bucket is one second long this is the
- *    median of the raw samples themselves);
- *  - [min]/[max] — the **light envelope**: the true extremes measured inside
- *    the column, taken from SQL MIN/MAX. Nothing is hidden by smoothing;
- *  - [mean] ± [sigma] — the **dense band**: pooled mean and population σ of
- *    the raw samples of the column, exact from Σx/Σx².
+ * One drawn column of the chart. Every number here has one exact meaning and
+ * the chart draws each of them differently (CHART SPEC §4, §6, §7):
+ *  - [median] (= Q50) — the **line**: robust level of the column;
+ *  - [q25]–[q75] — the **inner envelope**: the observed robust spread of the
+ *    measurements inside the column;
+ *  - [q10]–[q90] — the **outer envelope**, same nature, wider;
+ *  - [min]/[max] with [minAtMillis]/[maxAtMillis] — the **extrema**: kept as
+ *    numbers and as discrete markers (see `DoseExtremes`), never painted as a
+ *    continuous filled band, because an extremum grows with N and a min–max
+ *    fill would read as a confidence interval (§7).
  *
- * All three are CALCULATED values over MEASURED samples (SPEC §2); the chart
- * legend says so.
+ * The quantile envelopes are **observed spread**, not measurement uncertainty
+ * and not a confidence interval (§6). All of it is CALCULATED over MEASURED
+ * samples (SPEC §2); the chart legend says so.
+ *
+ * [quantilesExact] tells which of the two paths of ADR 004 produced the
+ * quantiles: exact order statistics of the raw samples, or the approximation
+ * over sub-bucket means. See [DoseChartModel.QuantileSource].
  */
 data class ChartBucket(
     val startMillis: Long,
@@ -47,36 +63,51 @@ data class ChartBucket(
     val min: Float,
     val max: Float,
     val median: Float,
-    val mean: Float,
-    val sigma: Float,
+    val q10: Float = median,
+    val q25: Float = median,
+    val q75: Float = median,
+    val q90: Float = median,
     /** Raw 1 Hz samples inside the column — the honest n. */
-    val sampleCount: Int,
+    val sampleCount: Int = 1,
+    /** Start of the sub-bucket that held [min]. */
+    val minAtMillis: Long = startMillis,
+    /** Start of the sub-bucket that held [max]. */
+    val maxAtMillis: Long = startMillis,
+    /**
+     * Width of the sub-bucket the extrema timestamps point into — the honest
+     * resolution of «когда». 1 s (one raw sample per sub-bucket) means the
+     * timestamps are exact to the second; wider means the extremum happened
+     * *somewhere inside* that interval and the UI must say so.
+     */
+    val extremeWindowMillis: Long = 1_000L,
+    val quantilesExact: Boolean = true,
 ) {
     val midMillis: Long get() = (startMillis + endMillis) / 2
+
+    /** Q75 − Q25 — the robust spread the extremum rule leans on. */
+    val iqr: Float get() = q75 - q25
 }
 
-/** Summary of the visible window (the two statgrid rows). */
+/** Summary of the visible window (the statgrid, CHART SPEC §13). */
 data class WindowStats(
     val min: Float,
     val p10: Float,
+    val q25: Float,
     val median: Float,
+    val q75: Float,
     val p90: Float,
     val max: Float,
-    /** Population σ of the raw samples, exact from Σx/Σx². */
-    val sigma: Float,
+    /** Median absolute deviation, µSv/h — robust spread, no 1.4826 factor. */
+    val mad: Float,
+    /** Population SD of the raw samples, exact from Σx/Σx², µSv/h. */
+    val sd: Float,
     /** Raw 1 Hz samples inside the window. */
     val sampleCount: Int,
     val spanMillis: Long,
-)
-
-/** A stretch of the window that sat above the alarm level. */
-data class DoseEpisode(
-    val fromMillis: Long,
-    val toMillis: Long,
-    /** Peak bucket max inside the episode, µSv/h. */
-    val peak: Float,
+    /** Which path produced the percentiles (ADR 004). */
+    val quantilesExact: Boolean = true,
 ) {
-    val durationMillis: Long get() = toMillis - fromMillis
+    val iqr: Float get() = q75 - q25
 }
 
 /**
@@ -102,21 +133,59 @@ data class DoseSnapshot(
 /**
  * Folding of SQL aggregates into the immutable chart snapshot.
  *
+ * **Quantiles and their honest error status (CHART SPEC §6, §28–§32, ADR
+ * 004).** Every drawn column carries Q10/Q25/Q50/Q75/Q90. They are computed
+ * from the (value, weight) pairs of its sub-buckets — the sub-bucket mean
+ * weighted by how many raw samples it covers — with the same nearest-rank
+ * definition the baseline engine uses. That gives two regimes:
+ *
+ *  - **Exact** ([QuantileSource.EXACT_RAW]): when every sub-bucket of the
+ *    column holds a single raw value (one sample, or several equal ones), the
+ *    pairs *are* the raw samples with their multiplicities, so the result is
+ *    the exact order statistic of the raw data (§29). This is the normal case
+ *    on short windows, where SQL is asked for 1-second sub-buckets.
+ *  - **Approximate** ([QuantileSource.SUB_BUCKET_MEANS]): on long windows a
+ *    sub-bucket averages many seconds, so the quantiles are those of the
+ *    *sub-bucket means*, not of the raw samples. Averaging shrinks the spread,
+ *    therefore Q10 is biased **up** and Q90 **down**; the median is the least
+ *    affected. This is an approximation with **no proven error bound** — it is
+ *    not the mergeable sketch §30 asks for, and it is deliberately marked as
+ *    approximate in the UI ([WindowStats.quantilesExact], the truth line of
+ *    the chart) until the P1 KLL hierarchy of ADR 004 lands. It is *not* the
+ *    forbidden «quantiles of quantiles» of §28: no per-sub-bucket quantile is
+ *    ever computed, let alone re-quantiled.
+ *
  * **Why it cannot get slow.** The number of drawn columns is fixed at
  * [MAX_BUCKETS] whatever the range, and the database is asked for at most
- * [MAX_BUCKETS] × [SUB_BUCKETS_PER_BUCKET] rows, so a 30-day window costs the
- * same as a 15-minute one: the SQL `GROUP BY timestamp / bucket` does the
- * reduction inside SQLite over the timestamp index, and folding here is a
- * single O(rows) pass with no sorting per column beyond its own sub-buckets.
- * Gestures never re-enter this code — they only re-project the snapshot.
+ * [MAX_BUCKETS] × [SUB_BUCKETS_PER_BUCKET] rows, so a 30-day window renders
+ * the same geometry as a 15-minute one: the SQL `GROUP BY timestamp / bucket`
+ * does the reduction inside SQLite over the timestamp index, and folding here
+ * is a single O(rows) pass with no sorting per column beyond its own
+ * sub-buckets. Gestures never re-enter this code — they only re-project the
+ * snapshot.
  */
 object DoseChartModel {
+
+    /** Which path produced a set of quantiles (ADR 004, §29/§32). */
+    enum class QuantileSource {
+        /** Order statistics of the raw samples themselves. */
+        EXACT_RAW,
+
+        /** Order statistics of sub-bucket means — approximate, spread shrunk. */
+        SUB_BUCKET_MEANS,
+    }
 
     /** Columns drawn, independent of the range (≈2 px per column on a phone). */
     const val MAX_BUCKETS = 200
 
-    /** Sub-buckets per drawn column: the resolution the median is built from. */
-    const val SUB_BUCKETS_PER_BUCKET = 12
+    /**
+     * Sub-buckets per drawn column — the resolution the quantiles and the
+     * extremum timestamps are built from. A median needs few points; Q10/Q90
+     * of a column need enough of them that the tails are not defined by two
+     * values, hence 30 rather than the 12 the median-only chart used. The
+     * query budget stays fixed at [MAX_BUCKETS] × this.
+     */
+    const val SUB_BUCKETS_PER_BUCKET = 30
 
     /**
      * Below this column width a column holds ~5 samples or fewer, so the
@@ -124,6 +193,9 @@ object DoseChartModel {
      * would be denser than pixels and would lie about resolution.
      */
     const val RAW_DOTS_MAX_BUCKET_MILLIS = 5_000L
+
+    /** Quantile probabilities carried by every column, ascending. */
+    private val QUANTILES = doubleArrayOf(0.10, 0.25, 0.50, 0.75, 0.90)
 
     /** Column width for a span, ≥1 s (the raw sample period). */
     fun bucketMillis(spanMillis: Long, bucketCount: Int = MAX_BUCKETS): Long =
@@ -153,12 +225,13 @@ object DoseChartModel {
         bucketMillis: Long,
     ): DoseSnapshot {
         val count = bucketCount(toMillis - alignedFromMillis, bucketMillis)
+        val subMillis = subBucketMillis(bucketMillis)
         return DoseSnapshot(
             fromMillis = alignedFromMillis,
             toMillis = toMillis,
             bucketMillis = bucketMillis,
-            subBucketMillis = subBucketMillis(bucketMillis),
-            buckets = fold(aggregates, alignedFromMillis, bucketMillis, count),
+            subBucketMillis = subMillis,
+            buckets = fold(aggregates, alignedFromMillis, bucketMillis, count, subMillis),
             aggregates = aggregates,
             eventTimesMillis = eventTimesMillis,
         )
@@ -178,6 +251,7 @@ object DoseChartModel {
         alignedFromMillis: Long,
         bucketMillis: Long,
         bucketCount: Int,
+        subBucketMillis: Long = 1_000L,
     ): List<ChartBucket> {
         if (bucketMillis <= 0L || bucketCount <= 0) return emptyList()
         val slots = arrayOfNulls<MutableList<DoseAggregate>>(bucketCount)
@@ -193,49 +267,66 @@ object DoseChartModel {
         for (index in 0 until bucketCount) {
             val list = slots[index] ?: continue
             val start = alignedFromMillis + index * bucketMillis
-            out += reduce(list, start, start + bucketMillis)
+            out += reduce(list, start, start + bucketMillis, subBucketMillis)
         }
         return out
     }
 
-    private fun reduce(parts: List<DoseAggregate>, start: Long, end: Long): ChartBucket {
+    private fun reduce(
+        parts: List<DoseAggregate>,
+        start: Long,
+        end: Long,
+        subBucketMillis: Long,
+    ): ChartBucket {
         var n = 0
-        var sum = 0.0
-        var sumSq = 0.0
         var min = Float.MAX_VALUE
         var max = -Float.MAX_VALUE
+        var minAt = start
+        var maxAt = start
+        var exact = true
         val values = FloatArray(parts.size)
         val weights = IntArray(parts.size)
         parts.forEachIndexed { i, p ->
             n += p.sampleCount
-            sum += p.sumMicroSvH
-            sumSq += p.sumSqMicroSvH
-            if (p.minMicroSvH < min) min = p.minMicroSvH
-            if (p.maxMicroSvH > max) max = p.maxMicroSvH
+            if (p.minMicroSvH < min) {
+                min = p.minMicroSvH
+                minAt = p.startMillis
+            }
+            if (p.maxMicroSvH > max) {
+                max = p.maxMicroSvH
+                maxAt = p.startMillis
+            }
+            if (!p.singleValued) exact = false
             values[i] = p.meanMicroSvH
             weights[i] = p.sampleCount
         }
-        val mean = if (n > 0) (sum / n).toFloat() else 0f
-        val variance = if (n > 0) (sumSq / n) - mean.toDouble() * mean else 0.0
+        val q = percentilesOfSorted(packSorted(values, weights), QUANTILES)
         return ChartBucket(
             startMillis = start,
             endMillis = end,
             min = min,
             max = max,
-            median = weightedPercentile(values, weights, 0.5),
-            mean = mean,
-            sigma = sqrt(max(0.0, variance)).toFloat(),
+            median = q[2],
+            q10 = q[0],
+            q25 = q[1],
+            q75 = q[3],
+            q90 = q[4],
             sampleCount = n,
+            minAtMillis = minAt,
+            maxAtMillis = maxAt,
+            extremeWindowMillis = subBucketMillis,
+            quantilesExact = exact,
         )
     }
 
     /**
-     * Statistics of the visible window. min/max/σ/n are exact over the raw
-     * samples (SQL extremes and Σx/Σx²); the percentiles are order statistics
-     * of the sub-bucket means weighted by sample count — at short windows a
-     * sub-bucket is one second, so they are then percentiles of the raw
-     * samples themselves. The UI labels these as calculated (SPEC §2, §4.1:
-     * quantiles preferred over mean for a background distribution).
+     * Statistics of the visible window (CHART SPEC §13). min/max/SD/n are
+     * exact over the raw samples (SQL extremes and Σx/Σx²); the percentiles
+     * and the MAD follow the two-regime rule documented on this object — exact
+     * order statistics of the raw samples on short windows, an approximation
+     * over sub-bucket means on long ones, flagged by
+     * [WindowStats.quantilesExact]. The UI labels all of it as calculated
+     * (SPEC §2).
      */
     fun windowStats(
         aggregates: List<DoseAggregate>,
@@ -248,6 +339,7 @@ object DoseChartModel {
         var min = Float.MAX_VALUE
         var max = -Float.MAX_VALUE
         var kept = 0
+        var exact = true
         for (a in aggregates) {
             if (a.sampleCount <= 0 || a.startMillis < fromMillis || a.startMillis > toMillis) continue
             kept++
@@ -256,6 +348,7 @@ object DoseChartModel {
             sumSq += a.sumSqMicroSvH
             if (a.minMicroSvH < min) min = a.minMicroSvH
             if (a.maxMicroSvH > max) max = a.maxMicroSvH
+            if (!a.singleValued) exact = false
         }
         if (kept == 0 || n == 0) return null
         val values = FloatArray(kept)
@@ -267,18 +360,22 @@ object DoseChartModel {
             weights[i] = a.sampleCount
             i++
         }
-        val sorted = packSorted(values, weights)
+        val q = percentilesOfSorted(packSorted(values, weights), QUANTILES)
         val mean = (sum / n).toFloat()
         val variance = (sumSq / n) - mean.toDouble() * mean
         return WindowStats(
             min = min,
-            p10 = percentileOfSorted(sorted, 0.10),
-            median = percentileOfSorted(sorted, 0.50),
-            p90 = percentileOfSorted(sorted, 0.90),
+            p10 = q[0],
+            q25 = q[1],
+            median = q[2],
+            q75 = q[3],
+            p90 = q[4],
             max = max,
-            sigma = sqrt(max(0.0, variance)).toFloat(),
+            mad = weightedMad(values, weights, q[2]),
+            sd = sqrt(max(0.0, variance)).toFloat(),
             sampleCount = n,
             spanMillis = toMillis - fromMillis,
+            quantilesExact = exact,
         )
     }
 
@@ -291,7 +388,26 @@ object DoseChartModel {
     fun weightedPercentile(values: FloatArray, weights: IntArray, q: Double): Float {
         require(values.size == weights.size) { "values and weights must align" }
         if (values.isEmpty()) return 0f
-        return percentileOfSorted(packSorted(values, weights), q)
+        return percentilesOfSorted(packSorted(values, weights), doubleArrayOf(q))[0]
+    }
+
+    /** Several ascending percentiles in one sort — the chart needs five. */
+    fun weightedPercentiles(values: FloatArray, weights: IntArray, qs: DoubleArray): FloatArray {
+        require(values.size == weights.size) { "values and weights must align" }
+        if (values.isEmpty()) return FloatArray(qs.size)
+        return percentilesOfSorted(packSorted(values, weights), qs)
+    }
+
+    /**
+     * MAD = median(|xᵢ − median|), weighted, **without** the 1.4826 factor:
+     * that factor converts MAD into an SD estimate only under normality, which
+     * the scientific instruction forbids assuming (same rule as the baseline
+     * engine).
+     */
+    fun weightedMad(values: FloatArray, weights: IntArray, median: Float): Float {
+        if (values.isEmpty()) return 0f
+        val deviations = FloatArray(values.size) { abs(values[it] - median) }
+        return percentilesOfSorted(packSorted(deviations, weights), doubleArrayOf(0.5))[0]
     }
 
     /**
@@ -311,74 +427,32 @@ object DoseChartModel {
         return packed
     }
 
-    private fun percentileOfSorted(sorted: LongArray, q: Double): Float {
-        if (sorted.isEmpty()) return 0f
+    /**
+     * Nearest-rank percentiles of a packed sorted array in a single pass.
+     * [qs] must be ascending; the result is aligned with it.
+     */
+    private fun percentilesOfSorted(sorted: LongArray, qs: DoubleArray): FloatArray {
+        val out = FloatArray(qs.size)
+        if (sorted.isEmpty()) return out
         var total = 0L
         for (p in sorted) total += (p and 0xFFFF_FFFFL)
-        if (total <= 0L) return 0f
-        val target = q * total
+        if (total <= 0L) return out
+        var qi = 0
         var cumulative = 0L
         for (p in sorted) {
             cumulative += (p and 0xFFFF_FFFFL)
-            if (cumulative >= target) return java.lang.Float.intBitsToFloat((p ushr 32).toInt())
-        }
-        return java.lang.Float.intBitsToFloat((sorted.last() ushr 32).toInt())
-    }
-}
-
-/**
- * Deviation episodes drawn as amber vertical bands.
- *
- * The **anchor is the journal**: every band starts from a recorded event of
- * the `events` table (a confirmed persistent deviation or a track hotspot).
- * Its extent is then CALCULATED by walking the visible columns outward while
- * they stay above the alarm level, because the journal stores one row per
- * episode and not its end. The label therefore states a computed duration
- * over measured columns, and a single event with no column above the level
- * still gets a one-column band rather than disappearing.
- */
-object DoseEpisodes {
-
-    fun around(
-        buckets: List<ChartBucket>,
-        eventTimesMillis: List<Long>,
-        thresholdMicroSvH: Float,
-    ): List<DoseEpisode> {
-        if (buckets.isEmpty() || eventTimesMillis.isEmpty()) return emptyList()
-        val above = BooleanArray(buckets.size) { buckets[it].max >= thresholdMicroSvH }
-        val result = ArrayList<DoseEpisode>()
-        for (time in eventTimesMillis.sorted()) {
-            val anchor = indexAt(buckets, time) ?: continue
-            if (result.any { time in it.fromMillis..it.toMillis }) continue
-            var lo = anchor
-            var hi = anchor
-            if (above[anchor]) {
-                while (lo > 0 && above[lo - 1]) lo--
-                while (hi < buckets.size - 1 && above[hi + 1]) hi++
+            val value = java.lang.Float.intBitsToFloat((p ushr 32).toInt())
+            while (qi < qs.size && cumulative >= qs[qi] * total) {
+                out[qi] = value
+                qi++
             }
-            var peak = 0f
-            for (i in lo..hi) peak = max(peak, buckets[i].max)
-            result += DoseEpisode(buckets[lo].startMillis, buckets[hi].endMillis, peak)
+            if (qi >= qs.size) break
         }
-        return result
-    }
-
-    /** Index of the column containing [timeMillis], or null when outside. */
-    fun indexAt(buckets: List<ChartBucket>, timeMillis: Long): Int? {
-        if (buckets.isEmpty()) return null
-        if (timeMillis < buckets.first().startMillis) return null
-        if (timeMillis > buckets.last().endMillis) return null
-        var lo = 0
-        var hi = buckets.size - 1
-        while (lo <= hi) {
-            val mid = (lo + hi) / 2
-            val b = buckets[mid]
-            when {
-                timeMillis < b.startMillis -> hi = mid - 1
-                timeMillis >= b.endMillis -> lo = mid + 1
-                else -> return mid
-            }
+        val last = java.lang.Float.intBitsToFloat((sorted.last() ushr 32).toInt())
+        while (qi < qs.size) {
+            out[qi] = last
+            qi++
         }
-        return null
+        return out
     }
 }

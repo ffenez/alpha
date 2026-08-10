@@ -49,7 +49,13 @@ object ChartInteractions {
     fun periodChanged(): ChartInteraction = jumpToNow()
 }
 
-/** Readout of one column under the crosshair. */
+/**
+ * What a ratio is divided by. CHART SPEC §17: a ratio without its denominator
+ * named is not a statement — «×4,8 к привычному» is forbidden wording.
+ */
+enum class RatioDenominator { BASELINE_P90, BASELINE_MEDIAN }
+
+/** Readout of one column under the crosshair (CHART SPEC §16). */
 object CursorReadout {
 
     /**
@@ -75,20 +81,62 @@ object CursorReadout {
     }
 
     /**
-     * «×4,8 к привычному» — how far the reading sits above the usual band of
-     * this place. Null when there is no active baseline (nothing to compare
-     * with) or the reading is inside/below the band: the phrase only makes
-     * sense as an excess. The comparison is against P90, the upper edge of the
-     * usual band, so «×1,0» means «на верхней границе привычного».
+     * How far a reading sits above a **named** statistic of the profile.
+     * Null when that statistic is missing (nothing to compare with) or the
+     * reading is not above it: the phrase only makes sense as an excess, so
+     * «×1,0» means «ровно на этом уровне».
      */
-    fun ratioToUsual(valueMicroSvH: Float, baselineHighMicroSvH: Float?): Float? {
-        if (baselineHighMicroSvH == null || baselineHighMicroSvH <= 0f) return null
-        val ratio = valueMicroSvH / baselineHighMicroSvH
+    fun ratioTo(valueMicroSvH: Float, denominatorMicroSvH: Float?): Float? {
+        if (denominatorMicroSvH == null || denominatorMicroSvH <= 0f) return null
+        val ratio = valueMicroSvH / denominatorMicroSvH
         return if (ratio >= MIN_NOTABLE_RATIO) ratio else null
     }
 
-    fun ratioLabel(ratio: Float): String =
-        "×${String.format(Locale.US, "%.1f", ratio).replace('.', ',')} к привычному"
+    /**
+     * «×4,8 к P90 профиля» / «×4,8 к медиане профиля» — the denominator is
+     * always part of the sentence (§17, §39).
+     */
+    fun ratioLabel(ratio: Float, denominator: RatioDenominator): String {
+        val number = String.format(Locale.US, "%.1f", ratio).replace('.', ',')
+        return "×$number к ${denominatorWording(denominator)}"
+    }
+
+    fun denominatorWording(denominator: RatioDenominator): String = when (denominator) {
+        RatioDenominator.BASELINE_P90 -> "P90 профиля"
+        RatioDenominator.BASELINE_MEDIAN -> "медиане профиля"
+    }
+
+    /**
+     * The «Почему?» half-sentence shown wherever the ratio appears. P90 is a
+     * description of this profile's history, never a permitted level (§8).
+     */
+    fun ratioExplanation(denominator: RatioDenominator): String = when (denominator) {
+        RatioDenominator.BASELINE_P90 ->
+            "P90 профиля — уровень, ниже которого оставались 90 % исторических " +
+                "измерений этого места; это описание истории, а не норматив"
+        RatioDenominator.BASELINE_MEDIAN ->
+            "медиана профиля — половина исторических измерений этого места была ниже"
+    }
+
+    /** «14:02:00–14:03:00» — the interval the column actually covers. */
+    fun binRangeLabel(bucket: ChartBucket, format: (Long) -> String): String =
+        "${format(bucket.startMillis)}–${format(bucket.endMillis)}"
+
+    /**
+     * «в 14:02:07» when the extremum timestamp is exact (1-second
+     * sub-buckets), «в 14:02:00–14:07:00» when the aggregation only knows the
+     * interval it happened in. The chart never claims a precision the
+     * aggregation does not have.
+     */
+    fun extremeTimeLabel(
+        atMillis: Long,
+        windowMillis: Long,
+        format: (Long) -> String,
+    ): String = if (windowMillis <= 1_000L) {
+        "в ${format(atMillis)}"
+    } else {
+        "в ${format(atMillis)}–${format(atMillis + windowMillis)}"
+    }
 
     private const val MIN_NOTABLE_RATIO = 1.0f
 }

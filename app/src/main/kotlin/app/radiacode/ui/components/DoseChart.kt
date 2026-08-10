@@ -34,7 +34,9 @@ import app.radiacode.ui.logic.ChartPixels
 import app.radiacode.ui.logic.ChartProjection
 import app.radiacode.ui.logic.DoseAggregate
 import app.radiacode.ui.logic.DoseEpisode
+import app.radiacode.ui.logic.DoseReference
 import app.radiacode.ui.logic.DoseScale
+import app.radiacode.ui.logic.ExtremeMarker
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 
@@ -57,8 +59,19 @@ data class DoseChartSpec(
     val alarmLevel: Float? = null,
     val alarmLabel: String? = null,
     val episodes: List<DoseEpisode> = emptyList(),
-    /** Episode index → duration label drawn inside its band. */
+    /**
+     * Episode index → label naming the reference and the duration («выше
+     * порога L1 · 3 мин»). CHART SPEC §20: a band that does not say what it
+     * is above is not a statement.
+     */
     val episodeLabels: List<String> = emptyList(),
+    /** Same, shortened for bands too narrow for the full wording. */
+    val episodeShortLabels: List<String> = emptyList(),
+    /**
+     * Bins whose extremum is notable (`DoseExtremes`), drawn as discrete
+     * markers above the plot — never as a filled min–max envelope (§7, §21).
+     */
+    val extremeMarkers: List<ExtremeMarker> = emptyList(),
     /** Value → label of the y gridlines. */
     val yLabels: List<Pair<Float, String>> = emptyList(),
     /** Fraction (0..1) → label of the time axis. */
@@ -76,14 +89,18 @@ data class DoseChartSpec(
 /**
  * Fullscreen dose-rate chart («Научный терминал», design-language.md).
  *
- * **Anatomy, outside in.** A light teal fill is the min–max envelope of each
- * column — the full spread of what was actually measured, nothing hidden. A
- * denser teal fill inside it is mean ± σ — the typical spread of the counting
- * statistics. The solid teal line is the per-column median: a robust level,
- * never presented as the measurement itself. A grey band with a dashed centre
- * is the usual background of the place (baseline P10–P90). A dashed red line
- * is the named alarm level. Amber vertical bands are deviation episodes with
- * their duration.
+ * **Anatomy, outside in** (CHART SPEC §6, §7, §40). A light teal fill is the
+ * Q10–Q90 envelope of each column, a denser teal fill inside it Q25–Q75: both
+ * are the **observed spread of the measurements** in that column — a robust
+ * description of what the instrument saw, not a measurement uncertainty and
+ * not a confidence interval. The solid teal line is the per-column median
+ * (Q50). Extrema are **not** filled: a bin's min/max are kept as numbers and
+ * the notable ones get a discrete marker above the plot, so a spike shorter
+ * than a bin stays discoverable at 7 d without pretending to be an interval.
+ * A grey band with a dashed centre is the historical P10–P90 of the profile.
+ * A dashed red line is the named alarm level. Vertical bands are episodes,
+ * red above the alarm level and amber above the profile's P90 — different
+ * classes, drawn and labelled differently.
  *
  * **Why it does not lag.**
  *  - Three separate draw nodes: static (grid, axes, baseline, alarm,
@@ -239,8 +256,6 @@ private fun StaticChartLayer(
                 val gridColor = colors.ink2.copy(alpha = 0.13f)
                 val bandColor = colors.ink2.copy(alpha = 0.13f)
                 val bandLineColor = colors.ink2.copy(alpha = 0.42f)
-                val episodeFill = colors.warn.copy(alpha = 0.13f)
-                val episodeEdge = colors.warn.copy(alpha = 0.5f)
                 val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 4.dp.toPx()))
                 val alarmDash = PathEffect.dashPathEffect(floatArrayOf(7.dp.toPx(), 5.dp.toPx()))
                 val alarmStroke = 1.dp.toPx()
@@ -268,10 +283,22 @@ private fun StaticChartLayer(
                 val episodeRects = spec.episodes.mapIndexed { index, episode ->
                     val a = widthPx * (episode.fromMillis - spec.fromMillis).toFloat() / span
                     val b = widthPx * (episode.toMillis - spec.fromMillis).toFloat() / span
+                    // An episode above the alarm level and an episode above
+                    // the profile's historical P90 are different classes of
+                    // event (§20) — different colour AND different edge, so
+                    // colour is never the only carrier of the difference.
+                    val alarmClass = episode.reference == DoseReference.ALARM_L1
+                    val hue = if (alarmClass) colors.crit else colors.warn
                     EpisodeRect(
                         left = a.coerceIn(0f, widthPx),
                         right = b.coerceIn(0f, widthPx),
+                        fill = hue.copy(alpha = 0.13f),
+                        edge = hue.copy(alpha = 0.5f),
+                        text = hue,
+                        dashedEdge = !alarmClass,
                         label = spec.episodeLabels.getOrNull(index)
+                            ?.let { textMeasurer.measure(it, axisStyle) },
+                        shortLabel = spec.episodeShortLabels.getOrNull(index)
                             ?.let { textMeasurer.measure(it, axisStyle) },
                     )
                 }
@@ -295,29 +322,34 @@ private fun StaticChartLayer(
                         )
                     }
 
-                    // 2. Deviation episodes: amber tint with the duration.
+                    // 2. Episodes: tinted band naming what it is above.
                     for (rect in episodeRects) {
                         if (rect.right <= rect.left) continue
                         drawRect(
-                            color = episodeFill,
+                            color = rect.fill,
                             topLeft = Offset(rect.left, plotTop),
                             size = Size(rect.right - rect.left, plotHeight),
                         )
+                        val edgeDash = if (rect.dashedEdge) dash else null
                         drawLine(
-                            episodeEdge,
-                            Offset(rect.left, plotTop),
-                            Offset(rect.left, plotTop + plotHeight),
+                            color = rect.edge,
+                            start = Offset(rect.left, plotTop),
+                            end = Offset(rect.left, plotTop + plotHeight),
+                            pathEffect = edgeDash,
                         )
                         drawLine(
-                            episodeEdge,
-                            Offset(rect.right, plotTop),
-                            Offset(rect.right, plotTop + plotHeight),
+                            color = rect.edge,
+                            start = Offset(rect.right, plotTop),
+                            end = Offset(rect.right, plotTop + plotHeight),
+                            pathEffect = edgeDash,
                         )
-                        val text = rect.label
-                        if (text != null && rect.right - rect.left > text.size.width) {
+                        val width = rect.right - rect.left
+                        val text = rect.label?.takeIf { width > it.size.width }
+                            ?: rect.shortLabel?.takeIf { width > it.size.width }
+                        if (text != null) {
                             drawText(
                                 textLayoutResult = text,
-                                color = colors.warn,
+                                color = rect.text,
                                 topLeft = Offset(
                                     (rect.left + rect.right) / 2f - text.size.width / 2f,
                                     plotTop + 2f,
@@ -382,10 +414,18 @@ private fun StaticChartLayer(
 private class EpisodeRect(
     val left: Float,
     val right: Float,
+    val fill: Color,
+    val edge: Color,
+    val text: Color,
+    val dashedEdge: Boolean,
     val label: androidx.compose.ui.text.TextLayoutResult?,
+    val shortLabel: androidx.compose.ui.text.TextLayoutResult?,
 )
 
-/** Envelope, σ band, median line, raw dots and the live endpoint. */
+/**
+ * Quantile envelopes, median line, raw dots, extremum markers and the live
+ * endpoint.
+ */
 @Composable
 private fun SeriesLayer(
     spec: DoseChartSpec,
@@ -399,8 +439,8 @@ private fun SeriesLayer(
         Modifier
             .fillMaxSize()
             .drawWithCache {
-                val envelope = bandPath(pixels, pixels.maxY, pixels.minY)
-                val sigma = bandPath(pixels, pixels.sigmaHiY, pixels.sigmaLoY)
+                val outer = bandPath(pixels, pixels.q90Y, pixels.q10Y)
+                val inner = bandPath(pixels, pixels.q75Y, pixels.q25Y)
                 val median = linePath(pixels)
                 val dots = rawDotOffsets(spec, widthPx, plotTop, plotHeight)
                 var endpoint: Offset? = null
@@ -410,18 +450,20 @@ private fun SeriesLayer(
                         break
                     }
                 }
-                val envelopeColor = colors.data.copy(alpha = 0.14f)
-                val sigmaColor = colors.data.copy(alpha = 0.28f)
+                val outerColor = colors.data.copy(alpha = 0.14f)
+                val innerColor = colors.data.copy(alpha = 0.28f)
                 val dotColor = colors.muted.copy(alpha = 0.55f)
                 val endpointColor = if (spec.endpointAlert) colors.crit else colors.data
                 val lineStroke = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round)
                 val dotWidth = 3.dp.toPx()
                 val endpointRadius = 4.dp.toPx()
                 val ringStroke = Stroke(width = 2.dp.toPx())
+                val markers = extremeMarks(spec, pixels, plotTop, 6.dp.toPx())
+                val markerStroke = Stroke(width = 1.2.dp.toPx())
 
                 onDrawBehind {
-                    drawPath(envelope, envelopeColor)
-                    drawPath(sigma, sigmaColor)
+                    drawPath(outer, outerColor)
+                    drawPath(inner, innerColor)
                     if (dots.isNotEmpty()) {
                         drawPoints(
                             points = dots,
@@ -432,6 +474,14 @@ private fun SeriesLayer(
                         )
                     }
                     drawPath(median, colors.data, style = lineStroke)
+                    // Extrema as discrete marks above the plot, filled above
+                    // the alarm level and hollow above the profile's P90 —
+                    // shape carries the class, not colour alone.
+                    for (mark in markers) {
+                        val hue = if (mark.alarmClass) colors.crit else colors.warn
+                        if (mark.alarmClass) drawPath(mark.path, hue)
+                        else drawPath(mark.path, hue, style = markerStroke)
+                    }
                     endpoint?.let {
                         drawCircle(endpointColor, endpointRadius, it)
                         drawCircle(colors.bg, endpointRadius, it, style = ringStroke)
@@ -521,6 +571,38 @@ private fun linePath(pixels: ChartPixels): Path {
         penDown = true
     }
     return path
+}
+
+/** One extremum mark: a triangle above the plot at its column. */
+private class ExtremeMark(val path: Path, val alarmClass: Boolean)
+
+/**
+ * Triangles for the notable extrema (§7, §21). They sit in the top padding
+ * strip, above the data, so they never overlap an envelope and cannot be read
+ * as part of it.
+ */
+private fun extremeMarks(
+    spec: DoseChartSpec,
+    pixels: ChartPixels,
+    plotTop: Float,
+    sizePx: Float,
+): List<ExtremeMark> {
+    if (spec.extremeMarkers.isEmpty()) return emptyList()
+    val out = ArrayList<ExtremeMark>(spec.extremeMarkers.size)
+    for (marker in spec.extremeMarkers) {
+        val k = pixels.indexOfBucket(marker.bucketIndex) ?: continue
+        val x = pixels.x[k]
+        val bottom = plotTop - 1f
+        val top = (bottom - sizePx).coerceAtLeast(0f)
+        val path = Path().apply {
+            moveTo(x, top)
+            lineTo(x + sizePx / 2f, bottom)
+            lineTo(x - sizePx / 2f, bottom)
+            close()
+        }
+        out += ExtremeMark(path, marker.reference == DoseReference.ALARM_L1)
+    }
+    return out
 }
 
 /** Individual measurements as one batched point list (single draw call). */

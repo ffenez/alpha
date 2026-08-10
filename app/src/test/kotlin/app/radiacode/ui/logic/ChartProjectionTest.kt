@@ -12,15 +12,17 @@ class ChartProjectionTest {
         median: Float,
         min: Float = median,
         max: Float = median,
-        sigma: Float = 0f,
+        spread: Float = 0f,
     ) = ChartBucket(
         startMillis = start,
         endMillis = start + 1_000,
         min = min,
         max = max,
         median = median,
-        mean = median,
-        sigma = sigma,
+        q10 = median - spread,
+        q25 = median - spread / 2f,
+        q75 = median + spread / 2f,
+        q90 = median + spread,
         sampleCount = 1,
     )
 
@@ -46,15 +48,27 @@ class ChartProjectionTest {
     }
 
     @Test
-    fun `the envelope and the sigma band come out of the same column`() {
-        val buckets = listOf(bucket(0, 0.5f, min = 0.2f, max = 0.8f, sigma = 0.1f))
+    fun `the two quantile envelopes nest around the median line`() {
+        val buckets = listOf(bucket(0, 0.5f, min = 0.2f, max = 0.8f, spread = 0.1f))
         val p = ChartProjection.project(buckets, 0L, 1_000L, scale, 0f, 100f, 0f, 100f)
-        // Screen y grows downwards: max is above min, +sigma above -sigma.
-        assertTrue(p.maxY[0] < p.minY[0])
-        assertTrue(p.sigmaHiY[0] < p.sigmaLoY[0])
-        // The sigma band is inside the envelope.
-        assertTrue(p.sigmaHiY[0] > p.maxY[0])
-        assertTrue(p.sigmaLoY[0] < p.minY[0])
+        // Screen y grows downwards: Q90 sits above Q10, Q75 above Q25.
+        assertTrue(p.q90Y[0] < p.q10Y[0])
+        assertTrue(p.q75Y[0] < p.q25Y[0])
+        // Q25–Q75 is inside Q10–Q90, and the median inside both.
+        assertTrue(p.q75Y[0] > p.q90Y[0])
+        assertTrue(p.q25Y[0] < p.q10Y[0])
+        assertTrue(p.medianY[0] in p.q75Y[0]..p.q25Y[0])
+    }
+
+    @Test
+    fun `a column keeps its index so extremum markers land on it`() {
+        val buckets = listOf(bucket(0, 0.5f), bucket(5_000, 0.5f), bucket(10_000, 0.5f))
+        val p = ChartProjection.project(buckets, 4_000L, 11_000L, scale, 0f, 100f, 0f, 100f)
+        assertEquals(2, p.count)
+        assertEquals(0, p.indexOfBucket(1))
+        assertEquals(1, p.indexOfBucket(2))
+        assertEquals(null, p.indexOfBucket(0))
+        assertEquals(null, ChartPixels.EMPTY.indexOfBucket(0))
     }
 
     @Test
