@@ -1,5 +1,7 @@
 package app.radiacode.ui.screens
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +35,7 @@ import app.radiacode.baseline.alarmThresholds
 import app.radiacode.data.AppSettings
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.device.ConnectionState
+import app.radiacode.service.Notifications
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTextField
@@ -149,7 +152,51 @@ private fun AlarmsSection(graph: AppGraph) {
             if (sensitivity == AlarmSensitivity.CUSTOM) {
                 CustomLevels(graph, unit, customL1, customL2)
             }
+
+            AppDivider()
+            AlarmSoundRow()
         }
+    }
+}
+
+/** Deep link into the system settings of the «Тревога» notification channel. */
+@Composable
+private fun AlarmSoundRow() {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val context = LocalContext.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTarget)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {
+                    // The link needs the channel even if the service never ran.
+                    Notifications.ensureChannels(context)
+                    runCatching {
+                        context.startActivity(
+                            Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                .putExtra(Settings.EXTRA_CHANNEL_ID, Notifications.ALARM_CHANNEL_ID),
+                        )
+                    }
+                },
+            ),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(text = "Звук и вибрация тревоги", style = type.label, color = colors.ink)
+            Text(
+                text = "мелодия и вибрация настраиваются в системных настройках " +
+                    "уведомления «Тревога»",
+                style = type.bodySmall,
+                color = colors.muted,
+            )
+        }
+        Text(text = "›", style = type.title, color = colors.ink2)
     }
 }
 

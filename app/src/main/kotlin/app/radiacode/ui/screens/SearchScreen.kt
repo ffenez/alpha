@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,9 +22,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import app.radiacode.AppGraph
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.BarChart
@@ -33,8 +38,12 @@ import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.LedMeter
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
+import app.radiacode.ui.feedback.Feedback
+import app.radiacode.ui.feedback.GeigerClicker
 import app.radiacode.ui.logic.BackgroundRef
+import app.radiacode.ui.logic.ClickRate
 import app.radiacode.ui.logic.Uncertainty
+import app.radiacode.ui.logic.VibrationPolicy
 import app.radiacode.ui.logic.backgroundBand
 import app.radiacode.ui.logic.deltaPercent
 import app.radiacode.ui.logic.ledLevel
@@ -44,10 +53,14 @@ import app.radiacode.ui.theme.LocalAppTypography
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val WINDOW_SECONDS = 60
 private val HH_MM = DateTimeFormatter.ofPattern("HH:mm")
+
+/** Click feedback goes silent when the 1 Hz stream stops delivering. */
+private const val FEEDBACK_STALE_MILLIS = 5_000L
 
 /**
  * Поиск: full-screen CPS mode (SPEC: answers only "where is the signal
@@ -61,9 +74,12 @@ fun SearchScreen(graph: AppGraph) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
     val storedBackground by graph.settings.searchBackgroundCps.collectAsState(initial = null)
+    val soundEnabled by graph.settings.searchSoundEnabled.collectAsState(initial = false)
+    val vibrationEnabled by graph.settings.searchVibrationEnabled.collectAsState(initial = false)
 
     // Last 60 s of CPS, fed by the 1 Hz sample flow; survives tab switches
     // only while composed — Search is a live mode, not a log.
@@ -73,12 +89,53 @@ fun SearchScreen(graph: AppGraph) {
     // Wall-clock of the last completed background measurement in this
     // session; the stored reference itself carries no timestamp.
     var backgroundRecordedAt by remember { mutableStateOf<Long?>(null) }
+    // Wall-clock of the last received sample (device timestamps may drift).
+    var lastSampleReceivedAt by remember { mutableLongStateOf(0L) }
+
+    // --- Geiger-style feedback: foreground-only, this screen only ---
+    val clicker = remember { GeigerClicker(context) }
+    // Recreated on background change: σ-steps are relative to the reference.
+    val vibrationPolicy = remember(storedBackground) { VibrationPolicy() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var resumed by remember {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> resumed = true
+                Lifecycle.Event.ON_PAUSE -> resumed = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val clickerActive = soundEnabled && resumed
+    DisposableEffect(clickerActive) {
+        if (clickerActive) clicker.start()
+        onDispose { clicker.stop() }
+    }
+    // Honest silence: no fresh samples — no clicks, whatever the last CPS was.
+    LaunchedEffect(clickerActive) {
+        while (clickerActive) {
+            delay(1_000)
+            if (System.currentTimeMillis() - lastSampleReceivedAt > FEEDBACK_STALE_MILLIS) {
+                clicker.setRate(0f)
+            }
+        }
+    }
 
     LaunchedEffect(sample) {
         val s = sample ?: return@LaunchedEffect
         if (s.timestamp == lastSeenTimestamp) return@LaunchedEffect
         lastSeenTimestamp = s.timestamp
+        lastSampleReceivedAt = System.currentTimeMillis()
         window.value = (window.value + s.countRate).takeLast(WINDOW_SECONDS)
+        clicker.setRate(ClickRate.clicksPerSecond(s.countRate))
+        if (vibrationEnabled && vibrationPolicy.onSample(s.countRate, storedBackground)) {
+            Feedback.pulse(context)
+        }
         measuring?.let { active ->
             when (val next = active.onSample(s.countRate)) {
                 is BackgroundRef.Ready -> {
@@ -103,10 +160,29 @@ fun SearchScreen(graph: AppGraph) {
             .padding(Dimens.space3),
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
             Chip(text = "Поиск источника", color = colors.ink)
             Spacer(Modifier.weight(1f))
-            Chip(text = "звук · вибро · скоро", color = colors.muted)
+            // Feature toggles: state is dot + color together, never color alone.
+            Chip(
+                text = "звук",
+                color = if (soundEnabled) colors.dataText else colors.muted,
+                dot = if (soundEnabled) colors.data else null,
+                onClick = {
+                    scope.launch { graph.settings.setSearchSoundEnabled(!soundEnabled) }
+                },
+            )
+            Chip(
+                text = "вибро",
+                color = if (vibrationEnabled) colors.dataText else colors.muted,
+                dot = if (vibrationEnabled) colors.data else null,
+                onClick = {
+                    scope.launch { graph.settings.setSearchVibrationEnabled(!vibrationEnabled) }
+                },
+            )
         }
 
         Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space4) {
@@ -175,7 +251,11 @@ fun SearchScreen(graph: AppGraph) {
                 )
                 if (background == null) {
                     Text(
-                        text = "индикатор заработает после замера фона",
+                        text = if (vibrationEnabled) {
+                            "индикатор и вибро-пульсы заработают после замера фона"
+                        } else {
+                            "индикатор заработает после замера фона"
+                        },
                         style = type.footnote,
                         color = colors.muted,
                     )

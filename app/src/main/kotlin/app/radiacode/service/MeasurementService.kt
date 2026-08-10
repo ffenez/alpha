@@ -1,7 +1,6 @@
 package app.radiacode.service
 
 import android.Manifest
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
@@ -14,6 +13,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import app.radiacode.AppGraph
@@ -28,9 +28,11 @@ import app.radiacode.baseline.PersistenceTracker
 import app.radiacode.baseline.aboveUsualMagnitude
 import app.radiacode.baseline.alarmThresholds
 import app.radiacode.baseline.deviationMagnitude
+import app.radiacode.data.DoseUnitSetting
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
 import app.radiacode.device.RadiaCodeDevice
+import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.protocol.RealTimeData
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -97,6 +99,10 @@ class MeasurementService : Service() {
     @Volatile
     private var thresholds: AlarmThresholds = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f)
 
+    /** Display unit for the alarm notification text; raw values stay µSv/h. */
+    @Volatile
+    private var doseUnit: DoseUnitSetting = DoseUnitSetting.MICRO_SIEVERT
+
     private val sessionGate = SessionGate()
 
     @Volatile
@@ -111,7 +117,7 @@ class MeasurementService : Service() {
         super.onCreate()
         graph = AppGraph.get(this)
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        createNotificationChannel()
+        Notifications.ensureChannels(this)
         graph.serviceStatus.onServiceStarted()
         rebuildTrackers()
 
@@ -127,6 +133,9 @@ class MeasurementService : Service() {
                 if (persistenceChanged) rebuildTrackers()
                 hotspotDetector?.thresholdMicroSvH = next.l1MicroSvH
             }
+        }
+        scope.launch {
+            graph.settings.doseUnit.collect { doseUnit = it }
         }
         scope.launch {
             graph.placeRepository.activePlace().collect { place ->
@@ -246,6 +255,12 @@ class MeasurementService : Service() {
         }
         graph.serviceStatus.onDeviation(snapshot)
         if (alertFired) {
+            // Once per deviation episode: PersistenceTracker fires the rising
+            // edge exactly once and re-arms only after the excursion ends.
+            postAlarmNotification(
+                doseMicroSvH = microSvH,
+                typicalHighMicroSvH = baseline?.doseHighMicroSvH,
+            )
             scope.launch {
                 graph.measurementRepository.recordDeviation(
                     timestamp = now,
@@ -254,6 +269,40 @@ class MeasurementService : Service() {
                 )
             }
         }
+    }
+
+    /**
+     * System alarm for a confirmed deviation (threshold or baseline-relative —
+     * both confirm through the same tracker). Dedicated high-importance
+     * channel «Тревога»: default system alarm sound + vibration, tunable by
+     * the user in the channel's system settings.
+     */
+    private fun postAlarmNotification(doseMicroSvH: Float, typicalHighMicroSvH: Float?) {
+        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return
+        val text = buildString {
+            append("Сейчас ")
+            append(DoseFormat.rateWithUnit(doseMicroSvH, doseUnit))
+            if (typicalHighMicroSvH != null && typicalHighMicroSvH > 0f) {
+                append(" · обычно здесь до ")
+                append(DoseFormat.rateWithUnit(typicalHighMicroSvH, doseUnit))
+            }
+        }
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(this, Notifications.ALARM_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_measurement)
+            .setContentTitle("Уровень радиации изменился")
+            .setContentText(text)
+            .setContentIntent(contentIntent)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .build()
+        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .notify(ALARM_NOTIFICATION_ID, notification)
     }
 
     // --- sessions ---
@@ -501,18 +550,6 @@ class MeasurementService : Service() {
 
     // --- notification ---
 
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Measurement",
-            NotificationManager.IMPORTANCE_LOW,
-        ).apply {
-            setShowBadge(false)
-        }
-        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-            .createNotificationChannel(channel)
-    }
-
     private fun startForegroundWithCurrentTypes() {
         var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
         if (trackSessionId != null && hasLocationPermission()) {
@@ -574,8 +611,9 @@ class MeasurementService : Service() {
         const val ACTION_STOP_TRACK = "app.radiacode.action.STOP_TRACK"
         const val EXTRA_DEVICE_ADDRESS = "device_address"
 
-        const val CHANNEL_ID = "measurement"
+        const val CHANNEL_ID = Notifications.MEASUREMENT_CHANNEL_ID
         private const val NOTIFICATION_ID = 1
+        private const val ALARM_NOTIFICATION_ID = 2
         private const val LOCATION_INTERVAL_MILLIS = 1_000L
 
         private val TRACK_NAME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")

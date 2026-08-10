@@ -3,6 +3,7 @@ package app.radiacode.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -36,6 +37,21 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
 
     suspend fun setSearchBackgroundCps(cps: Float) {
         dataStore.edit { it[SEARCH_BACKGROUND_CPS] = cps }
+    }
+
+    /** Search mode: Geiger-style click feedback. Off by default — sound is opt-in. */
+    val searchSoundEnabled: Flow<Boolean> = dataStore.data.map { it[SEARCH_SOUND] ?: false }
+
+    suspend fun setSearchSoundEnabled(enabled: Boolean) {
+        dataStore.edit { it[SEARCH_SOUND] = enabled }
+    }
+
+    /** Search mode: σ-step vibration pulses. Off by default. */
+    val searchVibrationEnabled: Flow<Boolean> =
+        dataStore.data.map { it[SEARCH_VIBRATION] ?: false }
+
+    suspend fun setSearchVibrationEnabled(enabled: Boolean) {
+        dataStore.edit { it[SEARCH_VIBRATION] = enabled }
     }
 
     /** Manually selected active place; null until the default place is created. */
@@ -88,6 +104,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
         const val DEFAULT_CUSTOM_L2_MICRO_SV_H = 1.00f
         private val LAST_DEVICE_ADDRESS = stringPreferencesKey("last_device_address")
         private val SEARCH_BACKGROUND_CPS = floatPreferencesKey("search_background_cps")
+        private val SEARCH_SOUND = booleanPreferencesKey("search_sound")
+        private val SEARCH_VIBRATION = booleanPreferencesKey("search_vibration")
         private val ACTIVE_PLACE_ID = longPreferencesKey("active_place_id")
         private val ALARM_SENSITIVITY = stringPreferencesKey("alarm_sensitivity")
         private val CUSTOM_ALARM_L1 = floatPreferencesKey("custom_alarm_l1_usvh")
