@@ -15,6 +15,13 @@ data class DownsampledSample(
     val sampleCount: Int,
 )
 
+/** Spectrum snapshot metadata without the counts blob (radon hourly thinning). */
+data class SpectrumMetaRow(
+    val id: Long,
+    val timestamp: Long,
+    val durationSeconds: Long,
+)
+
 /** Aggregate over one session's time range (see [SampleDao.rangeStats]). */
 data class RangeStats(
     val sampleCount: Int,
@@ -297,4 +304,18 @@ interface SpectrumDao {
 
     @Query("SELECT * FROM spectra WHERE id = :id")
     suspend fun byId(id: Long): SpectrumSnapshotEntity?
+
+    /**
+     * Device since-reset snapshot metadata in a range, blobs not loaded —
+     * the radon screen thins these to one row per hour before fetching
+     * full spectra by id.
+     */
+    @Query(
+        """
+        SELECT id, timestamp, durationSeconds FROM spectra
+        WHERE origin != 'import' AND accumulated = 0 AND timestamp BETWEEN :from AND :to
+        ORDER BY timestamp
+        """,
+    )
+    suspend fun deviceSnapshotMeta(from: Long, to: Long): List<SpectrumMetaRow>
 }

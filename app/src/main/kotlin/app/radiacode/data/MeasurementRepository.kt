@@ -8,6 +8,7 @@ import app.radiacode.data.db.RareDataEntity
 import app.radiacode.data.db.SampleDao
 import app.radiacode.data.db.SampleEntity
 import app.radiacode.data.db.SpectrumDao
+import app.radiacode.data.db.SpectrumMetaRow
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.protocol.DataBufRecord
 import app.radiacode.protocol.Event
@@ -170,4 +171,8 @@ class MeasurementRepository(
         spectrumDao.observeSaved(limit)
 
     suspend fun spectrumById(id: Long): SpectrumSnapshotEntity? = spectrumDao.byId(id)
+
+    /** Device snapshot metadata (no blobs) for the radon hourly thinning. */
+    suspend fun deviceSnapshotMeta(from: Long, to: Long): List<SpectrumMetaRow> =
+        spectrumDao.deviceSnapshotMeta(from, to)
 }

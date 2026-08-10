@@ -208,6 +208,11 @@ fun SpectrumScreen(
                 color = colors.dataText,
                 onClick = onOpenSpectrogram,
             )
+            Chip(
+                text = "Радон ▸",
+                color = colors.dataText,
+                onClick = onOpenRadon,
+            )
         }
 
         if (contEntity != null) {

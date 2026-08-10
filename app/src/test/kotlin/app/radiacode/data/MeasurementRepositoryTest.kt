@@ -9,6 +9,7 @@ import app.radiacode.data.db.RareDataEntity
 import app.radiacode.data.db.SampleDao
 import app.radiacode.data.db.SampleEntity
 import app.radiacode.data.db.SpectrumDao
+import app.radiacode.data.db.SpectrumMetaRow
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.protocol.Event
 import app.radiacode.protocol.EventId
@@ -82,6 +83,13 @@ private class FakeSpectrumDao : SpectrumDao {
         )
     override suspend fun byId(id: Long): SpectrumSnapshotEntity? =
         inserted.getOrNull(id.toInt() - 1)
+    override suspend fun deviceSnapshotMeta(from: Long, to: Long): List<SpectrumMetaRow> =
+        inserted.mapIndexed { index, entity -> Triple(index + 1L, entity, Unit) }
+            .filter { (_, e, _) ->
+                e.origin != SpectrumSnapshotEntity.ORIGIN_IMPORT &&
+                    !e.accumulated && e.timestamp in from..to
+            }
+            .map { (id, e, _) -> SpectrumMetaRow(id, e.timestamp, e.durationSeconds) }
 }
 
 class MeasurementRepositoryTest {

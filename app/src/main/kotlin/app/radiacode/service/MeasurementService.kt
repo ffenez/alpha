@@ -377,22 +377,32 @@ class MeasurementService : Service() {
         }
         deviceJobs += scope.launch {
             combine(newDevice.connectionState, graph.spectrumHub.watchers) { conn, watchers ->
-                if (conn is ConnectionState.Connected && watchers > 0) {
-                    conn.info.spectrumFormatVersion
+                if (conn is ConnectionState.Connected) {
+                    conn.info.spectrumFormatVersion to (watchers > 0)
                 } else {
                     null
                 }
-            }.distinctUntilChanged().collectLatest { formatVersion ->
-                if (formatVersion == null) return@collectLatest
+            }.distinctUntilChanged().collectLatest { state ->
+                if (state == null) return@collectLatest
+                val (formatVersion, watched) = state
                 if (formatVersion !in SpectrumHub.SUPPORTED_FORMAT_VERSIONS) {
                     graph.spectrumHub.onUnsupportedFormat(formatVersion)
                     return@collectLatest
                 }
-                // Demand-driven spectrum poll: interleaves with the 1 Hz
-                // DATA_BUF poll on the single-in-flight ProtocolClient.
+                // Spectrum poll interleaves with the 1 Hz DATA_BUF poll on the
+                // single-in-flight ProtocolClient. Watched (Спектр screen):
+                // 5 s live cadence. Unwatched: a slow poll keeps the radon
+                // indicator fed — the 1/min autosave throttle persists every
+                // slow poll, so the История-visible data stays hourly-dense.
                 while (true) {
                     pollSpectrum(newDevice)
-                    delay(SpectrumHub.POLL_INTERVAL_MILLIS)
+                    delay(
+                        if (watched) {
+                            SpectrumHub.POLL_INTERVAL_MILLIS
+                        } else {
+                            BACKGROUND_SPECTRUM_POLL_MILLIS
+                        },
+                    )
                 }
             }
         }
@@ -632,6 +642,13 @@ class MeasurementService : Service() {
 
         private val TRACK_NAME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
         private const val BASELINE_REFRESH_MILLIS = 10L * 60_000L
+
+        /**
+         * Spectrum poll cadence with no Спектр watcher: one ~1–3 KB read per
+         * 10 min feeds the радон indicator around the clock while connected
+         * (~6 autosaved snapshots/hour, a few hundred KB per day).
+         */
+        private const val BACKGROUND_SPECTRUM_POLL_MILLIS = 10L * 60_000L
 
         fun startIntent(context: Context, deviceAddress: String): Intent =
             Intent(context, MeasurementService::class.java)
