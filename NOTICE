@@ -7,3 +7,7 @@ the MIT License, Copyright 2021 Maxim Andreev.
 
 Tricky protocol details were cross-checked against mkgeiger/RadiaCode
 (https://github.com/mkgeiger/RadiaCode), licensed under the MIT License.
+
+Map tiles are rendered with osmdroid (https://github.com/osmdroid/osmdroid),
+licensed under the Apache License 2.0, and come from the OpenStreetMap
+standard tile servers: map data (c) OpenStreetMap contributors, ODbL.

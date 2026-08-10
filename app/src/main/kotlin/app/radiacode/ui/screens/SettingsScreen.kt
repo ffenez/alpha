@@ -911,8 +911,10 @@ private fun AboutSection() {
             AppDivider()
             Text(
                 text = "Протокол RadiaCode — порт библиотеки cdump/radiacode (MIT). " +
-                    "BLE — Kable (Apache-2.0). Шрифты IBM Plex Sans и IBM Plex Mono " +
-                    "(OFL). Полные тексты — в файлах NOTICE внутри приложения.",
+                    "BLE — Kable (Apache-2.0). Карта — osmdroid (Apache-2.0), " +
+                    "данные карты © участники OpenStreetMap. Шрифты IBM Plex Sans " +
+                    "и IBM Plex Mono (OFL). Полные тексты — в файлах NOTICE " +
+                    "внутри приложения.",
                 style = type.bodySmall,
                 color = colors.muted,
             )

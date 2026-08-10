@@ -21,9 +21,9 @@
 
     <!-- CLAUDE.md invariant: measurement data and coordinates never leave the
          device. INTERNET exists for exactly one purpose — anonymous map tile
-         download by MapLibre (OpenFreeMap, no API keys, no accounts), with an
-         aggressive ambient cache so revisited areas work offline. No other
-         code performs network requests. -->
+         download by osmdroid (OpenStreetMap standard tiles, no API keys, no
+         accounts), with a generous on-disk cache so revisited areas work
+         offline. No other code performs network requests. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
