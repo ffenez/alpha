@@ -411,6 +411,14 @@ class MeasurementService : Service() {
                 onSpectrumCommand(newDevice, command)
             }
         }
+        deviceJobs += scope.launch {
+            // Поиск on screen → shorter DATA_BUF period. Same records, half
+            // the pickup delay; see FastPollHub for why that is not «2 Hz
+            // measurements».
+            graph.fastPollHub.watchers.collect { watchers ->
+                newDevice.pollIntervalMillis = FastPollHub.intervalMillis(watchers)
+            }
+        }
     }
 
     // --- spectrum acquisition ---

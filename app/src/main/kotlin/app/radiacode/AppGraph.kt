@@ -11,6 +11,7 @@ import app.radiacode.data.db.AppDatabase
 import app.radiacode.device.DeviceLinkFactory
 import app.radiacode.device.KableLinkFactory
 import app.radiacode.device.RadiaCodeScanner
+import app.radiacode.service.FastPollHub
 import app.radiacode.service.ServiceStatus
 import app.radiacode.service.SpectrogramStore
 import app.radiacode.service.SpectrumHub
@@ -66,6 +67,9 @@ class AppGraph private constructor(context: Context) {
 
     /** Spectrum acquisition bridge: UI attaches, service polls and executes commands. */
     val spectrumHub: SpectrumHub = SpectrumHub()
+
+    /** Поиск asks for a shorter DATA_BUF poll period while it is on screen. */
+    val fastPollHub: FastPollHub = FastPollHub()
 
     /** In-memory спектрограмма ring (~2 ч), fed by the service's spectrum poll. */
     val spectrogramStore: SpectrogramStore = SpectrogramStore()

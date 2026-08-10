@@ -116,6 +116,13 @@ fun SearchScreen(graph: AppGraph) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+    // Поиск asks the service for a shorter DATA_BUF poll while it is on
+    // screen: the same ~1 Hz records, picked up about twice as fast.
+    DisposableEffect(resumed) {
+        if (resumed) graph.fastPollHub.attach()
+        onDispose { if (resumed) graph.fastPollHub.detach() }
+    }
+
     val clickerActive = soundEnabled && resumed
     // Silence must be explainable: these are polled once a second so the
     // screen can name the actual reason instead of just staying quiet.
@@ -457,7 +464,9 @@ fun SearchScreen(graph: AppGraph) {
         }
 
         Text(
-            text = "CPS реагирует быстрее дозы — ведите прибор вдоль поверхности",
+            text = "CPS реагирует быстрее дозы — ведите прибор вдоль поверхности. " +
+                "Пока открыт этот экран, показания забираются чаще: они приходят " +
+                "с меньшей задержкой, но сам прибор измеряет раз в секунду.",
             style = type.footnote,
             color = colors.muted,
             textAlign = TextAlign.Center,

@@ -108,4 +108,40 @@ class RadiaCodeDeviceTest {
         assertEquals(ConnectionState.Disconnected, device.connectionState.value)
         assertFailsWith<DeviceNotConnectedException> { device.resetDose() }
     }
+    // --- adjustable poll cadence (Поиск asks for a shorter period) ---
+
+    @Test
+    fun `poll interval defaults to one second and can be shortened at runtime`() {
+        val device = RadiaCodeDevice("AA:BB", FakeLinkFactory(FakeRadiaCode()))
+        assertEquals(1_000L, device.pollIntervalMillis)
+        device.pollIntervalMillis = 500L
+        assertEquals(500L, device.pollIntervalMillis)
+        device.pollIntervalMillis = 1_000L
+        assertEquals(1_000L, device.pollIntervalMillis)
+    }
+
+    @Test
+    fun `an absurd poll period is clamped to the floor, never zero`() {
+        val device = RadiaCodeDevice("AA:BB", FakeLinkFactory(FakeRadiaCode()))
+        device.pollIntervalMillis = 0L
+        assertEquals(RadiaCodeDevice.MIN_POLL_INTERVAL_MILLIS, device.pollIntervalMillis)
+        device.pollIntervalMillis = -5L
+        assertEquals(RadiaCodeDevice.MIN_POLL_INTERVAL_MILLIS, device.pollIntervalMillis)
+    }
+
+    @Test
+    fun `an empty DATA_BUF reply is a normal no-op, not a gap`() = runTest {
+        // At a faster cadence than the device produces records, some polls
+        // legitimately come back empty; that must not be treated as an error.
+        val fake = FakeRadiaCode()
+        val device = RadiaCodeDevice(
+            "AA:BB",
+            FakeLinkFactory(fake),
+            pollIntervalMillis = 500L,
+        )
+        device.start(backgroundScope)
+        testScheduler.advanceTimeBy(2_500)
+        assertEquals(0, device.seqGapTotal)
+        assertIs<ConnectionState.Connected>(device.connectionState.value)
+    }
 }

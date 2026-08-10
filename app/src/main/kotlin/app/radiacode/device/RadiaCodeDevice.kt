@@ -40,8 +40,19 @@ class RadiaCodeDevice(
     private val clock: () -> Long = System::currentTimeMillis,
     private val backoff: BackoffPolicy = BackoffPolicy(),
     private val timeouts: Timeouts = Timeouts(),
-    private val pollIntervalMillis: Long = 1_000,
+    pollIntervalMillis: Long = 1_000,
 ) {
+
+    /**
+     * DATA_BUF poll period. Adjustable at runtime (the Поиск screen asks for
+     * a shorter one through `FastPollHub`) — the loop reads it once per tick,
+     * so a change applies from the next tick without touching the session.
+     */
+    @Volatile
+    var pollIntervalMillis: Long = pollIntervalMillis
+        set(value) {
+            field = value.coerceAtLeast(MIN_POLL_INTERVAL_MILLIS)
+        }
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -145,6 +156,9 @@ class RadiaCodeDevice(
             val result = conn.readDataBuf()
             if (result.seqGaps > 0) seqGapTotal += result.seqGaps
             dispatch(result.records)
+            // Strictly sequential: the next read starts only after this one
+            // returned, so a faster cadence cannot pile requests up. An empty
+            // reply (no new records yet) is normal and costs one round trip.
             val elapsed = clock() - startedAt
             delay((pollIntervalMillis - elapsed).coerceAtLeast(0))
         }
@@ -161,5 +175,14 @@ class RadiaCodeDevice(
                 else -> Unit
             }
         }
+    }
+
+    companion object {
+        /**
+         * Floor for [pollIntervalMillis]. The device produces ~1 record per
+         * second; polling faster than this only burns radio time and battery
+         * without lowering the pickup delay any further.
+         */
+        const val MIN_POLL_INTERVAL_MILLIS = 250L
     }
 }
