@@ -36,13 +36,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
+import app.radiacode.baseline.Admission
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
 import app.radiacode.baseline.Baseline
 import app.radiacode.baseline.BaselineState
 import app.radiacode.baseline.alarmThresholds
+import app.radiacode.context.MeasurementContext
 import app.radiacode.data.DoseUnitSetting
+import app.radiacode.data.ExclusionSummary
 import app.radiacode.data.MonitorBlocks
+import app.radiacode.data.db.ProfileEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
 import app.radiacode.service.BatteryOptimization
@@ -50,20 +54,25 @@ import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppIcons
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
-import app.radiacode.ui.components.PlacePickerDialog
+import app.radiacode.ui.components.EvidenceTag
+import app.radiacode.ui.components.ProfilePickerDialog
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.components.StatusDot
 import app.radiacode.ui.components.TrendChart
 import app.radiacode.ui.components.TrendChartSpec
+import app.radiacode.ui.components.WhySheet
 import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.DoseFormat
+import app.radiacode.ui.logic.Evidence
 import app.radiacode.ui.logic.Freshness
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.MonitorStatus
+import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.TimeAxis
 import app.radiacode.ui.logic.TrendFit
 import app.radiacode.ui.logic.Uncertainty
+import app.radiacode.ui.logic.WhyInput
 import app.radiacode.ui.logic.learningWording
 import app.radiacode.ui.logic.statusDetail
 import app.radiacode.ui.logic.statusHeadline
@@ -115,8 +124,11 @@ fun MonitorScreen(
         .collectAsState(initial = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f))
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     val blocks by graph.settings.monitorBlocks.collectAsState(initial = MonitorBlocks())
-    val places by graph.placeRepository.places().collectAsState(initial = emptyList())
-    val activePlace by graph.placeRepository.activePlace().collectAsState(initial = null)
+    val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
+    val activeProfile by graph.profileRepository.activeProfile().collectAsState(initial = null)
+    val contextState by graph.contextHub.state.collectAsState()
+    val admission by graph.serviceStatus.admission.collectAsState()
+    val frozen by graph.settings.baselineFrozen.collectAsState(initial = false)
 
     // 1 s wall-clock ticker drives the staleness indicator and held durations.
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -136,7 +148,15 @@ fun MonitorScreen(
         }
     }
 
-    var showPlacePicker by remember { mutableStateOf(false) }
+    var showProfilePicker by remember { mutableStateOf(false) }
+    var showWhy by remember { mutableStateOf(false) }
+
+    // Exclusion breakdown is a query, not a stream: it only feeds «Почему?».
+    var exclusions by remember { mutableStateOf<List<ExclusionSummary>>(emptyList()) }
+    LaunchedEffect(activeProfile?.id, showWhy) {
+        val id = activeProfile?.id
+        exclusions = if (showWhy && id != null) graph.baselineRepository.exclusions(id) else emptyList()
+    }
 
     val doseMicroSvH = sample?.let { DoseUnits.rawToMicroSievertPerHour(it.doseRate) }
     val status = MonitorStatus.of(
@@ -160,9 +180,9 @@ fun MonitorScreen(
             horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
         ) {
             Chip(
-                text = "${activePlace?.name ?: "Место?"} ▾",
+                text = profileChipText(activeProfile, profiles, contextState),
                 color = colors.ink,
-                onClick = { showPlacePicker = true },
+                onClick = { showProfilePicker = true },
             )
             Spacer(Modifier.weight(1f))
             ConnectionChip(connection, serviceRunning)
@@ -194,6 +214,9 @@ fun MonitorScreen(
             unit = unit,
             stale = freshness !is Freshness.Fresh,
             blocks = blocks,
+            admission = admission,
+            frozen = frozen,
+            onWhy = { showWhy = true },
         )
 
         HourChartCard(
@@ -218,20 +241,70 @@ fun MonitorScreen(
         BatteryBanner()
     }
 
-    if (showPlacePicker) {
-        PlacePickerDialog(
-            places = places,
-            activePlaceId = activePlace?.id,
-            onSelect = { id -> scope.launch { graph.placeRepository.setActive(id) } },
+    if (showProfilePicker) {
+        ProfilePickerDialog(
+            profiles = profiles,
+            activeProfileId = activeProfile?.id,
+            manual = contextState.isManual,
+            contextWording = contextWording(contextState),
+            onSelect = { id -> scope.launch { graph.profileRepository.selectManually(id) } },
+            onReturnToAuto = { scope.launch { graph.profileRepository.returnToAuto() } },
             onCreate = { name ->
                 scope.launch {
-                    val id = graph.placeRepository.add(name)
-                    graph.placeRepository.setActive(id)
+                    val id = graph.profileRepository.add(name)
+                    graph.profileRepository.selectManually(id)
                 }
             },
-            onDismiss = { showPlacePicker = false },
+            onDismiss = { showProfilePicker = false },
         )
     }
+
+    if (showWhy) {
+        WhySheet(
+            input = WhyInput(
+                status = status,
+                baselineState = baselineState,
+                doseRateMicroSvH = doseMicroSvH,
+                cps = sample?.countRate,
+                freshness = freshness,
+                thresholds = thresholds,
+                admission = admission,
+                exclusions = exclusions,
+                unit = unit,
+                profileName = activeProfile?.let { ProfileTree.displayName(it, profiles) },
+                contextWording = contextWording(contextState),
+            ),
+            onDismiss = { showWhy = false },
+        )
+    }
+}
+
+/** «⌂ Дом · авто ▾» — profile plus how it was chosen (spec §17 layout). */
+private fun profileChipText(
+    active: ProfileEntity?,
+    profiles: List<ProfileEntity>,
+    context: MeasurementContext,
+): String {
+    val name = active?.let { ProfileTree.displayName(it, profiles) } ?: "Профиль?"
+    val icon = active?.icon.orEmpty()
+    val prefix = if (icon.isBlank()) "" else "$icon "
+    return "$prefix$name · ${contextModeWord(context)} ▾"
+}
+
+private fun contextModeWord(context: MeasurementContext): String = when (context) {
+    is MeasurementContext.Manual -> "вручную"
+    is MeasurementContext.AutoUncertain -> "не подтв."
+    else -> "авто"
+}
+
+/** One honest phrase about how the current profile was chosen (spec §3.4). */
+fun contextWording(context: MeasurementContext): String = when (context) {
+    is MeasurementContext.AutoKnown -> "выбран автоматически по знакомой сети"
+    is MeasurementContext.AutoUncertain ->
+        "сеть пропала — место не подтверждено, обучение приостановлено"
+    MeasurementContext.AutoTransit -> "знакомой сети нет — «В пути»"
+    MeasurementContext.NoContext -> "место определить нельзя — «Без места»"
+    is MeasurementContext.Manual -> "выбран вручную"
 }
 
 @Composable
@@ -270,6 +343,9 @@ private fun HeroCard(
     unit: DoseUnitSetting,
     stale: Boolean,
     blocks: MonitorBlocks = MonitorBlocks(),
+    admission: Admission = Admission.Admitted,
+    frozen: Boolean = false,
+    onWhy: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -277,11 +353,14 @@ private fun HeroCard(
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
                 Column(Modifier.weight(1.35f)) {
-                    Text(
-                        text = "Мощность дозы".uppercase(),
-                        style = type.labelSmall,
-                        color = colors.ink2,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Мощность дозы".uppercase(),
+                            style = type.labelSmall,
+                            color = colors.ink2,
+                        )
+                        EvidenceTag(Evidence.MEASURED, Modifier.padding(start = 6.dp))
+                    }
                     Text(
                         text = doseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
                         style = type.valueHero,
@@ -325,6 +404,8 @@ private fun HeroCard(
                                 label = "Сегодня",
                                 value = doseTodayMicroSv?.let { DoseFormat.doseWithUnit(it, unit) }
                                     ?: "—",
+                                // Integral of the measured rate, not a measured dose.
+                                evidence = Evidence.CALCULATED,
                             )
                         }
                     }
@@ -350,14 +431,17 @@ private fun HeroCard(
                     style = type.label,
                     color = statusColor,
                 )
-                statusDetail(status, unit)?.let { detail ->
-                    Text(
-                        text = detail,
-                        style = type.footnote,
-                        color = colors.ink2,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
+                // The verdict leans on a statistical model, not on a reading.
+                if (status is MonitorStatus.Usual || status is MonitorStatus.AboveUsual ||
+                    status is MonitorStatus.Alert
+                ) {
+                    EvidenceTag(Evidence.STATISTICALLY_DETECTED)
                 }
+                Spacer(Modifier.weight(1f))
+                Chip(text = "Почему?", color = colors.dataText, onClick = onWhy)
+            }
+            statusDetail(status, unit)?.let { detail ->
+                Text(text = detail, style = type.footnote, color = colors.ink2)
             }
             (baselineState as? BaselineState.Learning)?.let { learning ->
                 Text(
@@ -366,8 +450,25 @@ private fun HeroCard(
                     color = colors.muted,
                 )
             }
+            // Learning is silent by nature, so the one case where it is NOT
+            // happening must be visible without opening «Почему?».
+            admissionNote(admission, frozen)?.let { note ->
+                Text(text = note, style = type.footnote, color = colors.warn)
+            }
         }
     }
+}
+
+/**
+ * One line under the status when the baseline is NOT learning right now.
+ * Silence means «учится» — saying that on every screen would be noise, but
+ * hiding the opposite would make the statistics quietly unexplainable.
+ */
+private fun admissionNote(admission: Admission, frozen: Boolean): String? = when {
+    admission is Admission.Excluded ->
+        "обычный фон сейчас не пополняется: ${admission.reason.label}"
+    frozen -> "обычный фон заморожен вручную"
+    else -> null
 }
 
 @Composable
@@ -380,7 +481,12 @@ private fun trendWarnColor(trend: Float?, status: MonitorStatus): Color? {
 }
 
 @Composable
-private fun KvRow(label: String, value: String, valueColor: Color? = null) {
+private fun KvRow(
+    label: String,
+    value: String,
+    valueColor: Color? = null,
+    evidence: Evidence? = null,
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Row(
@@ -389,6 +495,7 @@ private fun KvRow(label: String, value: String, valueColor: Color? = null) {
     ) {
         Text(text = label, style = type.bodySmall, color = colors.ink2)
         Spacer(Modifier.weight(1f))
+        evidence?.let { EvidenceTag(it, Modifier.padding(end = 5.dp)) }
         Text(
             text = value,
             style = type.value,

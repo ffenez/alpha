@@ -1,5 +1,6 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.data.SessionAdmission
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -40,6 +41,25 @@ object HistoryFormat {
     fun day(millis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
         val date = Instant.ofEpochMilli(millis).atZone(zone)
         return "${date.dayOfMonth} ${MONTHS[date.monthValue - 1]}"
+    }
+
+    /**
+     * Baseline participation of a session (spec §20): «в обычный фон: да» or
+     * «нет» with the dominating reason. Never says just «нет» — an
+     * unexplained exclusion is worse than none.
+     */
+    fun admissionLine(admission: SessionAdmission): String {
+        val excluded = admission.exclusions
+        return when {
+            excluded.isEmpty() && admission.included -> "в обычный фон: да"
+            admission.included -> {
+                val top = excluded.first()
+                "в обычный фон: частично · вне обучения " +
+                    "${durationWording(admission.excludedSeconds)} — ${top.reason.label}"
+            }
+            excluded.isEmpty() -> "в обычный фон: нет измерений"
+            else -> "в обычный фон: нет — ${excluded.first().reason.label}"
+        }
     }
 
     /** Thousands grouped with a space: 29520 -> «29 520». */

@@ -18,10 +18,15 @@ class MonitorStatusTest {
         doseLowMicroSvH = 0.09f,
         doseMedianMicroSvH = 0.11f,
         doseHighMicroSvH = 0.14f,
+        doseP25MicroSvH = 0.10f,
+        doseP75MicroSvH = 0.13f,
+        doseMadMicroSvH = 0.01f,
         cpsLow = 18f,
         cpsMedian = 22f,
         cpsHigh = 27f,
         accumulatedSeconds = 26 * 3600L,
+        sampleCount = 26 * 3600L,
+        bucketCount = 1560,
     )
     private val active = BaselineState.Active(baseline)
     private val calm = DeviationSnapshot()

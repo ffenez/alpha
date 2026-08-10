@@ -127,7 +127,7 @@ private fun SummaryCard(summary: SessionSummary, unit: DoseUnitSetting, onOpenTr
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = summary.placeName ?: "Без места",
+                    text = summary.profileName ?: "Без профиля",
                     style = type.title,
                     color = colors.ink,
                 )

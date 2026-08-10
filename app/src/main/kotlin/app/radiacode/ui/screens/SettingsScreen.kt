@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalLayoutApi::class)
+
 package app.radiacode.ui.screens
 
 import android.content.Intent
@@ -6,6 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -35,9 +39,13 @@ import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
 import app.radiacode.baseline.BaselineState
 import app.radiacode.baseline.alarmThresholds
+import app.radiacode.context.ContextConfig
+import app.radiacode.context.NetworkIdentity
 import app.radiacode.data.AppSettings
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.MonitorBlocks
+import app.radiacode.data.db.ProfileEntity
+import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.service.Notifications
 import app.radiacode.ui.components.AppButton
@@ -50,6 +58,7 @@ import app.radiacode.ui.components.RadioMark
 import app.radiacode.ui.feedback.FeedbackSelfTest
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.NavConfig
+import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.SelfTestText
 import app.radiacode.ui.logic.NavEntry
 import app.radiacode.ui.logic.Freshness
@@ -64,8 +73,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Настройки (SPEC: opens separately, not a tab). Sections: Тревоги, Места,
- * Прибор, Единицы, Интерфейс, Проверка, О приложении.
+ * Настройки (SPEC: opens separately, not a tab). Sections: Тревоги, Профили,
+ * Обычный фон, Прибор, Единицы, Интерфейс, Проверка, О приложении.
  */
 @Composable
 fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
@@ -85,7 +94,8 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         }
 
         AlarmsSection(graph)
-        PlacesSection(graph)
+        ProfilesSection(graph)
+        BaselineSection(graph)
         DeviceSection(graph)
         UnitsSection(graph)
         InterfaceSection(graph)
@@ -320,62 +330,76 @@ private fun parseLevelToMicroSv(text: String, unit: DoseUnitSetting): Float? {
     }
 }
 
-// --- Места ---
+// --- Профили ---
 
+private val PROFILE_ICONS = listOf("⌂", "▣", "⌾", "◈", "→", "○", "☾", "✦")
+
+/**
+ * Профили (spec §3.1): create/rename/icon/archive, nesting «Дом / Спальня»,
+ * the two automation switches and the Wi-Fi binding of the current network.
+ * Управление местами из v0.x переехало сюда целиком.
+ */
 @Composable
-private fun PlacesSection(graph: AppGraph) {
+private fun ProfilesSection(graph: AppGraph) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
-    val places by graph.placeRepository.places().collectAsState(initial = emptyList())
-    val activePlace by graph.placeRepository.activePlace().collectAsState(initial = null)
+    val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
+    val networks by graph.profileRepository.networks().collectAsState(initial = emptyList())
+    val activeProfile by graph.profileRepository.activeProfile().collectAsState(initial = null)
+    val network by graph.contextHub.network.collectAsState()
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
-    // Baseline summary per place, refreshed when the place list changes.
+    // Baseline summary per profile, refreshed when the list changes.
     var baselines by remember { mutableStateOf<Map<Long, BaselineState>>(emptyMap()) }
-    LaunchedEffect(places) {
-        baselines = places.associate { it.id to graph.baselineRepository.state(it.id) }
+    LaunchedEffect(profiles) {
+        baselines = profiles.associate { it.id to graph.baselineRepository.state(it.id) }
     }
 
     var expandedId by remember { mutableStateOf<Long?>(null) }
     var adding by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
+    val nodes = ProfileTree.tree(profiles)
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Места")
+            SectionTitle("Профили")
             Text(
-                text = "У каждого места свой baseline. При удалении места его " +
-                    "измерения остаются в журнале.",
+                text = "Профиль — обстановка со своим обычным фоном: дом, офис, дача. " +
+                    "Приложение может включать его само, когда телефон в знакомой сети " +
+                    "Wi-Fi. При удалении профиля измерения остаются в журнале.",
                 style = type.bodySmall,
                 color = colors.ink2,
             )
 
-            places.forEach { place ->
-                PlaceRow(
-                    name = place.name,
-                    active = place.id == activePlace?.id,
-                    baselineLine = baselineSummary(baselines[place.id], unit),
-                    expanded = expandedId == place.id,
-                    onToggle = {
-                        expandedId = if (expandedId == place.id) null else place.id
-                    },
-                    onRename = { name ->
-                        scope.launch { graph.placeRepository.rename(place.id, name) }
-                        expandedId = null
-                    },
-                    onDelete = {
-                        scope.launch { graph.placeRepository.delete(place.id) }
-                        expandedId = null
-                    },
-                )
+            nodes.forEach { node ->
+                (listOf(node.profile) + node.children).forEach { profile ->
+                    ProfileSettingsRow(
+                        profile = profile,
+                        allProfiles = profiles,
+                        nested = profile.parentId != null,
+                        active = profile.id == activeProfile?.id,
+                        baselineLine = baselineSummary(baselines[profile.id], unit),
+                        boundNetworks = networks.filter { it.profileId == profile.id },
+                        currentNetworkHash = network.hash,
+                        currentNetworkLabel = network.label,
+                        expanded = expandedId == profile.id,
+                        onToggle = {
+                            expandedId = if (expandedId == profile.id) null else profile.id
+                        },
+                        graph = graph,
+                        scope = scope,
+                        onCollapse = { expandedId = null },
+                    )
+                }
             }
 
+            AppDivider()
             if (adding) {
                 AppTextField(
                     value = newName,
                     onValueChange = { newName = it },
-                    placeholder = "название места",
+                    placeholder = "название профиля",
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     AppButton(
@@ -383,7 +407,7 @@ private fun PlacesSection(graph: AppGraph) {
                         primary = true,
                         enabled = newName.isNotBlank(),
                         onClick = {
-                            scope.launch { graph.placeRepository.add(newName.trim()) }
+                            scope.launch { graph.profileRepository.add(newName.trim()) }
                             newName = ""
                             adding = false
                         },
@@ -391,7 +415,23 @@ private fun PlacesSection(graph: AppGraph) {
                     AppButton(text = "Отмена", onClick = { adding = false })
                 }
             } else {
-                AppButton(text = "+ Новое место", onClick = { adding = true })
+                AppButton(text = "+ Свой профиль", onClick = { adding = true })
+            }
+
+            val missing = ProfileTree.PRESETS.filter { preset ->
+                profiles.none { it.name.equals(preset.name, ignoreCase = true) }
+            }
+            if (missing.isNotEmpty()) {
+                Text(text = "Готовые:", style = type.footnote, color = colors.muted)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    missing.forEach { preset ->
+                        Chip(
+                            text = "+ ${preset.icon} ${preset.name}",
+                            color = colors.dataText,
+                            onClick = { scope.launch { graph.profileRepository.create(preset) } },
+                        )
+                    }
+                }
             }
         }
     }
@@ -408,22 +448,45 @@ private fun baselineSummary(state: BaselineState?, unit: DoseUnitSetting): Strin
         ) + " ${DoseFormat.rateUnitLabel(unit)} · " + baselineCollectedWording(state.baseline)
 }
 
+/** Extended per-profile statistics (spec §4.1) shown inside the expanded row. */
+private fun baselineStatsLine(state: BaselineState?, unit: DoseUnitSetting): String? {
+    val baseline = (state as? BaselineState.Active)?.baseline ?: return null
+    return "медиана ${DoseFormat.rate(baseline.doseMedianMicroSvH, unit)} · " +
+        "P25–P75 ${DoseFormat.range(baseline.doseP25MicroSvH, baseline.doseP75MicroSvH, unit)} · " +
+        "MAD ${DoseFormat.rate(baseline.doseMadMicroSvH, unit)} · " +
+        "n ${baseline.bucketCount} корзин"
+}
+
 @Composable
-private fun PlaceRow(
-    name: String,
+private fun ProfileSettingsRow(
+    profile: ProfileEntity,
+    allProfiles: List<ProfileEntity>,
+    nested: Boolean,
     active: Boolean,
     baselineLine: String,
+    boundNetworks: List<ProfileNetworkEntity>,
+    currentNetworkHash: String?,
+    currentNetworkLabel: String?,
     expanded: Boolean,
     onToggle: () -> Unit,
-    onRename: (String) -> Unit,
-    onDelete: () -> Unit,
+    graph: AppGraph,
+    scope: kotlinx.coroutines.CoroutineScope,
+    onCollapse: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    var renameText by remember(name, expanded) { mutableStateOf(name) }
+    val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
+    var renameText by remember(profile.name, expanded) { mutableStateOf(profile.name) }
     var confirmingDelete by remember(expanded) { mutableStateOf(false) }
+    var baselineState by remember(profile.id) { mutableStateOf<BaselineState?>(null) }
+    LaunchedEffect(profile.id, expanded) {
+        if (expanded) baselineState = graph.baselineRepository.state(profile.id)
+    }
 
-    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+        modifier = Modifier.padding(start = if (nested) Dimens.space3 else 0.dp),
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
@@ -441,42 +504,227 @@ private fun PlaceRow(
                     horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(text = name, style = type.label, color = colors.ink)
-                    if (active) Chip(text = "активно", color = colors.ok)
+                    Text(
+                        text = listOf(profile.icon, profile.name)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" "),
+                        style = type.label,
+                        color = if (profile.archived) colors.muted else colors.ink,
+                    )
+                    if (active) Chip(text = "активен", color = colors.ok)
+                    if (profile.archived) Chip(text = "в архиве", color = colors.muted)
                 }
-                Text(text = baselineLine, style = type.footnote, color = colors.muted)
+                Text(
+                    text = if (profile.archived) "профиль скрыт из выбора" else baselineLine,
+                    style = type.footnote,
+                    color = colors.muted,
+                )
             }
+            Text(text = if (expanded) "−" else "+", style = type.title, color = colors.ink2)
+        }
+
+        if (!expanded) return@Column
+
+        if (confirmingDelete) {
             Text(
-                text = if (expanded) "−" else "+",
-                style = type.title,
+                text = "Удалить профиль «${profile.name}»? Его измерения останутся " +
+                    "в журнале без привязки к профилю.",
+                style = type.bodySmall,
                 color = colors.ink2,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                AppButton(
+                    text = "Удалить",
+                    onClick = {
+                        scope.launch { graph.profileRepository.delete(profile.id) }
+                        onCollapse()
+                    },
+                )
+                AppButton(text = "Отмена", onClick = { confirmingDelete = false })
+            }
+            AppDivider()
+            return@Column
+        }
+
+        baselineStatsLine(baselineState, unit)?.let {
+            Text(text = it, style = type.footnote, color = colors.muted)
+        }
+
+        AppTextField(value = renameText, onValueChange = { renameText = it })
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            AppButton(
+                text = "Сохранить имя",
+                enabled = renameText.isNotBlank() && renameText.trim() != profile.name,
+                onClick = {
+                    scope.launch { graph.profileRepository.rename(profile.id, renameText.trim()) }
+                    onCollapse()
+                },
             )
         }
 
-        if (expanded) {
-            if (confirmingDelete) {
-                Text(
-                    text = "Удалить место «$name»? Его измерения останутся в журнале " +
-                        "без привязки к месту.",
-                    style = type.bodySmall,
-                    color = colors.ink2,
+        Text(text = "Значок", style = type.footnote, color = colors.muted)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            PROFILE_ICONS.forEach { icon ->
+                Chip(
+                    text = icon,
+                    color = if (icon == profile.icon) colors.dataText else colors.ink2,
+                    onClick = { scope.launch { graph.profileRepository.setIcon(profile.id, icon) } },
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    AppButton(text = "Удалить", onClick = onDelete)
-                    AppButton(text = "Отмена", onClick = { confirmingDelete = false })
-                }
-            } else {
-                AppTextField(value = renameText, onValueChange = { renameText = it })
-                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    AppButton(
-                        text = "Сохранить имя",
-                        enabled = renameText.isNotBlank() && renameText.trim() != name,
-                        onClick = { onRename(renameText.trim()) },
+            }
+        }
+
+        BlockToggleRow("Включать автоматически по Wi-Fi", profile.autoActivate) { on ->
+            scope.launch { graph.profileRepository.setAutoActivate(profile.id, on) }
+        }
+        BlockToggleRow("Учить обычный фон", profile.baselineLearning) { on ->
+            scope.launch { graph.profileRepository.setBaselineLearning(profile.id, on) }
+        }
+
+        // --- Wi-Fi ---
+        Text(
+            text = "Сети Wi-Fi. Сеть узнаётся по адресу роутера, а не по имени: " +
+                "разрешение на геолокацию для этого не нужно.",
+            style = type.footnote,
+            color = colors.muted,
+        )
+        boundNetworks.forEach { bound ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = Dimens.touchTarget),
+            ) {
+                Text(
+                    text = NetworkIdentity.displayLabel(bound.label, bound.networkHash),
+                    style = type.valueSmall,
+                    color = colors.ink,
+                    modifier = Modifier.weight(1f),
+                )
+                Chip(
+                    text = "отвязать",
+                    color = colors.ink2,
+                    onClick = { scope.launch { graph.profileRepository.unbindNetwork(bound.id) } },
+                )
+            }
+        }
+        when {
+            currentNetworkHash == null -> Text(
+                text = "телефон сейчас не в сети Wi-Fi",
+                style = type.footnote,
+                color = colors.muted,
+            )
+            boundNetworks.any { it.networkHash == currentNetworkHash } -> Text(
+                text = "текущая сеть уже привязана к этому профилю",
+                style = type.footnote,
+                color = colors.muted,
+            )
+            else -> AppButton(
+                text = "Привязать текущую сеть",
+                onClick = {
+                    scope.launch {
+                        graph.profileRepository.bindNetwork(
+                            profileId = profile.id,
+                            hash = currentNetworkHash,
+                            label = currentNetworkLabel,
+                        )
+                    }
+                },
+            )
+        }
+
+        // --- nesting ---
+        val parents = ProfileTree.parentCandidates(allProfiles, profile.id)
+            .filter { it.id != profile.id }
+        if (parents.isNotEmpty() || profile.parentId != null) {
+            Text(text = "Вложить в профиль", style = type.footnote, color = colors.muted)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Chip(
+                    text = "самостоятельный",
+                    color = if (profile.parentId == null) colors.dataText else colors.ink2,
+                    onClick = { scope.launch { graph.profileRepository.setParent(profile.id, null) } },
+                )
+                parents.forEach { parent ->
+                    Chip(
+                        text = parent.name,
+                        color = if (profile.parentId == parent.id) colors.dataText else colors.ink2,
+                        onClick = {
+                            scope.launch {
+                                graph.profileRepository.setParent(profile.id, parent.id)
+                            }
+                        },
                     )
-                    AppButton(text = "Удалить место", onClick = { confirmingDelete = true })
                 }
             }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            if (profile.archived) {
+                AppButton(
+                    text = "Вернуть из архива",
+                    onClick = {
+                        scope.launch { graph.profileRepository.setArchived(profile.id, false) }
+                    },
+                )
+            } else {
+                AppButton(
+                    text = "В архив",
+                    enabled = ProfileTree.canArchive(allProfiles, profile.id),
+                    onClick = {
+                        scope.launch { graph.profileRepository.setArchived(profile.id, true) }
+                        onCollapse()
+                    },
+                )
+            }
+            AppButton(text = "Удалить профиль", onClick = { confirmingDelete = true })
+        }
+        AppDivider()
+    }
+}
+
+// --- Обычный фон ---
+
+/**
+ * Управление обучением baseline: ручная заморозка (условие 7 допуска, spec
+ * §4.2) и grace period авто-контекста (spec §3.4). Оба параметра меняют то,
+ * какие интервалы вообще попадают в статистику, поэтому объясняются словами.
+ */
+@Composable
+private fun BaselineSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val scope = rememberCoroutineScope()
+    val frozen by graph.settings.baselineFrozen.collectAsState(initial = false)
+    val grace by graph.settings.contextGraceMillis
+        .collectAsState(initial = ContextConfig.DEFAULT_GRACE_MILLIS)
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle("Обычный фон")
+            Text(
+                text = "Обычный фон профиля пополняется только из пригодных измерений. " +
+                    "Не учитываются: Поиск и опыты, обрыв потока, полчаса после " +
+                    "отклонения и время, пока место не подтверждено. Сами измерения " +
+                    "записываются всегда.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            BlockToggleRow("Заморозить обучение", frozen) { on ->
+                scope.launch { graph.settings.setBaselineFrozen(on) }
+            }
             AppDivider()
+            Text(
+                text = "Сколько ждать, прежде чем считать, что телефон покинул знакомую " +
+                    "сеть. Всё это время профиль остаётся прежним, но фон не пополняется.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                ContextConfig.ALLOWED_GRACE_MILLIS.forEach { millis ->
+                    Chip(
+                        text = "${millis / 60_000} мин",
+                        color = if (millis == grace) colors.dataText else colors.ink2,
+                        onClick = { scope.launch { graph.settings.setContextGraceMillis(millis) } },
+                    )
+                }
+            }
         }
     }
 }

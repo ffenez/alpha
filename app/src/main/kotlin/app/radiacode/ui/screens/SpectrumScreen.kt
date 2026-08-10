@@ -56,12 +56,14 @@ import app.radiacode.service.SpectrumHub
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.SpectrumChart
 import app.radiacode.ui.components.SpectrumChartSpec
 import app.radiacode.ui.components.SpectrumPeakMark
 import app.radiacode.ui.logic.HistoryFormat
+import app.radiacode.ui.logic.Evidence
 import app.radiacode.ui.logic.SpectrumFormat
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
@@ -809,7 +811,12 @@ private fun PeakTable(
             TableHeader("E, кэВ", 0.9f)
             TableHeader("нетто", 0.9f)
             TableHeader("SNR", 0.7f)
-            TableHeader("кандидат", 1.6f)
+            // Спец §2: колонка кандидата — интерпретация, а не измерение;
+            // соседние колонки этого уровня не наследуют.
+            Row(Modifier.weight(1.6f), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "кандидат", style = type.labelSmall, color = colors.ink2)
+                EvidenceTag(Evidence.INTERPRETATION, Modifier.padding(start = 5.dp))
+            }
         }
         AppDivider()
         peaks.forEachIndexed { index, peak ->

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -40,6 +41,7 @@ import app.radiacode.data.SessionSummary
 import app.radiacode.data.toSpectrum
 import app.radiacode.protocol.Spectrum
 import app.radiacode.data.db.EventEntity
+import app.radiacode.data.db.ProfileEntity
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.data.export.N42
 import app.radiacode.data.export.RcXml
@@ -51,12 +53,14 @@ import app.radiacode.ui.components.BarChart
 import app.radiacode.ui.components.BarChartSpec
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
+import app.radiacode.ui.components.RadioMark
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.DailyDose
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.HistoryFormat
+import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.SpectrumFormat
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
@@ -112,13 +116,34 @@ fun HistoryScreen(
     val type = LocalAppTypography.current
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
+    val scope = rememberCoroutineScope()
     var pages by remember { mutableIntStateOf(1) }
     var model by remember { mutableStateOf<HistoryModel?>(null) }
-    LaunchedEffect(pages) {
+    var reload by remember { mutableIntStateOf(0) }
+    LaunchedEffect(pages, reload) {
         while (true) {
             model = loadHistory(graph, pages * PAGE_SIZE)
             delay(REFRESH_MILLIS)
         }
+    }
+
+    // Спец §20: профиль сессии можно поправить задним числом; вместе с ним
+    // пересчитывается участие сессии в обучении обычного фона.
+    var reassigning by remember { mutableStateOf<SessionSummary?>(null) }
+    val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
+    reassigning?.let { session ->
+        SessionProfileDialog(
+            session = session,
+            profiles = profiles,
+            onPick = { profileId ->
+                scope.launch {
+                    graph.sessionRepository.reassignProfile(session.id, profileId)
+                    reassigning = null
+                    reload += 1
+                }
+            },
+            onDismiss = { reassigning = null },
+        )
     }
 
     // Comparator flow is self-contained in История: picking two snapshots
@@ -187,6 +212,7 @@ fun HistoryScreen(
                                     summary = item.summary,
                                     unit = unit,
                                     onClick = { onOpenSession(item.summary.id) },
+                                    onReassign = { reassigning = item.summary },
                                 )
                                 is HistoryItem.Deviation -> DeviationRow(item.event, unit)
                             }
@@ -256,7 +282,12 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SessionRow(summary: SessionSummary, unit: DoseUnitSetting, onClick: () -> Unit) {
+private fun SessionRow(
+    summary: SessionSummary,
+    unit: DoseUnitSetting,
+    onClick: () -> Unit,
+    onReassign: () -> Unit,
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
@@ -276,7 +307,7 @@ private fun SessionRow(summary: SessionSummary, unit: DoseUnitSetting, onClick: 
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = summary.placeName ?: "Сессия",
+                text = summary.profileName ?: "Без профиля",
                 style = type.label,
                 color = colors.ink,
             )
@@ -326,6 +357,86 @@ private fun SessionRow(summary: SessionSummary, unit: DoseUnitSetting, onClick: 
                 style = type.valueSmall,
                 color = colors.muted,
             )
+        }
+
+        // Спец §20: журнал обязан говорить, учила ли сессия обычный фон.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
+            Text(
+                text = HistoryFormat.admissionLine(summary.admission),
+                style = type.footnote,
+                color = if (summary.admission.included) colors.muted else colors.ink2,
+                modifier = Modifier.weight(1f),
+            )
+            Chip(text = "профиль…", color = colors.ink2, onClick = onReassign)
+        }
+    }
+}
+
+/**
+ * Поздняя правка профиля сессии (spec §20). Диалог честно предупреждает, что
+ * меняется не подпись, а принадлежность измерений: сессия перейдёт в
+ * статистику другого профиля.
+ */
+@Composable
+private fun SessionProfileDialog(
+    session: SessionSummary,
+    profiles: List<ProfileEntity>,
+    onPick: (Long?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(text = "Профиль сессии", style = type.title, color = colors.ink)
+                Text(
+                    text = "Сессия от ${HistoryFormat.dayTime(session.startedAt, System.currentTimeMillis())}. " +
+                        "Измерения перейдут в статистику выбранного профиля.",
+                    style = type.bodySmall,
+                    color = colors.muted,
+                )
+                ProfileTree.visible(profiles).forEach { profile ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = Dimens.touchTarget)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onPick(profile.id) },
+                            ),
+                    ) {
+                        RadioMark(profile.id == session.profileId)
+                        Text(
+                            text = ProfileTree.displayName(profile, profiles),
+                            style = type.label,
+                            color = colors.ink,
+                        )
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = Dimens.touchTarget)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onPick(null) },
+                        ),
+                ) {
+                    RadioMark(session.profileId == null)
+                    Text(text = "Без профиля", style = type.label, color = colors.ink)
+                }
+                AppButton(text = "Отмена", onClick = onDismiss, modifier = Modifier.fillMaxWidth())
+            }
         }
     }
 }
