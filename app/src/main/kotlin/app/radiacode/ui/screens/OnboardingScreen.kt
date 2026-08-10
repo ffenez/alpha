@@ -30,15 +30,14 @@ import app.radiacode.AppGraph
 import app.radiacode.device.DiscoveredRadiaCode
 import app.radiacode.service.BatteryOptimization
 import app.radiacode.service.MeasurementService
-import app.radiacode.ui.components.PixelBox
-import app.radiacode.ui.components.PixelButton
-import app.radiacode.ui.components.PixelDivider
-import app.radiacode.ui.components.PixelTag
-import app.radiacode.ui.components.StatusLine
+import app.radiacode.ui.components.AppButton
+import app.radiacode.ui.components.AppDivider
+import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.Chip
 import app.radiacode.ui.logic.OnboardingPermissions
-import app.radiacode.ui.theme.LocalPixelColors
-import app.radiacode.ui.theme.LocalPixelTypography
-import app.radiacode.ui.theme.PixelDimens
+import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.LocalAppTypography
 import kotlinx.coroutines.flow.catch
 
 private enum class OnboardingStep { INTRO, BATTERY, SCANNING }
@@ -87,13 +86,13 @@ fun OnboardingScreen(graph: AppGraph) {
             .fillMaxSize()
             .safeDrawingPadding()
             .verticalScroll(rememberScrollState())
-            .padding(PixelDimens.space4),
-        verticalArrangement = Arrangement.spacedBy(PixelDimens.space4),
+            .padding(Dimens.space3),
+        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Text(
-            text = "РАДИАКОД",
-            style = LocalPixelTypography.current.heading,
-            color = LocalPixelColors.current.text,
+            text = "Радиакод",
+            style = LocalAppTypography.current.title,
+            color = LocalAppColors.current.ink,
         )
         when (step) {
             OnboardingStep.INTRO -> IntroStep(
@@ -128,24 +127,24 @@ private fun hasAllPermissions(context: android.content.Context): Boolean =
 
 @Composable
 private fun IntroStep(denied: Boolean, onContinue: () -> Unit) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
-    PixelBox(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space3)) {
-            Text("ПОДКЛЮЧЕНИЕ ПРИБОРА", style = type.label, color = colors.text)
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+            Text("Подключение прибора", style = type.title, color = colors.ink)
             Text(
                 text = "Приложение подключается к дозиметру RadiaCode по Bluetooth " +
                     "и непрерывно записывает уровень фона. Все измерения остаются " +
                     "на этом телефоне.",
                 style = type.body,
-                color = colors.textSecondary,
+                color = colors.ink2,
             )
             Text(
                 text = "Понадобятся разрешения: Bluetooth — чтобы найти и подключить " +
                     "прибор, уведомления — чтобы показывать измерение, пока " +
                     "приложение свёрнуто.",
                 style = type.bodySmall,
-                color = colors.textMuted,
+                color = colors.muted,
             )
             if (denied) {
                 Text(
@@ -153,11 +152,11 @@ private fun IntroStep(denied: Boolean, onContinue: () -> Unit) {
                         "Если запрос больше не показывается — включите разрешение " +
                         "в настройках Android для этого приложения.",
                     style = type.bodySmall,
-                    color = colors.aboveUsual,
+                    color = colors.warn,
                 )
             }
-            PixelButton(
-                text = if (denied) "ПОВТОРИТЬ" else "НАЧАТЬ",
+            AppButton(
+                text = if (denied) "Повторить" else "Начать",
                 onClick = onContinue,
                 primary = true,
                 modifier = Modifier.align(Alignment.End),
@@ -168,29 +167,29 @@ private fun IntroStep(denied: Boolean, onContinue: () -> Unit) {
 
 @Composable
 private fun BatteryStep(onAllow: () -> Unit, onSkip: () -> Unit) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
-    PixelBox(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space3)) {
-            Text("РАБОТА В ФОНЕ", style = type.label, color = colors.text)
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+            Text("Работа в фоне", style = type.title, color = colors.ink)
             Text(
                 text = "Чтобы запись фона не прерывалась ночью и при закрытом " +
                     "экране, исключите приложение из оптимизации батареи. Иначе " +
                     "Android со временем разорвёт связь с прибором.",
                 style = type.body,
-                color = colors.textSecondary,
+                color = colors.ink2,
             )
             Text(
                 text = "Это увеличит расход батареи — обычно незначительно.",
                 style = type.bodySmall,
-                color = colors.textMuted,
+                color = colors.muted,
             )
             Row(
-                horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2),
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
                 modifier = Modifier.align(Alignment.End),
             ) {
-                PixelButton(text = "ПОЗЖЕ", onClick = onSkip)
-                PixelButton(text = "РАЗРЕШИТЬ", onClick = onAllow, primary = true)
+                AppButton(text = "Позже", onClick = onSkip)
+                AppButton(text = "Разрешить", onClick = onAllow, primary = true)
             }
         }
     }
@@ -199,8 +198,8 @@ private fun BatteryStep(onAllow: () -> Unit, onSkip: () -> Unit) {
 @Composable
 private fun ScanStep(graph: AppGraph) {
     val context = LocalContext.current
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
 
     val found = remember { mutableStateOf<Map<String, DiscoveredRadiaCode>>(emptyMap()) }
     var scanError by remember { mutableStateOf(false) }
@@ -214,19 +213,23 @@ private fun ScanStep(graph: AppGraph) {
             }
     }
 
-    PixelBox(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space3)) {
-            Text("ПОИСК ПРИБОРА", style = type.label, color = colors.text)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+            Text("Поиск прибора", style = type.title, color = colors.ink)
 
             val devices = found.value.values.sortedByDescending { it.rssi }
             if (devices.isEmpty() && !scanError) {
-                StatusLine(text = "поиск приборов", cursor = true, color = colors.textSecondary)
+                Text(
+                    text = "ищем приборы рядом…",
+                    style = type.bodySmall,
+                    color = colors.ink2,
+                )
                 Text(
                     text = "Включите прибор и держите его рядом. Официальное " +
                         "приложение RadiaCode должно быть закрыто: прибор " +
                         "соединяется только с одним телефоном.",
                     style = type.bodySmall,
-                    color = colors.textMuted,
+                    color = colors.muted,
                 )
             }
             if (scanError) {
@@ -234,11 +237,11 @@ private fun ScanStep(graph: AppGraph) {
                     text = "Поиск не запустился. Проверьте, что Bluetooth включён, " +
                         "и откройте приложение заново.",
                     style = type.body,
-                    color = colors.aboveUsual,
+                    color = colors.warn,
                 )
             }
             devices.forEachIndexed { index, device ->
-                if (index > 0) PixelDivider()
+                if (index > 0) AppDivider()
                 DeviceRow(
                     device = device,
                     connecting = connectingAddress == device.address,
@@ -263,8 +266,8 @@ private fun DeviceRow(
     enabled: Boolean,
     onConnect: () -> Unit,
 ) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth(),
@@ -272,19 +275,26 @@ private fun DeviceRow(
         Column(Modifier.weight(1f)) {
             Text(
                 text = device.name ?: "RadiaCode",
-                style = type.value,
-                color = colors.text,
+                style = type.label,
+                color = colors.ink,
             )
             Spacer(Modifier.height(2.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-                Text(device.address, style = type.labelSmall, color = colors.textMuted)
-                PixelTag(text = "сигнал ${device.rssi}")
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(device.address, style = type.footnote, color = colors.muted)
+                Chip(text = "${device.rssi} дБм")
             }
         }
         if (connecting) {
-            StatusLine(text = "подключение", cursor = true, color = colors.accent)
+            Text(
+                text = "подключение…",
+                style = type.label,
+                color = colors.dataText,
+            )
         } else {
-            PixelButton(text = "ПОДКЛЮЧИТЬ", onClick = onConnect, enabled = enabled)
+            AppButton(text = "Подключить", onClick = onConnect, enabled = enabled)
         }
     }
 }

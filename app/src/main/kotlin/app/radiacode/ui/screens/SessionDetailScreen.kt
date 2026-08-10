@@ -25,19 +25,21 @@ import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.SessionSummary
 import app.radiacode.data.db.EventEntity
 import app.radiacode.device.DoseUnits
-import app.radiacode.ui.components.PixelBox
-import app.radiacode.ui.components.PixelButton
-import app.radiacode.ui.components.PixelChart
-import app.radiacode.ui.components.PixelChartSpec
-import app.radiacode.ui.components.PixelDivider
-import app.radiacode.ui.components.PixelTag
-import app.radiacode.ui.components.StatusLine
+import app.radiacode.ui.components.AppButton
+import app.radiacode.ui.components.AppDivider
+import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.Chip
+import app.radiacode.ui.components.StatCell
+import app.radiacode.ui.components.StatGrid
+import app.radiacode.ui.components.TrendChart
+import app.radiacode.ui.components.TrendChartSpec
 import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.HistoryFormat
-import app.radiacode.ui.theme.LocalPixelColors
-import app.radiacode.ui.theme.LocalPixelTypography
-import app.radiacode.ui.theme.PixelDimens
+import app.radiacode.ui.logic.TimeAxis
+import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.LocalAppTypography
 
 private const val CHART_COLUMNS = 48
 
@@ -46,6 +48,8 @@ private data class SessionDetail(
     val summary: SessionSummary,
     val columns: List<Float?>,
     val stats: ChartMapping.Stats?,
+    val fromMillis: Long,
+    val toMillis: Long,
     val events: List<EventEntity>,
 )
 
@@ -56,8 +60,8 @@ private data class SessionDetail(
  */
 @Composable
 fun SessionDetailScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
     var detail by remember { mutableStateOf<SessionDetail?>(null) }
@@ -72,22 +76,22 @@ fun SessionDetailScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(PixelDimens.space4),
-        verticalArrangement = Arrangement.spacedBy(PixelDimens.space4),
+            .padding(Dimens.space3),
+        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            PixelButton(text = "НАЗАД", onClick = onBack)
+            AppButton(text = "← Назад", onClick = onBack)
             Spacer(Modifier.weight(1f))
-            Text("СЕССИЯ", style = type.heading, color = colors.text)
+            Chip(text = "Сессия", color = colors.ink)
         }
 
         val d = detail
         when {
-            missing -> PixelBox(modifier = Modifier.fillMaxWidth()) {
-                StatusLine(text = "сессия не найдена", color = colors.textMuted)
+            missing -> Card(modifier = Modifier.fillMaxWidth()) {
+                Text(text = "сессия не найдена", style = type.bodySmall, color = colors.muted)
             }
-            d == null -> PixelBox(modifier = Modifier.fillMaxWidth()) {
-                StatusLine(text = "читаю сессию", cursor = true, color = colors.textMuted)
+            d == null -> Card(modifier = Modifier.fillMaxWidth()) {
+                Text(text = "читаю сессию…", style = type.bodySmall, color = colors.muted)
             }
             else -> {
                 SummaryCard(d.summary, unit)
@@ -100,35 +104,35 @@ fun SessionDetailScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) {
 
 @Composable
 private fun SummaryCard(summary: SessionSummary, unit: DoseUnitSetting) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
     val durationSeconds = ((summary.endedAt ?: now) - summary.startedAt) / 1000L
-    PixelBox(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = (summary.placeName ?: "без места").uppercase(),
-                    style = type.label,
-                    color = colors.text,
+                    text = summary.placeName ?: "Без места",
+                    style = type.title,
+                    color = colors.ink,
                 )
                 Spacer(Modifier.weight(1f))
-                if (summary.endedAt == null) PixelTag(text = "идёт", color = colors.accent)
+                if (summary.endedAt == null) Chip(text = "идёт", color = colors.ok)
             }
             Text(
                 text = HistoryFormat.dayTime(summary.startedAt, now) +
                     " · ${HistoryFormat.duration(durationSeconds)}",
-                style = type.labelSmall,
-                color = colors.textSecondary,
+                style = type.footnote,
+                color = colors.ink2,
             )
-            PixelDivider()
+            AppDivider()
 
             val stats = summary.stats
             if (stats.sampleCount == 0 || stats.avgDoseRate == null) {
                 Text(
                     text = "измерений в этой сессии не записано",
                     style = type.body,
-                    color = colors.textMuted,
+                    color = colors.muted,
                 )
             } else {
                 DetailRow("измерений", HistoryFormat.count(stats.sampleCount))
@@ -142,25 +146,18 @@ private fun SummaryCard(summary: SessionSummary, unit: DoseUnitSetting) {
                 DetailRow(
                     "скорость счёта",
                     "ср ${(stats.avgCountRate ?: 0f).toInt()} · " +
-                        "макс ${(stats.maxCountRate ?: 0f).toInt()} CPS",
+                        "макс ${(stats.maxCountRate ?: 0f).toInt()} с⁻¹",
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2),
-                ) {
-                    DetailRow(
-                        "доза за сессию",
-                        DoseFormat.doseWithUnit(summary.doseMicroSv, unit),
-                        modifier = Modifier.weight(1f),
-                    )
-                    PixelTag(text = "расчёт")
-                }
+                DetailRow(
+                    "доза за сессию · расчёт",
+                    DoseFormat.doseWithUnit(summary.doseMicroSv, unit),
+                )
             }
 
             if (summary.hasSpectrum || summary.hasTrack) {
-                Row(horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-                    if (summary.hasSpectrum) PixelTag(text = "спектр")
-                    if (summary.hasTrack) PixelTag(text = "трек")
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    if (summary.hasSpectrum) Chip(text = "спектр")
+                    if (summary.hasTrack) Chip(text = "трек")
                 }
             }
         }
@@ -169,45 +166,51 @@ private fun SummaryCard(summary: SessionSummary, unit: DoseUnitSetting) {
 
 @Composable
 private fun DetailRow(label: String, value: String, modifier: Modifier = Modifier) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
     Row(modifier = modifier.fillMaxWidth()) {
-        Text(text = label, style = type.labelSmall, color = colors.textMuted)
+        Text(text = label, style = type.bodySmall, color = colors.ink2)
         Spacer(Modifier.weight(1f))
-        Text(text = value, style = type.labelSmall, color = colors.text)
+        Text(text = value, style = type.valueSmall, color = colors.ink)
     }
 }
 
 @Composable
 private fun ChartCard(detail: SessionDetail, unit: DoseUnitSetting) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
-    PixelBox(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-            Text("МОЩНОСТЬ ДОЗЫ · ВСЯ СЕССИЯ", style = type.label, color = colors.text)
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Text(
+                text = "Мощность дозы · вся сессия".uppercase(),
+                style = type.labelSmall,
+                color = colors.ink2,
+            )
             val stats = detail.stats
             if (stats == null) {
-                StatusLine(text = "данных для графика нет", color = colors.textMuted)
+                Text(
+                    text = "данных для графика нет",
+                    style = type.bodySmall,
+                    color = colors.muted,
+                )
             } else {
                 val yMax = ChartMapping.yMax(stats.max, null)
-                PixelChart(
-                    spec = PixelChartSpec(
+                TrendChart(
+                    spec = TrendChartSpec(
                         columns = detail.columns,
                         yMax = yMax,
-                        columnWidthPx = 2,
-                        gapPx = 1,
+                        yTicks = ChartMapping.yTicks(yMax).map { it to DoseFormat.rate(it, unit) },
+                        xLabels = TimeAxis.labels(detail.fromMillis, detail.toMillis),
                     ),
-                    yMaxLabel = DoseFormat.rateWithUnit(yMax, unit),
-                    xStartLabel = "начало",
-                    xEndLabel = "конец",
                 )
-                Text(
-                    text = "мин ${DoseFormat.rate(stats.min, unit)} · " +
-                        "ср ${DoseFormat.rate(stats.avg, unit)} · " +
-                        "макс ${DoseFormat.rate(stats.max, unit)} · " +
-                        "σ ${DoseFormat.rate(stats.sigma, unit)}",
-                    style = type.labelSmall,
-                    color = colors.textSecondary,
+                StatGrid(
+                    cells = listOf(
+                        StatCell(DoseFormat.rate(stats.min, unit), "мин"),
+                        StatCell(DoseFormat.rate(stats.median, unit), "медиана"),
+                        StatCell(DoseFormat.rate(stats.max, unit), "макс"),
+                        StatCell(DoseFormat.rate(stats.sigma, unit), "σ"),
+                        StatCell(HistoryFormat.count(detail.summary.stats.sampleCount), "n"),
+                    ),
                 )
             }
         }
@@ -216,12 +219,16 @@ private fun ChartCard(detail: SessionDetail, unit: DoseUnitSetting) {
 
 @Composable
 private fun EventsCard(events: List<EventEntity>, unit: DoseUnitSetting) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
-    PixelBox(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-            Text("СОБЫТИЯ СЕССИИ", style = type.label, color = colors.text)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Text(
+                text = "События сессии".uppercase(),
+                style = type.labelSmall,
+                color = colors.ink2,
+            )
             events.forEach { event ->
                 val dose = event.doseRate?.let {
                     DoseFormat.rateWithUnit(DoseUnits.rawToMicroSievertPerHour(it), unit)
@@ -236,8 +243,8 @@ private fun EventsCard(events: List<EventEntity>, unit: DoseUnitSetting) {
                         },
                         dose,
                     ).joinToString(" · "),
-                    style = type.labelSmall,
-                    color = colors.aboveUsual,
+                    style = type.valueSmall,
+                    color = colors.warn,
                 )
             }
         }
@@ -264,6 +271,8 @@ private suspend fun loadDetail(graph: AppGraph, sessionId: Long): SessionDetail?
         summary = summary,
         columns = columns,
         stats = ChartMapping.stats(columns),
+        fromMillis = alignedFrom,
+        toMillis = to,
         events = events.sortedBy { it.timestamp },
     )
 }

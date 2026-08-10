@@ -13,43 +13,41 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import app.radiacode.ui.components.PixelBox
-import app.radiacode.ui.components.PixelTag
-import app.radiacode.ui.components.StatusLine
-import app.radiacode.ui.theme.LocalPixelColors
-import app.radiacode.ui.theme.LocalPixelTypography
-import app.radiacode.ui.theme.PixelDimens
+import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.Chip
+import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.LocalAppTypography
 
-/** Pixel placeholder for tabs whose engines are later roadmap stages. */
+/** Placeholder for tabs whose engines are later roadmap stages. */
 @Composable
 fun PlaceholderScreen(title: String, planned: List<String>) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(PixelDimens.space4),
-        verticalArrangement = Arrangement.spacedBy(PixelDimens.space4),
+            .padding(Dimens.space3),
+        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = type.heading, color = colors.text)
+            Chip(text = title, color = colors.ink)
             Spacer(Modifier.weight(1f))
-            PixelTag(text = "в разработке")
+            Chip(text = "в разработке")
         }
-        PixelBox(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-                StatusLine(text = "экран ещё строится", cursor = true, color = colors.textSecondary)
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(
-                    text = "Здесь появится:",
+                    text = "Экран ещё строится. Здесь появится:",
                     style = type.body,
-                    color = colors.textSecondary,
+                    color = colors.ink2,
                 )
                 planned.forEach { line ->
                     Text(
                         text = "· $line",
                         style = type.body,
-                        color = colors.textMuted,
+                        color = colors.muted,
                     )
                 }
             }
@@ -59,7 +57,7 @@ fun PlaceholderScreen(title: String, planned: List<String>) {
 
 @Composable
 fun MapPlaceholder() = PlaceholderScreen(
-    title = "КАРТА",
+    title = "Карта",
     planned = listOf(
         "трек прогулки с точками измерений",
         "окраска точек по мощности дозы или CPS",

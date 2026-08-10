@@ -1,14 +1,19 @@
 package app.radiacode.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,49 +26,53 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
-import androidx.compose.ui.unit.dp
 import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.EnergyWindow
+import app.radiacode.analysis.IsotopeHint
 import app.radiacode.analysis.IsotopeMatcher
+import app.radiacode.analysis.Peak
 import app.radiacode.analysis.PeakDetection
 import app.radiacode.analysis.SpectrumDisplay
-import app.radiacode.data.DoseUnitSetting
-import app.radiacode.data.db.SampleEntity
 import app.radiacode.data.toSpectrum
 import app.radiacode.device.ConnectionState
-import app.radiacode.device.DoseUnits
 import app.radiacode.protocol.Spectrum
 import app.radiacode.service.SpectrumHub
-import app.radiacode.ui.components.PixelBox
-import app.radiacode.ui.components.PixelButton
-import app.radiacode.ui.components.PixelTag
+import app.radiacode.ui.components.AppButton
+import app.radiacode.ui.components.AppDivider
+import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.Chip
+import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.SpectrumChart
 import app.radiacode.ui.components.SpectrumChartSpec
-import app.radiacode.ui.components.StatusLine
-import app.radiacode.ui.logic.DoseFormat
+import app.radiacode.ui.components.SpectrumPeakMark
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.SpectrumFormat
-import app.radiacode.ui.theme.LocalPixelColors
-import app.radiacode.ui.theme.LocalPixelTypography
-import app.radiacode.ui.theme.PixelDimens
+import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.LocalAppTypography
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
-/** Chart resolution: 1024 channels aggregate into this many pixel columns. */
-private const val COLUMN_COUNT = 120
+/** Chart resolution: 1024 channels aggregate into this many line points. */
+private const val COLUMN_COUNT = 240
 
 /**
  * Спектр (SPEC «Spectrum», expert screen): накопление since the last reset,
- * counts/keV histogram with lin/log scale and energy-window zoom, background
- * overlay «минус фон», display-only smoothing and cautious isotope hints.
+ * counts/keV line chart with lin/log scale and energy-window zoom, background
+ * overlay «минус фон», display-only smoothing, and the peak table
+ * (E | нетто | SNR | кандидат) with cautious isotope wording.
  */
 @Composable
 fun SpectrumScreen(graph: AppGraph) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
     val hub = graph.spectrumHub
 
     // Acquisition runs only while this tab is composed (watcher refcount).
@@ -74,8 +83,6 @@ fun SpectrumScreen(graph: AppGraph) {
 
     val hubState by hub.state.collectAsState()
     val connection by graph.serviceStatus.connection.collectAsState()
-    val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
-    val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
     val spectrum = hubState.spectrum
     val connected = connection is ConnectionState.Connected
@@ -84,50 +91,62 @@ fun SpectrumScreen(graph: AppGraph) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(PixelDimens.space4),
-        verticalArrangement = Arrangement.spacedBy(PixelDimens.space4),
+            .padding(Dimens.space3),
+        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("СПЕКТР", style = type.heading, color = colors.text)
+            Chip(text = "Спектр", color = colors.ink)
             Spacer(Modifier.weight(1f))
-            PixelTag(
-                text = spectrum?.let { SpectrumFormat.accumulationClock(it.durationSeconds) }
-                    ?: "нет данных",
+            Chip(
+                text = spectrum?.let {
+                    SpectrumFormat.accumulationChip(
+                        it.durationSeconds,
+                        it.counts.sumOf { c -> c.toLong() },
+                    )
+                } ?: "нет данных",
             )
         }
 
         val unsupported = hubState.unsupportedFormatVersion
         when {
-            unsupported != null -> PixelBox(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-                    Text("ФОРМАТ НЕ ПОДДЕРЖАН", style = type.label, color = colors.text)
+            unsupported != null -> Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    Text("Формат не поддержан", style = type.title, color = colors.ink)
                     Text(
                         text = "Прибор передаёт спектр в формате версии $unsupported, " +
                             "который это приложение пока не умеет читать. Остальные " +
                             "экраны работают как обычно.",
                         style = type.body,
-                        color = colors.textSecondary,
+                        color = colors.ink2,
                     )
                 }
             }
-            spectrum == null || spectrum.counts.isEmpty() -> PixelBox(
+            spectrum == null || spectrum.counts.isEmpty() -> Card(
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     if (connected) {
-                        StatusLine(text = "читаем спектр с прибора", cursor = true, color = colors.textSecondary)
+                        Text(
+                            text = "читаем спектр с прибора…",
+                            style = type.bodySmall,
+                            color = colors.ink2,
+                        )
                     } else {
-                        StatusLine(text = "нет соединения с прибором", cursor = false, color = colors.textSecondary)
+                        Text(
+                            text = "нет соединения с прибором",
+                            style = type.bodySmall,
+                            color = colors.ink2,
+                        )
                         Text(
                             text = "Спектр появится после подключения — статус соединения " +
                                 "виден на Главной.",
                             style = type.bodySmall,
-                            color = colors.textMuted,
+                            color = colors.muted,
                         )
                     }
                 }
             }
-            else -> SpectrumContent(graph, spectrum, connected, hubState, sample, unit)
+            else -> SpectrumContent(graph, spectrum, connected, hubState)
         }
     }
 }
@@ -138,11 +157,9 @@ private fun SpectrumContent(
     spectrum: Spectrum,
     connected: Boolean,
     hubState: SpectrumHub.State,
-    sample: SampleEntity?,
-    unit: DoseUnitSetting,
 ) {
-    val colors = LocalPixelColors.current
-    val type = LocalPixelTypography.current
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
     val hub = graph.spectrumHub
 
     var logScale by rememberSaveable { mutableStateOf(true) }
@@ -164,54 +181,28 @@ private fun SpectrumContent(
     }
     val visible = window?.let { SpectrumDisplay.clampInto(it, full) } ?: full
 
-    // --- summary: имп · CPS · доза (live CPS/dose from the 1 Hz stream) ---
-    val totalCounts = remember(spectrum) { spectrum.counts.sumOf { it.toLong() } }
-    PixelBox(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-            Text(
-                text = "имп " + HistoryFormat.count(totalCounts.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()) +
-                    " · CPS " + (sample?.countRate?.toInt()?.toString() ?: "—") +
-                    " · " + (sample?.let {
-                        DoseFormat.rateWithUnit(DoseUnits.rawToMicroSievertPerHour(it.doseRate), unit)
-                    } ?: "— ${DoseFormat.rateUnitLabel(unit)}"),
-                style = type.value,
-                color = colors.text,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-                PixelButton(
-                    text = "СБРОС",
-                    onClick = { confirmReset = true },
-                    enabled = connected,
-                )
-                PixelButton(
-                    text = "СОХРАНИТЬ",
-                    onClick = { hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
-                )
-            }
-            val savedAt = hubState.lastSavedAtMillis
-            if (savedAt != null) {
-                Text(
-                    text = "снимок сохранён в ${timeOfDay(savedAt)} — он виден в Истории",
-                    style = type.labelSmall,
-                    color = colors.textMuted,
-                )
-            }
-            if (!connected) {
-                Text(
-                    text = "нет соединения — показан последний прочитанный спектр",
-                    style = type.labelSmall,
-                    color = colors.textMuted,
-                )
-            }
-        }
+    // --- controls: mode + scale ---
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+        Segmented(
+            options = listOf("Накопл.", "−фон"),
+            selectedIndex = if (subtractOn) 1 else 0,
+            onSelect = { minusBackground = it == 1 },
+            enabled = { it == 0 || background != null },
+            modifier = Modifier.weight(1.5f),
+        )
+        Segmented(
+            options = listOf("Лог", "Лин"),
+            selectedIndex = if (logScale) 0 else 1,
+            onSelect = { logScale = it == 0 },
+            modifier = Modifier.weight(1f),
+        )
     }
 
-    // --- chart ---
+    // --- display pipeline (raw counts never change): optional «минус фон»
+    // with time-ratio normalization, then optional display-only smoothing ---
     val range = remember(visible, calibration, spectrum.counts.size) {
         SpectrumDisplay.channelRange(visible, calibration, spectrum.counts.size)
     }
-    // Display pipeline (raw counts never change): optional «минус фон» with
-    // time-ratio normalization, then optional display-only smoothing.
     val baseSeries = remember(spectrum, background, subtractOn) {
         if (subtractOn && background != null) {
             SpectrumDisplay.subtractBackground(
@@ -250,68 +241,42 @@ private fun SpectrumContent(
     val dataMax = maxOf(columns.maxOrNull() ?: 0f, overlayColumns?.maxOrNull() ?: 0f)
     val yTop = if (logScale) SpectrumDisplay.logTop(dataMax) else maxOf(dataMax * 1.15f, 10f)
 
-    // --- cautious isotope analysis (always on raw counts, never on display data) ---
+    // --- cautious isotope analysis (always on raw counts, never display data) ---
     val analysisReady = spectrum.durationSeconds >= IsotopeMatcher.MIN_ANALYSIS_SECONDS
-    val hints = remember(spectrum, calibration, analysisReady) {
+    val peaks = remember(spectrum, calibration, analysisReady) {
         if (analysisReady) {
-            IsotopeMatcher.match(PeakDetection.detect(spectrum.counts, calibration))
+            PeakDetection.detect(spectrum.counts, calibration).sortedBy { it.energyKeV }
         } else {
             emptyList()
         }
     }
+    val hints = remember(peaks) { IsotopeMatcher.match(peaks) }
     var highlightedIsotope by remember { mutableStateOf<String?>(null) }
-    val highlightedHint = hints.firstOrNull { it.isotope == highlightedIsotope } ?: hints.firstOrNull()
-    val highlightedColumns: Set<Int> = remember(highlightedHint, range, calibration) {
-        val hint = highlightedHint ?: return@remember emptySet()
-        val half = PeakDetection.halfWidthChannels(calibration, hint.peak.channel)
-        buildSet {
-            for (channel in (hint.peak.channel - half)..(hint.peak.channel + half)) {
-                SpectrumDisplay.columnForChannel(channel, range, COLUMN_COUNT)?.let { add(it) }
-            }
+    val highlightedHint = hints.firstOrNull { it.isotope == highlightedIsotope }
+        ?: hints.firstOrNull { !it.natural }
+        ?: hints.firstOrNull()
+    val peakMarks = remember(peaks, hints, highlightedHint, range) {
+        peaks.mapNotNull { peak ->
+            val column = SpectrumDisplay.columnForChannel(peak.channel, range, COLUMN_COUNT)
+                ?: return@mapNotNull null
+            SpectrumPeakMark(
+                columnIndex = column,
+                label = "${peak.energyKeV.roundToInt()}",
+                highlighted = highlightedHint != null && highlightedHint.peak == peak,
+            )
         }
     }
 
-    PixelBox(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("СЧЁТ / КЭВ", style = type.label, color = colors.text)
-                Spacer(Modifier.weight(1f))
-                PixelButton(
-                    text = "ЛИН",
-                    onClick = { logScale = false },
-                    selected = !logScale,
-                )
-                PixelButton(
-                    text = "ЛОГ",
-                    onClick = { logScale = true },
-                    selected = logScale,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-                PixelButton(
-                    text = "СПЕКТР",
-                    onClick = { minusBackground = false },
-                    selected = !subtractOn,
-                )
-                PixelButton(
-                    text = "−ФОН",
-                    onClick = { minusBackground = true },
-                    selected = subtractOn,
-                    enabled = background != null,
-                )
-                PixelButton(
-                    text = "СГЛАЖ.",
-                    onClick = { smoothing = !smoothing },
-                    selected = smoothing,
-                )
-            }
+    // --- chart card ---
+    Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SpectrumChart(
                 spec = SpectrumChartSpec(
                     columns = columns,
                     overlay = overlayColumns,
                     logScale = logScale,
                     yTop = yTop,
-                    highlightedColumns = highlightedColumns,
+                    peaks = peakMarks,
                     energyTicks = SpectrumDisplay.energyTicks(visible),
                 ),
                 onGesture = { scale, pan, focus ->
@@ -320,167 +285,293 @@ private fun SpectrumContent(
                     window = next
                 },
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = Dimens.space1),
+            ) {
                 Text(
-                    text = "диапазон ${SpectrumFormat.windowLabel(visible)}",
+                    text = "кэВ".uppercase(),
                     style = type.labelSmall,
-                    color = colors.textSecondary,
+                    color = colors.ink2,
                 )
                 Spacer(Modifier.weight(1f))
-                PixelButton(
+                LegendItem(
+                    color = colors.data,
+                    label = if (subtractOn) "−фон" else "накопл.",
+                )
+                if (overlayColumns != null && backgroundEntity != null) {
+                    Spacer(Modifier.size(10.dp))
+                    LegendItem(
+                        color = colors.muted,
+                        label = "фон ${HistoryFormat.day(backgroundEntity!!.timestamp)}",
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                modifier = Modifier.padding(horizontal = Dimens.space1),
+            ) {
+                Text(
+                    text = "диапазон ${SpectrumFormat.windowLabel(visible)}",
+                    style = type.footnote,
+                    color = colors.ink2,
+                    modifier = Modifier.weight(1f),
+                )
+                Chip(
+                    text = "сглаж.",
+                    color = if (smoothing) colors.dataText else colors.ink2,
+                    onClick = { smoothing = !smoothing },
+                )
+                AppButton(
                     text = "−",
                     onClick = { window = SpectrumDisplay.zoomOut(visible, full) },
                     enabled = visible.widthKeV < full.widthKeV,
                 )
-                PixelButton(
+                AppButton(
                     text = "+",
                     onClick = { window = SpectrumDisplay.zoomIn(visible, full) },
                     enabled = visible.widthKeV > SpectrumDisplay.MIN_WINDOW_KEV,
                 )
             }
-            Text(
-                text = "щипок по графику — масштаб, перетаскивание — сдвиг",
-                style = type.labelSmall,
-                color = colors.textMuted,
-            )
-            if (smoothing) {
+            Column(modifier = Modifier.padding(horizontal = Dimens.space1)) {
                 Text(
-                    text = "сглаживание — только отображение, исходные данные не меняются",
-                    style = type.labelSmall,
-                    color = colors.textMuted,
+                    text = "щипок по графику — масштаб, перетаскивание — сдвиг",
+                    style = type.footnote,
+                    color = colors.muted,
                 )
+                if (smoothing) {
+                    Text(
+                        text = "сглаживание — только отображение, исходные данные не меняются",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+                if (!connected) {
+                    Text(
+                        text = "нет соединения — показан последний прочитанный спектр",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
             }
         }
     }
 
-    // --- background reference (overlay / «минус фон») ---
-    PixelBox(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-            Text("ОПОРНЫЙ ФОН", style = type.label, color = colors.text)
-            val bgEntity = backgroundEntity
-            if (background == null || bgEntity == null) {
-                Text(
-                    text = "Фон не записан. Накопите спектр в обычной обстановке и " +
-                        "запишите его — появятся наложение фона и режим «минус фон».",
-                    style = type.bodySmall,
-                    color = colors.textMuted,
-                )
-            } else {
-                Text(
-                    text = "записан " +
-                        HistoryFormat.dayTime(bgEntity.timestamp, System.currentTimeMillis()) +
-                        " · накопление " + HistoryFormat.duration(background.durationSeconds),
-                    style = type.labelSmall,
-                    color = colors.textSecondary,
-                )
-                if (overlayColumns != null) {
-                    Text(
-                        text = "точки на графике — фон, приведённый к текущему времени накопления",
-                        style = type.labelSmall,
-                        color = colors.textMuted,
-                    )
-                }
-                if (subtractOn) {
-                    Text(
-                        text = "показана разница: текущий спектр минус фон, не меньше нуля",
-                        style = type.labelSmall,
-                        color = colors.textMuted,
-                    )
-                }
-            }
-            PixelButton(
-                text = "ЗАПИСАТЬ ФОН",
-                onClick = { hub.request(SpectrumHub.Command.RECORD_BACKGROUND) },
-            )
-        }
-    }
-
-    // --- cautious isotope hints (SPEC: never «обнаружен») ---
-    PixelBox(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-            Text("ВОЗМОЖНЫЕ СОВПАДЕНИЯ", style = type.label, color = colors.text)
+    // --- peak table (E | нетто | SNR | кандидат) ---
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when {
                 !analysisReady -> Text(
-                    text = "мало данных для анализа — накопите хотя бы минуту",
+                    text = "мало данных для анализа пиков — накопите хотя бы минуту",
                     style = type.bodySmall,
-                    color = colors.textMuted,
+                    color = colors.muted,
                 )
-                hints.isEmpty() -> Text(
-                    text = "выраженных пиков над фоном не найдено",
+                peaks.isEmpty() -> Text(
+                    text = "выраженных пиков над континуумом не найдено",
                     style = type.bodySmall,
-                    color = colors.textMuted,
+                    color = colors.muted,
                 )
-                else -> {
-                    hints.forEach { hint ->
-                        val selected = hint == highlightedHint
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { highlightedIsotope = hint.isotope },
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            Text(
-                                text = (if (selected) "▸ " else "· ") + SpectrumFormat.hintLine(hint),
-                                style = type.labelSmall,
-                                color = if (selected) colors.text else colors.textSecondary,
-                            )
-                            SpectrumFormat.hintNote(hint)?.let {
-                                Text(
-                                    text = "  $it",
-                                    style = type.labelSmall,
-                                    color = colors.textMuted,
-                                )
-                            }
-                            SpectrumFormat.hintAlternatives(hint)?.let {
-                                Text(
-                                    text = "  $it",
-                                    style = type.labelSmall,
-                                    color = colors.textMuted,
-                                )
-                            }
-                        }
-                    }
-                    Text(
-                        text = "красная метка на графике — пик подсвеченного кандидата",
-                        style = type.labelSmall,
-                        color = colors.textMuted,
-                    )
+                else -> PeakTable(
+                    peaks = peaks,
+                    hints = hints,
+                    highlightedHint = highlightedHint,
+                    onSelect = { highlightedIsotope = it },
+                )
+            }
+            highlightedHint?.let { hint ->
+                SpectrumFormat.hintAlternatives(hint)?.let { alternatives ->
+                    Text(text = alternatives, style = type.footnote, color = colors.muted)
                 }
             }
             Text(
-                text = "Совпадение по пику — не обнаружение изотопа. Для вывода нужны " +
-                    "повторное накопление и дополнительные линии.",
-                style = type.bodySmall,
-                color = colors.textMuted,
+                text = "возможное совпадение ≠ обнаружение · нужно подтверждение: " +
+                    "копите дольше",
+                style = type.footnote,
+                color = colors.muted,
             )
         }
     }
+
+    // --- actions ---
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+        AppButton(
+            text = "Записать фон",
+            onClick = { hub.request(SpectrumHub.Command.RECORD_BACKGROUND) },
+            modifier = Modifier.weight(1f),
+        )
+        AppButton(
+            text = "Сохранить",
+            onClick = { hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
+            modifier = Modifier.weight(1f),
+        )
+        AppButton(
+            text = "Сброс",
+            onClick = { confirmReset = true },
+            enabled = connected,
+            modifier = Modifier.weight(1f),
+        )
+    }
+
+    val bgEntity = backgroundEntity
+    Text(
+        text = if (background != null && bgEntity != null) {
+            "фон записан " +
+                HistoryFormat.dayTime(bgEntity.timestamp, System.currentTimeMillis()) +
+                " · накопление " + HistoryFormat.duration(background.durationSeconds) +
+                if (subtractOn) " · показана разница, не меньше нуля" else ""
+        } else {
+            "фон не записан — запишите спектр обычной обстановки, появятся " +
+                "наложение и «минус фон»"
+        },
+        style = type.footnote,
+        color = colors.muted,
+        modifier = Modifier.padding(horizontal = Dimens.space1),
+    )
+    hubState.lastSavedAtMillis?.let { savedAt ->
+        Text(
+            text = "снимок сохранён в ${timeOfDay(savedAt)} — он виден в Истории",
+            style = type.footnote,
+            color = colors.muted,
+            modifier = Modifier.padding(horizontal = Dimens.space1),
+        )
+    }
+
+    Text(
+        text = SpectrumFormat.calibrationLine(
+            spectrum.a0,
+            spectrum.a1,
+            spectrum.a2,
+            spectrum.counts.size,
+        ),
+        style = type.footnote,
+        color = colors.muted,
+        modifier = Modifier.padding(horizontal = Dimens.space1),
+    )
 
     if (confirmReset) {
         Dialog(onDismissRequest = { confirmReset = false }) {
-            PixelBox(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-                    Text("СБРОСИТЬ СПЕКТР?", style = type.label, color = colors.text)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    Text("Сбросить спектр?", style = type.title, color = colors.ink)
                     Text(
                         text = "Накопление начнётся заново — на приборе спектр " +
                             "тоже очистится. Сохранённые снимки останутся в Истории.",
                         style = type.body,
-                        color = colors.textSecondary,
+                        color = colors.ink2,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(PixelDimens.space2)) {
-                        PixelButton(
-                            text = "СБРОС",
+                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                        AppButton(
+                            text = "Сброс",
                             onClick = {
                                 confirmReset = false
                                 hub.request(SpectrumHub.Command.RESET)
                             },
                         )
-                        PixelButton(text = "ОТМЕНА", onClick = { confirmReset = false })
+                        AppButton(text = "Отмена", onClick = { confirmReset = false })
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun LegendItem(color: Color, label: String) {
+    val type = LocalAppTypography.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Box(
+            Modifier
+                .size(width = 9.dp, height = 3.dp)
+                .background(color, RoundedCornerShape(2.dp)),
+        )
+        Text(text = label, style = type.axis, color = LocalAppColors.current.ink2)
+    }
+}
+
+@Composable
+private fun PeakTable(
+    peaks: List<Peak>,
+    hints: List<IsotopeHint>,
+    highlightedHint: IsotopeHint?,
+    onSelect: (String?) -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+
+    Column {
+        Row(Modifier.fillMaxWidth().padding(bottom = 5.dp)) {
+            TableHeader("E, кэВ", 0.9f)
+            TableHeader("нетто", 0.9f)
+            TableHeader("SNR", 0.7f)
+            TableHeader("кандидат", 1.6f)
+        }
+        AppDivider()
+        peaks.forEachIndexed { index, peak ->
+            val hint = hints.firstOrNull { it.peak == peak }
+            val isHighlighted = hint != null && hint == highlightedHint
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = hint != null) { onSelect(hint?.isotope) }
+                    .padding(vertical = 6.dp),
+            ) {
+                TableCell(SpectrumFormat.energyCell(peak.energyKeV), 0.9f, colors.ink)
+                TableCell(SpectrumFormat.netCell(peak.netCounts), 0.9f, colors.ink)
+                TableCell(SpectrumFormat.snrCell(peak.snr), 0.7f, colors.ink)
+                val candidate = hint?.let { SpectrumFormat.candidateCell(it) } ?: "—"
+                Text(
+                    text = (if (isHighlighted) "▸ " else "") + candidate,
+                    style = if (hint != null && !hint.natural) {
+                        type.valueSmall.copy(fontWeight = FontWeight.SemiBold)
+                    } else {
+                        type.valueSmall
+                    },
+                    color = when {
+                        hint == null -> colors.muted
+                        hint.natural -> colors.ink2
+                        else -> colors.warn
+                    },
+                    maxLines = 1,
+                    modifier = Modifier.weight(1.6f),
+                )
+            }
+            if (index < peaks.size - 1) AppDivider()
+        }
+    }
+}
+
+@Composable
+private fun RowScope.TableHeader(
+    text: String,
+    weight: Float,
+) {
+    Text(
+        text = text.uppercase(),
+        style = LocalAppTypography.current.overline,
+        color = LocalAppColors.current.muted,
+        maxLines = 1,
+        modifier = Modifier.weight(weight),
+    )
+}
+
+@Composable
+private fun RowScope.TableCell(
+    text: String,
+    weight: Float,
+    color: Color,
+) {
+    Text(
+        text = text,
+        style = LocalAppTypography.current.valueSmall,
+        color = color,
+        maxLines = 1,
+        modifier = Modifier.weight(weight),
+    )
 }
 
 private val TIME_OF_DAY = DateTimeFormatter.ofPattern("HH:mm")

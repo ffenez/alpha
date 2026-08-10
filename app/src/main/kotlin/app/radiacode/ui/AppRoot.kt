@@ -20,8 +20,7 @@ import androidx.core.content.ContextCompat
 import app.radiacode.AppGraph
 import app.radiacode.service.MeasurementService
 import app.radiacode.ui.components.AppTab
-import app.radiacode.ui.components.PixelNavBar
-import app.radiacode.ui.components.crtOverlay
+import app.radiacode.ui.components.NavBar
 import app.radiacode.ui.screens.HistoryScreen
 import app.radiacode.ui.screens.MapPlaceholder
 import app.radiacode.ui.screens.MonitorScreen
@@ -30,7 +29,7 @@ import app.radiacode.ui.screens.SearchScreen
 import app.radiacode.ui.screens.SessionDetailScreen
 import app.radiacode.ui.screens.SettingsScreen
 import app.radiacode.ui.screens.SpectrumScreen
-import app.radiacode.ui.theme.LocalPixelColors
+import app.radiacode.ui.theme.LocalAppColors
 
 /** Remembered-device lookup: distinguishes "loading" from "no device yet". */
 private sealed interface RememberedDevice {
@@ -46,7 +45,7 @@ private sealed interface RememberedDevice {
  */
 @Composable
 fun AppRoot(graph: AppGraph) {
-    val colors = LocalPixelColors.current
+    val colors = LocalAppColors.current
     var remembered by remember { mutableStateOf<RememberedDevice>(RememberedDevice.Loading) }
     LaunchedEffect(graph) {
         graph.settings.lastDeviceAddress.collect { remembered = RememberedDevice.Loaded(it) }
@@ -55,11 +54,10 @@ fun AppRoot(graph: AppGraph) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.ground)
-            .crtOverlay(enabled = colors.isDark),
+            .background(colors.bg),
     ) {
         when (val state = remembered) {
-            RememberedDevice.Loading -> Unit // ground-colored frame, resolves in ms
+            RememberedDevice.Loading -> Unit // bg-colored frame, resolves in ms
             is RememberedDevice.Loaded ->
                 if (state.address == null) {
                     OnboardingScreen(graph)
@@ -119,7 +117,7 @@ private fun MainScaffold(graph: AppGraph) {
                 }
             }
         }
-        PixelNavBar(
+        NavBar(
             selected = tab,
             onSelect = {
                 showSettings = false
