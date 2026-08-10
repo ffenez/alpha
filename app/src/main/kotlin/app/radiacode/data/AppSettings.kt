@@ -99,6 +99,47 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[DOSE_UNIT] = unit.name }
     }
 
+    /**
+     * Bottom-nav customization, opaque to this layer: parsing and the
+     * «Главная + минимум одна вкладка» guard live in `ui/logic/NavConfig`.
+     * Null = defaults (all tabs visible, canonical order).
+     */
+    val navTabsRaw: Flow<String?> = dataStore.data.map { it[NAV_TABS] }
+
+    suspend fun setNavTabsRaw(value: String) {
+        dataStore.edit { it[NAV_TABS] = value }
+    }
+
+    /** Optional Монитор blocks; hero value, status and chart are fixed. */
+    val monitorBlocks: Flow<MonitorBlocks> = dataStore.data.map { prefs ->
+        MonitorBlocks(
+            trend = prefs[MONITOR_SHOW_TREND] ?: true,
+            doseToday = prefs[MONITOR_SHOW_DOSE_TODAY] ?: true,
+            stats = prefs[MONITOR_SHOW_STATS] ?: true,
+            cpsHint = prefs[MONITOR_SHOW_CPS_HINT] ?: true,
+        )
+    }
+
+    suspend fun setMonitorBlocks(blocks: MonitorBlocks) {
+        dataStore.edit {
+            it[MONITOR_SHOW_TREND] = blocks.trend
+            it[MONITOR_SHOW_DOSE_TODAY] = blocks.doseToday
+            it[MONITOR_SHOW_STATS] = blocks.stats
+            it[MONITOR_SHOW_CPS_HINT] = blocks.cpsHint
+        }
+    }
+
+    /** Настройки → Интерфейс → «сбросить»: nav order and Монитор blocks. */
+    suspend fun resetInterfaceCustomization() {
+        dataStore.edit {
+            it.remove(NAV_TABS)
+            it.remove(MONITOR_SHOW_TREND)
+            it.remove(MONITOR_SHOW_DOSE_TODAY)
+            it.remove(MONITOR_SHOW_STATS)
+            it.remove(MONITOR_SHOW_CPS_HINT)
+        }
+    }
+
     companion object {
         const val DEFAULT_CUSTOM_L1_MICRO_SV_H = 0.30f
         const val DEFAULT_CUSTOM_L2_MICRO_SV_H = 1.00f
@@ -111,8 +152,21 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
         private val CUSTOM_ALARM_L1 = floatPreferencesKey("custom_alarm_l1_usvh")
         private val CUSTOM_ALARM_L2 = floatPreferencesKey("custom_alarm_l2_usvh")
         private val DOSE_UNIT = stringPreferencesKey("dose_unit")
+        private val NAV_TABS = stringPreferencesKey("nav_tabs")
+        private val MONITOR_SHOW_TREND = booleanPreferencesKey("monitor_show_trend")
+        private val MONITOR_SHOW_DOSE_TODAY = booleanPreferencesKey("monitor_show_dose_today")
+        private val MONITOR_SHOW_STATS = booleanPreferencesKey("monitor_show_stats")
+        private val MONITOR_SHOW_CPS_HINT = booleanPreferencesKey("monitor_show_cps_hint")
     }
 }
+
+/** Optional Монитор blocks (Настройки → Интерфейс); defaults all on. */
+data class MonitorBlocks(
+    val trend: Boolean = true,
+    val doseToday: Boolean = true,
+    val stats: Boolean = true,
+    val cpsHint: Boolean = true,
+)
 
 /** Stored dose display unit. */
 enum class DoseUnitSetting {

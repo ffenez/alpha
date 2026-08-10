@@ -45,21 +45,24 @@ private val AppTab.icon: ImageVector
     }
 
 /**
- * Bottom nav: hairline top border, surface fill, five thin-line icons. The
+ * Bottom nav: hairline top border, surface fill, thin-line icons. The
  * active item switches to the data-text color; the label is always present,
- * so state is not color alone.
+ * so state is not color alone. [tabs] comes from the interface customization
+ * (`ui/logic/NavConfig`): Главная first, then the visible tabs in the
+ * user's order.
  */
 @Composable
 fun NavBar(
     selected: AppTab,
     onSelect: (AppTab) -> Unit,
     modifier: Modifier = Modifier,
+    tabs: List<AppTab> = AppTab.entries,
 ) {
     val colors = LocalAppColors.current
     Column(modifier = modifier.fillMaxWidth().background(colors.surface)) {
         AppDivider()
         Row(Modifier.fillMaxWidth().navigationBarsPadding()) {
-            AppTab.entries.forEach { tab ->
+            tabs.forEach { tab ->
                 val isSelected = tab == selected
                 val tint = if (isSelected) colors.dataText else colors.muted
                 Column(

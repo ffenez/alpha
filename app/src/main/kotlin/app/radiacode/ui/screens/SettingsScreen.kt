@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -27,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
@@ -34,15 +37,19 @@ import app.radiacode.baseline.BaselineState
 import app.radiacode.baseline.alarmThresholds
 import app.radiacode.data.AppSettings
 import app.radiacode.data.DoseUnitSetting
+import app.radiacode.data.MonitorBlocks
 import app.radiacode.device.ConnectionState
 import app.radiacode.service.Notifications
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
+import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.RadioMark
 import app.radiacode.ui.logic.DoseFormat
+import app.radiacode.ui.logic.NavConfig
+import app.radiacode.ui.logic.NavEntry
 import app.radiacode.ui.logic.Freshness
 import app.radiacode.ui.logic.baselineCollectedWording
 import app.radiacode.ui.logic.freshnessLabel
@@ -56,7 +63,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Настройки (SPEC: opens separately, not a tab). Sections: Тревоги, Места,
- * Прибор, Единицы, О приложении.
+ * Прибор, Единицы, Интерфейс, О приложении.
  */
 @Composable
 fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
@@ -79,6 +86,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         PlacesSection(graph)
         DeviceSection(graph)
         UnitsSection(graph)
+        InterfaceSection(graph)
         AboutSection()
     }
 }
@@ -604,6 +612,192 @@ private fun UnitOption(
             )
             Text(text = subtitle, style = type.bodySmall, color = colors.muted)
         }
+    }
+}
+
+// --- Интерфейс ---
+
+/**
+ * Кастомизация: видимость и порядок вкладок нижнего меню (Главная
+ * фиксирована; минимум одна вкладка кроме неё) и необязательные блоки
+ * Монитора. Дефолты совпадают с сегодняшним видом; сброс возвращает их.
+ */
+@Composable
+private fun InterfaceSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val scope = rememberCoroutineScope()
+    val navRaw by graph.settings.navTabsRaw.collectAsState(initial = null)
+    val entries = NavConfig.parse(navRaw)
+    val blocks by graph.settings.monitorBlocks.collectAsState(initial = MonitorBlocks())
+    var guardNote by remember { mutableStateOf(false) }
+
+    fun save(newEntries: List<NavEntry>) {
+        guardNote = false
+        scope.launch { graph.settings.setNavTabsRaw(NavConfig.serialize(newEntries)) }
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle("Интерфейс")
+
+            Text(
+                text = "Вкладки меню: порядок и видимость. Настройки остаются " +
+                    "доступны через шестерёнку на Главной.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = Dimens.touchTarget),
+            ) {
+                Text(text = AppTab.HOME.title, style = type.label, color = colors.ink)
+                Spacer(Modifier.weight(1f))
+                Text(text = "всегда видна", style = type.bodySmall, color = colors.muted)
+            }
+            entries.forEachIndexed { index, entry ->
+                NavTabRow(
+                    entry = entry,
+                    canMoveUp = index > 0,
+                    canMoveDown = index < entries.lastIndex,
+                    onMove = { delta -> save(NavConfig.move(entries, entry.tab, delta)) },
+                    onToggle = {
+                        val toggled = NavConfig.toggle(entries, entry.tab)
+                        if (toggled == null) guardNote = true else save(toggled)
+                    },
+                )
+            }
+            if (guardNote) {
+                Text(
+                    text = "Кроме Главной должна остаться хотя бы одна вкладка.",
+                    style = type.bodySmall,
+                    color = colors.warn,
+                )
+            }
+
+            AppDivider()
+            Text(
+                text = "Блоки Главной. Число, статус и график остаются всегда.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            BlockToggleRow("Тренд/ч", blocks.trend) {
+                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(trend = it)) }
+            }
+            BlockToggleRow("Доза сегодня", blocks.doseToday) {
+                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(doseToday = it)) }
+            }
+            BlockToggleRow("Статистика под графиком (мин/медиана/макс/σ/n)", blocks.stats) {
+                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(stats = it)) }
+            }
+            BlockToggleRow("Подсказка о CPS", blocks.cpsHint) {
+                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(cpsHint = it)) }
+            }
+
+            AppDivider()
+            AppButton(
+                text = "Вернуть меню и блоки по умолчанию",
+                onClick = {
+                    guardNote = false
+                    scope.launch { graph.settings.resetInterfaceCustomization() }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun NavTabRow(
+    entry: NavEntry,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMove: (Int) -> Unit,
+    onToggle: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTarget),
+    ) {
+        Text(
+            text = entry.tab.title,
+            style = type.label,
+            color = if (entry.visible) colors.ink else colors.muted,
+            modifier = Modifier.weight(1f),
+        )
+        ArrowButton(text = "↑", enabled = canMoveUp) { onMove(-1) }
+        ArrowButton(text = "↓", enabled = canMoveDown) { onMove(1) }
+        Text(
+            text = if (entry.visible) "видна" else "скрыта",
+            style = type.value,
+            color = if (entry.visible) colors.ink else colors.muted,
+            modifier = Modifier
+                .defaultMinSize(minWidth = 64.dp, minHeight = Dimens.touchTarget)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onToggle,
+                )
+                .wrapContentHeight(),
+            textAlign = TextAlign.End,
+        )
+    }
+}
+
+@Composable
+private fun ArrowButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Text(
+        text = text,
+        style = type.title,
+        color = if (enabled) colors.ink2 else colors.line,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .defaultMinSize(minWidth = 40.dp, minHeight = Dimens.touchTarget)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                enabled = enabled,
+                onClick = onClick,
+            )
+            .wrapContentHeight(),
+    )
+}
+
+@Composable
+private fun BlockToggleRow(title: String, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTarget)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { onChange(!enabled) },
+            ),
+    ) {
+        Text(
+            text = title,
+            style = type.bodySmall,
+            color = colors.ink,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = if (enabled) "вкл" else "выкл",
+            style = type.value,
+            color = if (enabled) colors.ink else colors.muted,
+        )
     }
 }
 

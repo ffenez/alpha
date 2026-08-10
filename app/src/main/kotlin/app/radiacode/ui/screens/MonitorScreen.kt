@@ -42,6 +42,7 @@ import app.radiacode.baseline.Baseline
 import app.radiacode.baseline.BaselineState
 import app.radiacode.baseline.alarmThresholds
 import app.radiacode.data.DoseUnitSetting
+import app.radiacode.data.MonitorBlocks
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
 import app.radiacode.service.BatteryOptimization
@@ -113,6 +114,7 @@ fun MonitorScreen(
     val thresholds by graph.settings.alarmThresholds
         .collectAsState(initial = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f))
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
+    val blocks by graph.settings.monitorBlocks.collectAsState(initial = MonitorBlocks())
     val places by graph.placeRepository.places().collectAsState(initial = emptyList())
     val activePlace by graph.placeRepository.activePlace().collectAsState(initial = null)
 
@@ -191,6 +193,7 @@ fun MonitorScreen(
             baselineState = baselineState,
             unit = unit,
             stale = freshness !is Freshness.Fresh,
+            blocks = blocks,
         )
 
         HourChartCard(
@@ -200,14 +203,17 @@ fun MonitorScreen(
             unit = unit,
             alert = status is MonitorStatus.Alert,
             onOpen = onOpenChart,
+            showStats = blocks.stats,
         )
 
-        Text(
-            text = "CPS — счёт событий детектора, не мера опасности",
-            style = LocalAppTypography.current.footnote,
-            color = colors.muted,
-            modifier = Modifier.padding(horizontal = Dimens.space1),
-        )
+        if (blocks.cpsHint) {
+            Text(
+                text = "CPS — счёт событий детектора, не мера опасности",
+                style = LocalAppTypography.current.footnote,
+                color = colors.muted,
+                modifier = Modifier.padding(horizontal = Dimens.space1),
+            )
+        }
 
         BatteryBanner()
     }
@@ -263,6 +269,7 @@ private fun HeroCard(
     baselineState: BaselineState?,
     unit: DoseUnitSetting,
     stale: Boolean,
+    blocks: MonitorBlocks = MonitorBlocks(),
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -305,16 +312,21 @@ private fun HeroCard(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         KvRow("Счёт", cps?.let { Uncertainty.cpsWithSigma(it) } ?: "—")
-                        KvRow(
-                            label = "Тренд/ч",
-                            value = trendMicroSvHPerHour?.let { TrendFit.label(it, unit) } ?: "—",
-                            valueColor = trendWarnColor(trendMicroSvHPerHour, status),
-                        )
-                        KvRow(
-                            label = "Сегодня",
-                            value = doseTodayMicroSv?.let { DoseFormat.doseWithUnit(it, unit) }
-                                ?: "—",
-                        )
+                        if (blocks.trend) {
+                            KvRow(
+                                label = "Тренд/ч",
+                                value = trendMicroSvHPerHour?.let { TrendFit.label(it, unit) }
+                                    ?: "—",
+                                valueColor = trendWarnColor(trendMicroSvHPerHour, status),
+                            )
+                        }
+                        if (blocks.doseToday) {
+                            KvRow(
+                                label = "Сегодня",
+                                value = doseTodayMicroSv?.let { DoseFormat.doseWithUnit(it, unit) }
+                                    ?: "—",
+                            )
+                        }
                     }
                 }
             }
@@ -394,6 +406,7 @@ private fun HourChartCard(
     unit: DoseUnitSetting,
     alert: Boolean,
     onOpen: () -> Unit = {},
+    showStats: Boolean = true,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -453,15 +466,17 @@ private fun HourChartCard(
                         endpointAlert = alert,
                     ),
                 )
-                StatGrid(
-                    cells = listOf(
-                        StatCell(DoseFormat.rate(stats.min, unit), "мин"),
-                        StatCell(DoseFormat.rate(stats.median, unit), "медиана"),
-                        StatCell(DoseFormat.rate(stats.max, unit), "макс"),
-                        StatCell(DoseFormat.rate(stats.sigma, unit), "σ"),
-                        StatCell(HistoryFormat.count(chart.sampleCount), "n"),
-                    ),
-                )
+                if (showStats) {
+                    StatGrid(
+                        cells = listOf(
+                            StatCell(DoseFormat.rate(stats.min, unit), "мин"),
+                            StatCell(DoseFormat.rate(stats.median, unit), "медиана"),
+                            StatCell(DoseFormat.rate(stats.max, unit), "макс"),
+                            StatCell(DoseFormat.rate(stats.sigma, unit), "σ"),
+                            StatCell(HistoryFormat.count(chart.sampleCount), "n"),
+                        ),
+                    )
+                }
             }
         }
     }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +22,7 @@ import app.radiacode.AppGraph
 import app.radiacode.service.MeasurementService
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.NavBar
+import app.radiacode.ui.logic.NavConfig
 import app.radiacode.ui.screens.HistoryScreen
 import app.radiacode.ui.screens.LiveChartScreen
 import app.radiacode.ui.screens.MapScreen
@@ -79,6 +81,13 @@ private fun MainScaffold(graph: AppGraph) {
     }
 
     var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
+    // Customized bottom nav (Настройки → Интерфейс); hiding the current tab
+    // falls back to Главная.
+    val navRaw by graph.settings.navTabsRaw.collectAsState(initial = null)
+    val navTabs = remember(navRaw) { NavConfig.tabsForBar(NavConfig.parse(navRaw)) }
+    LaunchedEffect(navTabs) {
+        if (tab !in navTabs) tab = AppTab.HOME
+    }
     // Overlays above the tab content; Settings opens separately (SPEC, gear
     // on Монитор), a session detail comes from История and can open its
     // track map on top. Back and tab switches dismiss them.
@@ -139,6 +148,7 @@ private fun MainScaffold(graph: AppGraph) {
             }
         }
         NavBar(
+            tabs = navTabs,
             selected = tab,
             onSelect = {
                 showSettings = false
