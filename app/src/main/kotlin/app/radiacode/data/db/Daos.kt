@@ -53,6 +53,14 @@ interface SampleDao {
     fun observeRange(from: Long, to: Long): Flow<List<SampleEntity>>
 
     /**
+     * One-shot read of a range (A/B run statistics): a run is minutes long, so
+     * this is hundreds of rows — the spread of the readings cannot be computed
+     * by SQLite, which has no STDDEV.
+     */
+    @Query("SELECT * FROM samples WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
+    suspend fun rangeList(from: Long, to: Long): List<SampleEntity>
+
+    /**
      * Time-bucketed aggregation for charts; `bucketMillis` is the bucket width.
      * Served by the timestamp index (range scan + streaming group-by).
      */
@@ -376,6 +384,56 @@ interface TrackDao {
     suspend fun highAltitudePointCount(from: Long, to: Long, minAltitudeMeters: Double): Int
 }
 
+/** An experiment together with its runs (one screen read). */
+data class ExperimentWithRuns(
+    val experiment: ExperimentEntity,
+    val runs: List<ExperimentRunEntity>,
+)
+
+@Dao
+interface ExperimentDao {
+
+    @Insert
+    suspend fun insert(experiment: ExperimentEntity): Long
+
+    @Query("UPDATE experiments SET note = :note WHERE id = :experimentId")
+    suspend fun setNote(experimentId: Long, note: String)
+
+    @Query("UPDATE experiments SET geometry = :geometry WHERE id = :experimentId")
+    suspend fun setGeometry(experimentId: Long, geometry: String)
+
+    /** Runs cascade with the experiment (foreign key ON DELETE CASCADE). */
+    @Query("DELETE FROM experiments WHERE id = :experimentId")
+    suspend fun delete(experimentId: Long)
+
+    @Query("SELECT * FROM experiments ORDER BY createdAt DESC LIMIT :limit")
+    fun observeRecent(limit: Int): Flow<List<ExperimentEntity>>
+
+    @Query("SELECT * FROM experiments WHERE id = :experimentId")
+    suspend fun byId(experimentId: Long): ExperimentEntity?
+
+    @Query("SELECT COUNT(*) FROM experiments")
+    suspend fun count(): Long
+
+    @Insert
+    suspend fun insertRun(run: ExperimentRunEntity): Long
+
+    @Update
+    suspend fun updateRun(run: ExperimentRunEntity)
+
+    @Query("DELETE FROM experiment_runs WHERE id = :runId")
+    suspend fun deleteRun(runId: Long)
+
+    @Query("SELECT * FROM experiment_runs WHERE experimentId = :experimentId ORDER BY startedAt")
+    suspend fun runs(experimentId: Long): List<ExperimentRunEntity>
+
+    @Query("SELECT * FROM experiment_runs WHERE experimentId = :experimentId ORDER BY startedAt")
+    fun observeRuns(experimentId: Long): Flow<List<ExperimentRunEntity>>
+
+    @Query("SELECT * FROM experiment_runs WHERE id = :runId")
+    suspend fun run(runId: Long): ExperimentRunEntity?
+}
+
 @Dao
 interface SpectrumDao {
 
@@ -385,7 +443,8 @@ interface SpectrumDao {
     /** Latest device-measured spectrum; imported files never count as one. */
     @Query(
         """
-        SELECT * FROM spectra WHERE accumulated = :accumulated AND origin != 'import'
+        SELECT * FROM spectra
+        WHERE accumulated = :accumulated AND origin NOT IN ('import', 'derived')
         ORDER BY timestamp DESC LIMIT 1
         """,
     )
@@ -407,7 +466,7 @@ interface SpectrumDao {
     @Query(
         """
         SELECT COUNT(*) FROM spectra
-        WHERE timestamp BETWEEN :from AND :to AND origin != 'import'
+        WHERE timestamp BETWEEN :from AND :to AND origin NOT IN ('import', 'derived')
         """,
     )
     suspend fun countInRange(from: Long, to: Long): Int
@@ -437,7 +496,8 @@ interface SpectrumDao {
     @Query(
         """
         SELECT id, timestamp, durationSeconds FROM spectra
-        WHERE origin != 'import' AND accumulated = 0 AND timestamp BETWEEN :from AND :to
+        WHERE origin NOT IN ('import', 'derived') AND accumulated = 0
+              AND timestamp BETWEEN :from AND :to
         ORDER BY timestamp
         """,
     )

@@ -103,12 +103,19 @@ class MeasurementRepository(
         )
     }
 
+    /**
+     * Persists a snapshot. [analysisMeta] is the reproducibility stamp of a
+     * *derived* spectrum (spec §22) — the method and parameters that produced
+     * these counts; raw device snapshots leave it null. The row id is filled
+     * in from the insert so callers can reference the snapshot afterwards.
+     */
     suspend fun saveSpectrum(
         spectrum: Spectrum,
         accumulated: Boolean,
         isBackgroundReference: Boolean = false,
         origin: String = SpectrumSnapshotEntity.ORIGIN_AUTO,
         label: String? = null,
+        analysisMeta: String? = null,
     ): SpectrumSnapshotEntity {
         val entity = spectrum.toEntity(
             timestamp = clock(),
@@ -116,9 +123,10 @@ class MeasurementRepository(
             isBackgroundReference = isBackgroundReference,
             origin = origin,
             label = label,
+            analysisMeta = analysisMeta,
         )
-        spectrumDao.insert(entity)
-        return entity
+        val id = spectrumDao.insert(entity)
+        return entity.copy(id = id)
     }
 
     /**

@@ -154,6 +154,68 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 6 to 7 produces exactly the exported v7 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(6))
+            MigrationSql.FROM_6_TO_7.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(7))
+        }
+    }
+
+    @Test
+    fun `migration 6 to 7 keeps spectra and adds empty experiment tables`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(6))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO spectra (timestamp, accumulated, isBackgroundReference, " +
+                        "origin, label, durationSeconds, a0, a1, a2, channelCount, counts) " +
+                        "VALUES (3000, 0, 0, 'user', 'Проба', 600, -5.5, 2.4, 0.0004, 4, " +
+                        "x'01000000020000000300000004000000')",
+                )
+            }
+
+            MigrationSql.FROM_6_TO_7.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT timestamp, label, durationSeconds, analysisMeta FROM spectra",
+                )
+                assertTrue(rows.next())
+                assertEquals(3000L, rows.getLong("timestamp"))
+                assertEquals("Проба", rows.getString("label"))
+                assertEquals(600L, rows.getLong("durationSeconds"))
+                rows.getString("analysisMeta")
+                assertTrue(rows.wasNull(), "pre-migration snapshots carry no processing metadata")
+                assertTrue(!rows.next(), "exactly one row expected")
+            }
+
+            // The new tables exist, are empty, and runs cascade with their experiment.
+            connection.createStatement().use { statement ->
+                statement.execute("PRAGMA foreign_keys = ON")
+                statement.execute(
+                    "INSERT INTO experiments (id, kind, profileId, createdAt, note, geometry, " +
+                        "algorithmVersion, params) " +
+                        "VALUES (1, 'background_vs_object', NULL, 5000, '', 'на столе', 1, '{}')",
+                )
+                statement.execute(
+                    "INSERT INTO experiment_runs " +
+                        "(experimentId, label, startedAt, endedAt, spectrumId, doseStats) " +
+                        "VALUES (1, 'A', 5100, 5400, NULL, '{}')",
+                )
+                statement.execute("DELETE FROM experiments WHERE id = 1")
+                val rows = statement.executeQuery("SELECT COUNT(*) AS n FROM experiment_runs")
+                rows.next()
+                assertEquals(0, rows.getInt("n"), "runs must cascade with their experiment")
+            }
+        }
+    }
+
+    @Test
     fun `migration 5 to 6 turns places into profiles keeping sample linkage`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(5))

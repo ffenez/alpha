@@ -50,6 +50,8 @@ fun Spectrum.toEntity(
     isBackgroundReference: Boolean = false,
     origin: String = SpectrumSnapshotEntity.ORIGIN_AUTO,
     label: String? = null,
+    /** Reproducibility stamp for derived spectra (spec §22); null for raw ones. */
+    analysisMeta: String? = null,
 ): SpectrumSnapshotEntity =
     SpectrumSnapshotEntity(
         timestamp = timestamp,
@@ -57,6 +59,7 @@ fun Spectrum.toEntity(
         isBackgroundReference = isBackgroundReference,
         origin = origin,
         label = label,
+        analysisMeta = analysisMeta,
         durationSeconds = durationSeconds,
         a0 = a0,
         a1 = a1,

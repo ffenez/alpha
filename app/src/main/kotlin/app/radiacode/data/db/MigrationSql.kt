@@ -11,6 +11,53 @@ package app.radiacode.data.db
 object MigrationSql {
 
     /**
+     * v6 → v7: A/B research experiments (spec §9, §16) and the reproducibility
+     * stamp of derived spectra (spec §22).
+     *
+     * Strategy — add only:
+     *  - `experiments` + `experiment_runs` are new; runs cascade with their
+     *    experiment (a run without its protocol is meaningless);
+     *  - `spectra.analysisMeta` starts NULL for every existing row. That is the
+     *    honest value: those snapshots were stored before derived spectra
+     *    carried processing metadata, and inventing one now would claim
+     *    knowledge the app never had. Raw device/import snapshots keep NULL
+     *    forever — nothing was computed on them.
+     */
+    val FROM_6_TO_7: List<String> = listOf(
+        """
+        CREATE TABLE IF NOT EXISTS `experiments` (
+            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            `kind` TEXT NOT NULL,
+            `profileId` INTEGER,
+            `createdAt` INTEGER NOT NULL,
+            `note` TEXT NOT NULL,
+            `geometry` TEXT NOT NULL,
+            `algorithmVersion` INTEGER NOT NULL,
+            `params` TEXT NOT NULL
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS `index_experiments_createdAt` ON `experiments` (`createdAt`)",
+        """
+        CREATE TABLE IF NOT EXISTS `experiment_runs` (
+            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            `experimentId` INTEGER NOT NULL,
+            `label` TEXT NOT NULL,
+            `startedAt` INTEGER NOT NULL,
+            `endedAt` INTEGER,
+            `spectrumId` INTEGER,
+            `doseStats` TEXT NOT NULL,
+            `distanceCm` REAL,
+            `shieldingNote` TEXT,
+            FOREIGN KEY(`experimentId`) REFERENCES `experiments`(`id`)
+                ON UPDATE NO ACTION ON DELETE CASCADE
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS `index_experiment_runs_experimentId_startedAt` " +
+            "ON `experiment_runs` (`experimentId`, `startedAt`)",
+        "ALTER TABLE `spectra` ADD COLUMN `analysisMeta` TEXT",
+    )
+
+    /**
      * v5 → v6: places become measurement profiles (spec §3) and every sample
      * carries its baseline-admission verdict (spec §4.2).
      *

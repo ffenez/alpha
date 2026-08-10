@@ -3,6 +3,7 @@ package app.radiacode
 import android.content.Context
 import app.radiacode.data.AppSettings
 import app.radiacode.data.BaselineRepository
+import app.radiacode.data.ExperimentRepository
 import app.radiacode.data.MeasurementRepository
 import app.radiacode.data.ProfileRepository
 import app.radiacode.data.SessionRepository
@@ -39,6 +40,15 @@ class AppGraph private constructor(context: Context) {
     }
 
     val trackRepository: TrackRepository by lazy { TrackRepository(database.trackDao()) }
+
+    /** A/B research experiments (spec §9, §16). */
+    val experimentRepository: ExperimentRepository by lazy {
+        ExperimentRepository(
+            experimentDao = database.experimentDao(),
+            sampleDao = database.sampleDao(),
+            spectrumDao = database.spectrumDao(),
+        )
+    }
 
     val profileRepository: ProfileRepository by lazy {
         ProfileRepository(

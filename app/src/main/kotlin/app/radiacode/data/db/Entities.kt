@@ -277,6 +277,15 @@ data class SpectrumSnapshotEntity(
     val origin: String = ORIGIN_AUTO,
     /** Display name: RC-XML sample name for imports, user label otherwise. */
     val label: String? = null,
+    /**
+     * Reproducibility stamp of a *derived* snapshot (spec §22): flat JSON
+     * ([app.radiacode.data.JsonMap]) naming the method that produced these
+     * counts and its parameters — e.g. `method=interval_subtraction`,
+     * `algorithmVersion`, the sources it came from. NULL for spectra that came
+     * straight off the device or из файла: nothing was computed, so there is
+     * nothing to reproduce.
+     */
+    val analysisMeta: String? = null,
     val durationSeconds: Long,
     val a0: Float,
     val a1: Float,
@@ -293,5 +302,110 @@ data class SpectrumSnapshotEntity(
         const val ORIGIN_AUTO = "auto"
         const val ORIGIN_USER = "user"
         const val ORIGIN_IMPORT = "import"
+
+        /**
+         * Computed by the app for another entity that owns it (an A/B run's
+         * interval spectrum). Such rows carry [analysisMeta], never appear in
+         * the История list, and are excluded from device-data queries — they
+         * are not a snapshot of the device state at their timestamp, so a
+         * trend built from consecutive device snapshots must not see them.
+         */
+        const val ORIGIN_DERIVED = "derived"
     }
 }
+
+/**
+ * One A/B research experiment (spec §9, §16): a named protocol with a fixed,
+ * user-described geometry and two or more comparable runs.
+ *
+ * The experiment row carries everything needed to reproduce the conclusion
+ * later (spec §22): the geometry as the user described it, the algorithm
+ * version that produced the verdicts, and the analysis parameters (energy
+ * windows, thresholds) as flat JSON.
+ */
+@Entity(
+    tableName = "experiments",
+    indices = [Index("createdAt")],
+)
+data class ExperimentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** [KIND_BACKGROUND_VS_OBJECT], [KIND_PLACE_VS_PLACE], [KIND_DISTANCE], [KIND_SHIELDING]. */
+    val kind: String,
+    /** Profile active when the experiment was created; null = none selected. */
+    val profileId: Long? = null,
+    val createdAt: Long,
+    /** Free-form note by the user. */
+    val note: String = "",
+    /**
+     * Geometry as the user described it once, shown again during every later
+     * run so «одинаково документированная геометрия» (spec §16) is something
+     * the user can actually reproduce. The app cannot verify it.
+     */
+    val geometry: String = "",
+    /** [app.radiacode.analysis.AlgorithmVersions.AB_ANALYSIS] at creation time. */
+    val algorithmVersion: Int,
+    /** Analysis parameters as flat JSON ([app.radiacode.data.JsonMap]). */
+    val params: String = "",
+) {
+    companion object {
+        /** Фон vs объект: run A = object, run B = background, same geometry. */
+        const val KIND_BACKGROUND_VS_OBJECT = "background_vs_object"
+
+        /** Место vs место: two environments compared as measured. */
+        const val KIND_PLACE_VS_PLACE = "place_vs_place"
+
+        /** Серия измерений на известных расстояниях (spec §16 Distance). */
+        const val KIND_DISTANCE = "distance"
+
+        /** Одна конфигурация без/с материалом (spec §16 Shielding). */
+        const val KIND_SHIELDING = "shielding"
+
+        val KINDS = listOf(
+            KIND_BACKGROUND_VS_OBJECT,
+            KIND_PLACE_VS_PLACE,
+            KIND_DISTANCE,
+            KIND_SHIELDING,
+        )
+    }
+}
+
+/**
+ * One run of an experiment: a bracketed measurement interval with its own
+ * spectrum and dose statistics. Runs of one experiment are compared to each
+ * other, so the live time of every run is stored explicitly
+ * ([startedAt], [endedAt]) instead of being inferred.
+ */
+@Entity(
+    tableName = "experiment_runs",
+    foreignKeys = [
+        ForeignKey(
+            entity = ExperimentEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["experimentId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["experimentId", "startedAt"])],
+)
+data class ExperimentRunEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val experimentId: Long,
+    /** «A», «B», «C»… — the label the UI and the report use. */
+    val label: String,
+    val startedAt: Long,
+    /** Null while the run is still recording. */
+    val endedAt: Long? = null,
+    /**
+     * Spectrum accumulated *during this run only* (later snapshot minus the
+     * one taken at the start, see
+     * [app.radiacode.analysis.SpectrumCompare.extractInterval]); null when the
+     * device gave no spectrum for the interval.
+     */
+    val spectrumId: Long? = null,
+    /** Dose-rate statistics over the run as flat JSON ([app.radiacode.data.JsonMap]). */
+    val doseStats: String = "",
+    /** Distance scenario: distance to the object, cm. */
+    val distanceCm: Float? = null,
+    /** Shielding scenario: what was between the object and the detector. */
+    val shieldingNote: String? = null,
+)

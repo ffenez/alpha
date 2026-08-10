@@ -24,11 +24,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-private class FakeSampleDao : SampleDao {
+/** Shared by [ExperimentRepositoryTest] — same package, same fakes. */
+internal class FakeSampleDao : SampleDao {
     val inserted = mutableListOf<SampleEntity>()
     override suspend fun insertAll(samples: List<SampleEntity>) { inserted += samples }
     override fun observeLatest(): Flow<SampleEntity?> = flowOf(inserted.lastOrNull())
     override fun observeRange(from: Long, to: Long): Flow<List<SampleEntity>> = flowOf(emptyList())
+    override suspend fun rangeList(from: Long, to: Long): List<SampleEntity> =
+        inserted.filter { it.timestamp in from..to }.sortedBy { it.timestamp }
     override suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
     override suspend fun downsampledRangeForProfile(profileId: Long, from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
     override suspend fun exclusionCountsForProfile(profileId: Long, from: Long, to: Long): List<ExclusionCount> = emptyList()
@@ -61,7 +64,7 @@ private class FakeEventDao : EventDao {
         inserted.filter { it.timestamp in from..to && it.source in sources }.take(limit)
 }
 
-private class FakeSpectrumDao : SpectrumDao {
+internal class FakeSpectrumDao : SpectrumDao {
     val inserted = mutableListOf<SpectrumSnapshotEntity>()
     override suspend fun insert(snapshot: SpectrumSnapshotEntity): Long { inserted += snapshot; return inserted.size.toLong() }
     override fun observeLatest(accumulated: Boolean): Flow<SpectrumSnapshotEntity?> =
