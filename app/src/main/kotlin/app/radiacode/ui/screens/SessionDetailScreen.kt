@@ -59,7 +59,12 @@ private data class SessionDetail(
  * deviation events.
  */
 @Composable
-fun SessionDetailScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) {
+fun SessionDetailScreen(
+    graph: AppGraph,
+    sessionId: Long,
+    onBack: () -> Unit,
+    onOpenTrack: () -> Unit = {},
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
@@ -94,7 +99,7 @@ fun SessionDetailScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) {
                 Text(text = "читаю сессию…", style = type.bodySmall, color = colors.muted)
             }
             else -> {
-                SummaryCard(d.summary, unit)
+                SummaryCard(d.summary, unit, onOpenTrack)
                 ChartCard(d, unit)
                 if (d.events.isNotEmpty()) EventsCard(d.events, unit)
             }
@@ -103,7 +108,7 @@ fun SessionDetailScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) {
 }
 
 @Composable
-private fun SummaryCard(summary: SessionSummary, unit: DoseUnitSetting) {
+private fun SummaryCard(summary: SessionSummary, unit: DoseUnitSetting, onOpenTrack: () -> Unit) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
@@ -157,7 +162,9 @@ private fun SummaryCard(summary: SessionSummary, unit: DoseUnitSetting) {
             if (summary.hasSpectrum || summary.hasTrack) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     if (summary.hasSpectrum) Chip(text = "спектр")
-                    if (summary.hasTrack) Chip(text = "трек")
+                    if (summary.hasTrack) {
+                        Chip(text = "трек · на карте", onClick = onOpenTrack)
+                    }
                 }
             }
         }

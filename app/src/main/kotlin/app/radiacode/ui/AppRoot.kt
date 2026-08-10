@@ -22,11 +22,12 @@ import app.radiacode.service.MeasurementService
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.NavBar
 import app.radiacode.ui.screens.HistoryScreen
-import app.radiacode.ui.screens.MapPlaceholder
+import app.radiacode.ui.screens.MapScreen
 import app.radiacode.ui.screens.MonitorScreen
 import app.radiacode.ui.screens.OnboardingScreen
 import app.radiacode.ui.screens.SearchScreen
 import app.radiacode.ui.screens.SessionDetailScreen
+import app.radiacode.ui.screens.SessionTrackMapScreen
 import app.radiacode.ui.screens.SettingsScreen
 import app.radiacode.ui.screens.SpectrumScreen
 import app.radiacode.ui.theme.LocalAppColors
@@ -78,13 +79,18 @@ private fun MainScaffold(graph: AppGraph) {
 
     var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
     // Overlays above the tab content; Settings opens separately (SPEC, gear
-    // on Монитор), a session detail comes from История. Back and tab
-    // switches dismiss them.
+    // on Монитор), a session detail comes from История and can open its
+    // track map on top. Back and tab switches dismiss them.
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var sessionDetailId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var trackMapSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
-    BackHandler(enabled = showSettings || sessionDetailId != null) {
-        if (showSettings) showSettings = false else sessionDetailId = null
+    BackHandler(enabled = showSettings || sessionDetailId != null || trackMapSessionId != null) {
+        when {
+            showSettings -> showSettings = false
+            trackMapSessionId != null -> trackMapSessionId = null
+            else -> sessionDetailId = null
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -95,12 +101,19 @@ private fun MainScaffold(graph: AppGraph) {
                 .statusBarsPadding(),
         ) {
             val detailId = sessionDetailId
+            val trackMapId = trackMapSessionId
             when {
                 showSettings -> SettingsScreen(graph, onBack = { showSettings = false })
+                trackMapId != null -> SessionTrackMapScreen(
+                    graph = graph,
+                    sessionId = trackMapId,
+                    onBack = { trackMapSessionId = null },
+                )
                 detailId != null -> SessionDetailScreen(
                     graph = graph,
                     sessionId = detailId,
                     onBack = { sessionDetailId = null },
+                    onOpenTrack = { trackMapSessionId = detailId },
                 )
                 else -> when (tab) {
                     AppTab.HOME -> MonitorScreen(
@@ -109,7 +122,7 @@ private fun MainScaffold(graph: AppGraph) {
                     )
                     AppTab.SEARCH -> SearchScreen(graph)
                     AppTab.SPECTRUM -> SpectrumScreen(graph)
-                    AppTab.MAP -> MapPlaceholder()
+                    AppTab.MAP -> MapScreen(graph)
                     AppTab.HISTORY -> HistoryScreen(
                         graph = graph,
                         onOpenSession = { sessionDetailId = it },
@@ -122,6 +135,7 @@ private fun MainScaffold(graph: AppGraph) {
             onSelect = {
                 showSettings = false
                 sessionDetailId = null
+                trackMapSessionId = null
                 tab = it
             },
         )
