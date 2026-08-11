@@ -1,5 +1,8 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.analysis.FingerprintComparison
+import app.radiacode.analysis.FingerprintDimension
+import app.radiacode.analysis.FingerprintState
 import app.radiacode.baseline.Admission
 import app.radiacode.baseline.Baseline
 import app.radiacode.baseline.BaselineAdmission
@@ -123,7 +126,7 @@ object WhyReportBuilder {
                 if (baseline != null) add(statisticsSection(baseline, unit))
                 add(stateSection(input))
                 add(criteriaSection(input))
-                add(spectralSection())
+                add(spectralSection(input.fingerprint))
             },
             legend = LEGEND,
         )
@@ -415,19 +418,48 @@ object WhyReportBuilder {
 
     // ------------------------------------------- §9 «Спектральное сравнение»
 
-    private fun spectralSection(): WhySection = WhySection(
-        title = "Спектральное сравнение",
-        lines = listOf(
-            WhyLine(
-                label = "Состояние",
-                value = "пока недоступно",
-                evidence = Evidence.STATISTICALLY_DETECTED,
+    /**
+     * Четыре состояния, а не два (why-spec §9): «не оценивалось» и «изменений
+     * не обнаружено» — принципиально разные утверждения, и подменять первое
+     * вторым запрещено.
+     */
+    private fun spectralSection(comparison: FingerprintComparison?): WhySection {
+        val shape = comparison?.of(FingerprintDimension.SPECTRUM)
+        val value = when (shape?.state) {
+            null, FingerprintState.NOT_EVALUATED -> "не оценивалось"
+            FingerprintState.NOT_ENOUGH_DATA -> "недостаточно статистики"
+            FingerprintState.SAME -> "изменение не обнаружено"
+            FingerprintState.CHANGED -> "обнаружено изменение"
+        }
+        val note = when (shape?.state) {
+            null, FingerprintState.NOT_EVALUATED ->
+                "Эталон этого места ещё не создан, поэтому спектр в вывод не входит. " +
+                    "«Не оценивалось» — это не «изменений нет»."
+            FingerprintState.NOT_ENOUGH_DATA ->
+                "Сравнение с эталоном места началось, но данных пока мало: " +
+                    shape.detail
+            else ->
+                "Форма спектра сравнивается с эталоном места (не с абсолютным " +
+                    "уровнем): ${shape.detail}. Вывод описывает состав излучения, " +
+                    "а не его опасность."
+        }
+        return WhySection(
+            title = "Спектральное сравнение",
+            lines = listOf(
+                WhyLine(
+                    label = "Состояние",
+                    value = value,
+                    evidence = Evidence.STATISTICALLY_DETECTED,
+                ),
             ),
-        ),
-        note = "Текущий вывод основан на мощности дозы, скорости счёта и статистике " +
-            "профиля. Спектр в этот вывод сейчас не входит — «не оценивалось» это не " +
-            "то же самое, что «изменений нет».",
-    )
+            note = note,
+            tone = if (shape?.state == FingerprintState.CHANGED) {
+                WhyTone.ATTENTION
+            } else {
+                WhyTone.UNKNOWN
+            },
+        )
+    }
 
     private fun factorLabel(factor: Float): String =
         if (factor == factor.toInt().toFloat()) "${factor.toInt()}" else "$factor"

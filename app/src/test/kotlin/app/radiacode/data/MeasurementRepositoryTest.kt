@@ -39,6 +39,7 @@ internal class FakeSampleDao : SampleDao {
     override suspend fun exclusionCountsForProfile(profileId: Long, from: Long, to: Long): List<ExclusionCount> = emptyList()
     override suspend fun exclusionCountsInRange(from: Long, to: Long): List<ExclusionCount> = emptyList()
     override suspend fun admittedCountInRange(from: Long, to: Long): Int = 0
+    override suspend fun admittedCountForProfile(profileId: Long, from: Long, to: Long): Int = 0
     override suspend fun reassignRange(from: Long, to: Long, profileId: Long?) {}
     override suspend fun rewriteLearningVerdict(from: Long, to: Long, reason: String?, learningOffReason: String) {}
     override suspend fun rangeStats(from: Long, to: Long): RangeStats =

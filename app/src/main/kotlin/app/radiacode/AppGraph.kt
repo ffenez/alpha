@@ -4,6 +4,7 @@ import android.content.Context
 import app.radiacode.data.AppSettings
 import app.radiacode.data.BaselineRepository
 import app.radiacode.data.ExperimentRepository
+import app.radiacode.data.FingerprintRepository
 import app.radiacode.data.MeasurementRepository
 import app.radiacode.data.PreAggregateRepository
 import app.radiacode.data.ProfileRepository
@@ -96,6 +97,15 @@ class AppGraph private constructor(context: Context) {
 
     val baselineRepository: BaselineRepository by lazy {
         BaselineRepository(database.sampleDao(), database.profileDao())
+    }
+
+    /** Эталон места и сравнение с ним (ADR 005). */
+    val fingerprintRepository: FingerprintRepository by lazy {
+        FingerprintRepository(
+            profileDao = database.profileDao(),
+            sampleDao = database.sampleDao(),
+            spectrumDao = database.spectrumDao(),
+        )
     }
 
     val sessionRepository: SessionRepository by lazy {

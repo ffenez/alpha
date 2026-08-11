@@ -24,6 +24,7 @@ import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.NavBar
 import app.radiacode.ui.logic.NavConfig
 import app.radiacode.ui.screens.AbExperimentScreen
+import app.radiacode.ui.screens.FingerprintScreen
 import app.radiacode.ui.screens.HistoryScreen
 import app.radiacode.ui.screens.LiveChartScreen
 import app.radiacode.ui.screens.MapScreen
@@ -95,6 +96,7 @@ private fun MainScaffold(graph: AppGraph) {
     // on Монитор), a session detail comes from История and can open its
     // track map on top. Back and tab switches dismiss them.
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showFingerprint by rememberSaveable { mutableStateOf(false) }
     var showLiveChart by rememberSaveable { mutableStateOf(false) }
     var showSpectrogram by rememberSaveable { mutableStateOf(false) }
     var showExperiments by rememberSaveable { mutableStateOf(false) }
@@ -107,10 +109,12 @@ private fun MainScaffold(graph: AppGraph) {
 
     BackHandler(
         enabled = showSettings || showLiveChart || showSpectrogram || showRadon ||
-            showExperiments || sessionDetailId != null || trackMapSessionId != null,
+            showExperiments || showFingerprint || sessionDetailId != null ||
+            trackMapSessionId != null,
     ) {
         when {
             showSettings -> showSettings = false
+            showFingerprint -> showFingerprint = false
             showLiveChart -> showLiveChart = false
             showSpectrogram -> showSpectrogram = false
             showRadon -> showRadon = false
@@ -139,6 +143,10 @@ private fun MainScaffold(graph: AppGraph) {
             val trackMapId = trackMapSessionId
             when {
                 showSettings -> SettingsScreen(graph, onBack = { showSettings = false })
+                showFingerprint -> FingerprintScreen(
+                    graph = graph,
+                    onBack = { showFingerprint = false },
+                )
                 showSpectrogram -> SpectrogramScreen(graph, onBack = { showSpectrogram = false })
                 showRadon -> RadonScreen(graph, onBack = { showRadon = false })
                 showExperiments -> AbExperimentScreen(
@@ -161,6 +169,7 @@ private fun MainScaffold(graph: AppGraph) {
                         graph = graph,
                         onOpenSettings = { showSettings = true },
                         onOpenChart = { showLiveChart = true },
+                        onOpenFingerprint = { showFingerprint = true },
                     )
                     AppTab.SEARCH -> SearchScreen(
                         graph = graph,

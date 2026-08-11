@@ -130,6 +130,7 @@ private data class HardnessChart(
 @Composable
 fun MonitorScreen(
     graph: AppGraph,
+    onOpenFingerprint: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenChart: () -> Unit = {},
 ) {
@@ -176,6 +177,23 @@ fun MonitorScreen(
 
     var showProfilePicker by remember { mutableStateOf(false) }
     var showWhy by remember { mutableStateOf(false) }
+
+    // Сравнение с эталоном места — тоже запрос, и тоже только ради «Почему?»
+    // и вкладки отпечатка: считается, когда шторка открывается.
+    var fingerprint by remember {
+        mutableStateOf<app.radiacode.analysis.FingerprintComparison?>(null)
+    }
+    LaunchedEffect(activeProfile?.id, showWhy) {
+        val id = activeProfile?.id
+        fingerprint = if (id == null || !showWhy) {
+            null
+        } else {
+            app.radiacode.analysis.Fingerprint.compare(
+                window = graph.fingerprintRepository.window(id),
+                reference = graph.fingerprintRepository.reference(id),
+            )
+        }
+    }
 
     // Exclusion breakdown is a query, not a stream: it only feeds «Почему?».
     var exclusions by remember { mutableStateOf<List<ExclusionSummary>>(emptyList()) }
@@ -243,6 +261,7 @@ fun MonitorScreen(
             admission = admission,
             frozen = frozen,
             onWhy = { showWhy = true },
+            onFingerprint = onOpenFingerprint,
         )
 
         HourChartCard(
@@ -338,6 +357,7 @@ fun MonitorScreen(
                 unit = unit,
                 profileName = activeProfile?.let { ProfileTree.displayName(it, profiles) },
                 contextWording = contextWording(contextState),
+                fingerprint = fingerprint,
             ),
             onDismiss = { showWhy = false },
         )
@@ -411,6 +431,7 @@ private fun HeroCard(
     admission: Admission = Admission.Admitted,
     frozen: Boolean = false,
     onWhy: () -> Unit = {},
+    onFingerprint: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -503,6 +524,9 @@ private fun HeroCard(
                     EvidenceTag(Evidence.STATISTICALLY_DETECTED)
                 }
                 Spacer(Modifier.weight(1f))
+                // Два входа рядом: «почему такой вывод сейчас» и «чем это место
+                // отличается от себя прежнего» — разные вопросы об одном месте.
+                Chip(text = "Отпечаток", color = colors.ink2, onClick = onFingerprint)
                 Chip(text = "Почему?", color = colors.dataText, onClick = onWhy)
             }
             statusDetail(status, unit)?.let { detail ->

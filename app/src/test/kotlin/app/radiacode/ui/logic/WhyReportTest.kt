@@ -1,5 +1,9 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.analysis.Fingerprint
+import app.radiacode.analysis.FingerprintComparison
+import app.radiacode.analysis.FingerprintReference
+import app.radiacode.analysis.FingerprintWindow
 import app.radiacode.baseline.Admission
 import app.radiacode.baseline.Baseline
 import app.radiacode.baseline.BaselineAdmission
@@ -48,6 +52,7 @@ class WhyReportTest {
         dose: Float? = 0.16f,
         admission: Admission = Admission.Admitted,
         exclusions: List<ExclusionSummary> = emptyList(),
+        fingerprint: FingerprintComparison? = null,
     ) = WhyInput(
         status = status,
         baselineState = baselineState,
@@ -60,6 +65,7 @@ class WhyReportTest {
         unit = DoseUnitSetting.MICRO_SIEVERT,
         profileName = "Дом",
         contextWording = "выбран автоматически по знакомой Wi-Fi сети",
+        fingerprint = fingerprint,
     )
 
     private fun allText(report: WhyReport): List<String> = buildList {
@@ -274,15 +280,67 @@ class WhyReportTest {
         assertTrue(assertNotNull(criteria.note).contains("не научные границы"), criteria.note!!)
     }
 
+    /**
+     * Четыре состояния спектрального сравнения — принципиально разные
+     * утверждения (why-spec §9), и подмена первого вторым и есть та ошибка,
+     * ради которой их четыре.
+     */
     @Test
     fun `not evaluated never reads as not detected`() {
-        val spectral = WhyReportBuilder.build(input())
+        fun state(comparison: FingerprintComparison?) = WhyReportBuilder
+            .build(input(fingerprint = comparison))
             .sections.single { it.title == "Спектральное сравнение" }
-        assertEquals("пока недоступно", spectral.lines.single().value)
-        val note = assertNotNull(spectral.note)
-        assertTrue(note.contains("не входит"), note)
-        assertTrue(!note.lowercase().contains("не обнаружен"), note)
+
+        val none = state(null)
+        assertEquals("не оценивалось", none.lines.single().value)
+        assertTrue(assertNotNull(none.note).contains("это не «изменений нет»"), none.note!!)
+
+        val noReference = state(Fingerprint.compare(window = null, reference = null))
+        assertEquals("не оценивалось", noReference.lines.single().value)
+
+        val thin = state(
+            Fingerprint.compare(
+                window = FingerprintWindow(
+                    doseMedianMicroSvH = 0.16f,
+                    cpsMedian = 25f,
+                    spectrum = emptyList(),
+                    spectrumSeconds = 0,
+                    seconds = 60,
+                ),
+                reference = fingerprintReference,
+            ),
+        )
+        assertEquals("недостаточно статистики", thin.lines.single().value)
+
+        val same = state(
+            Fingerprint.compare(
+                window = FingerprintWindow(
+                    doseMedianMicroSvH = 0.16f,
+                    cpsMedian = 25f,
+                    spectrum = flatSpectrum,
+                    spectrumSeconds = 3600,
+                    seconds = 3600,
+                ),
+                reference = fingerprintReference,
+            ),
+        )
+        assertEquals("изменение не обнаружено", same.lines.single().value)
     }
+
+    private val flatSpectrum: List<Int> = List(1024) { i -> (2_000.0 / (1.0 + i * 0.02)).toInt() }
+
+    private val fingerprintReference = FingerprintReference(
+        doseLowMicroSvH = 0.14f,
+        doseMedianMicroSvH = 0.15f,
+        doseHighMicroSvH = 0.17f,
+        cpsLow = 20f,
+        cpsMedian = 25f,
+        cpsHigh = 30f,
+        spectrum = flatSpectrum,
+        spectrumSeconds = 72 * 3600L,
+        createdAtMillis = 0L,
+        accumulatedSeconds = 72 * 3600L,
+    )
 
     @Test
     fun `research numbers stay folded, the answer never does`() {

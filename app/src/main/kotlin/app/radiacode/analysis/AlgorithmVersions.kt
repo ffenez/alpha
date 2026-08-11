@@ -104,6 +104,12 @@ object AlgorithmVersions {
     const val HARDNESS = 1
 
     /**
+     * Отпечаток места ([Fingerprint], ADR 005). v1 = полоса эталона по дозе и
+     * счёту плюс χ² однородности по форме спектра; жёсткость без голоса.
+     */
+    const val FINGERPRINT = 1
+
+    /**
      * Поиск: shape-only comparison of two accumulated spectra ([ShapeChange],
      * search redesign §13). v1 = two-sample χ² homogeneity on merged energy
      * bands, significance through the shared Wilson–Hilferty transform.
@@ -140,6 +146,7 @@ object AlgorithmVersions {
         "search_ladder" to SEARCH_LADDER,
         "shape_change" to SHAPE_CHANGE,
         "hardness" to HARDNESS,
+        "fingerprint" to FINGERPRINT,
         "anomaly_test_candidate" to ANOMALY_TEST_CANDIDATE,
     )
 

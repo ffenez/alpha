@@ -3,6 +3,7 @@ package app.radiacode.data
 import app.radiacode.data.db.BaselineEpochEntity
 import app.radiacode.data.db.ProfileDao
 import app.radiacode.data.db.ProfileEntity
+import app.radiacode.data.db.ProfileFingerprintEntity
 import app.radiacode.data.db.ProfileMaintenanceDao
 import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.ui.logic.ProfileDeletion
@@ -97,6 +98,15 @@ class ProfileRepositoryTest {
 
         override suspend fun epochs(profileId: Long): List<BaselineEpochEntity> =
             epochs.filter { it.profileId == profileId }.sortedByDescending { it.endedAtMillis }
+        val fingerprints = mutableListOf<ProfileFingerprintEntity>()
+        override suspend fun insertFingerprint(fingerprint: ProfileFingerprintEntity): Long {
+            fingerprints += fingerprint.copy(id = fingerprints.size + 1L)
+            return fingerprints.size.toLong()
+        }
+        override suspend fun newestFingerprint(profileId: Long): ProfileFingerprintEntity? =
+            fingerprints.filter { it.profileId == profileId }.maxByOrNull { it.createdAt }
+        override fun observeNewestFingerprint(profileId: Long): Flow<ProfileFingerprintEntity?> =
+            flowOf(fingerprints.filter { it.profileId == profileId }.maxByOrNull { it.createdAt })
 
         override suspend fun insertNetwork(network: ProfileNetworkEntity): Long {
             networks.removeAll { it.networkHash == network.networkHash }

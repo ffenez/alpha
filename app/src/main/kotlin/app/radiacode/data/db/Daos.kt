@@ -184,6 +184,16 @@ interface SampleDao {
     )
     suspend fun admittedCountInRange(from: Long, to: Long): Int
 
+    /** The same, for one profile: what may feed its reference fingerprint. */
+    @Query(
+        """
+        SELECT COUNT(*) FROM samples
+        WHERE timestamp BETWEEN :from AND :to
+          AND placeId = :profileId AND baselineExcluded IS NULL
+        """,
+    )
+    suspend fun admittedCountForProfile(profileId: Long, from: Long, to: Long): Int
+
     /** История: move a session's measurements to another profile. */
     @Query("UPDATE samples SET placeId = :profileId WHERE timestamp BETWEEN :from AND :to")
     suspend fun reassignRange(from: Long, to: Long, profileId: Long?)
@@ -277,6 +287,26 @@ interface ProfileDao {
 
     @Query("SELECT * FROM baseline_epochs WHERE profileId = :profileId ORDER BY endedAtMillis DESC")
     suspend fun epochs(profileId: Long): List<BaselineEpochEntity>
+
+    @Insert
+    suspend fun insertFingerprint(fingerprint: ProfileFingerprintEntity): Long
+
+    /** Действующий эталон места: самый свежий. */
+    @Query(
+        """
+        SELECT * FROM profile_fingerprints WHERE profileId = :profileId
+        ORDER BY createdAt DESC LIMIT 1
+        """,
+    )
+    suspend fun newestFingerprint(profileId: Long): ProfileFingerprintEntity?
+
+    @Query(
+        """
+        SELECT * FROM profile_fingerprints WHERE profileId = :profileId
+        ORDER BY createdAt DESC LIMIT 1
+        """,
+    )
+    fun observeNewestFingerprint(profileId: Long): Flow<ProfileFingerprintEntity?>
 
     @Query("SELECT * FROM profiles ORDER BY createdAt")
     fun observeAll(): Flow<List<ProfileEntity>>

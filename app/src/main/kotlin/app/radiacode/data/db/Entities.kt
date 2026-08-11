@@ -546,3 +546,62 @@ data class BaselineEpochEntity(
         const val REASON_USER_SHIFT = "user_shift"
     }
 }
+
+
+/**
+ * Эталон места — **reference fingerprint** профиля (ADR 005).
+ *
+ * Снимок того, как место выглядело в момент зрелости профиля: распределения
+ * мощности дозы и скорости счёта плюс опорный спектр, накопленный только из
+ * ДОПУЩЕННЫХ интервалов. Создаётся автоматически и дальше не меняется — в этом
+ * его смысл: скользящий baseline отвечает на вопрос «что обычно здесь сейчас»,
+ * а эталон на вопрос «как здесь было тогда», и расхождение между ними и есть
+ * «фон места устойчиво изменился».
+ *
+ * Строки не переписываются: «Обновить эталон» добавляет новую, старая остаётся
+ * историей места.
+ */
+@Entity(
+    tableName = "profile_fingerprints",
+    indices = [Index(value = ["profileId", "createdAt"])],
+)
+data class ProfileFingerprintEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val profileId: Long,
+    val createdAt: Long,
+    /** Допущенное время измерений за распределениями, секунды. */
+    val accumulatedSeconds: Long,
+    /** Сырые допущенные отсчёты за ними же. */
+    val sampleCount: Long,
+    val doseLowMicroSvH: Float,
+    val doseMedianMicroSvH: Float,
+    val doseHighMicroSvH: Float,
+    val doseP25MicroSvH: Float,
+    val doseP75MicroSvH: Float,
+    val doseMadMicroSvH: Float,
+    val cpsLow: Float,
+    val cpsMedian: Float,
+    val cpsHigh: Float,
+    /** Экспозиция опорного спектра, секунды (сумма интервалов). */
+    val spectrumSeconds: Long,
+    val a0: Float,
+    val a1: Float,
+    val a2: Float,
+    val channelCount: Int,
+    /** Опорный спектр, i32 LE ([app.radiacode.data.SpectrumBlob]). */
+    val spectrum: ByteArray,
+    /** Кем создан: [ORIGIN_AUTO] по зрелости или [ORIGIN_USER] кнопкой. */
+    val origin: String,
+    val algorithmVersion: Int,
+) {
+    override fun equals(other: Any?): Boolean = other is ProfileFingerprintEntity && other.id == id
+    override fun hashCode(): Int = id.hashCode()
+
+    companion object {
+        /** Создан приложением по достижении зрелости профиля. */
+        const val ORIGIN_AUTO = "auto"
+
+        /** Создан пользователем: «Обновить эталон» после ремонта или переезда. */
+        const val ORIGIN_USER = "user"
+    }
+}

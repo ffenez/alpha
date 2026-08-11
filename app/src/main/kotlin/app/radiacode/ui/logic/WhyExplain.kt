@@ -30,6 +30,8 @@ data class WhyInput(
     val profileName: String?,
     /** How the profile was chosen: «авто», «вручную», «место не подтверждено». */
     val contextWording: String,
+    /** Сравнение с эталоном места (ADR 005); null = не считалось. */
+    val fingerprint: app.radiacode.analysis.FingerprintComparison? = null,
 )
 
 /**

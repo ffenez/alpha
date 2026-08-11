@@ -63,6 +63,44 @@ object MigrationSql {
     )
 
     /**
+     * v9 → v10: эталон места — reference fingerprint профиля (ADR 005).
+     *
+     * Strategy — add only: a new table, nothing touched. Existing profiles get
+     * no reference row at all, which is the honest state — the app has not
+     * accumulated one yet and will create it when the profile matures.
+     */
+    val FROM_9_TO_10: List<String> = listOf(
+        """
+        CREATE TABLE IF NOT EXISTS `profile_fingerprints` (
+            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            `profileId` INTEGER NOT NULL,
+            `createdAt` INTEGER NOT NULL,
+            `accumulatedSeconds` INTEGER NOT NULL,
+            `sampleCount` INTEGER NOT NULL,
+            `doseLowMicroSvH` REAL NOT NULL,
+            `doseMedianMicroSvH` REAL NOT NULL,
+            `doseHighMicroSvH` REAL NOT NULL,
+            `doseP25MicroSvH` REAL NOT NULL,
+            `doseP75MicroSvH` REAL NOT NULL,
+            `doseMadMicroSvH` REAL NOT NULL,
+            `cpsLow` REAL NOT NULL,
+            `cpsMedian` REAL NOT NULL,
+            `cpsHigh` REAL NOT NULL,
+            `spectrumSeconds` INTEGER NOT NULL,
+            `a0` REAL NOT NULL,
+            `a1` REAL NOT NULL,
+            `a2` REAL NOT NULL,
+            `channelCount` INTEGER NOT NULL,
+            `spectrum` BLOB NOT NULL,
+            `origin` TEXT NOT NULL,
+            `algorithmVersion` INTEGER NOT NULL
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS `index_profile_fingerprints_profileId_createdAt` " +
+            "ON `profile_fingerprints` (`profileId`, `createdAt`)",
+    )
+
+    /**
      * v8 → v9: a profile's baseline may be **started over** by the user
      * (why-spec §7), and the old period is kept.
      *

@@ -187,6 +187,49 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 9 to 10 produces exactly the exported v10 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(9))
+            MigrationSql.FROM_9_TO_10.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(10))
+        }
+    }
+
+    @Test
+    fun `migration 9 to 10 adds an empty table and touches nothing else`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(9))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO profiles " +
+                        "(id, name, icon, parentId, archived, autoActivate, " +
+                        "baselineLearning, role, createdAt) " +
+                        "VALUES (3, 'Дача', '', NULL, 0, 1, 1, 'user', 100)",
+                )
+            }
+
+            MigrationSql.FROM_9_TO_10.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery("SELECT COUNT(*) AS n FROM profile_fingerprints")
+                rows.next()
+                // Никакой эталон миграцией не выдумывается: приложение создаст
+                // его само, когда у места наберётся статистика.
+                assertEquals(0, rows.getInt("n"))
+            }
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery("SELECT name FROM profiles")
+                assertTrue(rows.next())
+                assertEquals("Дача", rows.getString("name"))
+            }
+        }
+    }
+
+    @Test
     fun `migration 8 to 9 keeps every profile and starts every epoch open`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(8))

@@ -5,6 +5,7 @@ import app.radiacode.data.db.DownsampledSample
 import app.radiacode.data.db.ExclusionCount
 import app.radiacode.data.db.ProfileDao
 import app.radiacode.data.db.ProfileEntity
+import app.radiacode.data.db.ProfileFingerprintEntity
 import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.data.db.SampleDao
 import kotlinx.coroutines.flow.Flow
@@ -69,6 +70,15 @@ class BaselineRepositoryTest {
             return epochs.size.toLong()
         }
         override suspend fun epochs(profileId: Long): List<BaselineEpochEntity> = epochs
+        val fingerprints = mutableListOf<ProfileFingerprintEntity>()
+        override suspend fun insertFingerprint(fingerprint: ProfileFingerprintEntity): Long {
+            fingerprints += fingerprint.copy(id = fingerprints.size + 1L)
+            return fingerprints.size.toLong()
+        }
+        override suspend fun newestFingerprint(profileId: Long): ProfileFingerprintEntity? =
+            fingerprints.filter { it.profileId == profileId }.maxByOrNull { it.createdAt }
+        override fun observeNewestFingerprint(profileId: Long): Flow<ProfileFingerprintEntity?> =
+            flowOf(fingerprints.filter { it.profileId == profileId }.maxByOrNull { it.createdAt })
         override fun observeAll(): Flow<List<ProfileEntity>> = flowOf(listOf(profile))
         override suspend fun all(): List<ProfileEntity> = listOf(profile)
         override suspend fun byId(profileId: Long): ProfileEntity? =

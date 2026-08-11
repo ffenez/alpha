@@ -282,6 +282,20 @@ class MeasurementService : Service() {
         val state = graph.baselineRepository.state(profileId)
         baselineState = state
         graph.serviceStatus.onBaseline(state)
+        ensureFingerprint(profileId, state)
+    }
+
+    /**
+     * Эталон места создаётся САМ, по достижении зрелости профиля (ADR 005):
+     * пользователь не обязан ничего нажимать, чтобы функция заработала. Если
+     * эталон уже есть, здесь не происходит ничего — заменяет его только явное
+     * «Обновить эталон».
+     */
+    private suspend fun ensureFingerprint(profileId: Long, state: BaselineState) {
+        val baseline = (state as? BaselineState.Active)?.baseline ?: return
+        if (graph.fingerprintRepository.entity(profileId) != null) return
+        if (!graph.fingerprintRepository.maturity(profileId, state).ready) return
+        graph.fingerprintRepository.create(profileId, baseline)
     }
 
     /**
