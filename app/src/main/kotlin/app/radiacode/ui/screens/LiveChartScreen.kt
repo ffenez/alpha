@@ -741,6 +741,16 @@ private fun QuantileDiagnosticPanel(
             style = type.footnote,
             color = colors.muted,
         )
+        if (!method.exact) {
+            // The machine-readable stamp, in the same flat-JSON shape derived
+            // spectra store in `analysisMeta` (spec §22): whoever copies a
+            // number out of this screen can copy what produced it too.
+            Text(
+                text = QuantileMetadata.stamp(method, sketch?.k ?: KllSketch.DEFAULT_K),
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
         if (backfill.running && backfill.hoursTotal > 0) {
             Text(
                 text = "предагрегация истории: ${(backfill.fraction * 100).toInt()} % " +
