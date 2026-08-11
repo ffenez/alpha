@@ -57,6 +57,13 @@ object AlgorithmVersions {
     /** A/B net counts, statistics and verdicts ([AbAnalysis], spec §9). */
     const val AB_ANALYSIS = 1
 
+    /**
+     * Mergeable quantile sketch of long chart windows
+     * ([app.radiacode.analysis.quantiles.KllSketch], ADR 004, CHART SPEC §30).
+     * A bump means every stored `hour_sketches` row is rebuilt from raw.
+     */
+    const val QUANTILE_SKETCH = 1
+
     /** Stable storage/export keys → current version. Keys are a disk contract. */
     val all: Map<String, Int> = linkedMapOf(
         "baseline" to BASELINE,
@@ -70,6 +77,7 @@ object AlgorithmVersions {
         "energy_windows" to ENERGY_WINDOWS,
         "dose_projection" to DOSE_PROJECTION,
         "ab_analysis" to AB_ANALYSIS,
+        "quantile_sketch" to QUANTILE_SKETCH,
     )
 
     /**

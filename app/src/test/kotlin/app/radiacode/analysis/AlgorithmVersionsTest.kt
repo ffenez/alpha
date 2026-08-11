@@ -2,6 +2,7 @@ package app.radiacode.analysis
 
 import app.radiacode.baseline.BaselineAdmission
 import app.radiacode.baseline.BaselineConfig
+import app.radiacode.analysis.quantiles.KllSketch
 import app.radiacode.context.NetworkIdentity
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,6 +32,7 @@ class AlgorithmVersionsTest {
         assertEquals(1, AlgorithmVersions.ENERGY_WINDOWS)
         assertEquals(1, AlgorithmVersions.DOSE_PROJECTION)
         assertEquals(1, AlgorithmVersions.AB_ANALYSIS)
+        assertEquals(1, AlgorithmVersions.QUANTILE_SKETCH)
     }
 
     @Test
@@ -38,6 +40,7 @@ class AlgorithmVersionsTest {
         assertEquals(AlgorithmVersions.BASELINE, BaselineConfig.ALGORITHM_VERSION)
         assertEquals(AlgorithmVersions.BASELINE_ADMISSION, BaselineAdmission.ALGORITHM_VERSION)
         assertEquals(AlgorithmVersions.NETWORK_IDENTITY, NetworkIdentity.ALGORITHM_VERSION)
+        assertEquals(AlgorithmVersions.QUANTILE_SKETCH, KllSketch.ALGORITHM_VERSION)
         assertEquals(AlgorithmVersions.ENERGY_WINDOWS, EnergyWindows.ALGORITHM_VERSION)
         assertEquals(AlgorithmVersions.DOSE_PROJECTION, DoseProjection.ALGORITHM_VERSION)
         assertEquals(AlgorithmVersions.AB_ANALYSIS, AbAnalysis.ALGORITHM_VERSION)
@@ -57,6 +60,7 @@ class AlgorithmVersionsTest {
             "energy_windows",
             "dose_projection",
             "ab_analysis",
+            "quantile_sketch",
         )
         assertEquals(expected, AlgorithmVersions.all.keys)
         assertTrue(AlgorithmVersions.all.values.all { it >= 1 })
