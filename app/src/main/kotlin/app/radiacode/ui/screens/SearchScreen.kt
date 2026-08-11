@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +43,8 @@ import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.feedback.Feedback
 import app.radiacode.ui.feedback.GeigerClicker
 import app.radiacode.ui.logic.BackgroundRef
+import app.radiacode.ui.logic.LocalBackground
+import app.radiacode.ui.logic.LocalBackgroundMachine
 import app.radiacode.ui.logic.ClickRate
 import app.radiacode.ui.logic.EnergyTone
 import app.radiacode.ui.logic.FeedbackReason
@@ -89,11 +92,10 @@ fun SearchScreen(graph: AppGraph) {
     // Last 60 s of CPS, fed by the 1 Hz sample flow; survives tab switches
     // only while composed — Search is a live mode, not a log.
     val window = remember { mutableStateOf(listOf<Float>()) }
-    var measuring by remember { mutableStateOf<BackgroundRef.Measuring?>(null) }
+    // The 45 s background measurement is owned by the app graph, not by this
+    // composable: leaving the tab or the display sleeping must not destroy it.
+    val backgroundRun by graph.localBackground.state.collectAsState()
     var lastSeenTimestamp by remember { mutableLongStateOf(0L) }
-    // Wall-clock of the last completed background measurement in this
-    // session; the stored reference itself carries no timestamp.
-    var backgroundRecordedAt by remember { mutableStateOf<Long?>(null) }
     // Wall-clock of the last received sample (device timestamps may drift).
     var lastSampleReceivedAt by remember { mutableLongStateOf(0L) }
 
@@ -193,17 +195,19 @@ fun SearchScreen(graph: AppGraph) {
             Feedback.pulse(context)
         }
         dataFresh = true
-        measuring?.let { active ->
-            when (val next = active.onSample(s.countRate)) {
-                is BackgroundRef.Ready -> {
-                    measuring = null
-                    backgroundRecordedAt = System.currentTimeMillis()
-                    scope.launch { graph.settings.setSearchBackgroundCps(next.cps) }
-                }
-                is BackgroundRef.Measuring -> measuring = next
-                BackgroundRef.None -> measuring = null
-            }
-        }
+    }
+
+    // Keep the display awake only while a background measurement runs AND
+    // this screen is in the foreground: the user is watching a 45 s countdown
+    // and should not have to poke the screen. Scoped to the screen — released
+    // on pause and on leaving the composition, never app-wide or persistent.
+    // (The measurement itself survives the screen going dark; this is only
+    // about not making the user fight the display timeout while watching.)
+    val view = LocalView.current
+    val keepAwake = backgroundRun is LocalBackground.Running && resumed
+    DisposableEffect(keepAwake) {
+        view.keepScreenOn = keepAwake
+        onDispose { view.keepScreenOn = false }
     }
 
     val cps = sample?.countRate
@@ -418,7 +422,7 @@ fun SearchScreen(graph: AppGraph) {
                             StatCell(Uncertainty.num1(values.sum() / values.size), "ср 60с"),
                             StatCell(Uncertainty.num1(dataMax), "макс"),
                             StatCell(
-                                backgroundRecordedAt?.let { timeOfDay(it) }
+                                (backgroundRun as? LocalBackground.Done)?.let { timeOfDay(it.atMillis) }
                                     ?: if (background != null) "ранее" else "—",
                                 "фон записан",
                             ),
@@ -429,37 +433,62 @@ fun SearchScreen(graph: AppGraph) {
             }
         }
 
-        val active = measuring
-        if (active == null) {
+        val run = backgroundRun
+        if (run is LocalBackground.Running) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+            ) {
+                Text(
+                    text = "замер фона · ${run.collected}/${run.target} с",
+                    style = type.value,
+                    color = colors.dataText,
+                    modifier = Modifier.weight(1f),
+                )
+                AppButton(text = "Отмена", onClick = { graph.localBackground.cancel() })
+            }
+            Text(
+                text = "замер продолжается на других вкладках и при погасшем экране — " +
+                    "результат будет здесь",
+                style = type.footnote,
+                color = colors.muted,
+            )
+        } else {
             AppButton(
                 text = if (background == null) {
                     "Записать локальный фон · ${BackgroundRef.DEFAULT_TARGET_SAMPLES} с"
                 } else {
                     "Перезамерить фон · ${BackgroundRef.DEFAULT_TARGET_SAMPLES} с"
                 },
-                onClick = { measuring = BackgroundRef.startMeasuring() },
+                onClick = { graph.localBackground.start() },
                 primary = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text(
-                text = "Отойдите от предполагаемого источника и держите прибор " +
-                    "неподвижно ${BackgroundRef.DEFAULT_TARGET_SAMPLES} секунд — " +
-                    "среднее станет точкой сравнения.",
-                style = type.bodySmall,
-                color = colors.muted,
-            )
-        } else {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-            ) {
+            if (run is LocalBackground.Aborted) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                ) {
+                    Text(
+                        text = LocalBackgroundMachine.abortWording(run),
+                        style = type.bodySmall,
+                        color = colors.warn,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Chip(
+                        text = "скрыть",
+                        color = colors.ink2,
+                        onClick = { graph.localBackground.dismiss() },
+                    )
+                }
+            } else {
                 Text(
-                    text = "замер фона · ${active.sampleCount}/${active.targetSamples} с",
-                    style = type.value,
-                    color = colors.dataText,
-                    modifier = Modifier.weight(1f),
+                    text = "Отойдите от предполагаемого источника и держите прибор " +
+                        "неподвижно ${BackgroundRef.DEFAULT_TARGET_SAMPLES} секунд — " +
+                        "среднее станет точкой сравнения.",
+                    style = type.bodySmall,
+                    color = colors.muted,
                 )
-                AppButton(text = "Отмена", onClick = { measuring = null })
             }
         }
 

@@ -260,8 +260,7 @@ object FeedbackReason {
         state.dndBlocked ->
             "режим «не беспокоить» — клики и вибрация молчат, пока он включён"
         state.soundEnabled && state.audioUnavailable ->
-            "звук не запустился — система не дала звуковой канал; " +
-                "проверьте в Настройках → Проверка"
+            "звук не запустился — система не дала звуковой канал"
         state.soundEnabled && state.volumeZero ->
             "громкость мультимедиа на нуле — прибавьте громкость кнопкой"
         state.vibrationEnabled && !state.backgroundRecorded ->
@@ -269,46 +268,5 @@ object FeedbackReason {
         !state.soundEnabled ->
             "звук выключен — работает только вибрация"
         else -> null
-    }
-}
-
-/** What the «Проверить звук» self-test observed. */
-data class SoundCheck(
-    val trackInitialized: Boolean,
-    val focusGranted: Boolean,
-    val dndBlocked: Boolean,
-    val volumeZero: Boolean,
-)
-
-/** What the «Проверить вибрацию» self-test observed. */
-data class VibrationCheck(
-    val hasVibrator: Boolean,
-    val dndBlocked: Boolean,
-)
-
-/**
- * Wording for Настройки → Проверка. The self-tests bypass every gate of the
- * Search screen on purpose: they answer «does the engine work at all», so a
- * field report can separate a broken engine from wrong wiring without us.
- */
-object SelfTestText {
-
-    fun sound(check: SoundCheck): String = when {
-        !check.trackInitialized ->
-            "звук не воспроизведён: система не дала звуковой канал"
-        check.volumeZero ->
-            "звук воспроизведён, но громкость мультимедиа на нуле — прибавьте громкость"
-        check.dndBlocked ->
-            "звук воспроизведён; включён режим «не беспокоить» — в Поиске при нём клики молчат"
-        !check.focusGranted ->
-            "звук воспроизведён; аудиофокус занят другим приложением — громкость могла быть снижена"
-        else -> "звук воспроизведён"
-    }
-
-    fun vibration(check: VibrationCheck): String = when {
-        !check.hasVibrator -> "вибромотор недоступен"
-        check.dndBlocked ->
-            "импульс отправлен; включён режим «не беспокоить» — в Поиске при нём вибрация молчит"
-        else -> "импульс отправлен"
     }
 }

@@ -47,8 +47,7 @@ object Feedback {
         return pulseNow(context)
     }
 
-    /** Emits a pulse regardless of DND — used only by the explicit self-test. */
-    fun pulseNow(context: Context): Boolean {
+    private fun pulseNow(context: Context): Boolean {
         val vibrator = vibrator(context) ?: return false
         if (!vibrator.hasVibrator()) return false
         vibrator.vibrate(

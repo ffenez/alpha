@@ -2,12 +2,14 @@ package app.radiacode.data
 
 import app.radiacode.data.db.ProfileDao
 import app.radiacode.data.db.ProfileEntity
+import app.radiacode.data.db.ProfileMaintenanceDao
 import app.radiacode.data.db.ProfileNetworkEntity
-import app.radiacode.data.db.SampleDao
+import app.radiacode.ui.logic.ProfileDeletion
 import app.radiacode.ui.logic.ProfilePreset
 import app.radiacode.ui.logic.ProfileTree
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 
 /**
  * Measurement profiles (spec §3) and their Wi-Fi bindings. Replaces the v2–v5
@@ -21,8 +23,8 @@ import kotlinx.coroutines.flow.combine
  */
 class ProfileRepository(
     private val profileDao: ProfileDao,
-    private val sampleDao: SampleDao,
-    private val settings: AppSettings,
+    private val maintenanceDao: ProfileMaintenanceDao,
+    private val settings: ActiveProfilePin,
     /** Profile the context machine currently resolves to; null = unknown. */
     private val contextProfileId: Flow<Long?>,
     private val clock: () -> Long = System::currentTimeMillis,
@@ -120,13 +122,36 @@ class ProfileRepository(
         profileDao.setArchivedWithChildren(profileId, archived)
     }
 
-    /** Deletes the profile but keeps its measurements (profileId detaches to null). */
-    suspend fun delete(profileId: Long) {
-        sampleDao.detachProfile(profileId)
-        profileDao.detachChildren(profileId)
+    /**
+     * Deletes a profile, keeping every measurement it ever carried.
+     *
+     * The guard is pure ([ProfileDeletion.evaluate]) and the caller gets the
+     * verdict back, so a refusal can be explained instead of looking broken.
+     * On success, samples, sessions and experiments detach (profile column →
+     * NULL) — the same semantics place deletion had since v2 — the Wi-Fi
+     * bindings go, and a manual pin on the deleted profile is released so the
+     * app falls back to the automatic context instead of pinning a dead id.
+     */
+    suspend fun delete(profileId: Long): ProfileDeletion {
+        val verdict = ProfileDeletion.evaluate(profileDao.all(), profileId)
+        if (verdict !is ProfileDeletion.Allowed) return verdict
+
+        maintenanceDao.detachSamples(profileId)
+        maintenanceDao.detachSessions(profileId)
+        maintenanceDao.detachExperiments(profileId)
         profileDao.deleteNetworksOf(profileId)
         profileDao.delete(profileId)
+
+        if (settings.activeProfileId.first() == profileId) {
+            settings.setActiveProfileId(null)
+            settings.setContextManual(false)
+        }
+        return verdict
     }
+
+    /** Whether «Удалить профиль» may act, and why not when it may not. */
+    suspend fun deletionVerdict(profileId: Long): ProfileDeletion =
+        ProfileDeletion.evaluate(profileDao.all(), profileId)
 
     // --- Wi-Fi bindings ---
 

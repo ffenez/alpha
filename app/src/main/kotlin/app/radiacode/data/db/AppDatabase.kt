@@ -29,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun rareDataDao(): RareDataDao
     abstract fun eventDao(): EventDao
     abstract fun profileDao(): ProfileDao
+    abstract fun profileMaintenanceDao(): ProfileMaintenanceDao
     abstract fun sessionDao(): SessionDao
     abstract fun trackDao(): TrackDao
     abstract fun spectrumDao(): SpectrumDao
