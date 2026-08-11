@@ -129,6 +129,7 @@ fun MonitorScreen(
     val contextState by graph.contextHub.state.collectAsState()
     val admission by graph.serviceStatus.admission.collectAsState()
     val frozen by graph.settings.baselineFrozen.collectAsState(initial = false)
+    val whyExpanded by graph.settings.whyCalculationsExpanded.collectAsState(initial = false)
 
     // 1 s wall-clock ticker drives the staleness indicator and held durations.
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -261,6 +262,8 @@ fun MonitorScreen(
 
     if (showWhy) {
         WhySheet(
+            expanded = whyExpanded,
+            onExpandedChange = { scope.launch { graph.settings.setWhyCalculationsExpanded(it) } },
             input = WhyInput(
                 status = status,
                 baselineState = baselineState,
