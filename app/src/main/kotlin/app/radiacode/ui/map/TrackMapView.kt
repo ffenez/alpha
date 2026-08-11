@@ -16,12 +16,19 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import app.radiacode.ui.logic.GridCell
 import app.radiacode.ui.logic.MapBounds
 import app.radiacode.ui.logic.MapHotspot
 import app.radiacode.ui.logic.MapTrackPoint
+import app.radiacode.ui.logic.MapViewport
+import app.radiacode.ui.logic.PositionFix
 import app.radiacode.ui.logic.TileFilter
 import app.radiacode.ui.logic.TrackMap
 import app.radiacode.ui.logic.TrackMetric
+import org.osmdroid.events.DelayedMapListener
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.MapTileProviderBase
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
@@ -47,6 +54,9 @@ sealed interface MapTapInfo {
         val doseMicroSvH: Float?,
         val typicalMicroSvH: Float?,
     ) : MapTapInfo
+
+    /** A cell of the accumulated map («все записи»). */
+    data class Cell(val cell: GridCell, val cellMeters: Double) : MapTapInfo
 }
 
 /** Colors the map overlays take from the app theme (ARGB ints). */
@@ -56,6 +66,9 @@ data class MapLayerColors(
     val metricMissing: Int,
     val hotspotFill: Int,
     val hotspotStroke: Int,
+    /** «Я на карте»: data teal dot with a ring in the surface color. */
+    val position: Int,
+    val positionRing: Int,
 )
 
 /** Live tile counters for the honest status line (see `TileStatus`). */
@@ -94,11 +107,24 @@ fun TrackMapView(
     onTap: (MapTapInfo?) -> Unit,
     onTileStats: (TileStats) -> Unit,
     modifier: Modifier = Modifier,
+    /** Accumulated map: aggregated cells instead of individual fixes. */
+    cells: List<GridCell> = emptyList(),
+    cellMeters: Double = 0.0,
+    cellThresholds: TrackMap.RampThresholds? = null,
+    /** Own position; null = nothing to draw (no permission or no fix yet). */
+    position: PositionFix? = null,
+    /** A fix that stopped refreshing is drawn dimmed, never silently removed. */
+    positionStale: Boolean = false,
+    /** Increment to center the camera on [position] («⌖ я»). */
+    centerOnPositionTick: Int = 0,
+    /** Visible box and zoom after every camera change (accumulated map query). */
+    onViewport: (MapViewport) -> Unit = {},
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val holder = remember { MapHolder(onTap = onTap, onTileStats = onTileStats) }
     holder.onTap = onTap
     holder.onTileStats = onTileStats
+    holder.onViewport = onViewport
 
     AndroidView(
         modifier = modifier,
@@ -109,7 +135,14 @@ fun TrackMapView(
         update = {
             holder.applyTheme(dark, layerColors)
             holder.setData(points, metric, thresholds, hotspots)
+            holder.setCells(cells, cellMeters, cellThresholds)
+            holder.setPosition(position, positionStale)
             holder.fitBounds(bounds, recenterTick)
+            holder.centerOnPosition(centerOnPositionTick)
+            // A mode switch does not move the camera, so nothing would fire the
+            // scroll/zoom listener; report the current view once per update.
+            // Equal viewports are dropped by Compose state equality.
+            holder.requestViewport()
         },
     )
 
@@ -139,6 +172,26 @@ private const val FIT_PADDING_DP = 40f
 private const val DEGENERATE_ZOOM = 16.0
 private const val DEFAULT_ZOOM = 4.0
 
+/** Own-position marker: dot and the surface-colored ring around it, dp. */
+private const val POSITION_DOT_DP = 6f
+private const val POSITION_RING_DP = 2.5f
+
+/** «⌖ я» never leaves the user zoomed out to a country. */
+private const val POSITION_MIN_ZOOM = 16.0
+
+private const val ACCURACY_FILL_ALPHA = 36
+private const val ACCURACY_STROKE_ALPHA = 96
+private const val STALE_DOT_ALPHA = 110
+
+/** Accumulated-map cells: translucent so the streets under them stay legible. */
+private const val CELL_ALPHA = 190
+private const val CELL_GAP_PX = 1f
+
+private const val METERS_PER_DEGREE_LATITUDE = 111_320.0
+
+/** Camera reports are delayed until the pan/zoom settles. */
+private const val VIEWPORT_REPORT_DELAY_MILLIS = 250L
+
 /** Tile counters change per tile; the status line does not need every one. */
 private const val TILE_STATS_THROTTLE_MILLIS = 250L
 
@@ -147,13 +200,17 @@ private class MapHolder(
     var onTileStats: (TileStats) -> Unit,
 ) {
     var mapView: MapView? = null
+    var onViewport: (MapViewport) -> Unit = {}
     private var pointsOverlay: DotOverlay<MapTrackPoint>? = null
     private var hotspotOverlay: DotOverlay<MapHotspot>? = null
+    private var cellOverlay: CellOverlay? = null
+    private var positionOverlay: PositionOverlay? = null
     private var route: Polyline? = null
     private var appliedDark: Boolean? = null
     private var userGestured = false
     private var fittedBounds: MapBounds? = null
     private var fittedRecenterTick = -1
+    private var centeredPositionTick = 0
     private var loaded = 0
     private var failed = 0
     private var lastStatsAt = 0L
@@ -181,6 +238,12 @@ private class MapHolder(
         // dot layers — only runs when the tap hit nothing and must dismiss
         // the open info card.
         mapView.overlays.add(EmptyTapOverlay { onTap(null) })
+
+        // Accumulated map: below the route so a single recording stays
+        // readable on top of the heat map of everything recorded before.
+        val cells = CellOverlay { cell, meters -> onTap(MapTapInfo.Cell(cell, meters)) }
+        cellOverlay = cells
+        mapView.overlays.add(cells)
 
         // Plain Polyline (no MapView argument): no default info window, and
         // the click listener returns false so a tap near the line falls
@@ -232,6 +295,34 @@ private class MapHolder(
         hotspotOverlay = hotspotDots
         mapView.overlays.add(hotspotDots)
 
+        // Topmost: the user's own position is never hidden by data.
+        val myPosition = PositionOverlay(
+            dotRadiusPx = POSITION_DOT_DP * density,
+            ringWidthPx = POSITION_RING_DP * density,
+        )
+        positionOverlay = myPosition
+        mapView.overlays.add(myPosition)
+
+        // Camera changes drive the accumulated-map query; osmdroid fires these
+        // per scroll pixel, so the report is delayed into a settled camera.
+        mapView.addMapListener(
+            DelayedMapListener(
+                object : MapListener {
+                    override fun onScroll(event: ScrollEvent?): Boolean {
+                        reportViewport()
+                        return false
+                    }
+
+                    override fun onZoom(event: ZoomEvent?): Boolean {
+                        reportViewport()
+                        return false
+                    }
+                },
+                VIEWPORT_REPORT_DELAY_MILLIS,
+            ),
+        )
+        mapView.addOnFirstLayoutListener { _, _, _, _, _ -> reportViewport() }
+
         val handler = object : Handler(Looper.getMainLooper()) {
             override fun handleMessage(message: Message) {
                 when (message.what) {
@@ -250,12 +341,37 @@ private class MapHolder(
         mapView.tileProvider.tileRequestCompleteHandlers.add(handler)
     }
 
+    fun requestViewport() {
+        reportViewport()
+    }
+
+    private fun reportViewport() {
+        val mapView = mapView ?: return
+        if (!mapView.isLayoutOccurred) return
+        val box = mapView.boundingBox ?: return
+        onViewport(
+            MapViewport(
+                bounds = MapBounds(
+                    minLatitude = box.latSouth,
+                    maxLatitude = box.latNorth,
+                    minLongitude = box.lonWest,
+                    maxLongitude = box.lonEast,
+                ),
+                zoom = mapView.zoomLevelDouble,
+            ),
+        )
+    }
+
     fun applyTheme(dark: Boolean, colors: MapLayerColors) {
         val mapView = mapView ?: return
         pointsOverlay?.colors = colors.ramp.toIntArray()
         pointsOverlay?.fallbackColor = colors.metricMissing
         hotspotOverlay?.colors = intArrayOf(colors.hotspotFill)
         hotspotOverlay?.strokeColor = colors.hotspotStroke
+        cellOverlay?.colors = colors.ramp.toIntArray()
+        cellOverlay?.fallbackColor = colors.metricMissing
+        positionOverlay?.fillColor = colors.position
+        positionOverlay?.ringColor = colors.positionRing
         route?.outlinePaint?.color = colors.route
         if (appliedDark != dark) {
             appliedDark = dark
@@ -291,6 +407,41 @@ private class MapHolder(
             hotspotDots.setItems(hotspots) { 0 }
             mapView.invalidate()
         }
+    }
+
+    fun setCells(
+        cells: List<GridCell>,
+        cellMeters: Double,
+        thresholds: TrackMap.RampThresholds?,
+    ) {
+        val mapView = mapView ?: return
+        val overlay = cellOverlay ?: return
+        if (overlay.sameCells(cells) && overlay.thresholds == thresholds) return
+        overlay.setCells(cells, cellMeters, thresholds)
+        mapView.invalidate()
+    }
+
+    fun setPosition(position: PositionFix?, stale: Boolean) {
+        val mapView = mapView ?: return
+        val overlay = positionOverlay ?: return
+        if (overlay.fix == position && overlay.stale == stale) return
+        overlay.fix = position
+        overlay.stale = stale
+        mapView.invalidate()
+    }
+
+    /** «⌖ я»: center on the fix, keeping the zoom the user chose. */
+    fun centerOnPosition(tick: Int) {
+        if (tick == centeredPositionTick) return
+        centeredPositionTick = tick
+        val mapView = mapView ?: return
+        val fix = positionOverlay?.fix ?: return
+        // The user asked for this camera, so stop the track auto-fit fighting it.
+        userGestured = true
+        if (mapView.zoomLevelDouble < POSITION_MIN_ZOOM) {
+            mapView.controller.setZoom(POSITION_MIN_ZOOM)
+        }
+        mapView.controller.animateTo(GeoPoint(fix.latitude, fix.longitude))
     }
 
     fun fitBounds(bounds: MapBounds?, recenterTick: Int) {
@@ -335,7 +486,148 @@ private class MapHolder(
         this.mapView = null
         pointsOverlay = null
         hotspotOverlay = null
+        cellOverlay = null
+        positionOverlay = null
         route = null
+    }
+}
+
+/**
+ * Accumulated map layer: one filled square per aggregated cell, colored by the
+ * cell's **median** on the same amber ramp as the track.
+ *
+ * Squares, not dots: a cell is an area statement («здесь измерено столько-то»),
+ * and a dot would suggest a single measured point. Semi-transparent so the
+ * street layout underneath stays readable — the map has to remain a map.
+ */
+private class CellOverlay(
+    private val onSelect: (GridCell, Double) -> Unit,
+) : Overlay() {
+
+    var colors: IntArray = intArrayOf()
+    var fallbackColor: Int = 0
+    var thresholds: TrackMap.RampThresholds? = null
+        private set
+
+    private var cells: List<GridCell> = emptyList()
+    private var cellMeters: Double = 0.0
+
+    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val southWest = GeoPoint(0.0, 0.0)
+    private val northEast = GeoPoint(0.0, 0.0)
+    private val cornerA = Point()
+    private val cornerB = Point()
+
+    fun sameCells(other: List<GridCell>): Boolean = cells === other
+
+    fun setCells(
+        newCells: List<GridCell>,
+        meters: Double,
+        newThresholds: TrackMap.RampThresholds?,
+    ) {
+        cells = newCells
+        cellMeters = meters
+        thresholds = newThresholds
+    }
+
+    override fun draw(canvas: Canvas, projection: Projection) {
+        if (cells.isEmpty()) return
+        val ramp = thresholds
+        val width = canvas.width
+        val height = canvas.height
+        for (cell in cells) {
+            southWest.setCoords(cell.southLatitude, cell.westLongitude)
+            northEast.setCoords(cell.northLatitude, cell.eastLongitude)
+            projection.toPixels(southWest, cornerA)
+            projection.toPixels(northEast, cornerB)
+            val left = minOf(cornerA.x, cornerB.x).toFloat()
+            val right = maxOf(cornerA.x, cornerB.x).toFloat()
+            val top = minOf(cornerA.y, cornerB.y).toFloat()
+            val bottom = maxOf(cornerA.y, cornerB.y).toFloat()
+            if (right < 0 || bottom < 0 || left > width || top > height) continue
+            fillPaint.color = if (ramp != null) {
+                colors.getOrElse(TrackMap.bucket(cell.median, ramp)) { fallbackColor }
+            } else {
+                fallbackColor
+            }
+            fillPaint.alpha = CELL_ALPHA
+            // A hairline inset keeps neighbouring cells distinguishable.
+            canvas.drawRect(left, top, right - CELL_GAP_PX, bottom - CELL_GAP_PX, fillPaint)
+        }
+    }
+
+    override fun onSingleTapConfirmed(event: MotionEvent, mapView: MapView): Boolean {
+        if (cells.isEmpty()) return false
+        val tapped = mapView.projection.fromPixels(event.x.toInt(), event.y.toInt())
+        val cell = cells.lastOrNull { it.contains(tapped.latitude, tapped.longitude) }
+            ?: return false
+        onSelect(cell, cellMeters)
+        return true
+    }
+}
+
+/**
+ * «Я на карте»: accuracy circle plus a heading-free dot.
+ *
+ * No heading arrow on purpose — the phone's compass in a pocket points at
+ * nothing, and a wrong arrow is worse than none. The circle is the accuracy
+ * the provider reports, so the marker never claims more precision than the fix
+ * has; a fix that stopped refreshing is drawn faded, and the chip next to the
+ * map says how old it is.
+ */
+private class PositionOverlay(
+    private val dotRadiusPx: Float,
+    private val ringWidthPx: Float,
+) : Overlay() {
+
+    var fix: PositionFix? = null
+    var stale: Boolean = false
+    var fillColor: Int = 0
+    var ringColor: Int = 0
+
+    private val circleFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val circleStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val center = GeoPoint(0.0, 0.0)
+    private val north = GeoPoint(0.0, 0.0)
+    private val centerPixels = Point()
+    private val northPixels = Point()
+
+    override fun draw(canvas: Canvas, projection: Projection) {
+        val current = fix ?: return
+        center.setCoords(current.latitude, current.longitude)
+        projection.toPixels(center, centerPixels)
+        val x = centerPixels.x.toFloat()
+        val y = centerPixels.y.toFloat()
+
+        // Accuracy in pixels via a second projected point one accuracy-radius
+        // north: independent of tile size, dpi scaling and zoom rounding.
+        if (current.accuracyMeters > 0f) {
+            north.setCoords(
+                current.latitude + current.accuracyMeters / METERS_PER_DEGREE_LATITUDE,
+                current.longitude,
+            )
+            projection.toPixels(north, northPixels)
+            val radius = kotlin.math.abs(northPixels.y - centerPixels.y).toFloat()
+            if (radius > dotRadiusPx) {
+                circleFill.color = fillColor
+                circleFill.alpha = if (stale) ACCURACY_FILL_ALPHA / 2 else ACCURACY_FILL_ALPHA
+                canvas.drawCircle(x, y, radius, circleFill)
+                circleStroke.color = fillColor
+                circleStroke.alpha = if (stale) ACCURACY_STROKE_ALPHA / 2 else ACCURACY_STROKE_ALPHA
+                circleStroke.strokeWidth = ringWidthPx / 2
+                canvas.drawCircle(x, y, radius, circleStroke)
+            }
+        }
+
+        ringPaint.color = ringColor
+        ringPaint.alpha = 255
+        ringPaint.strokeWidth = ringWidthPx
+        canvas.drawCircle(x, y, dotRadiusPx + ringWidthPx / 2, ringPaint)
+        dotPaint.color = fillColor
+        dotPaint.alpha = if (stale) STALE_DOT_ALPHA else 255
+        canvas.drawCircle(x, y, dotRadiusPx, dotPaint)
     }
 }
 
