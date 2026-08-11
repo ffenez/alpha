@@ -36,10 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
-import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.Hardness
-import app.radiacode.analysis.RadonTrend
-import app.radiacode.data.toSpectrum
+import app.radiacode.analysis.HardnessValue
 import app.radiacode.baseline.Admission
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
@@ -96,13 +94,11 @@ private const val CHART_WINDOW_MILLIS = 60L * 60_000L
 private const val CHART_BUCKET_MILLIS = CHART_WINDOW_MILLIS / CHART_COLUMNS
 private const val CHART_REFRESH_MILLIS = 15_000L
 
-/** Жёсткость is an hourly quantity; refreshing it faster buys nothing. */
-private const val HARDNESS_REFRESH_MILLIS = 5L * 60_000L
-
 /** Hour-chart snapshot loaded off the 1 Hz path; values in µSv/h. */
 @Immutable
 private data class HourChart(
     val columns: List<Float?>,
+    /** Alias of [columns] for readers that also take [cpsColumns]. */
     val stats: ChartMapping.Stats?,
     /** Raw 1 Hz samples inside the window (the honest n of the statgrid). */
     val sampleCount: Int,
@@ -111,13 +107,15 @@ private data class HourChart(
     val doseTodayMicroSv: Double,
     /** Same buckets, count rate — drawn only when the block is on. */
     val cpsColumns: List<Float?> = emptyList(),
-)
+) {
+    val doseColumns: List<Float?> get() = columns
+}
 
-/** Жёсткость за сутки: hourly points from accumulated spectra. */
+/** Жёсткость за час: the same buckets, read as dose per count. */
 @Immutable
 private data class HardnessChart(
     val columns: List<Float?>,
-    val current: Hardness.HourPoint?,
+    val current: HardnessValue?,
     val fromMillis: Long,
     val toMillis: Long,
 )
@@ -170,18 +168,10 @@ fun MonitorScreen(
         }
     }
 
-    // Жёсткость reads accumulated spectra, so it is loaded only while its
-    // block is on — and slowly: an hourly point cannot change every 15 s.
-    var hardnessChart by remember { mutableStateOf<HardnessChart?>(null) }
-    LaunchedEffect(blocks.hardnessChart) {
-        if (!blocks.hardnessChart) {
-            hardnessChart = null
-            return@LaunchedEffect
-        }
-        while (true) {
-            hardnessChart = loadHardness(graph)
-            delay(HARDNESS_REFRESH_MILLIS)
-        }
+    // Жёсткость is dose per count: the hour chart already holds both, so the
+    // block costs a mapping and no query at all.
+    val hardnessChart = remember(hourChart, blocks.hardnessChart) {
+        if (blocks.hardnessChart) hardnessOf(hourChart) else null
     }
 
     var showProfilePicker by remember { mutableStateOf(false) }
@@ -736,43 +726,38 @@ private suspend fun loadHourChart(graph: AppGraph): HourChart {
 }
 
 /**
- * Жёсткость за последние сутки, по одному снимку спектра в час.
+ * Жёсткость за час — из тех же корзин, что и два других графика.
  *
- * Loaded only while the block is on: it reads accumulated spectra, and asking
- * for a day of them on every Монитор refresh would be work nobody asked for.
+ * The vendor defines the coefficient as dose per count, so it needs no spectra
+ * at all: both rates are already in every bucket. That also makes it available
+ * for the whole history instead of only where accumulated snapshots exist.
  */
-private suspend fun loadHardness(graph: AppGraph): HardnessChart {
-    val now = System.currentTimeMillis()
-    val hourCount = 24
-    val currentHour = now / RadonTrend.HOUR_MILLIS
-    val fromHour = currentHour - hourCount + 1
-    val from = fromHour * RadonTrend.HOUR_MILLIS
-
-    // Hourly thinning first (the same trick as the radon trend): a day of
-    // per-minute autosave blobs is never loaded, only one snapshot per hour
-    // plus the anchor before the window.
-    val metas = graph.measurementRepository
-        .deviceSnapshotMeta(from - RadonTrend.HOUR_MILLIS, now)
-        .map { RadonTrend.Meta(it.id, it.timestamp, it.durationSeconds) }
-    val snapshots = RadonTrend.selectHourlyIds(metas).mapNotNull { id ->
-        graph.measurementRepository.spectrumById(id)?.let { entity ->
-            val spectrum = entity.toSpectrum()
-            RadonTrend.Snapshot(
-                timestampMillis = entity.timestamp,
-                durationSeconds = spectrum.durationSeconds,
-                counts = spectrum.counts,
-                calibration = EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2),
-            )
+private fun hardnessOf(chart: HourChart?): HardnessChart? {
+    if (chart == null) return null
+    val columns = chart.doseColumns.indices.map { i ->
+        val dose = chart.doseColumns.getOrNull(i)
+        val cps = chart.cpsColumns.getOrNull(i)
+        if (dose == null || cps == null) {
+            null
+        } else {
+            Hardness.of(
+                doseRateMicroSvH = dose.toDouble(),
+                countRate = cps.toDouble(),
+                seconds = CHART_BUCKET_MILLIS / 1000.0,
+            )?.value?.toFloat()
         }
     }
-    val hours = Hardness.hourly(Hardness.intervals(snapshots))
-        .filter { it.hourStartMillis >= from }
-    val byHour = hours.associateBy { it.hourStartMillis / RadonTrend.HOUR_MILLIS }
     return HardnessChart(
-        columns = List(hourCount) { i -> byHour[fromHour + i]?.fraction?.toFloat() },
-        current = hours.lastOrNull(),
-        fromMillis = from,
-        toMillis = now,
+        columns = columns,
+        current = columns.lastOrNull { it != null }?.let { last ->
+            Hardness.of(
+                doseRateMicroSvH = chart.doseColumns.lastOrNull { it != null }?.toDouble() ?: 0.0,
+                countRate = chart.cpsColumns.lastOrNull { it != null }?.toDouble() ?: 0.0,
+                seconds = CHART_BUCKET_MILLIS / 1000.0,
+            )
+        },
+        fromMillis = chart.fromMillis,
+        toMillis = chart.toMillis,
     )
 }
 
@@ -855,7 +840,7 @@ private fun HardnessChartCard(chart: HardnessChart?) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Жёсткость · сутки".uppercase(),
+                    text = "Жёсткость · час".uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
@@ -863,8 +848,7 @@ private fun HardnessChartCard(chart: HardnessChart?) {
                 Spacer(Modifier.weight(1f))
                 chart?.current?.let {
                     Text(
-                        text = "${(it.fraction * 100).roundToInt()} % ± " +
-                            "${(it.sigma * 100).roundToInt()} %",
+                        text = Hardness.format(it.value),
                         style = type.value,
                         color = colors.ink,
                     )
@@ -873,20 +857,21 @@ private fun HardnessChartCard(chart: HardnessChart?) {
             val columns = chart?.columns.orEmpty()
             if (chart == null || columns.all { it == null }) {
                 Text(
-                    text = "нужны накопленные спектры — приложение собирает их в фоне " +
-                        "примерно раз в час",
+                    text = "накапливаем измерения…",
                     style = type.bodySmall,
                     color = colors.muted,
                 )
             } else {
+                val yMax = ChartMapping.yMax(
+                    columns.filterNotNull().maxOrNull() ?: 1f,
+                    0f,
+                )
                 TrendChart(
                     spec = TrendChartSpec(
                         columns = columns,
-                        // A share lives in 0…1 by definition: a frame that
-                        // rescaled to the data would turn 2 % of noise into a
-                        // mountain.
-                        yMax = 1f,
-                        yTicks = listOf(0.25f to "25 %", 0.5f to "50 %", 0.75f to "75 %"),
+                        yMax = yMax,
+                        yTicks = ChartMapping.yTicks(yMax)
+                            .map { it to Hardness.format(it.toDouble()) },
                         xLabels = TimeAxis.labels(chart.fromMillis, chart.toMillis),
                     ),
                 )
@@ -897,10 +882,9 @@ private fun HardnessChartCard(chart: HardnessChart?) {
                 color = colors.muted,
             )
             Text(
-                text = "Доля счёта выше ${Hardness.SPLIT_KEV.toInt()} кэВ в полосе " +
-                    "${Hardness.LOW_KEV.toInt()}–${Hardness.HIGH_KEV.toInt()} кэВ. " +
-                    "Границы — параметр анализа: два значения сравнимы, только если " +
-                    "считались с одинаковыми.",
+                text = "Коэффициент вендора: (мкР/ч)/(имп/с). Величина производная — " +
+                    "она не добавляет к дозе и счёту ничего нового, а только смотрит " +
+                    "на их отношение.",
                 style = type.footnote,
                 color = colors.muted,
             )
