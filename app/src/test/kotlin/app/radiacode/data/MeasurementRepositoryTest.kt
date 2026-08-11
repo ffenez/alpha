@@ -46,6 +46,11 @@ internal class FakeSampleDao : SampleDao {
     override suspend fun detachProfile(profileId: Long) {}
     override suspend fun count(): Long = inserted.size.toLong()
     override suspend fun latestTimestamp(): Long? = inserted.maxOfOrNull { it.timestamp }
+    override suspend fun deleteRange(from: Long, to: Long): Int {
+        val before = inserted.size
+        inserted.removeAll { it.timestamp in from..to }
+        return before - inserted.size
+    }
     override suspend fun deleteOlderThan(before: Long): Int = 0
 }
 
@@ -58,6 +63,13 @@ private class FakeRareDataDao : RareDataDao {
 
 private class FakeEventDao : EventDao {
     val inserted = mutableListOf<EventEntity>()
+    override suspend fun countInRange(from: Long, to: Long): Int =
+        inserted.count { it.timestamp in from..to }
+    override suspend fun deleteRange(from: Long, to: Long): Int {
+        val before = inserted.size
+        inserted.removeAll { it.timestamp in from..to }
+        return before - inserted.size
+    }
     override suspend fun insert(event: EventEntity): Long { inserted += event; return inserted.size.toLong() }
     override suspend fun insertAll(events: List<EventEntity>) { inserted += events }
     override fun observeRecent(limit: Int): Flow<List<EventEntity>> = flowOf(inserted.takeLast(limit))
@@ -84,6 +96,11 @@ private class FakeEventDao : EventDao {
 
 internal class FakeSpectrumDao : SpectrumDao {
     val inserted = mutableListOf<SpectrumSnapshotEntity>()
+    override suspend fun deleteByIds(ids: List<Long>): Int {
+        val before = inserted.size
+        inserted.removeAll { it.id in ids }
+        return before - inserted.size
+    }
     override suspend fun insert(snapshot: SpectrumSnapshotEntity): Long { inserted += snapshot; return inserted.size.toLong() }
     override fun observeLatest(accumulated: Boolean): Flow<SpectrumSnapshotEntity?> =
         flowOf(

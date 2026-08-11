@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +46,7 @@ import app.radiacode.context.NetworkIdentity
 import app.radiacode.data.AppSettings
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.MonitorBlocks
+import app.radiacode.data.ThemeSetting
 import app.radiacode.data.db.ProfileEntity
 import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.device.ConnectionState
@@ -56,8 +58,10 @@ import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.RadioMark
+import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.NavConfig
+import app.radiacode.ui.logic.SearchFeedbackMode
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.ProfileDeletion
 import app.radiacode.ui.logic.NavEntry
@@ -73,12 +77,29 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Настройки (SPEC: opens separately, not a tab). Sections: Тревоги, Профили,
- * Обычный фон, Прибор, Единицы, Интерфейс, Лицензии.
+ * Категории настроек. One list, one screen each: the settings had grown into a
+ * single scroll where «единицы» sat below four screens of profile management,
+ * and finding anything meant remembering where it was.
+ */
+private enum class SettingsCategory(val title: String, val subtitle: String) {
+    ALARMS("Тревоги", "порог, длительность, чувствительность"),
+    PROFILES("Профили", "места и их обычный фон, сети Wi-Fi"),
+    BASELINE("Обычный фон", "заморозка статистики и смена места"),
+    SOUND("Звук", "отклик Поиска, звук тревоги"),
+    VIEW("Вид", "тема, единицы, вкладки и блоки Главной"),
+    DEVICE("Прибор", "серийный номер, прошивка, батарея"),
+    ABOUT("О приложении", "версия и лицензии"),
+}
+
+/**
+ * Настройки (SPEC: opens separately, not a tab): a list of categories, one
+ * screen deep. The back button goes one level at a time, so «назад» always
+ * means what it looks like.
  */
 @Composable
 fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
     val colors = LocalAppColors.current
+    var category by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
 
     Column(
         modifier = Modifier
@@ -87,19 +108,164 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
             .padding(Dimens.space3),
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
+        val open = category
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← Назад", onClick = onBack)
+            AppButton(
+                text = "← Назад",
+                onClick = { if (open == null) onBack() else category = null },
+            )
             Spacer(Modifier.weight(1f))
-            Chip(text = "Настройки", color = colors.ink)
+            Chip(text = open?.title ?: "Настройки", color = colors.ink)
         }
 
-        AlarmsSection(graph)
-        ProfilesSection(graph)
-        BaselineSection(graph)
-        DeviceSection(graph)
-        UnitsSection(graph)
-        InterfaceSection(graph)
-        LicensesSection()
+        when (open) {
+            null -> Card(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    SettingsCategory.entries.forEachIndexed { index, entry ->
+                        if (index > 0) AppDivider()
+                        CategoryRow(entry) { category = entry }
+                    }
+                }
+            }
+            SettingsCategory.ALARMS -> AlarmsSection(graph)
+            SettingsCategory.PROFILES -> ProfilesSection(graph)
+            SettingsCategory.BASELINE -> BaselineSection(graph)
+            SettingsCategory.SOUND -> SoundSection(graph)
+            SettingsCategory.VIEW -> {
+                ThemeSection(graph)
+                UnitsSection(graph)
+                InterfaceSection(graph)
+            }
+            SettingsCategory.DEVICE -> DeviceSection(graph)
+            SettingsCategory.ABOUT -> LicensesSection()
+        }
+    }
+}
+
+@Composable
+private fun CategoryRow(category: SettingsCategory, onClick: () -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTarget)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(text = category.title, style = type.label, color = colors.ink)
+            Text(text = category.subtitle, style = type.footnote, color = colors.muted)
+        }
+        Text(text = "›", style = type.title, color = colors.ink2)
+    }
+}
+
+// --- Звук ---
+
+/**
+ * Всё, что звучит и вибрирует, в одном месте: отклик Поиска (тот же самый
+ * выбор, что на экране Поиска — одна настройка, две двери) и ссылка на
+ * системный канал тревоги.
+ */
+@Composable
+private fun SoundSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val scope = rememberCoroutineScope()
+    val modeId by graph.settings.searchFeedbackMode.collectAsState(initial = null)
+    val mode = SearchFeedbackMode.of(modeId) ?: SearchFeedbackMode.OFF
+    val energyTone by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle("Отклик в Поиске")
+            Segmented(
+                options = SearchFeedbackMode.entries.map { it.label },
+                selectedIndex = SearchFeedbackMode.entries.indexOf(mode),
+                onSelect = { index ->
+                    scope.launch {
+                        graph.settings.setSearchFeedbackMode(
+                            SearchFeedbackMode.entries[index].id,
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = when (mode) {
+                    SearchFeedbackMode.OFF -> "сигнал виден только на экране Поиска"
+                    SearchFeedbackMode.CLICKS ->
+                        "щелчок на каждый зарегистрированный импульс"
+                    SearchFeedbackMode.TONE ->
+                        "непрерывный тон: выше — дальше от записанного фона"
+                    SearchFeedbackMode.VIBRO ->
+                        "то же без звука: чаще пульс — дальше от записанного фона"
+                },
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            if (mode == SearchFeedbackMode.CLICKS) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                ) {
+                    Chip(
+                        text = "тон по энергии",
+                        color = if (energyTone) colors.dataText else colors.muted,
+                        dot = if (energyTone) colors.data else null,
+                        onClick = {
+                            scope.launch {
+                                graph.settings.setSearchEnergyToneEnabled(!energyTone)
+                            }
+                        },
+                    )
+                    Text(
+                        text = "высота щелчка по средней энергии гамма-квантов",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+            }
+            AppDivider()
+            SectionTitle("Тревога")
+            AlarmSoundRow()
+        }
+    }
+}
+
+// --- Вид: тема ---
+
+@Composable
+private fun ThemeSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val scope = rememberCoroutineScope()
+    val theme by graph.settings.themeSetting.collectAsState(initial = ThemeSetting.SYSTEM)
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle("Тема")
+            Segmented(
+                options = ThemeSetting.entries.map { it.label },
+                selectedIndex = ThemeSetting.entries.indexOf(theme),
+                onSelect = { index ->
+                    scope.launch { graph.settings.setThemeSetting(ThemeSetting.entries[index]) }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = "Тёмная тема — основная: на ней графики и цифры читаются в " +
+                    "сумерках. Светлая пригодится на солнце.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+        }
     }
 }
 
@@ -172,9 +338,11 @@ private fun AlarmsSection(graph: AppGraph) {
             if (sensitivity == AlarmSensitivity.CUSTOM) {
                 CustomLevels(graph, unit, customL1, customL2)
             }
-
-            AppDivider()
-            AlarmSoundRow()
+            Text(
+                text = "Мелодия и вибрация тревоги — в разделе «Звук».",
+                style = type.footnote,
+                color = colors.muted,
+            )
         }
     }
 }

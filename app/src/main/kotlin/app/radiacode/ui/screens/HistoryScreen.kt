@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -55,6 +56,7 @@ import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.BarChart
 import app.radiacode.ui.components.BarChartSpec
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.CheckMark
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.components.RadioMark
@@ -65,7 +67,10 @@ import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.DailyDose
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.Evidence
+import app.radiacode.ui.logic.DeletionPlan
+import app.radiacode.ui.logic.HistoryDeletion
 import app.radiacode.ui.logic.HistoryFormat
+import app.radiacode.ui.logic.HistorySelection
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.SpectrumFormat
 import app.radiacode.ui.theme.Dimens
@@ -136,6 +141,26 @@ fun HistoryScreen(
         }
     }
 
+    // Уборка журнала: один режим выбора на сессии и спектры — они лежат в
+    // одном списке, и «убрать лишнее» это одна задача, а не две.
+    var selection by remember { mutableStateOf(HistorySelection()) }
+    var confirming by remember { mutableStateOf<DeletionPlan?>(null) }
+
+    confirming?.let { plan ->
+        DeleteConfirmDialog(
+            plan = plan,
+            onConfirm = {
+                scope.launch {
+                    graph.sessionRepository.delete(selection.sessions, selection.spectra)
+                    selection = HistorySelection()
+                    confirming = null
+                    reload += 1
+                }
+            },
+            onDismiss = { confirming = null },
+        )
+    }
+
     // Спец §20: профиль сессии можно поправить задним числом; вместе с ним
     // пересчитывается участие сессии в обучении обычного фона.
     var reassigning by remember { mutableStateOf<SessionSummary?>(null) }
@@ -178,7 +203,34 @@ fun HistoryScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Chip(text = "История", color = colors.ink)
             Spacer(Modifier.weight(1f))
-            model?.let { Chip(text = "${it.totalSessions} сессий") }
+            if (selection.active) {
+                Chip(
+                    text = "Отмена",
+                    color = colors.ink2,
+                    onClick = { selection = selection.cancel() },
+                )
+            } else {
+                // The counter is the way in: tapping «12 сессий» is asking to
+                // do something with them.
+                model?.let {
+                    Chip(
+                        text = "${it.totalSessions} сессий",
+                        color = colors.ink2,
+                        onClick = { selection = selection.start() },
+                    )
+                }
+            }
+        }
+        if (selection.active) {
+            Text(
+                text = if (selection.isEmpty) {
+                    HistoryDeletion.emptyHint()
+                } else {
+                    "выбрано: ${selection.count}"
+                },
+                style = type.footnote,
+                color = colors.muted,
+            )
         }
 
         val m = model
@@ -193,6 +245,9 @@ fun HistoryScreen(
                 graph = graph,
                 onCompare = { first, second -> comparePair = first to second },
                 onContinue = onContinueSpectrum,
+                selectionActive = selection.active,
+                selected = selection.spectra,
+                onToggle = { id -> selection = selection.toggleSpectrum(id) },
             )
 
             if (m.items.isEmpty()) {
@@ -220,7 +275,22 @@ fun HistoryScreen(
                                 is HistoryItem.Session -> SessionRow(
                                     summary = item.summary,
                                     unit = unit,
-                                    onClick = { onOpenSession(item.summary.id) },
+                                    selectionActive = selection.active,
+                                    selected = item.summary.id in selection.sessions,
+                                    onClick = {
+                                        if (selection.active) {
+                                            // A session still being written to
+                                            // cannot be deleted: the data is
+                                            // arriving as we speak.
+                                            if (item.summary.endedAt != null) {
+                                                selection = selection.toggleSession(
+                                                    item.summary.id,
+                                                )
+                                            }
+                                        } else {
+                                            onOpenSession(item.summary.id)
+                                        }
+                                    },
                                     onReassign = { reassigning = item.summary },
                                 )
                                 is HistoryItem.Deviation -> DeviationRow(item.event, unit)
@@ -236,6 +306,32 @@ fun HistoryScreen(
                     onClick = { pages += 1 },
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                 )
+            }
+
+            if (selection.active) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                        AppButton(
+                            text = HistoryDeletion.actionLabel(selection),
+                            onClick = {
+                                scope.launch {
+                                    confirming = graph.sessionRepository.deletionPlan(
+                                        sessionIds = selection.sessions,
+                                        spectrumIds = selection.spectra,
+                                    )
+                                }
+                            },
+                            primary = !selection.isEmpty,
+                            enabled = !selection.isEmpty,
+                            modifier = Modifier.weight(1f),
+                        )
+                        AppButton(
+                            text = "Отмена",
+                            onClick = { selection = selection.cancel() },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
             }
         }
     }
@@ -367,6 +463,8 @@ private fun SessionRow(
     unit: DoseUnitSetting,
     onClick: () -> Unit,
     onReassign: () -> Unit,
+    selectionActive: Boolean = false,
+    selected: Boolean = false,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -386,16 +484,25 @@ private fun SessionRow(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (selectionActive) {
+                if (endedAt == null) {
+                    // Nothing to tick: a running session is still being written.
+                    Spacer(Modifier.size(18.dp))
+                } else {
+                    CheckMark(selected = selected)
+                }
+                Spacer(Modifier.size(Dimens.space2))
+            }
             Text(
                 text = summary.profileName ?: "Без профиля",
                 style = type.label,
-                color = colors.ink,
+                color = if (selectionActive && endedAt == null) colors.muted else colors.ink,
             )
             if (endedAt == null) {
                 Text(
-                    text = "· идёт",
+                    text = if (selectionActive) "· идёт, нельзя удалить" else "· идёт",
                     style = type.label,
-                    color = colors.ok,
+                    color = if (selectionActive) colors.muted else colors.ok,
                     modifier = Modifier.padding(start = 6.dp),
                 )
             }
@@ -596,6 +703,9 @@ private fun SavedSpectraCard(
     graph: AppGraph,
     onCompare: (Long, Long) -> Unit,
     onContinue: (Long) -> Unit,
+    selectionActive: Boolean = false,
+    selected: Set<Long> = emptySet(),
+    onToggle: (Long) -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -652,7 +762,7 @@ private fun SavedSpectraCard(
                     color = colors.ink2,
                     modifier = Modifier.weight(1f),
                 )
-                if (spectra.size >= 2 && !mergeMode) {
+                if (spectra.size >= 2 && !mergeMode && !selectionActive) {
                     Chip(
                         text = if (compareMode) "отмена" else "сравнить",
                         color = if (compareMode) colors.ink2 else colors.dataText,
@@ -662,7 +772,7 @@ private fun SavedSpectraCard(
                         },
                     )
                 }
-                if (spectra.size >= 2 && !compareMode) {
+                if (spectra.size >= 2 && !compareMode && !selectionActive) {
                     Chip(
                         text = if (mergeMode) "отмена" else "объединить",
                         color = if (mergeMode) colors.ink2 else colors.dataText,
@@ -675,6 +785,7 @@ private fun SavedSpectraCard(
             }
             Text(
                 text = when {
+                    selectionActive -> "отметьте снимки, которые нужно удалить"
                     compareMode -> "выберите два снимка — откроется сравнение"
                     mergeMode -> "отметьте два и более снимков — каналы сложатся, " +
                         "время накопления просуммируется"
@@ -689,12 +800,15 @@ private fun SavedSpectraCard(
                 SavedSpectrumRow(
                     entity = entity,
                     marker = when {
+                        selectionActive -> null
                         compareMode && firstPickId == entity.id -> "A"
                         mergeMode && entity.id in mergeIds -> "✓"
                         else -> null
                     },
+                    check = if (selectionActive) entity.id in selected else null,
                     onClick = {
                         when {
+                            selectionActive -> onToggle(entity.id)
                             compareMode -> {
                                 val first = firstPickId
                                 when {
@@ -717,7 +831,7 @@ private fun SavedSpectraCard(
                     },
                 )
             }
-            if (mergeMode) {
+            if (mergeMode && !selectionActive) {
                 AppButton(
                     text = "Объединить (${mergeIds.size})",
                     enabled = mergeIds.size >= 2,
@@ -846,6 +960,8 @@ private fun SavedSpectrumRow(
     entity: SpectrumSnapshotEntity,
     marker: String?,
     onClick: () -> Unit,
+    /** Non-null while the list is in selection mode: the tick of this row. */
+    check: Boolean? = null,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -863,6 +979,9 @@ private fun SavedSpectrumRow(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (check != null) {
+                CheckMark(selected = check, modifier = Modifier.padding(end = Dimens.space2))
+            }
             if (marker != null) {
                 Text(
                     text = "$marker ▸",
@@ -1016,4 +1135,50 @@ private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryMode
         items = items,
         totalSessions = totalSessions,
     )
+}
+
+
+/**
+ * Deleting measurements is the one place in the app where data really goes
+ * away, so the dialog reads like an account, not like a warning: what exactly
+ * disappears, what stays, and the fact that it cannot be undone.
+ */
+@Composable
+private fun DeleteConfirmDialog(
+    plan: DeletionPlan,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(text = HistoryDeletion.title(plan), style = type.title, color = colors.ink)
+                Text(
+                    text = HistoryDeletion.body(plan),
+                    style = type.bodySmall,
+                    color = colors.ink2,
+                )
+                Text(
+                    text = HistoryDeletion.keepsWording(plan),
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    AppButton(
+                        text = "Удалить",
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AppButton(
+                        text = "Отмена",
+                        onClick = onDismiss,
+                        primary = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
 }

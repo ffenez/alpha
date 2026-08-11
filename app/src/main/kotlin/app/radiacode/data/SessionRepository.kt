@@ -9,10 +9,12 @@ import app.radiacode.data.db.ProfileDao
 import app.radiacode.data.db.ProfileEntity
 import app.radiacode.data.db.RangeStats
 import app.radiacode.data.db.SampleDao
+import app.radiacode.data.db.PreAggregateDao
 import app.radiacode.data.db.SessionDao
 import app.radiacode.data.db.SpectrumDao
 import app.radiacode.data.db.TrackDao
 import app.radiacode.ui.logic.ChartMapping
+import app.radiacode.ui.logic.DeletionPlan
 import app.radiacode.ui.logic.FlightDetect
 import app.radiacode.ui.logic.ProfileTree
 
@@ -71,8 +73,66 @@ class SessionRepository(
     private val spectrumDao: SpectrumDao,
     private val trackDao: TrackDao,
     private val eventDao: EventDao,
+    private val preAggregateDao: PreAggregateDao,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
+
+    // --- deletion (История) ---
+
+    /**
+     * Counts what deleting these sessions and snapshots would take away,
+     * **without** touching anything (`ui/logic/HistoryDeletion` turns it into
+     * the confirmation text).
+     *
+     * Deleting a session means deleting the measurements inside it — this is
+     * the one place in the app where data really disappears, so the user is
+     * told the size of it before, not after.
+     */
+    suspend fun deletionPlan(sessionIds: Set<Long>, spectrumIds: Set<Long>): DeletionPlan {
+        var samples = 0L
+        var events = 0
+        var seconds = 0L
+        for (id in sessionIds) {
+            val session = sessionDao.session(id) ?: continue
+            val from = session.startedAt
+            val to = session.endedAt ?: clock()
+            samples += preAggregateDao.rawCount(from, to).toLong()
+            events += eventDao.countInRange(from, to)
+            seconds += ((to - from) / 1000L).coerceAtLeast(0L)
+        }
+        return DeletionPlan(
+            sessions = sessionIds.size,
+            samples = samples,
+            events = events,
+            spectra = spectrumIds.size,
+            seconds = seconds,
+        )
+    }
+
+    /**
+     * Deletes the selected sessions with their measurements, and the selected
+     * spectra.
+     *
+     * The **derived** rows go with the raw ones: minute scalars and hourly
+     * sketches (ADR 004) are a cache of the samples, and a chart that keeps
+     * drawing a period whose measurements were deleted would be showing
+     * something the app can no longer justify. Tracks and unselected spectra
+     * are left alone — they are their own records, and the confirmation says
+     * so.
+     */
+    suspend fun delete(sessionIds: Set<Long>, spectrumIds: Set<Long>) {
+        for (id in sessionIds) {
+            val session = sessionDao.session(id) ?: continue
+            val from = session.startedAt
+            val to = session.endedAt ?: clock()
+            sampleDao.deleteRange(from, to)
+            eventDao.deleteRange(from, to)
+            preAggregateDao.deleteMinutes(from, to)
+            preAggregateDao.deleteHours(from, to)
+            sessionDao.delete(id)
+        }
+        if (spectrumIds.isNotEmpty()) spectrumDao.deleteByIds(spectrumIds.toList())
+    }
 
     // --- lifecycle (service) ---
 

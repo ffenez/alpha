@@ -106,6 +106,7 @@ class AppGraph private constructor(context: Context) {
             spectrumDao = database.spectrumDao(),
             trackDao = database.trackDao(),
             eventDao = database.eventDao(),
+            preAggregateDao = database.preAggregateDao(),
         )
     }
 

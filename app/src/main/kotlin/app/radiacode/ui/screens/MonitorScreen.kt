@@ -191,7 +191,7 @@ fun MonitorScreen(
             ConnectionChip(connection, serviceRunning)
             FreshnessChip(freshness)
             Icon(
-                imageVector = AppIcons.Gear,
+                imageVector = AppIcons.Lambda,
                 contentDescription = "Настройки",
                 tint = colors.ink2,
                 modifier = Modifier

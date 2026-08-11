@@ -108,6 +108,18 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         dataStore.edit { it[WHY_EXPANDED] = expanded }
     }
 
+    /**
+     * Тема оформления: системная (по умолчанию), тёмная или светлая.
+     * Дизайн-язык тёмный по природе, но выбор — за человеком, который держит
+     * прибор на солнце.
+     */
+    val themeSetting: Flow<ThemeSetting> =
+        dataStore.data.map { ThemeSetting.of(it[THEME]) }
+
+    suspend fun setThemeSetting(theme: ThemeSetting) {
+        dataStore.edit { it[THEME] = theme.id }
+    }
+
     /** Search mode: click pitch follows the mean photon energy. Off by default. */
     val searchEnergyToneEnabled: Flow<Boolean> =
         dataStore.data.map { it[SEARCH_ENERGY_TONE] ?: false }
@@ -288,6 +300,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val SEARCH_FEEDBACK_MODE = stringPreferencesKey("search_feedback_mode")
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")
         private val WHY_EXPANDED = booleanPreferencesKey("why_calculations_expanded")
+        private val THEME = stringPreferencesKey("theme")
         private val ACTIVE_PROFILE_ID = longPreferencesKey("active_profile_id")
 
         /** Pre-v6 key; read-only fallback so an update keeps the selection. */
@@ -345,6 +358,21 @@ enum class MapTrackScope {
 }
 
 /** Stored dose display unit. */
+/**
+ * Тема оформления. «Системная» — значение по умолчанию: приложение не спорит с
+ * телефоном, пока человек не попросил обратного.
+ */
+enum class ThemeSetting(val id: String, val label: String) {
+    SYSTEM("system", "Системная"),
+    DARK("dark", "Тёмная"),
+    LIGHT("light", "Светлая"),
+    ;
+
+    companion object {
+        fun of(id: String?): ThemeSetting = entries.firstOrNull { it.id == id } ?: SYSTEM
+    }
+}
+
 enum class DoseUnitSetting {
     MICRO_SIEVERT,
     MICRO_ROENTGEN,

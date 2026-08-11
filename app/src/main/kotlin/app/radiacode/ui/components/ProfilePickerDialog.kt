@@ -1,5 +1,6 @@
 package app.radiacode.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +22,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.radiacode.data.db.ProfileEntity
@@ -153,6 +159,40 @@ private fun ProfileRow(
 }
 
 /** Radio marker: hairline ring, filled with data teal when selected. */
+@Composable
+fun CheckMark(selected: Boolean, modifier: Modifier = Modifier) {
+    val colors = LocalAppColors.current
+    Box(
+        modifier = modifier
+            .size(18.dp)
+            .border(
+                width = Dimens.border,
+                color = if (selected) colors.data else colors.line,
+                shape = RoundedCornerShape(Dimens.radiusChip),
+            )
+            .background(
+                color = if (selected) colors.data else Color.Transparent,
+                shape = RoundedCornerShape(Dimens.radiusChip),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) {
+            // A tick drawn from two strokes: the same thin-line language as
+            // the tab icons, at the size a finger aims for.
+            Canvas(Modifier.size(11.dp)) {
+                val stroke = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                val path = Path().apply {
+                    moveTo(size.width * 0.1f, size.height * 0.55f)
+                    lineTo(size.width * 0.4f, size.height * 0.85f)
+                    lineTo(size.width * 0.92f, size.height * 0.18f)
+                }
+                drawPath(path, color = colors.onData, style = stroke)
+            }
+        }
+    }
+}
+
+/** Round single-choice mark; [CheckMark] is its multi-choice sibling. */
 @Composable
 fun RadioMark(selected: Boolean, modifier: Modifier = Modifier) {
     val colors = LocalAppColors.current

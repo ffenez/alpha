@@ -78,13 +78,19 @@ object AppIcons {
         )
     }
 
-    /** Настройки: gear — hub + eight radial teeth. */
-    val Gear: ImageVector by lazy {
+    /**
+     * Настройки: λ — the decay constant, drawn in the same thin-line hand as
+     * the tab icons. A gear says «механизм»; here the settings are about how
+     * the instrument reads the world, and the letter is the field's own sign.
+     *
+     * Two strokes: the long one from the apex down to the lower right, and the
+     * branch leaving it below the apex towards the lower left.
+     */
+    val Lambda: ImageVector by lazy {
         strokeIcon(
-            "gear",
-            "M12 8.9a3.1 3.1 0 1 1 0 6.2 3.1 3.1 0 1 1 0-6.2",
-            "M12 3.8v2.4M12 17.8v2.4M3.8 12h2.4M17.8 12h2.4" +
-                "M6.2 6.2l1.7 1.7M16.1 16.1l1.7 1.7M6.2 17.8l1.7-1.7M16.1 7.9l1.7-1.7",
+            "lambda",
+            "M7.2 4.4 17 19.6",
+            "M12.1 12 6.4 19.6",
         )
     }
 }

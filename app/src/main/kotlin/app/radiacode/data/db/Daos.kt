@@ -232,6 +232,14 @@ interface SampleDao {
     @Query("SELECT MAX(timestamp) FROM samples")
     suspend fun latestTimestamp(): Long?
 
+    /**
+     * Deletes the measurements of one interval — the user removing a session
+     * from История. Retention ([deleteOlderThan]) is age-based; this one is an
+     * explicit act on a named period, which is why it is a separate query.
+     */
+    @Query("DELETE FROM samples WHERE timestamp BETWEEN :from AND :to")
+    suspend fun deleteRange(from: Long, to: Long): Int
+
     @Query("DELETE FROM samples WHERE timestamp < :before")
     suspend fun deleteOlderThan(before: Long): Int
 }
@@ -327,6 +335,9 @@ interface SessionDao {
     @Query("SELECT * FROM measurement_sessions ORDER BY startedAt DESC LIMIT :limit OFFSET :offset")
     suspend fun page(limit: Int, offset: Int): List<MeasurementSessionEntity>
 
+    @Query("DELETE FROM measurement_sessions WHERE id = :sessionId")
+    suspend fun delete(sessionId: Long)
+
     @Query("SELECT COUNT(*) FROM measurement_sessions")
     suspend fun count(): Long
 }
@@ -358,6 +369,14 @@ interface EventDao {
 
     @Query("SELECT * FROM events WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
     fun observeRange(from: Long, to: Long): Flow<List<EventEntity>>
+
+    @Query("SELECT COUNT(*) FROM events WHERE timestamp BETWEEN :from AND :to")
+    suspend fun countInRange(from: Long, to: Long): Int
+
+    /** Events of a deleted period: an event about measurements that no longer
+     *  exist is a dangling record, not history. */
+    @Query("DELETE FROM events WHERE timestamp BETWEEN :from AND :to")
+    suspend fun deleteRange(from: Long, to: Long): Int
 
     /** App-detected deviations/hotspots for History interleaving. */
     @Query(
@@ -655,6 +674,10 @@ interface SpectrumDao {
 
     @Query("SELECT * FROM spectra WHERE id = :id")
     suspend fun byId(id: Long): SpectrumSnapshotEntity?
+
+    /** Deletes the chosen snapshots — an explicit act from История. */
+    @Query("DELETE FROM spectra WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>): Int
 
     /**
      * Device since-reset snapshot metadata in a range, blobs not loaded —
