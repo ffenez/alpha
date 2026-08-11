@@ -68,6 +68,39 @@ object ChartWindows {
         loaded.fromMillis <= window.fromMillis && loaded.toMillis >= window.toMillis
 
     /**
+     * Ступень лестницы, ближайшая к фактическому окну.
+     *
+     * Щипок меняет окно плавно, а лестница дискретна — и до сих пор выбранный
+     * чип оставался там, где его нажали в последний раз, то есть врал: на
+     * экране час, подсвечено «6ч». Ближайшая ступень ищется по ОТНОШЕНИЮ
+     * длительностей, а не по разности: между 1м и 2м столько же «расстояния»,
+     * сколько между 1ч и 2ч, и глаз воспринимает их одинаково.
+     */
+    fun nearestPeriodIndex(spanMillis: Long, among: List<Int> = PERIODS.indices.toList()): Int {
+        if (among.isEmpty()) return 0
+        val span = spanMillis.coerceAtLeast(1L).toDouble()
+        return among.minByOrNull { index ->
+            val period = PERIODS[index].second.toDouble()
+            kotlin.math.abs(kotlin.math.ln(span / period))
+        } ?: among.first()
+    }
+
+    /**
+     * Совпадает ли окно со ступенью настолько, чтобы подсветить её как
+     * выбранную. Внутри допуска — да; после щипка окно обычно между ступенями,
+     * и тогда не подсвечено ничего: подсвеченный чип означает «ровно это
+     * окно», а не «где-то рядом».
+     */
+    fun matchesPeriod(spanMillis: Long, index: Int, tolerance: Double = PERIOD_TOLERANCE): Boolean {
+        val period = PERIODS.getOrNull(index)?.second ?: return false
+        val ratio = spanMillis.toDouble() / period
+        return kotlin.math.abs(ratio - 1.0) <= tolerance
+    }
+
+    /** Допуск совпадения окна со ступенью. **Инженерный параметр.** */
+    const val PERIOD_TOLERANCE = 0.02
+
+    /**
      * Ряд чипов стал длиннее экрана, поэтому он прокручивается, а не
      * подрезается: раньше видимое окно из четырёх чипов скользило вместе с
      * выбором, и соседние ступени приходилось угадывать. Экран сам подкручивает

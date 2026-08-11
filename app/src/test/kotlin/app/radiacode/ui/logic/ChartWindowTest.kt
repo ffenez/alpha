@@ -166,6 +166,41 @@ class ChartWindowTest {
     // --- period chips ---
 
     @Test
+    fun `the ladder follows the window, so the highlighted chip never lies`() {
+        // Щипок меняет окно плавно; подсвечивается ближайшая ступень.
+        for ((index, period) in ChartWindows.PERIODS.withIndex()) {
+            assertEquals(index, ChartWindows.nearestPeriodIndex(period.second))
+            assertTrue("ступень ${period.first}", ChartWindows.matchesPeriod(period.second, index))
+        }
+        // Ровно между 1ч и 2ч ближайшей может быть любая из них, но не 6ч…
+        val between = ChartWindows.nearestPeriodIndex(90L * 60_000L)
+        assertTrue(
+            ChartWindows.PERIODS[between].first,
+            ChartWindows.PERIODS[between].first in listOf("1ч", "2ч"),
+        )
+        // …и «выбранной» она не считается: окно не равно ступени.
+        assertTrue("окно между ступенями не считается выбранной ступенью",
+            !ChartWindows.matchesPeriod(90L * 60_000L, between))
+    }
+
+    @Test
+    fun `the nearest step is measured by ratio, not by difference`() {
+        // 70 минут ближе к часу, чем к двум, хотя по разности почти поровну…
+        assertEquals("1ч", ChartWindows.PERIODS[ChartWindows.nearestPeriodIndex(70L * 60_000L)].first)
+        // …а полторы минуты ближе к двум минутам, чем к одной.
+        assertEquals("2м", ChartWindows.PERIODS[ChartWindows.nearestPeriodIndex(95_000L)].first)
+    }
+
+    @Test
+    fun `a metric with fewer windows never highlights one it cannot show`() {
+        val short = ChartWindows.PERIODS.indices.filter {
+            ChartWindows.PERIODS[it].second <= 6L * 3_600_000L
+        }
+        val index = ChartWindows.nearestPeriodIndex(30L * 24 * 3_600_000L, short)
+        assertEquals("6ч", ChartWindows.PERIODS[index].first)
+    }
+
+    @Test
     fun `the chip row scrolls to keep the selection off the edge`() {
         for (selected in ChartWindows.PERIODS.indices) {
             val target = ChartWindows.scrollTargetIndex(selected)

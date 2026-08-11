@@ -170,9 +170,6 @@ fun LiveChartScreen(
     val baseline = (baselineState as? BaselineState.Active)?.baseline
 
     val periodIndices = remember(metric) { ChartMetrics.periodIndices(metric) }
-    var periodIndex by rememberSaveable(metric) {
-        mutableIntStateOf(periodIndices.lastOrNull { it <= DEFAULT_PERIOD_INDEX } ?: 0)
-    }
     var logScale by rememberSaveable { mutableStateOf(false) }
     var follow by rememberSaveable { mutableStateOf(true) }
     var cursorActive by rememberSaveable { mutableStateOf(false) }
@@ -182,14 +179,19 @@ fun LiveChartScreen(
     // readout card read it, so dragging never recomposes the screen.
     val cursorFraction = remember { mutableStateOf<Float?>(null) }
 
-    var window by remember {
+    var window by remember(metric) {
+        val start = periodIndices.lastOrNull { it <= DEFAULT_PERIOD_INDEX } ?: 0
         mutableStateOf(
             ChartWindows.latest(
-                ChartWindows.PERIODS[DEFAULT_PERIOD_INDEX].second,
+                ChartWindows.PERIODS[start].second,
                 System.currentTimeMillis(),
             ),
         )
     }
+    // Лестница следует за окном, а не наоборот: щипок меняет окно плавно, и
+    // подсвеченный чип обязан говорить правду о том, что на экране.
+    val periodIndex = ChartWindows.nearestPeriodIndex(window.spanMillis, periodIndices)
+    val periodExact = ChartWindows.matchesPeriod(window.spanMillis, periodIndex)
     var snapshot by remember { mutableStateOf<ChartSnapshot?>(null) }
 
     // Live-follow: advance the right edge at the cadence at which a new column
@@ -235,7 +237,6 @@ fun LiveChartScreen(
     }
 
     fun selectPeriod(index: Int) {
-        periodIndex = index
         window = ChartWindows.latest(
             ChartWindows.PERIODS[index].second,
             System.currentTimeMillis(),
@@ -260,6 +261,10 @@ fun LiveChartScreen(
         if (zoom != 1f) w = ChartWindows.zoom(w, zoom, focus, now)
         // Dragging right pulls earlier data into view.
         if (pan != 0f) w = ChartWindows.pan(w, -pan, now)
+        // Щипок не должен выводить окно за пределы того, что величина умеет
+        // показать честно: у счёта и жёсткости нет предагрегации длинных окон.
+        val limit = ChartMetrics.maxSpanMillis(metric)
+        if (w.spanMillis > limit) w = ChartWindows.latest(limit, minOf(w.toMillis, now))
         window = w
         val atEdge = ChartWindows.isAtLiveEdge(
             w,
@@ -361,6 +366,7 @@ fun LiveChartScreen(
                     onToggleScale = { logScale = !logScale },
                     onJumpToNow = ::jumpToNow,
                     availablePeriods = periodIndices,
+                    periodExact = periodExact,
                 )
             }
         }
@@ -462,6 +468,7 @@ fun LiveChartScreen(
                 onToggleScale = { logScale = !logScale },
                 onJumpToNow = ::jumpToNow,
                 availablePeriods = periodIndices,
+                periodExact = periodExact,
             )
         }
         Text(
@@ -679,6 +686,7 @@ private fun RowScope.ControlChips(
     onToggleScale: () -> Unit,
     onJumpToNow: () -> Unit,
     availablePeriods: List<Int> = ChartWindows.PERIODS.indices.toList(),
+    periodExact: Boolean = true,
 ) {
     val colors = LocalAppColors.current
     // Лестница окон длиннее экрана, поэтому лента прокручивается и сама
@@ -697,11 +705,15 @@ private fun RowScope.ControlChips(
         modifier = Modifier.weight(1f).horizontalScroll(scroll),
     ) {
         for (index in availablePeriods) {
-            val selected = index == periodIndex
+            // Точное совпадение — выбранный чип; между ступенями (после
+            // щипка) ближайший просто ярче: «вы примерно здесь», но окно не
+            // равно ступени, и притворяться иначе нельзя.
+            val exact = index == periodIndex && periodExact
+            val nearest = index == periodIndex && !periodExact
             Chip(
                 text = ChartWindows.PERIODS[index].first,
-                color = if (selected) colors.ink else colors.ink2,
-                selected = selected,
+                color = if (exact || nearest) colors.ink else colors.ink2,
+                selected = exact,
                 onClick = { onSelectPeriod(index) },
             )
         }
