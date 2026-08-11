@@ -303,8 +303,8 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting) {
                     )
                 }
                 Text(
-                    text = "рост фона на эшелоне — нормальное космическое излучение, " +
-                        "не неисправность",
+                    text = "рост фона на эшелоне — ожидаемое космическое излучение, " +
+                        "не неисправность прибора",
                     style = type.footnote,
                     color = colors.muted,
                 )
