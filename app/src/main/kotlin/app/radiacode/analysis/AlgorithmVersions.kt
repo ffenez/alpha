@@ -63,6 +63,30 @@ object AlgorithmVersions {
      * A bump means every stored `hour_sketches` row is rebuilt from raw.
      */
     const val QUANTILE_SKETCH = 1
+     * Window trend ([app.radiacode.ui.logic.TrendFit], graph spec §23).
+     * v2 = Theil–Sen with an availability rule; v1 was plain OLS on the
+     * present columns with no minimum window.
+     */
+    const val TREND_FIT = 2
+
+    /**
+     * Window distribution ([app.radiacode.ui.logic.DoseHistograms], graph
+     * spec §14). v2 = Freedman–Diaconis with clamp/snap and the IQR = 0,
+     * small-N and degenerate fallbacks; v1 was a fixed 22-bin target.
+     */
+    const val DOSE_HISTOGRAM = 2
+
+    /** Descriptive current-vs-baseline statements ([DescriptiveDeviation], graph spec §35). */
+    const val DESCRIPTIVE_DEVIATION = 1
+
+    /**
+     * **Candidate** current-vs-baseline test ([AnomalyStatistics], graph spec
+     * §36): Mann–Whitney U / Kolmogorov–Smirnov with an N_eff correction for
+     * autocorrelation. Experimental — nothing derived from it is shown, and
+     * the version exists so validation runs can be attributed to a maths
+     * revision.
+     */
+    const val ANOMALY_TEST_CANDIDATE = 1
 
     /** Stable storage/export keys → current version. Keys are a disk contract. */
     val all: Map<String, Int> = linkedMapOf(
@@ -78,6 +102,10 @@ object AlgorithmVersions {
         "dose_projection" to DOSE_PROJECTION,
         "ab_analysis" to AB_ANALYSIS,
         "quantile_sketch" to QUANTILE_SKETCH,
+        "trend_fit" to TREND_FIT,
+        "dose_histogram" to DOSE_HISTOGRAM,
+        "descriptive_deviation" to DESCRIPTIVE_DEVIATION,
+        "anomaly_test_candidate" to ANOMALY_TEST_CANDIDATE,
     )
 
     /**
