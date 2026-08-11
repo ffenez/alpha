@@ -109,7 +109,8 @@ data class LadderInput(
  *    second; the machine never looks at future data and holds no percentage
  *    threshold of its own — every magnitude decision comes from the statistics
  *    module (redesign §11: «порог перехода определяется статистической
- *    моделью, а не произвольным процентом»).
+ *    моделью, а не произвольным процентом»). It does **not** assume the
+ *    comparisons are independent — they are not, see [ALPHA].
  * 3. **Units.** Times are milliseconds, [ALPHA] is a probability, the ratio is
  *    dimensionless.
  * 4. **Reference.** The two-sided test is Przyborowski–Wilenski (see
@@ -141,22 +142,28 @@ object SearchLadder {
      *
      * **Engineering parameter.** The screen re-tests about once a second, so an
      * α of 0.01 alone would raise ~36 flags an hour on a perfectly stationary
-     * background. That is not fixed by shrinking α (which would blind the mode
-     * to real, brief excursions) but by [CONFIRM_MILLIS]: a false flag has to
-     * repeat for seconds in a row, and the probability of that under H₀ falls
-     * off as roughly αⁿ. α is therefore kept where a single window is already
-     * unlikely, and duration does the rest.
+     * background. That is not fixed by shrinking α — which would blind the mode
+     * to real, brief excursions — but by [CONFIRM_MILLIS]: the difference has to
+     * still be there after the window has refreshed with new data.
+     *
+     * The tempting arithmetic «n windows in a row, so αⁿ» is **wrong here** and
+     * is deliberately not claimed: consecutive decision windows of
+     * [SearchEngine] overlap, so their tests are correlated. What the
+     * confirmation time buys is dwell, not independence, and the true
+     * false-flag rate on a real RC-110 stream is unmeasured (field protocol
+     * step 1, `docs/analysis/search-statistics.md`).
      */
     const val ALPHA = 0.01
 
     /**
      * How long a difference must hold before the screen calls it «устойчивое».
      *
-     * **Engineering parameter.** Four seconds is the shortest interval that
-     * both (a) contains at least three independent one-second windows, so a
-     * chance run is already improbable, and (b) is short enough that a person
-     * sweeping a surface at hand speed does not walk past the spot before the
-     * screen agrees with them.
+     * **Engineering parameter.** Four seconds is a little longer than the
+     * decision window itself ([SearchEngine.DECISION_WINDOW_MILLIS]), so a
+     * verdict is only given once the window has been completely refilled with
+     * readings taken while the difference was there — and it is still short
+     * enough that a person sweeping a surface at hand speed does not walk past
+     * the spot before the screen agrees with them.
      */
     const val CONFIRM_MILLIS = 4_000L
 

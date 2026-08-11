@@ -176,9 +176,6 @@ fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
     // plain default tick. It pitches the *clicks*, so it never runs together
     // with the search tone, whose pitch already carries the ratio.
     val toneActive = clickerActive && mode == SearchFeedbackMode.CLICKS && energyToneEnabled
-    DisposableEffect(toneActive) {
-        onDispose { clicker.setToneBand(null) }
-    }
     // The 5 s spectrum poll stays attached for the whole time Поиск is on
     // screen, not only for «тон по энергии»: the spectral-shape question of
     // §13 needs the *minutes before* an excursion, which cannot be collected
@@ -190,7 +187,11 @@ fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
     }
     val spectrumSlices by graph.spectrogramStore.slices.collectAsState()
     LaunchedEffect(toneActive) {
-        while (toneActive) {
+        if (!toneActive) {
+            clicker.setToneBand(null)
+            return@LaunchedEffect
+        }
+        while (true) {
             val slice = graph.spectrogramStore.latest.value
             val band = if (
                 slice != null &&
@@ -262,9 +263,20 @@ fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
     // policy, which fires once per newly reached step.
     LaunchedEffect(mode, resumed) {
         if (mode != SearchFeedbackMode.VIBRO) return@LaunchedEffect
+        // Do-Not-Disturb is polled once a second, not once per pulse: at the
+        // fastest cadence the pulses are 120 ms apart, and asking the system
+        // eight times a second for an answer that changes once an hour is
+        // work for nothing.
+        var dndCheckedAt = 0L
+        var dndAllows = true
         while (resumed) {
+            val now = System.currentTimeMillis()
+            if (now - dndCheckedAt >= 1_000L) {
+                dndCheckedAt = now
+                dndAllows = Feedback.dndAllowsFeedback(context)
+            }
             val interval = SearchVibro.intervalMillis(search.comparison?.ratio)
-            if (interval == null || !Feedback.dndAllowsFeedback(context)) {
+            if (interval == null || !dndAllows) {
                 delay(SearchVibro.SLOW_INTERVAL_MILLIS / 2)
                 continue
             }

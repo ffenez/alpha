@@ -102,6 +102,14 @@ class MeasurementService : Service() {
     @Volatile
     private var profileLearningEnabled: Boolean = true
 
+    /**
+     * Baseline epoch of the active profile. Watched, not just read: when the
+     * user starts a new period («Уровень изменился надолго»), the statistics
+     * must be rebuilt at once — waiting for the 10-minute refresh would leave
+     * the screen showing the band the user has just retired.
+     */
+    private var activeBaselineEpoch: Long? = null
+
     /** Condition 2: the Wi-Fi context machine's confidence. */
     @Volatile
     private var contextReliable: Boolean = true
@@ -168,8 +176,10 @@ class MeasurementService : Service() {
         }
         scope.launch {
             graph.profileRepository.activeProfile().collect { profile ->
-                val changed = profile?.id != activeProfileId
+                val changed = profile?.id != activeProfileId ||
+                    profile?.baselineEpochMillis != activeBaselineEpoch
                 activeProfileId = profile?.id
+                activeBaselineEpoch = profile?.baselineEpochMillis
                 profileLearningEnabled = profile?.baselineLearning ?: false
                 if (changed) {
                     rebuildTrackers()

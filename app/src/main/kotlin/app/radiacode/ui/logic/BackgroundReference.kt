@@ -1,7 +1,6 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.analysis.CountWindow
-import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
@@ -200,12 +199,6 @@ object BackgroundRef {
     const val DEFAULT_TARGET_SAMPLES = 45
 }
 
-/** Whole-percent delta vs background; null when there is no reference. */
-fun deltaPercent(cps: Float, backgroundCps: Float?): Int? {
-    if (backgroundCps == null || backgroundCps <= 0f) return null
-    return (((cps - backgroundCps) / backgroundCps) * 100f).roundToInt()
-}
-
 /**
  * LED meter drive: full scale = [FULL_SCALE_FACTOR]× background, so the meter
  * sits low on background and saturates near a strong source. Without a
@@ -217,26 +210,18 @@ fun ledLevel(cps: Float, backgroundCps: Float?): Float {
 }
 
 /**
- * Expected Poisson fluctuation band around the background at 1 s counting:
- * bg ± 2·sqrt(bg) (~95%). Rendered as the band on the search chart — a
- * statistical statement about *single readings*, not an opinion and not a
- * threshold: a point outside it is what counting statistics produces one time
- * in twenty by itself, which is exactly why the verdict is decided by
- * [SearchLadder] over a window and not by this band.
- */
-fun backgroundBand(backgroundCps: Float): ClosedFloatingPointRange<Float> {
-    val sigma = sqrt(backgroundCps.toDouble()).toFloat()
-    return (backgroundCps - 2f * sigma).coerceAtLeast(0f)..(backgroundCps + 2f * sigma)
-}
-
-/**
- * The same band, widened by the uncertainty of the reference itself.
+ * Expected fluctuation of a **single reading** around the recorded background,
+ * ≈95 %: bg ± 2σ, widened by the uncertainty of the reference itself.
  *
  * A single 1 s reading scatters with variance λ; the estimate of λ from a
  * finite background run carries λ/t_b on top of that, so the honest half-width
  * is 2·√(λ·(1 + 1/t_b)). With a 45 s reference the correction is about one
  * percent — small, and drawn anyway, because a band that pretends the
  * reference is exact is the same mistake as the forbidden naive σ (§3).
+ *
+ * It is a statistical statement, not a threshold: a point outside it is what
+ * counting statistics produces one time in twenty by itself, which is why the
+ * verdict is decided by [SearchLadder] over a window and not by this band.
  */
 fun backgroundBand(record: BackgroundRecord): ClosedFloatingPointRange<Float> {
     val rate = record.window.ratePerSecond

@@ -301,6 +301,7 @@ object WhyReportBuilder {
             else -> "Новые измерения сохраняются, но временно не используются для " +
                 "обновления исторического диапазона."
         }
+        val exclusions = input.exclusions
         val lines = buildList {
             add(
                 WhyLine(
@@ -310,7 +311,6 @@ object WhyReportBuilder {
                     note = (input.admission as? Admission.Excluded)?.reason?.label,
                 ),
             )
-            val exclusions = input.exclusions
             if (exclusions.isNotEmpty()) {
                 add(
                     WhyLine(
@@ -333,9 +333,18 @@ object WhyReportBuilder {
             }
         }
         return WhySection(
-            title = "Статистика профиля",
+            // Not «Статистика профиля»: that heading belongs to the numbers
+            // above, and two identical headings in one sheet is one heading
+            // too many.
+            title = "Состояние статистики",
             lines = lines,
-            note = explanation + " " + QUARANTINE_WORDING,
+            // The quarantine paragraph is shown where it explains something —
+            // otherwise it is a warning about a situation the user is not in.
+            note = if (exclusions.isEmpty() && updating) {
+                explanation
+            } else {
+                explanation + " " + QUARANTINE_WORDING
+            },
             tone = when {
                 learning != null -> WhyTone.ATTENTION
                 updating -> WhyTone.OK

@@ -25,7 +25,7 @@ data class ExclusionSummary(val reason: BaselineExclusion, val seconds: Long)
  */
 class BaselineRepository(
     private val sampleDao: SampleDao,
-    private val profileDao: ProfileDao? = null,
+    private val profileDao: ProfileDao,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
 
@@ -72,7 +72,7 @@ class BaselineRepository(
      */
     private suspend fun windowStart(profileId: Long, nowMillis: Long): Long {
         val sliding = nowMillis - windowMillis()
-        val epoch = profileDao?.byId(profileId)?.baselineEpochMillis ?: return sliding
+        val epoch = profileDao.byId(profileId)?.baselineEpochMillis ?: return sliding
         return maxOf(sliding, epoch)
     }
 
@@ -84,10 +84,9 @@ class BaselineRepository(
      * then a source that stays put would quietly redefine the place it is in.
      */
     suspend fun startNewPeriod(profileId: Long, stats: String) {
-        val dao = profileDao ?: return
         val now = clock()
-        val previous = dao.byId(profileId)?.baselineEpochMillis
-        dao.insertEpoch(
+        val previous = profileDao.byId(profileId)?.baselineEpochMillis
+        profileDao.insertEpoch(
             BaselineEpochEntity(
                 profileId = profileId,
                 startedAtMillis = previous ?: (now - windowMillis()),
@@ -97,12 +96,12 @@ class BaselineRepository(
                 createdAt = now,
             ),
         )
-        dao.setBaselineEpoch(profileId, now)
+        profileDao.setBaselineEpoch(profileId, now)
     }
 
     /** «Оставить как есть» — remembered so the offer stops coming back. */
     suspend fun declineShift(profileId: Long) {
-        profileDao?.setShiftDeclined(profileId, clock())
+        profileDao.setShiftDeclined(profileId, clock())
     }
 
     private fun windowMillis(): Long = BaselineConfig.WINDOW_DAYS * 24L * 3600_000L

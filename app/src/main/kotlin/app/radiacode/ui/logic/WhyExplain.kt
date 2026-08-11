@@ -44,8 +44,6 @@ data class WhyInput(
  */
 object WhyExplain {
 
-    fun verdict(status: MonitorStatus): String = statusHeadline(status)
-
     /**
      * One sentence saying against what the verdict was made (CHART SPEC §18).
      * It names the historical P10–P90 of the profile and never calls it a norm

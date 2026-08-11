@@ -158,28 +158,11 @@ class BackgroundReferenceTest {
     }
 
     @Test
-    fun `delta percent against background`() {
-        assertEquals(81, deltaPercent(cps = 38f, backgroundCps = 21f))
-        assertEquals(0, deltaPercent(cps = 21f, backgroundCps = 21f))
-        assertEquals(-50, deltaPercent(cps = 10.5f, backgroundCps = 21f))
-        assertNull(deltaPercent(cps = 38f, backgroundCps = null))
-        assertNull(deltaPercent(cps = 38f, backgroundCps = 0f))
-    }
-
-    @Test
     fun `led level scales from background to five times background`() {
         assertEquals(0.2f, ledLevel(cps = 21f, backgroundCps = 21f))
         assertEquals(1f, ledLevel(cps = 105f, backgroundCps = 21f))
         assertEquals(1f, ledLevel(cps = 500f, backgroundCps = 21f))
         assertEquals(0f, ledLevel(cps = 30f, backgroundCps = null))
-    }
-
-    @Test
-    fun `poisson band is bg plus-minus two sigma clamped at zero`() {
-        val band = backgroundBand(25f)
-        assertEquals(15f, band.start)
-        assertEquals(35f, band.endInclusive)
-        assertEquals(0f, backgroundBand(1f).start)
     }
 
     @Test
@@ -199,7 +182,7 @@ class BackgroundReferenceTest {
     }
 
     @Test
-    fun `the band around a recorded reference is wider than the exact-background band`() {
+    fun `the band around a recorded reference carries the reference's own error`() {
         val record = BackgroundRecord(
             window = CountWindow(counts = 25.0 * 45, seconds = 45.0, samples = 45),
             atMillis = 0L,
@@ -208,13 +191,11 @@ class BackgroundReferenceTest {
             profileName = null,
             deviceSerial = null,
         )
-        val exact = backgroundBand(25f)
+        // With an exact reference the half-width would be 2·√25 = 10; the
+        // finite 45 s run widens it by ~1 %, and never by more.
         val measured = backgroundBand(record)
-        assertTrue(
-            measured.endInclusive > exact.endInclusive,
-            "${measured.endInclusive} vs ${exact.endInclusive}",
-        )
-        // ...but only by the ~1 % the finite reference actually costs.
-        assertTrue(measured.endInclusive < exact.endInclusive * 1.05f)
+        assertTrue(measured.endInclusive > 35f, "${measured.endInclusive}")
+        assertTrue(measured.endInclusive < 35f * 1.05f, "${measured.endInclusive}")
+        assertTrue(measured.start > 14f && measured.start < 15f, "${measured.start}")
     }
 }

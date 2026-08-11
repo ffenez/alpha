@@ -88,6 +88,18 @@ object SearchEngine {
     private const val KEEP_MILLIS = TAPE_MILLIS
 
     /**
+     * Hard cap on the tape, as a backstop for a clock that runs backwards.
+     *
+     * The tape is trimmed **by time**, which is right while the instrument's
+     * timestamps advance — at 1 Hz that leaves ~61 readings. But the RC-110
+     * base time is known to drift and can step backwards (cdump #63), and a
+     * negative age passes any «older than» test, so the list would keep
+     * growing. Four times the nominal length is far more than any honest
+     * minute and still bounded.
+     */
+    private const val MAX_POINTS = 240
+
+    /**
      * Appends a reading taken at [timeMillis] (instrument time base) and
      * re-evaluates everything.
      */
@@ -100,6 +112,7 @@ object SearchEngine {
     ): SearchState {
         val appended = (state.points + SearchPoint(timeMillis, cps))
             .filter { timeMillis - it.timeMillis <= KEEP_MILLIS }
+            .takeLast(MAX_POINTS)
         return evaluate(state, appended, background, nowMillis)
     }
 

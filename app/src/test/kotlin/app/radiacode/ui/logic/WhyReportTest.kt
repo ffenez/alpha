@@ -185,6 +185,12 @@ class WhyReportTest {
     }
 
     @Test
+    fun `each heading appears once, so two blocks are never one`() {
+        val titles = WhyReportBuilder.build(input()).sections.map { it.title }
+        assertEquals(titles.distinct(), titles, "$titles")
+    }
+
+    @Test
     fun `the profile statistics state never speaks of training`() {
         val states = listOf(
             WhyReportBuilder.build(input()),
@@ -194,7 +200,7 @@ class WhyReportTest {
             WhyReportBuilder.build(
                 input(baselineState = BaselineState.Learning(2 * 3600L, 3 * 3600L)),
             ),
-        ).map { report -> report.sections.last { it.title == "Статистика профиля" } }
+        ).map { report -> report.sections.single { it.title == "Состояние статистики" } }
 
         assertEquals("Обновляется", states[0].lines.first().value)
         assertEquals("Временно не обновляется", states[1].lines.first().value)
@@ -219,7 +225,7 @@ class WhyReportTest {
                 ),
             ),
         )
-        val state = report.sections.last { it.title == "Статистика профиля" }
+        val state = report.sections.single { it.title == "Состояние статистики" }
         assertEquals("8,7 ч", state.lines.single { it.label == "Не учтено в статистике" }.value)
         // Both reasons appear as their own lines, largest first.
         val reasons = state.lines.drop(2).map { it.label }

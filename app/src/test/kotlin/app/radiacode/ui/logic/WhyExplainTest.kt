@@ -30,11 +30,11 @@ class WhyExplainTest {
     fun `verdict repeats the main screen headline verbatim`() {
         assertEquals(
             "В обычном диапазоне этого профиля",
-            WhyExplain.verdict(MonitorStatus.Usual(baseline)),
+            statusHeadline(MonitorStatus.Usual(baseline)),
         )
         assertEquals(
             "Уровень радиации изменился",
-            WhyExplain.verdict(MonitorStatus.Alert(baseline, 300, 0.3f)),
+            statusHeadline(MonitorStatus.Alert(baseline, 300, 0.3f)),
         )
     }
 

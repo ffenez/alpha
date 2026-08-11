@@ -134,6 +134,20 @@ class SearchEngineTest {
     }
 
     @Test
+    fun `an instrument clock that steps backwards cannot grow the tape`() {
+        // The RC-110 base time is known to drift (cdump #63): a negative age
+        // passes every «older than» test, so the trim must not be by time alone.
+        var state = SearchState()
+        val background = reference()
+        for (i in 0 until 500) {
+            // Every reading claims to be earlier than the previous one.
+            val now = 1_000_000L - i * 1_000L
+            state = SearchEngine.onReading(state, now, 25f, background, now)
+        }
+        assertTrue(state.points.size <= 240, "${state.points.size} points")
+    }
+
+    @Test
     fun `the decision window is the last seconds of readings, not the wall clock`() {
         val points = (0..10).map { SearchPoint(it * 1_000L, 25f) }
         val window = assertNotNull(SearchEngine.decisionWindow(points, nowMillis = 10_000L))
