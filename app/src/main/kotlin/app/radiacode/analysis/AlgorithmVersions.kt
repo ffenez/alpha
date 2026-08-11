@@ -98,6 +98,13 @@ object AlgorithmVersions {
     const val SEARCH_LADDER = 1
 
     /**
+     * Поиск: shape-only comparison of two accumulated spectra ([ShapeChange],
+     * search redesign §13). v1 = two-sample χ² homogeneity on merged energy
+     * bands, significance through the shared Wilson–Hilferty transform.
+     */
+    const val SHAPE_CHANGE = 1
+
+    /**
      * **Candidate** current-vs-baseline test ([AnomalyStatistics], graph spec
      * §36): Mann–Whitney U / Kolmogorov–Smirnov with an N_eff correction for
      * autocorrelation. Experimental — nothing derived from it is shown, and
@@ -125,6 +132,7 @@ object AlgorithmVersions {
         "descriptive_deviation" to DESCRIPTIVE_DEVIATION,
         "rate_comparison" to RATE_COMPARISON,
         "search_ladder" to SEARCH_LADDER,
+        "shape_change" to SHAPE_CHANGE,
         "anomaly_test_candidate" to ANOMALY_TEST_CANDIDATE,
     )
 

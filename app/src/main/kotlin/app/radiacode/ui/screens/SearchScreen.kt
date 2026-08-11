@@ -57,6 +57,7 @@ import app.radiacode.ui.logic.SearchBaseline
 import app.radiacode.ui.logic.SearchEngine
 import app.radiacode.ui.logic.SearchFeedbackMode
 import app.radiacode.ui.logic.SearchLevel
+import app.radiacode.ui.logic.SearchSpectrumHint
 import app.radiacode.ui.logic.SearchState
 import app.radiacode.ui.logic.SearchTone
 import app.radiacode.ui.logic.SearchVerdict
@@ -95,7 +96,7 @@ private const val TICK_MILLIS = 500L
  * Dose, spectra and long-term statistics deliberately stay off this screen.
  */
 @Composable
-fun SearchScreen(graph: AppGraph) {
+fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
@@ -176,12 +177,18 @@ fun SearchScreen(graph: AppGraph) {
     // with the search tone, whose pitch already carries the ratio.
     val toneActive = clickerActive && mode == SearchFeedbackMode.CLICKS && energyToneEnabled
     DisposableEffect(toneActive) {
-        if (toneActive) graph.spectrumHub.attach()
-        onDispose {
-            if (toneActive) graph.spectrumHub.detach()
-            clicker.setToneBand(null)
-        }
+        onDispose { clicker.setToneBand(null) }
     }
+    // The 5 s spectrum poll stays attached for the whole time Поиск is on
+    // screen, not only for «тон по энергии»: the spectral-shape question of
+    // §13 needs the *minutes before* an excursion, which cannot be collected
+    // retroactively once one starts. It costs one spectrum request every 5 s
+    // while this screen is in the foreground, and nothing when it is not.
+    DisposableEffect(resumed) {
+        if (resumed) graph.spectrumHub.attach()
+        onDispose { if (resumed) graph.spectrumHub.detach() }
+    }
+    val spectrumSlices by graph.spectrogramStore.slices.collectAsState()
     LaunchedEffect(toneActive) {
         while (toneActive) {
             val slice = graph.spectrogramStore.latest.value
@@ -283,6 +290,19 @@ fun SearchScreen(graph: AppGraph) {
     val check = record?.check(System.currentTimeMillis(), activeProfileId, deviceSerial)
     val band = record?.let { backgroundBand(it) }
     val level = search.level
+    // Shape of the spectrum during the excursion vs the two minutes before it
+    // — a separate research observation, never part of the count verdict.
+    val excursionStartWallClock = search.ladder
+        .takeIf { it.confirmed }
+        ?.differentSinceMillis
+        ?.plus(deviceClockOffset)
+    val shape = remember(excursionStartWallClock, spectrumSlices) {
+        SearchSpectrumHint.compare(
+            slices = spectrumSlices,
+            excursionStartMillis = excursionStartWallClock,
+            nowMillis = System.currentTimeMillis(),
+        )
+    }
     val levelColor = when (level) {
         SearchLevel.UNKNOWN -> colors.muted
         SearchLevel.BACKGROUND -> colors.ok
@@ -524,6 +544,27 @@ fun SearchScreen(graph: AppGraph) {
                 }
                 SearchVerdict.spikeLine(search.ladder.spikes)?.let {
                     Text(text = it, style = type.footnote, color = colors.muted)
+                }
+            }
+        }
+
+        // ------------------------------------------- the spectral side question
+        val invitation = SearchSpectrumHint.invitation(shape)
+        val shapeNote = SearchSpectrumHint.note(shape)
+        if (shapeNote != null) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    if (invitation != null) {
+                        StatusRow(text = invitation, color = colors.warn)
+                    }
+                    Text(text = shapeNote, style = type.footnote, color = colors.muted)
+                    if (invitation != null) {
+                        AppButton(
+                            text = "Открыть спектр",
+                            onClick = onOpenSpectrum,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }

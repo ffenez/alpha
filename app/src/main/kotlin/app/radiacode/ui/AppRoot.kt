@@ -162,7 +162,14 @@ private fun MainScaffold(graph: AppGraph) {
                         onOpenSettings = { showSettings = true },
                         onOpenChart = { showLiveChart = true },
                     )
-                    AppTab.SEARCH -> SearchScreen(graph)
+                    AppTab.SEARCH -> SearchScreen(
+                        graph = graph,
+                        // §13 of the search redesign: a confirmed excursion
+                        // whose *spectral shape* also changed may invite the
+                        // user to the spectrum. Nothing is carried across —
+                        // the spectrum tab shows its own live accumulation.
+                        onOpenSpectrum = { tab = AppTab.SPECTRUM },
+                    )
                     AppTab.SPECTRUM -> SpectrumScreen(
                         graph = graph,
                         onOpenSpectrogram = { showSpectrogram = true },
