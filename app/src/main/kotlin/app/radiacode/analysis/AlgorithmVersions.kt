@@ -63,6 +63,8 @@ object AlgorithmVersions {
      * A bump means every stored `hour_sketches` row is rebuilt from raw.
      */
     const val QUANTILE_SKETCH = 1
+
+    /**
      * Window trend ([app.radiacode.ui.logic.TrendFit], graph spec §23).
      * v2 = Theil–Sen with an availability rule; v1 was plain OLS on the
      * present columns with no minimum window.
