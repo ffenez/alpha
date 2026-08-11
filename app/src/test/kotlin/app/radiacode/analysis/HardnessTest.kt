@@ -16,7 +16,7 @@ class HardnessTest {
 
     @Test
     fun `the coefficient is dose per count in the units the vendor defines`() {
-        // 0,20 µSv/h = 20 µR/h over 40 counts per second → 0,50.
+        // 0,20 µSv/h = 20 µrem/h over 40 counts per second → 0,50.
         val value = assertNotNull(
             Hardness.of(doseRateMicroSvH = 0.20, countRate = 40.0, seconds = 60.0),
         )
@@ -26,16 +26,19 @@ class HardnessTest {
     }
 
     @Test
-    fun `harder radiation raises it, more of the same radiation does not`() {
+    fun `a harder field raises it, more of the same field does not`() {
         val soft = assertNotNull(Hardness.of(0.10, 40.0, 60.0))
-        // Twice the dose at the same count rate: each event carries twice as
-        // much — that is what «harder» means here.
-        val hard = assertNotNull(Hardness.of(0.20, 40.0, 60.0))
-        assertEquals(2.0, hard.value / soft.value, 1e-9)
+        // The same count rate carrying twice the dose: the ratio doubles.
+        val harder = assertNotNull(Hardness.of(0.20, 40.0, 60.0))
+        assertEquals(2.0, harder.value / soft.value, 1e-9)
 
-        // Twice as much of the very same radiation: both rates double, H holds.
-        val brighter = assertNotNull(Hardness.of(0.20, 80.0, 60.0))
-        assertEquals(soft.value, brighter.value, 1e-9)
+        // The intensity-suppressing property, which is the point of the
+        // coefficient: k-fold more of the same field moves both rates and
+        // leaves H where it was.
+        for (k in listOf(0.5, 2.0, 7.5)) {
+            val scaled = assertNotNull(Hardness.of(0.10 * k, 40.0 * k, 60.0))
+            assertEquals(soft.value, scaled.value, 1e-9, "k = $k")
+        }
     }
 
     @Test
@@ -73,12 +76,49 @@ class HardnessTest {
     }
 
     @Test
-    fun `the explanation says what it is and what it is not`() {
+    fun `the explanation says what it is and denies what it is not`() {
         val text = Hardness.EXPLANATION
-        assertTrue(text.contains("отношение мощности дозы к скорости счёта"), text)
+        assertTrue(text.contains("дозовая величина на единицу скорости счёта"), text)
+        assertTrue(text.contains("(мкрем/ч)/(имп/с)"), text)
         assertTrue(text.contains("не мера опасности"), text)
-        // The tempting reading — «это средняя энергия фотона» — is denied
-        // explicitly: the vendor documents a ratio, not an energy.
+        // The tempting reading — «это средняя энергия» — is denied outright:
+        // the numerator is a dosimetric estimate made through the detector's
+        // own energy response, not energy deposited in the crystal.
         assertTrue(text.contains("не средняя энергия фотона"), text)
+    }
+
+    /**
+     * The claim this app must never make. Left as a test rather than a comment
+     * because it is the phrase a later UI edit would reach for first.
+     */
+    @Test
+    fun `no wording turns the coefficient into an energy or a bound`() {
+        val texts = listOf(Hardness.EXPLANATION, Hardness.PURPOSE, Hardness.SIGMA_CAVEAT)
+        for (text in texts) {
+            val lower = text.lowercase()
+            assertTrue(
+                !Regex("(?<!не )средняя энергия").containsMatchIn(lower),
+                "«средняя энергия» claimed in: $text",
+            )
+            assertTrue(!lower.contains("ортогональ"), "orthogonality is not claimed: $text")
+            assertTrue(!lower.contains("консерватив"), "the sigma is not called conservative")
+        }
+    }
+
+    @Test
+    fun `the purpose explains the suppression and its limits`() {
+        val text = Hardness.PURPOSE
+        assertTrue(text.contains("подавляет влияние общей интенсивности"), text)
+        // …and never sells it as exact.
+        assertTrue(text.contains("Точного постоянства нет"), text)
+        assertTrue(text.contains("энергетическая характеристика детектора"), text)
+    }
+
+    @Test
+    fun `the sigma is presented as an estimate, not as a bound`() {
+        val text = Hardness.SIGMA_CAVEAT
+        assertTrue(text.contains("ковариация"), text)
+        assertTrue(text.contains("не опубликована"), text)
+        assertTrue(text.contains("оценка, а не гарантированная граница"), text)
     }
 }

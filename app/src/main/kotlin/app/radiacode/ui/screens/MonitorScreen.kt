@@ -882,9 +882,7 @@ private fun HardnessChartCard(chart: HardnessChart?) {
                 color = colors.muted,
             )
             Text(
-                text = "Коэффициент вендора: (мкР/ч)/(имп/с). Величина производная — " +
-                    "она не добавляет к дозе и счёту ничего нового, а только смотрит " +
-                    "на их отношение.",
+                text = Hardness.PURPOSE,
                 style = type.footnote,
                 color = colors.muted,
             )
