@@ -1,5 +1,6 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.analysis.quantiles.KllSketch
 import java.util.Arrays
 import kotlin.math.abs
 import kotlin.math.max
@@ -31,7 +32,7 @@ data class DoseAggregate(
      * True when the sub-bucket carries a single raw value: one sample, or
      * several samples that were all equal (`MIN == MAX`). Then its mean **is**
      * that raw value, and quantiles built from (value, weight) pairs are the
-     * exact quantiles of the raw samples — see [DoseChartModel.QuantileSource].
+     * exact quantiles of the raw samples — see [QuantileMethod].
      */
     val singleValued: Boolean
         get() = sampleCount <= 1 || minMicroSvH == maxMicroSvH
@@ -53,9 +54,9 @@ data class DoseAggregate(
  * and not a confidence interval (§6). All of it is CALCULATED over MEASURED
  * samples (SPEC §2); the chart legend says so.
  *
- * [quantilesExact] tells which of the two paths of ADR 004 produced the
- * quantiles: exact order statistics of the raw samples, or the approximation
- * over sub-bucket means. See [DoseChartModel.QuantileSource].
+ * [method] tells which path of ADR 004 produced the quantiles: exact order
+ * statistics of the raw samples, merged hourly sketches, or the coarse
+ * sub-bucket estimate. See [QuantileMethod].
  */
 data class ChartBucket(
     val startMillis: Long,
@@ -80,8 +81,12 @@ data class ChartBucket(
      * *somewhere inside* that interval and the UI must say so.
      */
     val extremeWindowMillis: Long = 1_000L,
-    val quantilesExact: Boolean = true,
+    /** Which path of ADR 004 produced [q10]…[q90] — see [QuantileMethod]. */
+    val method: QuantileMethod = QuantileMethod.EXACT_RAW,
 ) {
+    /** True when the quantiles are order statistics of the raw samples. */
+    val quantilesExact: Boolean get() = method.exact
+
     val midMillis: Long get() = (startMillis + endMillis) / 2
 
     /** Q75 − Q25 — the robust spread the extremum rule leans on. */
@@ -104,11 +109,45 @@ data class WindowStats(
     /** Raw 1 Hz samples inside the window. */
     val sampleCount: Int,
     val spanMillis: Long,
-    /** Which path produced the percentiles (ADR 004). */
-    val quantilesExact: Boolean = true,
+    /** Which path produced the percentiles and the MAD (ADR 004). */
+    val method: QuantileMethod = QuantileMethod.EXACT_RAW,
 ) {
+    val quantilesExact: Boolean get() = method.exact
+
     val iqr: Float get() = q75 - q25
 }
+
+/**
+ * One stored hour of the long path (ADR 004): the exact scalars of the hour
+ * plus its mergeable quantile sketch, already converted to µSv/h.
+ *
+ * [minAtMillis]/[maxAtMillis] are **instants**, not intervals — this is what
+ * fixes the P0 limitation and keeps a five-second transient tappable at 30
+ * days (CHART SPEC §21).
+ */
+data class DoseHourSlice(
+    val startMillis: Long,
+    val sampleCount: Int,
+    val min: Float,
+    val max: Float,
+    val minAtMillis: Long,
+    val maxAtMillis: Long,
+    val sketch: KllSketch,
+)
+
+/**
+ * Exact moments of a window read from the minute scalars (ADR 004): n, Σx,
+ * Σx² and the extremes, all in µSv/h. Costs no row transfer — SQLite folds
+ * `minute_stats` into a single row.
+ */
+data class DoseWindowRollup(
+    val sampleCount: Int,
+    val sumMicroSvH: Double,
+    val sumSqMicroSvH: Double,
+    val min: Float,
+    val max: Float,
+    val admittedCount: Int = sampleCount,
+)
 
 /**
  * Immutable result of one database read: the loaded range with everything the
@@ -126,54 +165,58 @@ data class DoseSnapshot(
     val aggregates: List<DoseAggregate>,
     /** Timestamps of journal events (deviations, hotspots) inside the range. */
     val eventTimesMillis: List<Long>,
+    /** Which path of ADR 004 produced the quantiles of this snapshot. */
+    val method: QuantileMethod = QuantileMethod.EXACT_RAW,
+    /** Long path: all hourly sketches of the range merged into one. */
+    val windowSketch: KllSketch? = null,
+    /** Long path: exact window moments from the minute scalars. */
+    val rollup: DoseWindowRollup? = null,
+    /**
+     * Long path: statistics of the visible window, computed once per read.
+     * The short path recomputes them per frame from [aggregates] instead —
+     * merging sketches is too expensive to do on a gesture.
+     */
+    val windowStats: WindowStats? = null,
+    /**
+     * Exact time range the [windowSketch] was built from — whole stored hours,
+     * so the diagnostic can read *the same* raw samples back and compare like
+     * with like (CHART SPEC §37G).
+     */
+    val windowSketchRange: LongRange? = null,
 ) {
     val spanMillis: Long get() = toMillis - fromMillis
 }
 
 /**
- * Folding of SQL aggregates into the immutable chart snapshot.
+ * Folding of stored aggregates into the immutable chart snapshot.
  *
- * **Quantiles and their honest error status (CHART SPEC §6, §28–§32, ADR
- * 004).** Every drawn column carries Q10/Q25/Q50/Q75/Q90. They are computed
- * from the (value, weight) pairs of its sub-buckets — the sub-bucket mean
- * weighted by how many raw samples it covers — with the same nearest-rank
- * definition the baseline engine uses. That gives two regimes:
+ * **Two paths, one truth (CHART SPEC §6, §28–§32, §34; ADR 004).** Which one
+ * a window uses is decided by [QuantilePaths] and travels with every number as
+ * [QuantileMethod]:
  *
- *  - **Exact** ([QuantileSource.EXACT_RAW]): when every sub-bucket of the
- *    column holds a single raw value (one sample, or several equal ones), the
- *    pairs *are* the raw samples with their multiplicities, so the result is
- *    the exact order statistic of the raw data (§29). This is the normal case
- *    on short windows, where SQL is asked for 1-second sub-buckets.
- *  - **Approximate** ([QuantileSource.SUB_BUCKET_MEANS]): on long windows a
- *    sub-bucket averages many seconds, so the quantiles are those of the
- *    *sub-bucket means*, not of the raw samples. Averaging shrinks the spread,
- *    therefore Q10 is biased **up** and Q90 **down**; the median is the least
- *    affected. This is an approximation with **no proven error bound** — it is
- *    not the mergeable sketch §30 asks for, and it is deliberately marked as
- *    approximate in the UI ([WindowStats.quantilesExact], the truth line of
- *    the chart) until the P1 KLL hierarchy of ADR 004 lands. It is *not* the
- *    forbidden «quantiles of quantiles» of §28: no per-sub-bucket quantile is
- *    ever computed, let alone re-quantiled.
+ *  - **Exact** ([QuantileMethod.EXACT_RAW]) — short windows. SQL is asked for
+ *    1-second sub-buckets, which at 1 Hz is one row per raw sample, so the
+ *    (value, weight) pairs *are* the measurements and the column quantiles are
+ *    their true order statistics (§29). This is the reference the approximate
+ *    path is validated against (§37G).
+ *  - **Sketch** ([QuantileMethod.KLL_SKETCH]) — long windows, [foldSketches].
+ *    A column is a whole number of stored hours; the hours' KLL sketches are
+ *    **merged** and the merged structure is queried once (§30). No hour's
+ *    quantile is ever computed, so this is not the forbidden
+ *    «quantiles of quantiles» of §28. Error is bounded and documented; n,
+ *    min, max and the extremum instants stay exact.
+ *  - **Fallback** ([QuantileMethod.SUB_BUCKET_MEANS]) — a long window whose
+ *    hours are not pre-aggregated yet (fresh install, backfill running).
+ *    Quantiles of sub-bucket *means* have no proven error bound (averaging
+ *    shrinks the spread: Q10 biased up, Q90 down), so this state is named
+ *    separately in the UI and disappears as the backfill catches up.
  *
- * **Why it cannot get slow.** The number of drawn columns is fixed at
- * [MAX_BUCKETS] whatever the range, and the database is asked for at most
- * [MAX_BUCKETS] × [SUB_BUCKETS_PER_BUCKET] rows, so a 30-day window renders
- * the same geometry as a 15-minute one: the SQL `GROUP BY timestamp / bucket`
- * does the reduction inside SQLite over the timestamp index, and folding here
- * is a single O(rows) pass with no sorting per column beyond its own
- * sub-buckets. Gestures never re-enter this code — they only re-project the
- * snapshot.
+ * **Why it cannot get slow.** The exact path reads at most one row per second
+ * of a ≤ 6 h window; the sketch path reads one row per hour (720 for 30 days).
+ * The column count never exceeds [MAX_BUCKETS] + 2 on either path, and
+ * gestures never re-enter this code — they only re-project the snapshot.
  */
 object DoseChartModel {
-
-    /** Which path produced a set of quantiles (ADR 004, §29/§32). */
-    enum class QuantileSource {
-        /** Order statistics of the raw samples themselves. */
-        EXACT_RAW,
-
-        /** Order statistics of sub-bucket means — approximate, spread shrunk. */
-        SUB_BUCKET_MEANS,
-    }
 
     /** Columns drawn, independent of the range (≈2 px per column on a phone). */
     const val MAX_BUCKETS = 200
@@ -223,17 +266,26 @@ object DoseChartModel {
         alignedFromMillis: Long,
         toMillis: Long,
         bucketMillis: Long,
+        subBucketMillis: Long = subBucketMillis(bucketMillis),
     ): DoseSnapshot {
         val count = bucketCount(toMillis - alignedFromMillis, bucketMillis)
-        val subMillis = subBucketMillis(bucketMillis)
+        val buckets = fold(aggregates, alignedFromMillis, bucketMillis, count, subBucketMillis)
         return DoseSnapshot(
             fromMillis = alignedFromMillis,
             toMillis = toMillis,
             bucketMillis = bucketMillis,
-            subBucketMillis = subMillis,
-            buckets = fold(aggregates, alignedFromMillis, bucketMillis, count, subMillis),
+            subBucketMillis = subBucketMillis,
+            buckets = buckets,
             aggregates = aggregates,
             eventTimesMillis = eventTimesMillis,
+            // The columns know which regime they came out of; the snapshot
+            // reports the worst of them, because one approximated column makes
+            // the picture approximate.
+            method = if (buckets.all { it.quantilesExact }) {
+                QuantileMethod.EXACT_RAW
+            } else {
+                QuantileMethod.SUB_BUCKET_MEANS
+            },
         )
     }
 
@@ -315,8 +367,224 @@ object DoseChartModel {
             minAtMillis = minAt,
             maxAtMillis = maxAt,
             extremeWindowMillis = subBucketMillis,
-            quantilesExact = exact,
+            method = if (exact) QuantileMethod.EXACT_RAW else QuantileMethod.SUB_BUCKET_MEANS,
         )
+    }
+
+    // --- long path: merged hourly sketches (ADR 004, §30) -------------------
+
+    /** Columns of the sketch path plus the merged sketch of the whole range. */
+    data class SketchFold(
+        val buckets: List<ChartBucket>,
+        val windowSketch: KllSketch?,
+    )
+
+    /**
+     * One database read of the long path → one immutable frame source. The
+     * range costs [DoseHourSlice] rows only: 720 of them for 30 days, against
+     * 2 592 000 raw samples (CHART SPEC §34).
+     *
+     * [bucketMillis] must be a whole number of hours — see [QuantilePaths]: a
+     * column may only be given the distribution of the hours it fully
+     * contains.
+     */
+    fun snapshotFromSketches(
+        slices: List<DoseHourSlice>,
+        eventTimesMillis: List<Long>,
+        alignedFromMillis: Long,
+        toMillis: Long,
+        bucketMillis: Long,
+        visibleFromMillis: Long = alignedFromMillis,
+        visibleToMillis: Long = toMillis,
+        rollup: DoseWindowRollup? = null,
+    ): DoseSnapshot {
+        val count = bucketCount(toMillis - alignedFromMillis, bucketMillis)
+        val fold = foldSketches(slices, alignedFromMillis, bucketMillis, count)
+        // Window statistics describe the *visible* window, so only the hours
+        // inside it are merged — the loaded range deliberately reaches beyond
+        // it and must not inflate n.
+        val inWindow = slices.filter {
+            it.sampleCount > 0 &&
+                it.startMillis >= visibleFromMillis &&
+                it.startMillis <= visibleToMillis
+        }
+        val visible = KllSketch.mergeAll(inWindow.map { it.sketch })
+        val sketchRange = if (inWindow.isEmpty()) {
+            null
+        } else {
+            inWindow.first().startMillis..
+                (inWindow.last().startMillis + QuantilePaths.SKETCH_PERIOD_MILLIS - 1)
+        }
+        return DoseSnapshot(
+            fromMillis = alignedFromMillis,
+            toMillis = toMillis,
+            bucketMillis = bucketMillis,
+            subBucketMillis = QuantilePaths.SKETCH_PERIOD_MILLIS,
+            buckets = fold.buckets,
+            aggregates = visible?.let { sketchAggregates(it, visibleFromMillis) }.orEmpty(),
+            eventTimesMillis = eventTimesMillis,
+            method = QuantileMethod.KLL_SKETCH,
+            windowSketch = visible,
+            rollup = rollup,
+            windowStats = windowStatsFromSketch(
+                rollup = rollup,
+                sketch = visible,
+                fromMillis = visibleFromMillis,
+                toMillis = visibleToMillis,
+            ),
+            windowSketchRange = sketchRange,
+        )
+    }
+
+    /**
+     * Folds stored hours into columns: the sketches of the hours inside a
+     * column are **merged** and queried once, which is the mergeable-sketch
+     * path §30 requires and the exact opposite of the forbidden
+     * «quantiles of quantiles» of §28 — no hour's quantile is ever computed,
+     * let alone re-quantiled.
+     *
+     * Extremes come from the stored scalars, so they stay exact with their
+     * true instants ([ChartBucket.extremeWindowMillis] = 1 s).
+     */
+    fun foldSketches(
+        slices: List<DoseHourSlice>,
+        alignedFromMillis: Long,
+        bucketMillis: Long,
+        bucketCount: Int,
+    ): SketchFold {
+        if (bucketMillis <= 0L || bucketCount <= 0) return SketchFold(emptyList(), null)
+        val slots = arrayOfNulls<MutableList<DoseHourSlice>>(bucketCount)
+        for (slice in slices) {
+            if (slice.sampleCount <= 0) continue
+            val index = ((slice.startMillis - alignedFromMillis) / bucketMillis).toInt()
+            if (index !in 0 until bucketCount) continue
+            val list = slots[index] ?: ArrayList<DoseHourSlice>(4).also { slots[index] = it }
+            list += slice
+        }
+        val out = ArrayList<ChartBucket>(bucketCount)
+        var window: KllSketch? = null
+        for (index in 0 until bucketCount) {
+            val list = slots[index] ?: continue
+            val start = alignedFromMillis + index * bucketMillis
+            val merged = KllSketch.mergeAll(list.map { it.sketch }) ?: continue
+            if (window == null) window = merged.copy() else window.merge(merged)
+            var n = 0
+            var min = Float.MAX_VALUE
+            var max = -Float.MAX_VALUE
+            var minAt = start
+            var maxAt = start
+            for (slice in list) {
+                n += slice.sampleCount
+                if (slice.min < min) {
+                    min = slice.min
+                    minAt = slice.minAtMillis
+                }
+                if (slice.max > max) {
+                    max = slice.max
+                    maxAt = slice.maxAtMillis
+                }
+            }
+            val q = merged.quantiles(QUANTILES)
+            out += ChartBucket(
+                startMillis = start,
+                endMillis = start + bucketMillis,
+                min = min,
+                max = max,
+                median = q[2],
+                q10 = q[0],
+                q25 = q[1],
+                q75 = q[3],
+                q90 = q[4],
+                sampleCount = n,
+                minAtMillis = minAt,
+                maxAtMillis = maxAt,
+                // Stored extrema are instants, not intervals.
+                extremeWindowMillis = 1_000L,
+                method = QuantileMethod.KLL_SKETCH,
+            )
+        }
+        return SketchFold(out, window)
+    }
+
+    /**
+     * Window statistics of the long path: n/Σx/Σx²/min/max are **exact** (they
+     * come from the minute scalars), the percentiles and the MAD are the
+     * sketch's approximation and are labelled as such
+     * ([WindowStats.method]).
+     */
+    fun windowStatsFromSketch(
+        rollup: DoseWindowRollup?,
+        sketch: KllSketch?,
+        fromMillis: Long,
+        toMillis: Long,
+    ): WindowStats? {
+        if (sketch == null || sketch.isEmpty) return null
+        val q = sketch.quantiles(QUANTILES)
+        val n = rollup?.sampleCount?.takeIf { it > 0 } ?: sketch.count.toInt()
+        // With the minute scalars present, Σx/Σx² are exact over the raw
+        // samples; without them (backfill still running) the same moments are
+        // estimated from the sketch's weighted items, which is approximate but
+        // honest — never a zero pretending to be a spread.
+        val sum: Double
+        val sumSq: Double
+        if (rollup != null) {
+            sum = rollup.sumMicroSvH
+            sumSq = rollup.sumSqMicroSvH
+        } else {
+            val items = sketch.weightedItems()
+            var s = 0.0
+            var sq = 0.0
+            for (i in items.values.indices) {
+                val v = items.values[i].toDouble()
+                val w = items.weights[i]
+                s += v * w
+                sq += v * v * w
+            }
+            sum = s
+            sumSq = sq
+        }
+        val total = if (rollup != null) n else sketch.weightedItems().weights.sum().coerceAtLeast(1)
+        val mean = sum / total
+        val variance = (sumSq / total) - mean * mean
+        return WindowStats(
+            min = rollup?.min ?: sketch.min,
+            p10 = q[0],
+            q25 = q[1],
+            median = q[2],
+            q75 = q[3],
+            p90 = q[4],
+            max = rollup?.max ?: sketch.max,
+            mad = sketch.mad(),
+            sd = sqrt(max(0.0, variance)).toFloat(),
+            sampleCount = n,
+            spanMillis = toMillis - fromMillis,
+            method = QuantileMethod.KLL_SKETCH,
+        )
+    }
+
+    /**
+     * The sketch's weighted items as pseudo sub-buckets, so the distribution
+     * strip can be drawn on the long path too. They are placed at
+     * [atMillis] because they no longer belong to any single instant — the
+     * histogram only ever asks «how much measured time sat at this level».
+     */
+    fun sketchAggregates(sketch: KllSketch, atMillis: Long): List<DoseAggregate> {
+        val items = sketch.weightedItems()
+        val out = ArrayList<DoseAggregate>(items.values.size)
+        for (i in items.values.indices) {
+            val value = items.values[i]
+            val weight = items.weights[i]
+            if (weight <= 0) continue
+            out += DoseAggregate(
+                startMillis = atMillis,
+                minMicroSvH = value,
+                maxMicroSvH = value,
+                sumMicroSvH = value.toDouble() * weight,
+                sumSqMicroSvH = value.toDouble() * value * weight,
+                sampleCount = weight,
+            )
+        }
+        return out
     }
 
     /**
@@ -375,7 +643,7 @@ object DoseChartModel {
             sd = sqrt(max(0.0, variance)).toFloat(),
             sampleCount = n,
             spanMillis = toMillis - fromMillis,
-            quantilesExact = exact,
+            method = if (exact) QuantileMethod.EXACT_RAW else QuantileMethod.SUB_BUCKET_MEANS,
         )
     }
 

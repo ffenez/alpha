@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -34,12 +35,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
+import app.radiacode.analysis.quantiles.KllSketch
+import app.radiacode.analysis.quantiles.QuantileComparison
+import app.radiacode.analysis.quantiles.QuantileDiagnostics
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
 import app.radiacode.baseline.Baseline
 import app.radiacode.baseline.BaselineState
 import app.radiacode.baseline.alarmThresholds
 import app.radiacode.data.DoseUnitSetting
+import app.radiacode.data.PreAggregateRepository
+import app.radiacode.data.db.MinuteRollup
 import app.radiacode.device.DoseUnits
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
@@ -61,13 +67,18 @@ import app.radiacode.ui.logic.DoseChartModel
 import app.radiacode.ui.logic.DoseEpisodes
 import app.radiacode.ui.logic.DoseExtremes
 import app.radiacode.ui.logic.DoseFormat
+import app.radiacode.ui.logic.DoseHourSlice
 import app.radiacode.ui.logic.DoseReference
+import app.radiacode.ui.logic.DoseWindowRollup
 import app.radiacode.ui.logic.DoseHistogram
 import app.radiacode.ui.logic.DoseHistograms
 import app.radiacode.ui.logic.DoseScales
 import app.radiacode.ui.logic.DoseSnapshot
 import app.radiacode.ui.logic.Freshness
 import app.radiacode.ui.logic.HistoryFormat
+import app.radiacode.ui.logic.QuantileMetadata
+import app.radiacode.ui.logic.QuantileMethod
+import app.radiacode.ui.logic.QuantilePaths
 import app.radiacode.ui.logic.RatioDenominator
 import app.radiacode.ui.logic.TimeAxis
 import app.radiacode.ui.logic.referenceWording
@@ -83,6 +94,7 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -360,6 +372,9 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
         ExpandedStats(stats = stats, unit = unit, expanded = statsExpanded) {
             statsExpanded = !statsExpanded
         }
+        if (statsExpanded) {
+            QuantileDiagnosticPanel(graph = graph, snapshot = snapshot, unit = unit)
+        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
             verticalAlignment = Alignment.CenterVertically,
@@ -381,7 +396,7 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
                 logScale = logScale,
                 logDropped = frame?.logDropped ?: 0,
                 hasBaseline = baseline != null,
-                quantilesExact = frame?.stats?.quantilesExact ?: true,
+                method = frame?.stats?.method ?: QuantileMethod.EXACT_RAW,
             ),
             style = type.footnote,
             color = colors.muted,
@@ -656,7 +671,7 @@ private fun truthLine(
     logScale: Boolean,
     logDropped: Int,
     hasBaseline: Boolean,
-    quantilesExact: Boolean,
+    method: QuantileMethod,
 ): String {
     val parts = mutableListOf(
         "линия — медиана корзины (Q50)",
@@ -669,16 +684,151 @@ private fun truthLine(
     }
     parts += "▲ — экстремум корзины выше порога L1 (залит) или выше P90 профиля (контур)"
     parts += "полосы эпизодов — журнал событий, длительность расчётная"
-    parts += if (quantilesExact) {
-        "квантили — точные по сырым отсчётам"
-    } else {
-        "квантили — оценка по под-корзинам (точный путь — на коротких окнах)"
+    parts += when (method) {
+        QuantileMethod.EXACT_RAW -> "квантили — точные по сырым отсчётам"
+        QuantileMethod.KLL_SKETCH ->
+            "квантили — приближение по почасовым KLL-скетчам (ошибка ранга ≈ " +
+                QuantileMetadata.errorPercentLabel(KllSketch.DEFAULT_K) + ")"
+        QuantileMethod.SUB_BUCKET_MEANS ->
+            "квантили — грубая оценка по под-корзинам: предагрегация ещё строится"
     }
     if (logScale && logDropped > 0) {
         parts += "лог-шкала: корзин с нулём не показано — $logDropped"
     }
     return parts.joinToString(" · ")
 }
+
+/**
+ * Исследовательская диагностика квантилей (CHART SPEC §32, §34, §37G; ADR
+ * 004). Живёт под расширенной статистикой, потому что это ровно то место, где
+ * пользователь уже спрашивает «а как именно посчитано».
+ *
+ * Показывает: каким путём получены квантили текущего окна, версию и параметр
+ * точности скетча, ход построения предагрегации — и, по явному запросу,
+ * считает то же окно ВТОРЫМ путём: читает все сырые отсчёты часов, из которых
+ * собран скетч, берёт точные порядковые статистики и сравнивает. Ошибка
+ * измеряется по РАНГУ (где приближённое значение реально стоит в
+ * распределении), потому что разница в значении сама по себе нечитаема: на
+ * плоском участке 1 % ранга невидим, на крутом хвосте — заметен.
+ *
+ * Точный путь читает окно целиком, поэтому он никогда не запускается сам.
+ */
+@Composable
+private fun QuantileDiagnosticPanel(
+    graph: AppGraph,
+    snapshot: DoseSnapshot?,
+    unit: DoseUnitSetting,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val scope = rememberCoroutineScope()
+    val backfill by graph.preAggregator.progress.collectAsState()
+    var running by remember { mutableStateOf(false) }
+    var report by remember { mutableStateOf<String?>(null) }
+    val method = snapshot?.method ?: QuantileMethod.EXACT_RAW
+    val sketch = snapshot?.windowSketch
+    val range = snapshot?.windowSketchRange
+
+    Column(
+        Modifier.fillMaxWidth().padding(
+            start = Dimens.space3,
+            end = Dimens.space3,
+            top = Dimens.space1,
+        ),
+    ) {
+        Text(
+            text = "метод квантилей: " + QuantileMetadata.label(method, sketch?.k ?: KllSketch.DEFAULT_K),
+            style = type.footnote,
+            color = colors.muted,
+        )
+        if (backfill.running && backfill.hoursTotal > 0) {
+            Text(
+                text = "предагрегация истории: ${(backfill.fraction * 100).toInt()} % " +
+                    "(${backfill.hoursDone} из ${backfill.hoursTotal} ч)",
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+        if (sketch != null && range != null) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = Dimens.space1),
+            ) {
+                Chip(
+                    text = if (running) "считаем…" else "сверить с сырыми",
+                    color = colors.ink2,
+                    onClick = {
+                        if (!running) {
+                            running = true
+                            report = null
+                            scope.launch {
+                                val text = withContext(Dispatchers.IO) {
+                                    compareQuantilePaths(graph, sketch, range, unit)
+                                }
+                                report = text
+                                running = false
+                            }
+                        }
+                    },
+                )
+            }
+        }
+        report?.let {
+            Text(text = it, style = type.footnote, color = colors.ink2)
+        }
+    }
+}
+
+/**
+ * Runs the same window both ways and renders the observed error. Returns the
+ * reason instead of numbers when the exact path refuses (too many rows) or
+ * when the two sides describe different data.
+ */
+private suspend fun compareQuantilePaths(
+    graph: AppGraph,
+    sketch: KllSketch,
+    range: LongRange,
+    unit: DoseUnitSetting,
+): String {
+    val raw = graph.preAggregateRepository.rawDoseValues(range.first, range.last)
+        ?: return "точный путь отказался: в окне больше " +
+            "${PreAggregateRepository.MAX_DIAGNOSTIC_ROWS} отсчётов"
+    if (raw.isEmpty()) return "в этих часах нет сырых отсчётов"
+    val factor = DoseUnits.RAW_TO_MICRO_SIEVERT_PER_HOUR
+    for (i in raw.indices) raw[i] = raw[i] * factor
+    val comparison = QuantileDiagnostics.compare(raw, sketch)
+    return diagnosticReport(comparison, unit)
+}
+
+/** Text of the exact-vs-sketch comparison — plain numbers, no verdicts. */
+private fun diagnosticReport(comparison: QuantileComparison, unit: DoseUnitSetting): String {
+    val names = listOf("P10", "Q25", "медиана", "Q75", "P90")
+    val lines = StringBuilder()
+    lines.append("точные против скетча · n ")
+    lines.append(HistoryFormat.count(comparison.sampleCount))
+    if (!comparison.countsAgree) {
+        lines.append(" (скетч знает ${comparison.sketchCount} — сравниваются разные данные)")
+    }
+    lines.append(" · k=${comparison.k}\n")
+    for (i in comparison.probabilities.indices) {
+        val name = names.getOrElse(i) { "p${comparison.probabilities[i]}" }
+        lines.append(name)
+        lines.append(' ')
+        lines.append(DoseFormat.rate(comparison.exactValues[i], unit))
+        lines.append(" → ")
+        lines.append(DoseFormat.rate(comparison.approximateValues[i], unit))
+        lines.append(" (ранг ")
+        lines.append(percent(comparison.rankErrors[i]))
+        lines.append(")\n")
+    }
+    lines.append("максимальная ошибка ранга ")
+    lines.append(percent(comparison.maxRankError))
+    return lines.toString()
+}
+
+private fun percent(value: Double): String =
+    String.format(java.util.Locale.ROOT, "%.2f %%", value * 100).replace('.', ',')
 
 // --- cursor readout -------------------------------------------------------
 
@@ -762,7 +912,11 @@ private fun BoxScope.CursorCard(
             }
             if (!bucket.quantilesExact) {
                 Text(
-                    text = "квантили корзины — оценка по под-корзинам",
+                    text = when (bucket.method) {
+                        QuantileMethod.KLL_SKETCH -> "квантили корзины — почасовые скетчи; " +
+                            "мин/макс и время — точные"
+                        else -> "квантили корзины — грубая оценка, предагрегация ещё строится"
+                    },
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -910,7 +1064,10 @@ private fun buildFrame(
             rawSamples = rawDots,
             endpointAlert = endpointAlert,
         ),
-        stats = DoseChartModel.windowStats(
+        // The long path computes the window statistics once per read (merging
+        // sketches is far too expensive for a gesture frame); the exact path
+        // recomputes them here from the sub-buckets.
+        stats = snapshot.windowStats ?: DoseChartModel.windowStats(
             snapshot.aggregates,
             window.fromMillis,
             window.toMillis,
@@ -928,16 +1085,37 @@ private fun buildFrame(
 }
 
 /**
- * The single database read of a window change. Runs on the IO dispatcher and
- * asks SQLite for at most [DoseChartModel.MAX_BUCKETS] ×
- * [DoseChartModel.SUB_BUCKETS_PER_BUCKET] aggregate rows — a fixed budget
- * whatever the range.
+ * The single database read of a window change (ADR 004). Runs on the IO
+ * dispatcher and picks one of the two paths by the span:
+ *
+ *  - **≤ 6 h — exact.** SQL is asked for 1-second buckets, i.e. one row per
+ *    raw sample (≤ 21 600), and every column carries the true order
+ *    statistics of the measurements (CHART SPEC §29).
+ *  - **longer — merged hourly sketches.** One row per stored hour (720 for 30
+ *    days) instead of millions of raw ones (§30, §34). Columns are whole
+ *    hours, because a column may only be given the distribution of the hours
+ *    it fully covers.
+ *
+ * When the long path finds no pre-aggregation at all (fresh install, backfill
+ * still running) it degrades to the coarse sub-bucket estimate and says so
+ * everywhere the numbers appear.
  */
 private suspend fun loadSnapshot(graph: AppGraph, window: ChartWindow): DoseSnapshot {
     val now = System.currentTimeMillis()
     val load = ChartWindows.loadRange(window, now)
-    val bucketMillis = DoseChartModel.bucketMillis(load.spanMillis)
-    val subMillis = DoseChartModel.subBucketMillis(bucketMillis)
+    return when (QuantilePaths.methodFor(load.spanMillis)) {
+        QuantileMethod.EXACT_RAW -> loadExact(graph, load, QuantilePaths.exactSubBucketMillis())
+        else -> loadSketched(graph, load, window)
+    }
+}
+
+/** Exact path: raw samples, aggregated by SQL at [subMillis] granularity. */
+private suspend fun loadExact(
+    graph: AppGraph,
+    load: ChartWindow,
+    subMillis: Long,
+    bucketMillis: Long = DoseChartModel.bucketMillis(load.spanMillis),
+): DoseSnapshot {
     val alignedFrom = ChartMapping.alignedFrom(load.toMillis, load.spanMillis, bucketMillis)
     val rows = graph.measurementRepository.doseBuckets(alignedFrom, load.toMillis, subMillis)
     val aggregates = rows.map { row ->
@@ -961,5 +1139,65 @@ private suspend fun loadSnapshot(graph: AppGraph, window: ChartWindow): DoseSnap
         alignedFromMillis = alignedFrom,
         toMillis = load.toMillis,
         bucketMillis = bucketMillis,
+        subBucketMillis = subMillis,
+    )
+}
+
+/** Long path: merged hourly KLL sketches, with the coarse estimate as fallback. */
+private suspend fun loadSketched(
+    graph: AppGraph,
+    load: ChartWindow,
+    window: ChartWindow,
+): DoseSnapshot {
+    val bucketMillis = QuantilePaths.bucketMillis(load.spanMillis, QuantileMethod.KLL_SKETCH)
+    val alignedFrom = ChartMapping.alignedFrom(load.toMillis, load.spanMillis, bucketMillis)
+    val hours = graph.preAggregateRepository.hourSketchesWithLiveTail(alignedFrom, load.toMillis)
+    val factor = DoseUnits.RAW_TO_MICRO_SIEVERT_PER_HOUR
+    val slices = hours.mapNotNull { row ->
+        val sketch = KllSketch.fromByteArray(row.sketch) ?: return@mapNotNull null
+        DoseHourSlice(
+            startMillis = row.hourStart,
+            sampleCount = row.count,
+            min = DoseUnits.rawToMicroSievertPerHour(row.minDoseRate),
+            max = DoseUnits.rawToMicroSievertPerHour(row.maxDoseRate),
+            minAtMillis = row.minAtMillis,
+            maxAtMillis = row.maxAtMillis,
+            sketch = sketch.scaled(factor),
+        )
+    }
+    if (slices.isEmpty()) {
+        // Nothing pre-aggregated for this range yet: fall back to the coarse
+        // sub-bucket estimate, which the UI names as such (§32).
+        return loadExact(graph, load, DoseChartModel.subBucketMillis(
+            DoseChartModel.bucketMillis(load.spanMillis),
+        ))
+    }
+    val events = graph.measurementRepository
+        .deviationEvents(alignedFrom, load.toMillis)
+        .map { it.timestamp }
+    val rollup = graph.preAggregateRepository.rollup(window.fromMillis, window.toMillis)
+    return DoseChartModel.snapshotFromSketches(
+        slices = slices,
+        eventTimesMillis = events,
+        alignedFromMillis = alignedFrom,
+        toMillis = load.toMillis,
+        bucketMillis = bucketMillis,
+        visibleFromMillis = window.fromMillis,
+        visibleToMillis = window.toMillis,
+        rollup = rollup.toDoseWindowRollup(factor),
+    )
+}
+
+/** Minute-scalar rollup → window moments in µSv/h; null when nothing is built. */
+private fun MinuteRollup.toDoseWindowRollup(factor: Float): DoseWindowRollup? {
+    val n = sampleCount ?: return null
+    if (n <= 0) return null
+    return DoseWindowRollup(
+        sampleCount = n,
+        sumMicroSvH = (sumDoseRate ?: 0.0) * factor,
+        sumSqMicroSvH = (sumSqDoseRate ?: 0.0) * factor.toDouble() * factor,
+        min = DoseUnits.rawToMicroSievertPerHour(minDoseRate ?: 0f),
+        max = DoseUnits.rawToMicroSievertPerHour(maxDoseRate ?: 0f),
+        admittedCount = admittedCount ?: n,
     )
 }
