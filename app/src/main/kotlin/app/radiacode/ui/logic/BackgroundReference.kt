@@ -1,5 +1,6 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.analysis.CountWindow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -20,22 +21,26 @@ sealed interface LocalBackground {
 
     /** Averaging in progress; one [BackgroundEvent.Sample] per 1 Hz reading. */
     data class Running(
-        val sumCps: Double,
-        val collected: Int,
+        /** Counts, exposure and scatter accumulated so far. */
+        val window: CountWindow,
         val target: Int,
         val startedAtMillis: Long,
         /** Wall clock of the last accepted sample — the stream-gap watchdog. */
         val lastSampleAtMillis: Long,
+        /** Device instant of the last accepted reading, for its exposure. */
+        val lastDeviceTimestamp: Long? = null,
+        val context: BackgroundContext = BackgroundContext(),
     ) : LocalBackground {
+        val collected: Int get() = window.samples
         val progress: Float get() = collected.toFloat() / target
     }
 
-    /** Averaging finished; [cps] is the reference the screen compares against. */
-    data class Done(
-        val cps: Float,
-        val samples: Int,
-        val atMillis: Long,
-    ) : LocalBackground
+    /** Averaging finished; [record] is the reference the screen compares against. */
+    data class Done(val record: BackgroundRecord) : LocalBackground {
+        val cps: Float get() = record.cps
+        val samples: Int get() = record.window.samples
+        val atMillis: Long get() = record.atMillis
+    }
 
     /**
      * Ended without a reference. Never silently: an average over an interval
@@ -62,9 +67,35 @@ enum class BackgroundAbort {
     SERVICE_RESTARTED,
 }
 
+/**
+ * Where and with what the reference is being recorded (redesign §6). Captured
+ * at [BackgroundEvent.Start] and carried into the record: deciding it at the
+ * *end* of the run would stamp the reference with the profile the user walked
+ * into, not the one they measured in.
+ */
+data class BackgroundContext(
+    val profileId: Long? = null,
+    val profileName: String? = null,
+    val deviceSerial: String? = null,
+)
+
 sealed interface BackgroundEvent {
-    data class Start(val target: Int, val nowMillis: Long) : BackgroundEvent
-    data class Sample(val cps: Float, val nowMillis: Long) : BackgroundEvent
+    data class Start(
+        val target: Int,
+        val nowMillis: Long,
+        val context: BackgroundContext = BackgroundContext(),
+    ) : BackgroundEvent
+
+    /**
+     * One accepted reading. [deviceTimestampMillis] is the instrument's own
+     * instant for the record — the exposure of the averaging window is built
+     * from those, never from arrival times, which carry the poll jitter.
+     */
+    data class Sample(
+        val cps: Float,
+        val nowMillis: Long,
+        val deviceTimestampMillis: Long,
+    ) : BackgroundEvent
 
     /** Watchdog tick; the only time-driven transition. */
     data class Tick(val nowMillis: Long) : BackgroundEvent
@@ -89,28 +120,36 @@ object LocalBackgroundMachine {
 
     fun reduce(state: LocalBackground, event: BackgroundEvent): LocalBackground = when (event) {
         is BackgroundEvent.Start -> LocalBackground.Running(
-            sumCps = 0.0,
-            collected = 0,
+            window = CountWindow.EMPTY,
             target = event.target,
             startedAtMillis = event.nowMillis,
             lastSampleAtMillis = event.nowMillis,
+            context = event.context,
         )
 
         is BackgroundEvent.Sample -> when (state) {
             is LocalBackground.Running -> {
-                val sum = state.sumCps + event.cps
-                val collected = state.collected + 1
-                if (collected >= state.target) {
+                val window = state.window.plusReading(
+                    previousMillis = state.lastDeviceTimestamp,
+                    timeMillis = event.deviceTimestampMillis,
+                    rate = event.cps.toDouble(),
+                )
+                if (window.samples >= state.target) {
                     LocalBackground.Done(
-                        cps = (sum / collected).toFloat(),
-                        samples = collected,
-                        atMillis = event.nowMillis,
+                        BackgroundRecord(
+                            window = window,
+                            atMillis = event.nowMillis,
+                            targetSamples = state.target,
+                            profileId = state.context.profileId,
+                            profileName = state.context.profileName,
+                            deviceSerial = state.context.deviceSerial,
+                        ),
                     )
                 } else {
                     state.copy(
-                        sumCps = sum,
-                        collected = collected,
+                        window = window,
                         lastSampleAtMillis = event.nowMillis,
+                        lastDeviceTimestamp = event.deviceTimestampMillis,
                     )
                 }
             }
@@ -179,12 +218,33 @@ fun ledLevel(cps: Float, backgroundCps: Float?): Float {
 
 /**
  * Expected Poisson fluctuation band around the background at 1 s counting:
- * bg ± 2·sqrt(bg) (~95%). Rendered as the dithered band on the search chart —
- * a statistical statement, not an opinion.
+ * bg ± 2·sqrt(bg) (~95%). Rendered as the band on the search chart — a
+ * statistical statement about *single readings*, not an opinion and not a
+ * threshold: a point outside it is what counting statistics produces one time
+ * in twenty by itself, which is exactly why the verdict is decided by
+ * [SearchLadder] over a window and not by this band.
  */
 fun backgroundBand(backgroundCps: Float): ClosedFloatingPointRange<Float> {
     val sigma = sqrt(backgroundCps.toDouble()).toFloat()
     return (backgroundCps - 2f * sigma).coerceAtLeast(0f)..(backgroundCps + 2f * sigma)
+}
+
+/**
+ * The same band, widened by the uncertainty of the reference itself.
+ *
+ * A single 1 s reading scatters with variance λ; the estimate of λ from a
+ * finite background run carries λ/t_b on top of that, so the honest half-width
+ * is 2·√(λ·(1 + 1/t_b)). With a 45 s reference the correction is about one
+ * percent — small, and drawn anyway, because a band that pretends the
+ * reference is exact is the same mistake as the forbidden naive σ (§3).
+ */
+fun backgroundBand(record: BackgroundRecord): ClosedFloatingPointRange<Float> {
+    val rate = record.window.ratePerSecond
+    if (rate <= 0.0) return 0f..0f
+    val variance = rate * (1.0 + 1.0 / record.window.seconds)
+    val sigma = sqrt(variance).toFloat()
+    val centre = rate.toFloat()
+    return (centre - 2f * sigma).coerceAtLeast(0f)..(centre + 2f * sigma)
 }
 
 private const val FULL_SCALE_FACTOR = 5f

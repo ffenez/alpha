@@ -39,6 +39,8 @@ class AlgorithmVersionsTest {
         assertEquals(2, AlgorithmVersions.DOSE_HISTOGRAM)
         assertEquals(1, AlgorithmVersions.DESCRIPTIVE_DEVIATION)
         assertEquals(1, AlgorithmVersions.ANOMALY_TEST_CANDIDATE)
+        assertEquals(1, AlgorithmVersions.RATE_COMPARISON)
+        assertEquals(1, AlgorithmVersions.SEARCH_LADDER)
     }
 
     @Test
@@ -55,6 +57,11 @@ class AlgorithmVersionsTest {
         assertEquals(
             AlgorithmVersions.DESCRIPTIVE_DEVIATION,
             DescriptiveDeviation.ALGORITHM_VERSION,
+        )
+        assertEquals(AlgorithmVersions.RATE_COMPARISON, RateComparison.ALGORITHM_VERSION)
+        assertEquals(
+            AlgorithmVersions.SEARCH_LADDER,
+            app.radiacode.ui.logic.SearchLadder.ALGORITHM_VERSION,
         )
         @OptIn(ExperimentalRadiationStatistics::class)
         assertEquals(
@@ -82,6 +89,8 @@ class AlgorithmVersionsTest {
             "dose_histogram",
             "descriptive_deviation",
             "anomaly_test_candidate",
+            "rate_comparison",
+            "search_ladder",
         )
         assertEquals(expected, AlgorithmVersions.all.keys)
         assertTrue(AlgorithmVersions.all.values.all { it >= 1 })

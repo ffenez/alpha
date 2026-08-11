@@ -206,6 +206,40 @@ object TrendFit {
     fun researchOlsSlopePerHour(columns: List<Float?>, bucketMillis: Long): Float? =
         fit(columns, bucketMillis, TrendMethod.OLS)?.slopeMicroSvHPerHour
 
+    /**
+     * The bare Theil–Sen estimator on raw timestamped values, in **value units
+     * per second** — no availability rule, no dose units, no [TrendResult].
+     *
+     * It exists because Поиск needs the same robust slope over a ~10 s window
+     * of count rate to answer «теплее или холоднее», where [fit]'s thresholds
+     * (12 bins, 10 minutes) are deliberately wrong: those guard a number that
+     * is *extrapolated to an hour*, which the search direction never is. The
+     * availability rule for the short window lives at that call site
+     * ([SearchDirectionFit]) so the two uses cannot silently borrow each
+     * other's constants.
+     *
+     * Returns null when fewer than two distinct instants are present.
+     */
+    fun theilSenPerSecond(timesMillis: LongArray, values: FloatArray): Double? {
+        require(timesMillis.size == values.size) { "times and values differ in length" }
+        val n = values.size
+        if (n < 2) return null
+        val slopes = ArrayList<Double>(n * (n - 1) / 2)
+        for (i in 0 until n - 1) {
+            if (!values[i].isFinite()) continue
+            for (j in i + 1 until n) {
+                if (!values[j].isFinite()) continue
+                val dt = (timesMillis[j] - timesMillis[i]) / 1000.0
+                if (dt <= 0.0) continue
+                slopes += (values[j] - values[i]) / dt
+            }
+        }
+        if (slopes.isEmpty()) return null
+        slopes.sort()
+        val mid = slopes.size / 2
+        return if (slopes.size % 2 == 1) slopes[mid] else (slopes[mid - 1] + slopes[mid]) / 2.0
+    }
+
     /** Present columns → points at bin centres. */
     fun toPoints(columns: List<Float?>, bucketMillis: Long): List<TrendPoint> =
         columns.mapIndexedNotNull { index, value ->

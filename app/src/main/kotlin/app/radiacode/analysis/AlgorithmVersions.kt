@@ -82,6 +82,22 @@ object AlgorithmVersions {
     const val DESCRIPTIVE_DEVIATION = 1
 
     /**
+     * Поиск: two-sample comparison of the current counting window against the
+     * recorded background ([RateComparison], search redesign §3). v1 = exact
+     * conditional binomial + inverted Clopper–Pearson interval for the rate
+     * ratio, with a Fano-factor dispersion check.
+     */
+    const val RATE_COMPARISON = 1
+
+    /**
+     * Поиск: the state ladder that turns a sequence of comparisons into a
+     * displayed conclusion ([app.radiacode.ui.logic.SearchLadder], search
+     * redesign §11). v1 = magnitude from [RATE_COMPARISON] plus a minimum
+     * confirmation time and a Theil–Sen direction over the short window.
+     */
+    const val SEARCH_LADDER = 1
+
+    /**
      * **Candidate** current-vs-baseline test ([AnomalyStatistics], graph spec
      * §36): Mann–Whitney U / Kolmogorov–Smirnov with an N_eff correction for
      * autocorrelation. Experimental — nothing derived from it is shown, and
@@ -107,6 +123,8 @@ object AlgorithmVersions {
         "trend_fit" to TREND_FIT,
         "dose_histogram" to DOSE_HISTOGRAM,
         "descriptive_deviation" to DESCRIPTIVE_DEVIATION,
+        "rate_comparison" to RATE_COMPARISON,
+        "search_ladder" to SEARCH_LADDER,
         "anomaly_test_candidate" to ANOMALY_TEST_CANDIDATE,
     )
 

@@ -2,6 +2,8 @@ package app.radiacode.service
 
 import app.radiacode.data.db.SampleEntity
 import app.radiacode.ui.logic.BackgroundAbort
+import app.radiacode.ui.logic.BackgroundContext
+import app.radiacode.ui.logic.BackgroundRecord
 import app.radiacode.ui.logic.LocalBackground
 import kotlin.math.abs
 import kotlin.test.Test
@@ -35,13 +37,16 @@ class LocalBackgroundRecorderTest {
     fun `a full run stores the average exactly once`() = runTest {
         val samples = MutableStateFlow<SampleEntity?>(null)
         val running = MutableStateFlow(true)
-        val stored = mutableListOf<Float>()
+        val stored = mutableListOf<BackgroundRecord>()
         var now = 0L
         val recorder = LocalBackgroundRecorder(
             scope = backgroundScope,
             samples = samples,
             serviceRunning = running,
             storeReference = { stored += it },
+            contextProvider = {
+                BackgroundContext(profileId = 7L, profileName = "Дом", deviceSerial = "RC-110-1")
+            },
             clock = { now },
         )
 
@@ -55,7 +60,12 @@ class LocalBackgroundRecorderTest {
 
         val done = assertIs<LocalBackground.Done>(recorder.state.value)
         assertTrue(abs(done.cps - 22f) < 1e-5f)
-        assertEquals(listOf(22f), stored)
+        assertEquals(1, stored.size)
+        assertEquals(done.record, stored.single())
+        // The stored reference carries what makes it judgeable later.
+        assertEquals(3, stored.single().window.samples)
+        assertEquals(3.0, stored.single().window.seconds, 1e-9)
+        assertEquals("Дом", stored.single().profileName)
     }
 
     @Test
@@ -83,7 +93,7 @@ class LocalBackgroundRecorderTest {
     fun `a service restart mid-measurement aborts and stores nothing`() = runTest {
         val samples = MutableStateFlow<SampleEntity?>(null)
         val running = MutableStateFlow(true)
-        val stored = mutableListOf<Float>()
+        val stored = mutableListOf<BackgroundRecord>()
         val recorder = LocalBackgroundRecorder(
             scope = backgroundScope,
             samples = samples,
@@ -140,7 +150,7 @@ class LocalBackgroundRecorderTest {
     @Test
     fun `cancel stops the run and leaves no result behind`() = runTest {
         val samples = MutableStateFlow<SampleEntity?>(null)
-        val stored = mutableListOf<Float>()
+        val stored = mutableListOf<BackgroundRecord>()
         val recorder = LocalBackgroundRecorder(
             scope = backgroundScope,
             samples = samples,

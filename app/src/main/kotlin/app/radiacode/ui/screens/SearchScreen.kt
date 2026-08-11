@@ -33,26 +33,34 @@ import androidx.lifecycle.LifecycleEventObserver
 import app.radiacode.AppGraph
 import app.radiacode.device.ConnectionState
 import app.radiacode.ui.components.AppButton
-import app.radiacode.ui.components.BarChart
-import app.radiacode.ui.components.BarChartSpec
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.LedMeter
+import app.radiacode.ui.components.SearchChartSpec
+import app.radiacode.ui.components.SearchRateChart
+import app.radiacode.ui.components.SearchWhySheet
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
+import app.radiacode.ui.components.StatusRow
 import app.radiacode.ui.feedback.Feedback
 import app.radiacode.ui.feedback.GeigerClicker
+import app.radiacode.ui.logic.BackgroundCheck
 import app.radiacode.ui.logic.BackgroundRef
-import app.radiacode.ui.logic.LocalBackground
-import app.radiacode.ui.logic.LocalBackgroundMachine
 import app.radiacode.ui.logic.ClickRate
 import app.radiacode.ui.logic.EnergyTone
 import app.radiacode.ui.logic.FeedbackReason
 import app.radiacode.ui.logic.FeedbackState
+import app.radiacode.ui.logic.LocalBackground
+import app.radiacode.ui.logic.LocalBackgroundMachine
+import app.radiacode.ui.logic.SearchBaseline
+import app.radiacode.ui.logic.SearchEngine
+import app.radiacode.ui.logic.SearchLevel
+import app.radiacode.ui.logic.SearchState
+import app.radiacode.ui.logic.SearchVerdict
+import app.radiacode.ui.logic.SearchWhyInput
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.VibrationPolicy
 import app.radiacode.ui.logic.backgroundBand
-import app.radiacode.ui.logic.deltaPercent
 import app.radiacode.ui.logic.ledLevel
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
@@ -63,18 +71,25 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val WINDOW_SECONDS = 60
 private val HH_MM = DateTimeFormatter.ofPattern("HH:mm")
 
 /** Click feedback goes silent when the 1 Hz stream stops delivering. */
 private const val FEEDBACK_STALE_MILLIS = 5_000L
 
+/** How often the verdict is re-evaluated without a new reading. */
+private const val TICK_MILLIS = 500L
+
 /**
- * Поиск: full-screen CPS mode (SPEC: answers only "where is the signal
- * stronger"). Big CPS with its Poisson 1σ, local background reference with
- * honest averaging and age, the 60 s tape with the фон ±2σ band so a
- * statistically significant excess is visible, thin intensity bar. Dose,
- * spectra and long-term stats deliberately stay off this screen.
+ * Поиск: a localisation instrument, not a dosimeter screen with a decorative
+ * chart (search redesign).
+ *
+ * The chain is «скорость счёта → сравнение с записанным фоном → статистическая
+ * уверенность → направление изменения», and every step of it lives in
+ * [SearchEngine], not here: this file only feeds readings in and draws what
+ * comes out. That is what keeps the redesign's release criterion (§14) true —
+ * how often Compose recomposes cannot change the conclusion.
+ *
+ * Dose, spectra and long-term statistics deliberately stay off this screen.
  */
 @Composable
 fun SearchScreen(graph: AppGraph) {
@@ -84,25 +99,31 @@ fun SearchScreen(graph: AppGraph) {
     val context = LocalContext.current
 
     val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
-    val storedBackground by graph.settings.searchBackgroundCps.collectAsState(initial = null)
+    val background by graph.searchBackground.collectAsState(initial = null)
+    val activeProfileId by graph.contextHub.activeProfileId.collectAsState()
     val soundEnabled by graph.settings.searchSoundEnabled.collectAsState(initial = false)
     val vibrationEnabled by graph.settings.searchVibrationEnabled.collectAsState(initial = false)
     val energyToneEnabled by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
+    val connection by graph.serviceStatus.connection.collectAsState()
 
-    // Last 60 s of CPS, fed by the 1 Hz sample flow; survives tab switches
-    // only while composed — Search is a live mode, not a log.
-    val window = remember { mutableStateOf(listOf<Float>()) }
     // The 45 s background measurement is owned by the app graph, not by this
     // composable: leaving the tab or the display sleeping must not destroy it.
     val backgroundRun by graph.localBackground.state.collectAsState()
+
+    var search by remember { mutableStateOf(SearchState()) }
     var lastSeenTimestamp by remember { mutableLongStateOf(0L) }
     // Wall-clock of the last received sample (device timestamps may drift).
     var lastSampleReceivedAt by remember { mutableLongStateOf(0L) }
+    // Windows are built in the instrument's time base; between readings the
+    // phone clock is the only thing that moves, so the offset between the two
+    // clocks is what turns «сейчас» into that base. Recomputed on every reading.
+    var deviceClockOffset by remember { mutableLongStateOf(0L) }
+    var whyOpen by remember { mutableStateOf(false) }
 
     // --- Geiger-style feedback: foreground-only, this screen only ---
     val clicker = remember { GeigerClicker(context) }
     // Recreated on background change: σ-steps are relative to the reference.
-    val vibrationPolicy = remember(storedBackground) { VibrationPolicy() }
+    val vibrationPolicy = remember(background?.cps) { VibrationPolicy() }
     val lifecycleOwner = LocalLifecycleOwner.current
     var resumed by remember {
         mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
@@ -128,7 +149,6 @@ fun SearchScreen(graph: AppGraph) {
     val clickerActive = soundEnabled && resumed
     // Silence must be explainable: these are polled once a second so the
     // screen can name the actual reason instead of just staying quiet.
-    val connection by graph.serviceStatus.connection.collectAsState()
     var dndBlocked by remember { mutableStateOf(false) }
     var audioUnavailable by remember { mutableStateOf(false) }
     var volumeZero by remember { mutableStateOf(false) }
@@ -184,25 +204,43 @@ fun SearchScreen(graph: AppGraph) {
         }
     }
 
-    LaunchedEffect(sample) {
+    LaunchedEffect(sample, background) {
         val s = sample ?: return@LaunchedEffect
         if (s.timestamp == lastSeenTimestamp) return@LaunchedEffect
         lastSeenTimestamp = s.timestamp
         lastSampleReceivedAt = System.currentTimeMillis()
-        window.value = (window.value + s.countRate).takeLast(WINDOW_SECONDS)
+        deviceClockOffset = lastSampleReceivedAt - s.timestamp
+        search = SearchEngine.onReading(
+            state = search,
+            timeMillis = s.timestamp,
+            cps = s.countRate,
+            background = background,
+        )
         clicker.setRate(ClickRate.clicksPerSecond(s.countRate))
-        if (vibrationEnabled && vibrationPolicy.onSample(s.countRate, storedBackground)) {
+        if (vibrationEnabled && vibrationPolicy.onSample(s.countRate, background?.cps)) {
             Feedback.pulse(context)
         }
         dataFresh = true
+    }
+
+    // Between readings the verdict must still be able to *expire*: a stream
+    // that stops leaves the decision window empty, and the ladder falls back
+    // to «ждём данные» instead of freezing on the last conclusion.
+    LaunchedEffect(resumed, background) {
+        while (resumed) {
+            delay(TICK_MILLIS)
+            search = SearchEngine.onTick(
+                state = search,
+                background = background,
+                nowMillis = System.currentTimeMillis() - deviceClockOffset,
+            )
+        }
     }
 
     // Keep the display awake only while a background measurement runs AND
     // this screen is in the foreground: the user is watching a 45 s countdown
     // and should not have to poke the screen. Scoped to the screen — released
     // on pause and on leaving the composition, never app-wide or persistent.
-    // (The measurement itself survives the screen going dark; this is only
-    // about not making the user fight the display timeout while watching.)
     val view = LocalView.current
     val keepAwake = backgroundRun is LocalBackground.Running && resumed
     DisposableEffect(keepAwake) {
@@ -211,8 +249,35 @@ fun SearchScreen(graph: AppGraph) {
     }
 
     val cps = sample?.countRate
-    val background = storedBackground
-    val band = background?.let { backgroundBand(it) }
+    val record = background
+    val deviceSerial = (connection as? ConnectionState.Connected)?.info?.serialNumber
+    val check = record?.check(System.currentTimeMillis(), activeProfileId, deviceSerial)
+    val band = record?.let { backgroundBand(it) }
+    val level = search.level
+    val levelColor = when (level) {
+        SearchLevel.UNKNOWN -> colors.muted
+        SearchLevel.BACKGROUND -> colors.ok
+        SearchLevel.POSSIBLE_CHANGE -> colors.ink2
+        SearchLevel.CONFIRMED_EXCESS -> colors.warn
+        SearchLevel.CONFIRMED_DEFICIT -> colors.ink2
+    }
+
+    if (whyOpen) {
+        SearchWhySheet(
+            input = SearchWhyInput(
+                cps = cps,
+                background = record,
+                comparison = search.comparison,
+                heldMillis = search.ladder.differentSinceMillis?.let {
+                    (System.currentTimeMillis() - deviceClockOffset - it).coerceAtLeast(0L)
+                },
+                streamFresh = search.comparison != null,
+            ),
+            headline = SearchVerdict.headline(level, search.direction, record != null),
+            explanation = SearchVerdict.explanation(level, search.comparison),
+            onDismiss = { whyOpen = false },
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -246,6 +311,306 @@ fun SearchScreen(graph: AppGraph) {
             )
         }
 
+        val reason = FeedbackReason.line(
+            FeedbackState(
+                soundEnabled = soundEnabled,
+                vibrationEnabled = vibrationEnabled,
+                deviceConnected = connection is ConnectionState.Connected,
+                dataFresh = dataFresh,
+                dndBlocked = dndBlocked,
+                audioUnavailable = audioUnavailable,
+                volumeZero = volumeZero,
+                backgroundRecorded = record != null,
+            ),
+        )
+        if (reason != null) {
+            Text(text = reason, style = type.footnote, color = colors.muted)
+        }
+
+        // ---------------------------------------------------------- the answer
+        Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space4) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+            ) {
+                Text(
+                    text = "Скорость счёта".uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                )
+                Text(
+                    text = cps?.let { Uncertainty.num1(it) } ?: "—",
+                    style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
+                    color = if (cps != null) colors.ink else colors.muted,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = cps?.let { Uncertainty.cpsSigmaLine(it) } ?: "с⁻¹",
+                    style = type.footnote,
+                    color = colors.ink2,
+                )
+
+                if (record != null) {
+                    val delta = SearchVerdict.deltaPercent(search.comparison)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.padding(top = Dimens.space2),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("фон", style = type.bodySmall, color = colors.ink2)
+                            Text(
+                                text = Uncertainty.num1(record.cps),
+                                style = type.value,
+                                color = colors.ink,
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(text = "к фону", style = type.bodySmall, color = colors.ink2)
+                            Text(
+                                text = delta?.let { if (it >= 0) "+$it %" else "−${-it} %" } ?: "—",
+                                style = type.value,
+                                color = if (level == SearchLevel.CONFIRMED_EXCESS) {
+                                    colors.warn
+                                } else {
+                                    colors.ink
+                                },
+                            )
+                        }
+                    }
+                }
+
+                StatusRow(
+                    text = SearchVerdict.headline(level, search.direction, record != null),
+                    color = levelColor,
+                    modifier = Modifier.padding(top = Dimens.space2),
+                )
+                Text(
+                    text = SearchVerdict.explanation(level, search.comparison),
+                    style = type.footnote,
+                    color = colors.muted,
+                    textAlign = TextAlign.Center,
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = Dimens.space2),
+                ) {
+                    SearchVerdict.directionLabel(search.direction)?.let {
+                        Chip(text = it, color = colors.ink2)
+                    }
+                    Chip(
+                        text = "Почему?",
+                        color = colors.dataText,
+                        onClick = { whyOpen = true },
+                    )
+                }
+
+                LedMeter(
+                    level = if (cps != null) ledLevel(cps, record?.cps) else 0f,
+                    modifier = Modifier.padding(top = Dimens.space3),
+                )
+                if (record == null) {
+                    Text(
+                        text = if (vibrationEnabled) {
+                            "индикатор и вибро-пульсы заработают после замера фона"
+                        } else {
+                            "индикатор заработает после замера фона"
+                        },
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+            }
+        }
+
+        // ----------------------------------------------------------- the tape
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "с⁻¹ · последние 60 секунд".uppercase(),
+                        style = type.labelSmall,
+                        color = colors.ink2,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    if (band != null) {
+                        Text(
+                            text = "полоса — ожидаемые колебания фона",
+                            style = type.footnote,
+                            color = colors.muted,
+                        )
+                    }
+                }
+                val points = search.points
+                if (points.isEmpty()) {
+                    Text(
+                        text = "ждём поток данных…",
+                        style = type.bodySmall,
+                        color = colors.muted,
+                    )
+                } else {
+                    val now = points.last().timeMillis
+                    SearchRateChart(
+                        spec = SearchChartSpec(
+                            points = points,
+                            nowMillis = now,
+                            spanMillis = SearchEngine.TAPE_MILLIS,
+                            yTop = search.scale?.top ?: 10f,
+                            band = band,
+                            baseline = record?.cps,
+                            baselineLabel = record?.let { "фон ${Uncertainty.num1(it.cps)}" },
+                            excursionLabel = search.comparison
+                                ?.takeIf { search.ladder.confirmed }
+                                ?.let { SearchVerdict.ratioShort(it) }
+                                ?.let { "устойчиво $it к фону" },
+                        ),
+                    )
+                    val values = points.map { it.cps }
+                    StatGrid(
+                        cells = listOf(
+                            StatCell(Uncertainty.num1(values.sum() / values.size), "ср 60 с"),
+                            StatCell(Uncertainty.num1(values.max()), "макс"),
+                            StatCell(
+                                "${SearchEngine.DECISION_WINDOW_MILLIS / 1000} с",
+                                "окно решения",
+                            ),
+                            StatCell(
+                                record?.let { timeOfDay(it.atMillis) } ?: "—",
+                                "фон записан",
+                            ),
+                        ),
+                    )
+                }
+                SearchVerdict.spikeLine(search.ladder.spikes)?.let {
+                    Text(text = it, style = type.footnote, color = colors.muted)
+                }
+            }
+        }
+
+        // ------------------------------------------------------- the reference
+        val run = backgroundRun
+        if (run is LocalBackground.Running) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                    ) {
+                        Text(
+                            text = "замер фона · ${run.collected}/${run.target} с",
+                            style = type.value,
+                            color = colors.dataText,
+                            modifier = Modifier.weight(1f),
+                        )
+                        AppButton(text = "Отмена", onClick = { graph.localBackground.cancel() })
+                    }
+                    Text(
+                        text = "Отойдите от предполагаемого источника и держите прибор " +
+                            "неподвижно. Замер продолжается на других вкладках и при " +
+                            "погасшем экране — результат будет здесь.",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+            }
+        } else {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    if (record != null && check != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Фон ${Uncertainty.num1(record.cps)} с⁻¹ · записан " +
+                                    timeOfDay(record.atMillis),
+                                style = type.bodySmall,
+                                color = colors.ink,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Chip(
+                                text = SearchBaseline.statusLine(check),
+                                color = if (check == BackgroundCheck.USABLE) {
+                                    colors.ink2
+                                } else {
+                                    colors.warn
+                                },
+                            )
+                        }
+                        Text(
+                            text = "${record.window.samples} показаний · экспозиция " +
+                                "${record.window.seconds.toInt()} с · качество: " +
+                                record.quality.label +
+                                (record.profileName?.let { " · профиль «$it»" } ?: ""),
+                            style = type.footnote,
+                            color = colors.muted,
+                        )
+                    } else {
+                        Text(
+                            text = "Локальный фон не записан",
+                            style = type.bodySmall,
+                            color = colors.ink,
+                        )
+                        Text(
+                            text = "Отойдите от предполагаемого источника и держите прибор " +
+                                "неподвижно ${BackgroundRef.DEFAULT_TARGET_SAMPLES} секунд — " +
+                                "среднее станет точкой сравнения.",
+                            style = type.footnote,
+                            color = colors.muted,
+                        )
+                    }
+
+                    SearchBaseline.proposal(check ?: BackgroundCheck.USABLE, record)?.let {
+                        Text(text = it, style = type.bodySmall, color = colors.warn)
+                    }
+
+                    if (run is LocalBackground.Aborted) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                        ) {
+                            Text(
+                                text = LocalBackgroundMachine.abortWording(run),
+                                style = type.bodySmall,
+                                color = colors.warn,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Chip(
+                                text = "скрыть",
+                                color = colors.ink2,
+                                onClick = { graph.localBackground.dismiss() },
+                            )
+                        }
+                    }
+
+                    AppButton(
+                        text = if (record == null) {
+                            "Замерить фон · ${BackgroundRef.DEFAULT_TARGET_SAMPLES} с"
+                        } else {
+                            "Перезамерить фон · ${BackgroundRef.DEFAULT_TARGET_SAMPLES} с"
+                        },
+                        onClick = { graph.localBackground.start() },
+                        // Primary only while the search cannot run: with a
+                        // usable reference the user's job is to walk, not to
+                        // press this.
+                        primary = record == null || check != BackgroundCheck.USABLE,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = "CPS реагирует быстрее дозы — ведите прибор вдоль поверхности. " +
+                "Пока открыт этот экран, показания забираются чаще: они приходят " +
+                "с меньшей задержкой, но сам прибор измеряет раз в секунду.",
+            style = type.footnote,
+            color = colors.muted,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        // Тон по энергии is a research toggle: it steers the pitch of the
+        // clicks, so it lives next to the sound explanation, not at the top.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
@@ -278,229 +643,6 @@ fun SearchScreen(graph: AppGraph) {
                 color = colors.muted,
             )
         }
-
-        val reason = FeedbackReason.line(
-            FeedbackState(
-                soundEnabled = soundEnabled,
-                vibrationEnabled = vibrationEnabled,
-                deviceConnected = connection is ConnectionState.Connected,
-                dataFresh = dataFresh,
-                dndBlocked = dndBlocked,
-                audioUnavailable = audioUnavailable,
-                volumeZero = volumeZero,
-                backgroundRecorded = storedBackground != null,
-            ),
-        )
-        if (reason != null) {
-            Text(text = reason, style = type.footnote, color = colors.muted)
-        }
-
-        Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space4) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Dimens.space1),
-            ) {
-                Text(
-                    text = "Скорость счёта".uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                )
-                Text(
-                    text = cps?.let { Uncertainty.num1(it) } ?: "—",
-                    style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
-                    color = if (cps != null) colors.ink else colors.muted,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = cps?.let { Uncertainty.cpsSigmaLine(it) } ?: "с⁻¹",
-                    style = type.footnote,
-                    color = colors.ink2,
-                )
-
-                if (background != null && cps != null) {
-                    val delta = deltaPercent(cps, background)
-                    val significant = band != null && cps > band.endInclusive
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.padding(top = Dimens.space2),
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("фон", style = type.bodySmall, color = colors.ink2)
-                            Text(
-                                text = Uncertainty.num1(background),
-                                style = type.value,
-                                color = colors.ink,
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = "к фону",
-                                style = type.bodySmall,
-                                color = if (significant) colors.warn else colors.ink2,
-                            )
-                            Text(
-                                text = delta?.let { if (it >= 0) "+$it%" else "−${-it}%" } ?: "—",
-                                style = type.value,
-                                color = if (significant) colors.warn else colors.ink,
-                            )
-                        }
-                    }
-                } else {
-                    Text(
-                        text = "локальный фон не замерен",
-                        style = type.bodySmall,
-                        color = colors.muted,
-                        modifier = Modifier.padding(top = Dimens.space2),
-                    )
-                }
-
-                LedMeter(
-                    level = if (cps != null) ledLevel(cps, background) else 0f,
-                    modifier = Modifier.padding(top = Dimens.space3),
-                )
-                if (background == null) {
-                    Text(
-                        text = if (vibrationEnabled) {
-                            "индикатор и вибро-пульсы заработают после замера фона"
-                        } else {
-                            "индикатор заработает после замера фона"
-                        },
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
-            }
-        }
-
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Последние 60 с".uppercase(),
-                        style = type.labelSmall,
-                        color = colors.ink2,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    if (band != null) {
-                        Text(
-                            text = "полоса: фон ±2σ",
-                            style = type.footnote,
-                            color = colors.muted,
-                        )
-                    }
-                }
-                val values = window.value
-                if (values.isEmpty()) {
-                    Text(
-                        text = "ждём поток данных…",
-                        style = type.bodySmall,
-                        color = colors.muted,
-                    )
-                } else {
-                    val columns: List<Float?> =
-                        List(WINDOW_SECONDS - values.size) { null } + values
-                    val dataMax = values.max()
-                    val yMax = maxOf(
-                        dataMax * 1.25f,
-                        band?.let { it.endInclusive * 1.1f } ?: 0f,
-                        1f,
-                    )
-                    BarChart(
-                        spec = BarChartSpec(
-                            values = columns,
-                            yMax = yMax,
-                            band = band,
-                            refLine = background,
-                            dimAtOrBelow = band?.endInclusive,
-                            xStartLabel = "−60 с",
-                            xEndLabel = "сейчас",
-                        ),
-                    )
-                    StatGrid(
-                        cells = listOf(
-                            StatCell(Uncertainty.num1(values.sum() / values.size), "ср 60с"),
-                            StatCell(Uncertainty.num1(dataMax), "макс"),
-                            StatCell(
-                                (backgroundRun as? LocalBackground.Done)?.let { timeOfDay(it.atMillis) }
-                                    ?: if (background != null) "ранее" else "—",
-                                "фон записан",
-                            ),
-                            StatCell("60 с", "усреднение"),
-                        ),
-                    )
-                }
-            }
-        }
-
-        val run = backgroundRun
-        if (run is LocalBackground.Running) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-            ) {
-                Text(
-                    text = "замер фона · ${run.collected}/${run.target} с",
-                    style = type.value,
-                    color = colors.dataText,
-                    modifier = Modifier.weight(1f),
-                )
-                AppButton(text = "Отмена", onClick = { graph.localBackground.cancel() })
-            }
-            Text(
-                text = "замер продолжается на других вкладках и при погасшем экране — " +
-                    "результат будет здесь",
-                style = type.footnote,
-                color = colors.muted,
-            )
-        } else {
-            AppButton(
-                text = if (background == null) {
-                    "Записать локальный фон · ${BackgroundRef.DEFAULT_TARGET_SAMPLES} с"
-                } else {
-                    "Перезамерить фон · ${BackgroundRef.DEFAULT_TARGET_SAMPLES} с"
-                },
-                onClick = { graph.localBackground.start() },
-                primary = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (run is LocalBackground.Aborted) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                ) {
-                    Text(
-                        text = LocalBackgroundMachine.abortWording(run),
-                        style = type.bodySmall,
-                        color = colors.warn,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Chip(
-                        text = "скрыть",
-                        color = colors.ink2,
-                        onClick = { graph.localBackground.dismiss() },
-                    )
-                }
-            } else {
-                Text(
-                    text = "Отойдите от предполагаемого источника и держите прибор " +
-                        "неподвижно ${BackgroundRef.DEFAULT_TARGET_SAMPLES} секунд — " +
-                        "среднее станет точкой сравнения.",
-                    style = type.bodySmall,
-                    color = colors.muted,
-                )
-            }
-        }
-
-        Text(
-            text = "CPS реагирует быстрее дозы — ведите прибор вдоль поверхности. " +
-                "Пока открыт этот экран, показания забираются чаще: они приходят " +
-                "с меньшей задержкой, но сам прибор измеряет раз в секунду.",
-            style = type.footnote,
-            color = colors.muted,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 

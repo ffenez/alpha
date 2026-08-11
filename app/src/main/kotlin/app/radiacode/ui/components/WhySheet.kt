@@ -77,8 +77,9 @@ fun WhySheet(input: WhyInput, onDismiss: () -> Unit) {
     }
 }
 
+/** One «label — value — tag» row; shared with the Поиск sheet. */
 @Composable
-private fun WhyRow(line: WhyLine) {
+internal fun WhyRow(line: WhyLine) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

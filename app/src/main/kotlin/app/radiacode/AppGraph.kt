@@ -14,6 +14,7 @@ import app.radiacode.context.ContextHub
 import app.radiacode.context.WifiNetworkSource
 import app.radiacode.data.db.AppDatabase
 import app.radiacode.data.preagg.PreAggregator
+import app.radiacode.device.ConnectionState
 import app.radiacode.device.DeviceLinkFactory
 import app.radiacode.device.KableLinkFactory
 import app.radiacode.device.RadiaCodeScanner
@@ -22,9 +23,13 @@ import app.radiacode.service.LocalBackgroundRecorder
 import app.radiacode.service.ServiceStatus
 import app.radiacode.service.SpectrogramStore
 import app.radiacode.service.SpectrumHub
+import app.radiacode.ui.logic.BackgroundContext
+import app.radiacode.ui.logic.BackgroundRecord
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /**
  * Manual dependency graph (no DI framework, ADR 001). One instance per process,
@@ -133,8 +138,26 @@ class AppGraph private constructor(context: Context) {
             scope = appScope,
             samples = measurementRepository.latestSample(),
             serviceRunning = serviceStatus.serviceRunning,
-            storeReference = { settings.setSearchBackgroundCps(it) },
+            storeReference = { settings.setSearchBackgroundRaw(it.encode()) },
+            contextProvider = {
+                val profileId = contextHub.activeProfileId.value
+                BackgroundContext(
+                    profileId = profileId,
+                    profileName = profileId?.let { profileRepository.byId(it)?.name },
+                    deviceSerial = (serviceStatus.connection.value as? ConnectionState.Connected)
+                        ?.info?.serialNumber,
+                )
+            },
         )
+    }
+
+    /**
+     * The Поиск background reference, decoded once for whoever reads it. The
+     * screen never sees the storage format, and a blob written by an older or
+     * broken version simply decodes to «no reference» instead of crashing it.
+     */
+    val searchBackground: Flow<BackgroundRecord?> by lazy {
+        settings.searchBackgroundRaw.map { BackgroundRecord.decode(it) }
     }
 
     companion object {

@@ -1,6 +1,8 @@
 package app.radiacode.ui.map
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -12,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import app.radiacode.ui.logic.PositionFix
@@ -48,7 +51,11 @@ fun rememberMyPosition(hasPermission: Boolean): PositionFix? {
     var fix by remember { mutableStateOf<PositionFix?>(null) }
 
     DisposableEffect(hasPermission, lifecycleOwner) {
-        if (!hasPermission) return@DisposableEffect onDispose { }
+        // Both the caller's flag and the system's own answer: the flag is what
+        // the screen believes, `checkSelfPermission` is what is actually
+        // granted right now — a permission revoked while the app was in the
+        // background would otherwise reach the location call as an exception.
+        if (!hasPermission || !locationGranted(context)) return@DisposableEffect onDispose { }
         val manager =
             context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
                 ?: return@DisposableEffect onDispose { }
@@ -57,11 +64,21 @@ fun rememberMyPosition(hasPermission: Boolean): PositionFix? {
 
         fun subscribe() {
             if (subscribed) return
+            // Checked again here, right next to the call: the permission can be
+            // revoked from the system UI while the app is in the background.
+            if (
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                return
+            }
             subscribed = true
             // A last known fix paints the marker immediately; it carries its own
             // timestamp, so an old one is shown as old rather than as current.
             if (fix == null) {
-                fix = lastKnown(manager)
+                fix = lastKnown(context, manager)
             }
             for (provider in PROVIDERS) {
                 runCatching {
@@ -108,10 +125,25 @@ fun anyLocationProviderEnabled(context: Context): Boolean {
     return PROVIDERS.any { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
 }
 
-private fun lastKnown(manager: LocationManager): PositionFix? = PROVIDERS
-    .mapNotNull { provider -> runCatching { manager.getLastKnownLocation(provider) }.getOrNull() }
-    .maxByOrNull { it.time }
-    ?.toFix()
+/** ACCESS_FINE_LOCATION as the system sees it at this moment. */
+private fun locationGranted(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+        PackageManager.PERMISSION_GRANTED
+
+private fun lastKnown(context: Context, manager: LocationManager): PositionFix? {
+    if (
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        ) != PackageManager.PERMISSION_GRANTED
+    ) {
+        return null
+    }
+    return PROVIDERS
+        .mapNotNull { provider -> runCatching { manager.getLastKnownLocation(provider) }.getOrNull() }
+        .maxByOrNull { it.time }
+        ?.toFix()
+}
 
 private fun Location.toFix(): PositionFix = PositionFix(
     latitude = latitude,

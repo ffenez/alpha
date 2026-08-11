@@ -50,11 +50,24 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         dataStore.edit { it[LAST_DEVICE_ADDRESS] = address }
     }
 
-    /** Search-mode local background reference, CPS; null until measured. */
-    val searchBackgroundCps: Flow<Float?> = dataStore.data.map { it[SEARCH_BACKGROUND_CPS] }
+    /**
+     * Search-mode background reference with its metadata, as a flat JSON blob
+     * (decoded by `ui/logic/BackgroundRecord`, which owns the format — this
+     * layer stores bytes and never interprets them).
+     *
+     * The pre-metadata key held a bare mean CPS and is deliberately **not**
+     * read any more: a rate without its exposure, instant, place and quality
+     * cannot be weighed by the statistical test and cannot be called stale
+     * (redesign §6). The cost of that decision is one 45 s measurement after
+     * the update, which the screen offers by itself.
+     */
+    val searchBackgroundRaw: Flow<String?> = dataStore.data.map { it[SEARCH_BACKGROUND] }
 
-    suspend fun setSearchBackgroundCps(cps: Float) {
-        dataStore.edit { it[SEARCH_BACKGROUND_CPS] = cps }
+    suspend fun setSearchBackgroundRaw(encoded: String) {
+        dataStore.edit {
+            it[SEARCH_BACKGROUND] = encoded
+            it.remove(SEARCH_BACKGROUND_CPS)
+        }
     }
 
     /** Search mode: Geiger-style click feedback. Off by default — sound is opt-in. */
@@ -243,7 +256,9 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         const val DEFAULT_CUSTOM_L1_MICRO_SV_H = 0.30f
         const val DEFAULT_CUSTOM_L2_MICRO_SV_H = 1.00f
         private val LAST_DEVICE_ADDRESS = stringPreferencesKey("last_device_address")
+        /** Pre-metadata reference (bare CPS); only ever removed now. */
         private val SEARCH_BACKGROUND_CPS = floatPreferencesKey("search_background_cps")
+        private val SEARCH_BACKGROUND = stringPreferencesKey("search_background")
         private val SEARCH_SOUND = booleanPreferencesKey("search_sound")
         private val SEARCH_VIBRATION = booleanPreferencesKey("search_vibration")
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")

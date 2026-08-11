@@ -1,7 +1,9 @@
 package app.radiacode.service
 
 import app.radiacode.data.db.SampleEntity
+import app.radiacode.ui.logic.BackgroundContext
 import app.radiacode.ui.logic.BackgroundEvent
+import app.radiacode.ui.logic.BackgroundRecord
 import app.radiacode.ui.logic.BackgroundRef
 import app.radiacode.ui.logic.LocalBackground
 import app.radiacode.ui.logic.LocalBackgroundMachine
@@ -31,8 +33,15 @@ class LocalBackgroundRecorder(
     private val scope: CoroutineScope,
     private val samples: Flow<SampleEntity?>,
     private val serviceRunning: StateFlow<Boolean>,
-    /** Persists the finished reference (Настройки DataStore). */
-    private val storeReference: suspend (Float) -> Unit,
+    /** Persists the finished reference with its metadata (DataStore). */
+    private val storeReference: suspend (BackgroundRecord) -> Unit,
+    /**
+     * Profile and instrument the reference is being recorded under, resolved
+     * once at the start of the run (redesign §6). Suspending because the
+     * profile name comes from the database; the run begins the moment it
+     * resolves, which is a database read away.
+     */
+    private val contextProvider: suspend () -> BackgroundContext = { BackgroundContext() },
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
 
@@ -45,8 +54,11 @@ class LocalBackgroundRecorder(
     fun start(targetSamples: Int = BackgroundRef.DEFAULT_TARGET_SAMPLES) {
         job?.cancel()
         job = null
-        apply(BackgroundEvent.Start(targetSamples, clock()))
         job = scope.launch {
+            // Where and with what: stamped at the start, never at the end — a
+            // reference must carry the context it was measured in, not the one
+            // the user walked into while measuring.
+            apply(BackgroundEvent.Start(targetSamples, clock(), contextProvider()))
             // A restart of the measurement service means an unknown hole in
             // the averaging window — abort rather than average across it.
             val serviceAtStart = serviceRunning.value
@@ -67,7 +79,13 @@ class LocalBackgroundRecorder(
             samples.collect { sample ->
                 if (sample == null || sample.timestamp == lastTimestamp) return@collect
                 lastTimestamp = sample.timestamp
-                apply(BackgroundEvent.Sample(sample.countRate, clock()))
+                apply(
+                    BackgroundEvent.Sample(
+                        cps = sample.countRate,
+                        nowMillis = clock(),
+                        deviceTimestampMillis = sample.timestamp,
+                    ),
+                )
             }
         }
     }
@@ -86,7 +104,7 @@ class LocalBackgroundRecorder(
         }
         // Store before stopping the collectors: the write must not be killed
         // by the cancellation it triggers.
-        if (next is LocalBackground.Done) scope.launch { storeReference(next.cps) }
+        if (next is LocalBackground.Done) scope.launch { storeReference(next.record) }
         if (next !is LocalBackground.Running) {
             job?.cancel()
             job = null

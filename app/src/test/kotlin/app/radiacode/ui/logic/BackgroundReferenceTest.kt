@@ -1,5 +1,6 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.analysis.CountWindow
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,8 +17,30 @@ class BackgroundReferenceTest {
             BackgroundEvent.Start(target, now),
         )
 
-    private fun feed(state: LocalBackground, cps: Float, now: Long): LocalBackground =
-        LocalBackgroundMachine.reduce(state, BackgroundEvent.Sample(cps, now))
+    /** One reading; the device instant defaults to the arrival time (1 Hz). */
+    private fun feed(
+        state: LocalBackground,
+        cps: Float,
+        now: Long,
+        deviceMillis: Long = now,
+    ): LocalBackground =
+        LocalBackgroundMachine.reduce(state, BackgroundEvent.Sample(cps, now, deviceMillis))
+
+    private fun done(cps: Float, samples: Int, atMillis: Long): LocalBackground.Done =
+        LocalBackground.Done(
+            BackgroundRecord(
+                window = CountWindow(
+                    counts = cps.toDouble() * samples,
+                    seconds = samples.toDouble(),
+                    samples = samples,
+                ),
+                atMillis = atMillis,
+                targetSamples = samples,
+                profileId = null,
+                profileName = null,
+                deviceSerial = null,
+            ),
+        )
 
     @Test
     fun `default averaging window is within the 30-60 s the spec allows`() {
@@ -30,10 +53,13 @@ class BackgroundReferenceTest {
         listOf(20f, 22f, 18f, 24f).forEachIndexed { index, cps ->
             state = feed(state, cps, now = (index + 1) * 1_000L)
         }
-        val done = assertIs<LocalBackground.Done>(state)
-        assertTrue(abs(done.cps - 21f) < 1e-5f)
-        assertEquals(4, done.samples)
-        assertEquals(4_000L, done.atMillis)
+        val finished = assertIs<LocalBackground.Done>(state)
+        assertTrue(abs(finished.cps - 21f) < 1e-5f, "cps = ${finished.cps}")
+        assertEquals(4, finished.samples)
+        assertEquals(4_000L, finished.atMillis)
+        // The exposure is measured, not assumed: four 1 Hz readings = 4 s.
+        assertEquals(4.0, finished.record.window.seconds, 1e-9)
+        assertEquals(84.0, finished.record.window.counts, 1e-9)
     }
 
     @Test
@@ -76,7 +102,7 @@ class BackgroundReferenceTest {
 
     @Test
     fun `samples after a terminal state are ignored`() {
-        val done = LocalBackground.Done(cps = 21f, samples = 45, atMillis = 1_000L)
+        val done = done(cps = 21f, samples = 45, atMillis = 1_000L)
         assertSame(done, feed(done, 99f, now = 2_000L))
 
         val aborted = LocalBackground.Aborted(BackgroundAbort.STREAM_LOST, 3, 45)
@@ -94,13 +120,13 @@ class BackgroundReferenceTest {
 
     @Test
     fun `cancel does not wipe a finished result`() {
-        val done = LocalBackground.Done(cps = 21f, samples = 45, atMillis = 1_000L)
+        val done = done(cps = 21f, samples = 45, atMillis = 1_000L)
         assertSame(done, LocalBackgroundMachine.reduce(done, BackgroundEvent.Cancel))
     }
 
     @Test
     fun `dismiss clears a result but never a running measurement`() {
-        val done = LocalBackground.Done(cps = 21f, samples = 45, atMillis = 1_000L)
+        val done = done(cps = 21f, samples = 45, atMillis = 1_000L)
         assertEquals(LocalBackground.Idle, LocalBackgroundMachine.reduce(done, BackgroundEvent.Dismiss))
 
         val running = assertIs<LocalBackground.Running>(start(target = 45))
@@ -114,7 +140,7 @@ class BackgroundReferenceTest {
         state = LocalBackgroundMachine.reduce(state, BackgroundEvent.Start(45, nowMillis = 9_000L))
         val running = assertIs<LocalBackground.Running>(state)
         assertEquals(0, running.collected)
-        assertEquals(0.0, running.sumCps)
+        assertEquals(0.0, running.window.counts)
     }
 
     @Test
@@ -154,5 +180,41 @@ class BackgroundReferenceTest {
         assertEquals(15f, band.start)
         assertEquals(35f, band.endInclusive)
         assertEquals(0f, backgroundBand(1f).start)
+    }
+
+    @Test
+    fun `a reference measured with holes reports the hole, not a longer exposure`() {
+        var state = start(target = 5)
+        // Readings at 0, 1, 2 s, then a 20 s hole, then two more.
+        state = feed(state, 20f, now = 0L, deviceMillis = 0L)
+        state = feed(state, 20f, now = 1_000L, deviceMillis = 1_000L)
+        state = feed(state, 20f, now = 2_000L, deviceMillis = 2_000L)
+        state = feed(state, 20f, now = 22_000L, deviceMillis = 22_000L)
+        state = feed(state, 20f, now = 23_000L, deviceMillis = 23_000L)
+
+        val record = assertIs<LocalBackground.Done>(state).record
+        assertEquals(5.0, record.window.seconds, 1e-9)
+        assertTrue(record.window.gapSeconds > 18.0, "${record.window.gapSeconds}")
+        assertEquals(BackgroundQuality.GAPPY, record.quality)
+    }
+
+    @Test
+    fun `the band around a recorded reference is wider than the exact-background band`() {
+        val record = BackgroundRecord(
+            window = CountWindow(counts = 25.0 * 45, seconds = 45.0, samples = 45),
+            atMillis = 0L,
+            targetSamples = 45,
+            profileId = null,
+            profileName = null,
+            deviceSerial = null,
+        )
+        val exact = backgroundBand(25f)
+        val measured = backgroundBand(record)
+        assertTrue(
+            measured.endInclusive > exact.endInclusive,
+            "${measured.endInclusive} vs ${exact.endInclusive}",
+        )
+        // ...but only by the ~1 % the finite reference actually costs.
+        assertTrue(measured.endInclusive < exact.endInclusive * 1.05f)
     }
 }
