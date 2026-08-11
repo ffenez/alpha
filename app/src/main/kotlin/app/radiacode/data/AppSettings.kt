@@ -121,6 +121,22 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
+     * Последнее выбранное окно графика, по величине: `dose=6ч` и т.п.
+     * Экран открывается там, где его закрыли, — окно это то, ЧТО человек
+     * смотрит, и переспрашивать об этом каждый раз незачем.
+     */
+    val chartSpans: Flow<Map<String, Long>> = dataStore.data.map { prefs ->
+        prefs[CHART_SPANS]?.let(::parseSpans) ?: emptyMap()
+    }
+
+    suspend fun setChartSpan(metricId: String, spanMillis: Long) {
+        dataStore.edit { prefs ->
+            val current = prefs[CHART_SPANS]?.let(::parseSpans) ?: emptyMap()
+            prefs[CHART_SPANS] = encodeSpans(current + (metricId to spanMillis))
+        }
+    }
+
+    /**
      * Отладочный отчёт: выключен по умолчанию. Инструмент разбора полевых
      * наблюдений, а не повседневная функция, поэтому его надо включить.
      */
@@ -329,6 +345,19 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val WHY_EXPANDED = booleanPreferencesKey("why_calculations_expanded")
         private val THEME = stringPreferencesKey("theme")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")
+        private val CHART_SPANS = stringPreferencesKey("chart_spans")
+
+        /** «dose:21600000,cps:3600000» — плоский формат, читается тестом. */
+        private fun parseSpans(raw: String): Map<String, Long> = raw.split(',')
+            .mapNotNull { entry ->
+                val parts = entry.split(':')
+                val span = parts.getOrNull(1)?.toLongOrNull() ?: return@mapNotNull null
+                parts[0] to span
+            }
+            .toMap()
+
+        private fun encodeSpans(spans: Map<String, Long>): String =
+            spans.entries.joinToString(",") { "${it.key}:${it.value}" }
         private val ACTIVE_PROFILE_ID = longPreferencesKey("active_profile_id")
 
         /** Pre-v6 key; read-only fallback so an update keeps the selection. */

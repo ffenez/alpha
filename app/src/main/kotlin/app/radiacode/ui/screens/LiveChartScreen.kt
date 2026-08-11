@@ -158,6 +158,7 @@ fun LiveChartScreen(
     metric: ChartMetric = ChartMetric.DOSE,
 ) {
     val colors = LocalAppColors.current
+    val settingsScope = rememberCoroutineScope()
     val type = LocalAppTypography.current
     val landscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -179,6 +180,7 @@ fun LiveChartScreen(
     // readout card read it, so dragging never recomposes the screen.
     val cursorFraction = remember { mutableStateOf<Float?>(null) }
 
+    val savedSpans by graph.settings.chartSpans.collectAsState(initial = emptyMap())
     var window by remember(metric) {
         val start = periodIndices.lastOrNull { it <= DEFAULT_PERIOD_INDEX } ?: 0
         mutableStateOf(
@@ -187,6 +189,17 @@ fun LiveChartScreen(
                 System.currentTimeMillis(),
             ),
         )
+    }
+    // Экран открывается там, где его закрыли: окно — это ЧТО человек смотрит,
+    // и переспрашивать об этом каждый раз незачем. Восстанавливается один раз,
+    // после того как настройки прочитаны.
+    var spanRestored by remember(metric) { mutableStateOf(false) }
+    LaunchedEffect(metric, savedSpans) {
+        if (spanRestored) return@LaunchedEffect
+        val saved = savedSpans[metric.id] ?: return@LaunchedEffect
+        spanRestored = true
+        val limited = saved.coerceAtMost(ChartMetrics.maxSpanMillis(metric))
+        window = ChartWindows.latest(limited, System.currentTimeMillis())
     }
     // Лестница следует за окном, а не наоборот: щипок меняет окно плавно, и
     // подсвеченный чип обязан говорить правду о том, что на экране.
@@ -237,10 +250,10 @@ fun LiveChartScreen(
     }
 
     fun selectPeriod(index: Int) {
-        window = ChartWindows.latest(
-            ChartWindows.PERIODS[index].second,
-            System.currentTimeMillis(),
-        )
+        val span = ChartWindows.PERIODS[index].second
+        window = ChartWindows.latest(span, System.currentTimeMillis())
+        spanRestored = true
+        settingsScope.launch { graph.settings.setChartSpan(metric.id, span) }
         val next = ChartInteractions.periodChanged()
         follow = next.follow
         cursorActive = false
@@ -367,6 +380,7 @@ fun LiveChartScreen(
                     onJumpToNow = ::jumpToNow,
                     availablePeriods = periodIndices,
                     periodExact = periodExact,
+                    currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000),
                 )
             }
         }
@@ -385,6 +399,21 @@ fun LiveChartScreen(
         )
         chart(Modifier.weight(1f).fillMaxWidth())
         AppDivider()
+        // «Что за стрелки наверху» — вопрос из поля: маркеры экстремумов
+        // объяснялись только в длинной строке анатомии внизу экрана. Теперь
+        // подпись стоит там же, где сами маркеры, и только когда они есть.
+        if (frame?.spec?.extremeMarkers?.isNotEmpty() == true) {
+            Text(
+                text = "▲ — самый высокий отсчёт колонки; тап по графику покажет " +
+                    "его точное время и значение",
+                style = type.footnote,
+                color = colors.muted,
+                modifier = Modifier.padding(
+                    horizontal = Dimens.space3,
+                    vertical = Dimens.space1,
+                ),
+            )
+        }
         // §2: неполное окно называется словами, а не остаётся пустым полем.
         coverageWording(frame?.stats, window.spanMillis)?.let { coverage ->
             Text(
@@ -469,6 +498,7 @@ fun LiveChartScreen(
                 onJumpToNow = ::jumpToNow,
                 availablePeriods = periodIndices,
                 periodExact = periodExact,
+                currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000),
             )
         }
         Text(
@@ -687,35 +717,57 @@ private fun RowScope.ControlChips(
     onJumpToNow: () -> Unit,
     availablePeriods: List<Int> = ChartWindows.PERIODS.indices.toList(),
     periodExact: Boolean = true,
+    /** Фактическое окно словами — для свёрнутого чипа между ступенями. */
+    currentSpanLabel: String = "",
 ) {
     val colors = LocalAppColors.current
-    // Лестница окон длиннее экрана, поэтому лента прокручивается и сама
-    // подводит выбранный чип: подрезанный ряд заставлял угадывать, какие
-    // ступени есть по соседству.
-    val scroll = rememberScrollState()
-    val density = LocalDensity.current
-    LaunchedEffect(periodIndex, availablePeriods.size) {
-        val target = ChartWindows.scrollTargetIndex(availablePeriods.indexOf(periodIndex))
-        val offsetPx = with(density) { (target * CHIP_STEP_DP).dp.roundToPx() }
-        scroll.animateScrollTo(offsetPx)
+    // Лестница из пятнадцати ступеней постоянно на экране съедала место и
+    // требовала прокрутки ради одного нажатия. Свёрнутая она — один чип с
+    // текущим окном; развёрнутая показывает ряд и прячется сразу после
+    // выбора. Между ступенями чип называет фактическое окно, а не ближайшую
+    // ступень: подсказка обязана говорить правду о том, что на экране.
+    var expanded by remember { mutableStateOf(false) }
+    LaunchedEffect(periodIndex, periodExact) {
+        if (expanded && periodExact) expanded = false
     }
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.weight(1f).horizontalScroll(scroll),
-    ) {
-        for (index in availablePeriods) {
-            // Точное совпадение — выбранный чип; между ступенями (после
-            // щипка) ближайший просто ярче: «вы примерно здесь», но окно не
-            // равно ступени, и притворяться иначе нельзя.
-            val exact = index == periodIndex && periodExact
-            val nearest = index == periodIndex && !periodExact
-            Chip(
-                text = ChartWindows.PERIODS[index].first,
-                color = if (exact || nearest) colors.ink else colors.ink2,
-                selected = exact,
-                onClick = { onSelectPeriod(index) },
-            )
+    if (!expanded) {
+        Chip(
+            text = (if (periodExact) ChartWindows.PERIODS[periodIndex].first else currentSpanLabel) +
+                " ▾",
+            color = colors.ink,
+            selected = true,
+            onClick = { expanded = true },
+        )
+        Spacer(Modifier.weight(1f))
+    } else {
+        val scroll = rememberScrollState()
+        val density = LocalDensity.current
+        LaunchedEffect(periodIndex, availablePeriods.size) {
+            val target = ChartWindows.scrollTargetIndex(availablePeriods.indexOf(periodIndex))
+            val offsetPx = with(density) { (target * CHIP_STEP_DP).dp.roundToPx() }
+            scroll.animateScrollTo(offsetPx)
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f).horizontalScroll(scroll),
+        ) {
+            for (index in availablePeriods) {
+                // Точное совпадение — выбранный чип; между ступенями (после
+                // щипка) ближайший просто ярче: «вы примерно здесь», но окно
+                // не равно ступени, и притворяться иначе нельзя.
+                val exact = index == periodIndex && periodExact
+                val nearest = index == periodIndex && !periodExact
+                Chip(
+                    text = ChartWindows.PERIODS[index].first,
+                    color = if (exact || nearest) colors.ink else colors.ink2,
+                    selected = exact,
+                    onClick = {
+                        onSelectPeriod(index)
+                        expanded = false
+                    },
+                )
+            }
         }
     }
     Spacer(Modifier.width(Dimens.space1))
@@ -1133,6 +1185,14 @@ private data class ChartFrame(
  * so panning does not make the axis jump under the finger; the debounced
  * reload refits it afterwards.
  */
+/**
+ * Длительность эпизода словами. Эпизод короче секунды существует (колонка на
+ * минутном окне — одна секунда), но «0 с» — это не длительность, а ошибка
+ * округления, и на графике она читается как «ничего не было».
+ */
+private fun episodeDuration(durationMillis: Long): String =
+    if (durationMillis < 1_000L) "<1 с" else HistoryFormat.duration(durationMillis / 1000)
+
 private fun buildFrame(
     snapshot: ChartSnapshot,
     window: ChartWindow,
@@ -1199,12 +1259,10 @@ private fun buildFrame(
             // duration — «выше порога L1» and «выше исторического P90
             // профиля» are different events.
             episodeLabels = episodes.map {
-                "${referenceWording(it.reference)} · " +
-                    HistoryFormat.duration(it.durationMillis / 1000)
+                "${referenceWording(it.reference)} · " + episodeDuration(it.durationMillis)
             },
             episodeShortLabels = episodes.map {
-                "${referenceWordingShort(it.reference)} · " +
-                    HistoryFormat.duration(it.durationMillis / 1000)
+                "${referenceWordingShort(it.reference)} · " + episodeDuration(it.durationMillis)
             },
             extremeMarkers = markers,
             yLabels = scale.ticks().map { it to ChartMetrics.format(metric, it, unit) },
