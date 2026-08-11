@@ -138,6 +138,8 @@ fun DoseChart(
             warn = appColors.warn,
             crit = appColors.crit,
             bg = appColors.bg,
+            field = appColors.chartField,
+            grid = appColors.chartGrid,
         )
     }
 
@@ -238,6 +240,8 @@ internal data class ChartPalette(
     val warn: Color,
     val crit: Color,
     val bg: Color,
+    val field: Color,
+    val grid: Color,
 )
 
 /**
@@ -259,7 +263,7 @@ private fun StaticChartLayer(
         Modifier
             .fillMaxSize()
             .drawWithCache {
-                val gridColor = colors.ink2.copy(alpha = 0.13f)
+                val gridColor = colors.grid
                 val bandColor = colors.ink2.copy(alpha = 0.13f)
                 val bandLineColor = colors.ink2.copy(alpha = 0.42f)
                 val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 4.dp.toPx()))
@@ -320,6 +324,29 @@ private fun StaticChartLayer(
                 }
 
                 onDrawBehind {
+                    // 0. Поле графика — своя плоскость, а не карточка под
+                    // ним: в светлой теме данные иначе лежат на белом листе
+                    // без видимой границы.
+                    drawRect(
+                        color = colors.field,
+                        topLeft = Offset(0f, plotTop),
+                        size = Size(widthPx, plotHeight),
+                    )
+                    // Вертикальные линии времени по тем же подписям, что и
+                    // снизу: на суточном окне без них глазу не за что
+                    // зацепиться по горизонтали.
+                    for ((fraction, _) in spec.xLabels) {
+                        val x = widthPx * fraction
+                        if (x > 0.5f && x < widthPx - 0.5f) {
+                            drawLine(
+                                color = gridColor,
+                                start = Offset(x, plotTop),
+                                end = Offset(x, plotTop + plotHeight),
+                                strokeWidth = 1f,
+                            )
+                        }
+                    }
+
                     // 1. Usual-background band of the place.
                     if (bandTop != null && bandBottom != null && bandBottom > bandTop) {
                         drawRect(

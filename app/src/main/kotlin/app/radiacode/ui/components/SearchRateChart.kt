@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import app.radiacode.ui.logic.RateChartModel
 import app.radiacode.ui.logic.SearchPoint
 import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.chartField
 import app.radiacode.ui.theme.LocalAppTypography
 import java.util.Locale
 import kotlin.math.floor
@@ -70,7 +71,7 @@ fun SearchRateChart(
     val axisStyle = LocalAppTypography.current.axis
     val textMeasurer = rememberTextMeasurer()
 
-    Canvas(modifier = modifier.fillMaxWidth().height(height)) {
+    Canvas(modifier = modifier.fillMaxWidth().height(height).chartField()) {
         val labelHeight = textMeasurer.measure("0", axisStyle).size.height.toFloat()
         val padT = 6.dp.toPx()
         val padB = labelHeight + 4.dp.toPx()
@@ -91,7 +92,7 @@ fun SearchRateChart(
         while (value < spec.yTop) {
             val yy = y(value)
             drawLine(
-                color = colors.line,
+                color = colors.chartGrid,
                 start = Offset(0f, yy),
                 end = Offset(size.width, yy),
                 strokeWidth = 1f,

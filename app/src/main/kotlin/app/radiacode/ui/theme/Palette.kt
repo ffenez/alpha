@@ -2,6 +2,10 @@ package app.radiacode.ui.theme
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -45,6 +49,18 @@ data class AppColors(
     val dataText: Color,
     /** Text on a [data]-filled surface (primary button label). */
     val onData: Color,
+    /**
+     * Плоскость поля графика — утопленная относительно карточки.
+     *
+     * До неё график рисовался прямо на карточке, и в светлой теме поле
+     * получалось листом бумаги: белое на белом, без границы данных. Прибор
+     * читается лучше, когда поле — отдельная плоскость: в тёмной теме она
+     * темнее карточки, в светлой — на шаг холоднее и темнее, и в обеих ясно,
+     * где кончаются данные и начинается интерфейс.
+     */
+    val chartField: Color,
+    /** Линии сетки поля: тише подписей, но различимы на солнце. */
+    val chartGrid: Color,
 )
 
 val DarkColors = AppColors(
@@ -62,6 +78,10 @@ val DarkColors = AppColors(
     data = Color(0xFF22A0B6),
     dataText = Color(0xFF4FC3D8),
     onData = Color(0xFF06222A),
+    // Тёмная тема: поле утоплено ниже карточки — тот же приём, что у
+    // приборного экрана в корпусе.
+    chartField = Color(0xFF0D1116),
+    chartGrid = Color(0xFF2A333D),
 )
 
 val LightColors = AppColors(
@@ -79,6 +99,10 @@ val LightColors = AppColors(
     data = Color(0xFF177E92),
     dataText = Color(0xFF116273),
     onData = Color(0xFFFFFFFF),
+    // Светлая тема: белая карточка, поле — на шаг холоднее и темнее, чтобы
+    // граница данных была видна без рамки.
+    chartField = Color(0xFFEDF1F4),
+    chartGrid = Color(0xFFD5DDE4),
 )
 
 val LocalAppColors = staticCompositionLocalOf { DarkColors }
@@ -95,3 +119,14 @@ val DoseRampColors = listOf(
     Color(0xFF8F5312),
     Color(0xFF5C300A),
 )
+
+
+/**
+ * Утопленная плоскость поля графика ([AppColors.chartField]) с тем же радиусом,
+ * что у карточек: один модификатор на все графики, чтобы поле нигде не
+ * оказалось «почти таким же», как в соседнем компоненте.
+ */
+fun Modifier.chartField(): Modifier = composed {
+    val colors = LocalAppColors.current
+    background(colors.chartField, RoundedCornerShape(Dimens.radiusChip))
+}

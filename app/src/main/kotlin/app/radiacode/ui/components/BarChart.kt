@@ -15,6 +15,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.chartField
 import app.radiacode.ui.theme.LocalAppTypography
 
 /**
@@ -50,7 +51,7 @@ fun BarChart(
     val axisStyle = LocalAppTypography.current.axis
     val textMeasurer = rememberTextMeasurer()
 
-    Canvas(modifier = modifier.fillMaxWidth().height(height)) {
+    Canvas(modifier = modifier.fillMaxWidth().height(height).chartField()) {
         val hasLabels = spec.xStartLabel != null || spec.xEndLabel != null
         val labelHeight = if (hasLabels) {
             textMeasurer.measure("0", axisStyle).size.height + 3.dp.toPx()

@@ -23,6 +23,7 @@ import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.pow
 import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.chartField
 import app.radiacode.ui.theme.LocalAppTypography
 
 /**
@@ -74,6 +75,7 @@ fun SpectrumChart(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
+            .chartField()
             .then(
                 if (onGesture == null) {
                     Modifier

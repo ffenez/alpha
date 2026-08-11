@@ -24,6 +24,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.chartField
 import app.radiacode.ui.theme.LocalAppTypography
 
 /**
@@ -105,7 +106,7 @@ fun TrendChart(
         Modifier
     }
 
-    Canvas(modifier = sizeModifier.then(gestureModifier)) {
+    Canvas(modifier = sizeModifier.chartField().then(gestureModifier)) {
         val axisColor = colors.muted
         val labelHeight = textMeasurer.measure("00:00", axisStyle).size.height
 
@@ -128,7 +129,7 @@ fun TrendChart(
             val top = y(band.endInclusive)
             val bottom = y(band.start)
             drawRect(
-                color = colors.ink2.copy(alpha = 0.14f),
+                color = colors.chartGrid,
                 topLeft = Offset(padL, top),
                 size = Size(plotW, bottom - top),
             )
@@ -138,7 +139,7 @@ fun TrendChart(
         for ((value, label) in spec.yTicks) {
             val yy = y(value)
             drawLine(
-                color = colors.ink2.copy(alpha = 0.14f),
+                color = colors.chartGrid,
                 start = Offset(padL, yy),
                 end = Offset(size.width - padR, yy),
                 strokeWidth = 1f,

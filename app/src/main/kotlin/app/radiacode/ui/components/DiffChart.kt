@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import app.radiacode.analysis.SpectrumDisplay
 import app.radiacode.ui.logic.CompareFormat
 import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.chartField
 import app.radiacode.ui.theme.LocalAppTypography
 import kotlin.math.abs
 import kotlin.math.max
@@ -49,7 +50,7 @@ fun DiffChart(
     val axisStyle = LocalAppTypography.current.axis
     val textMeasurer = rememberTextMeasurer()
 
-    Canvas(modifier = modifier.fillMaxWidth().height(height)) {
+    Canvas(modifier = modifier.fillMaxWidth().height(height).chartField()) {
         val n = spec.diff.size
         if (n == 0) return@Canvas
 
