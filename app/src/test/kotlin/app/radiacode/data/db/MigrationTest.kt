@@ -165,6 +165,75 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 7 to 8 produces exactly the exported v8 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(7))
+            MigrationSql.FROM_7_TO_8.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(8))
+        }
+    }
+
+    @Test
+    fun `migration 7 to 8 keeps samples and starts the pre-aggregation empty`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(7))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO samples " +
+                        "(timestamp, doseRate, doseRateErr, countRate, countRateErr, " +
+                        "flags, realTimeFlags, placeId, baselineExcluded) " +
+                        "VALUES (1000, 0.00001, 1.5, 21.0, 2.0, 0, 0, 3, NULL)",
+                )
+            }
+
+            MigrationSql.FROM_7_TO_8.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            // Raw data are untouched — the pre-aggregation is a derived cache.
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery("SELECT timestamp, doseRate FROM samples")
+                assertTrue(rows.next())
+                assertEquals(1000L, rows.getLong("timestamp"))
+                assertEquals(0.00001, rows.getDouble("doseRate"), 1e-9)
+                assertTrue(!rows.next())
+            }
+            // Both derived tables exist and start empty: nothing is computed
+            // inside a migration, the background backfill does it afterwards.
+            for (table in listOf("minute_stats", "hour_sketches")) {
+                connection.createStatement().use { statement ->
+                    val rows = statement.executeQuery("SELECT COUNT(*) AS n FROM `$table`")
+                    rows.next()
+                    assertEquals(0, rows.getInt("n"), "$table must start empty")
+                }
+            }
+            // The minute key really is a key: a rebuild replaces, never doubles.
+            connection.createStatement().use { statement ->
+                statement.execute(
+                    "INSERT OR REPLACE INTO minute_stats (minuteStart, count, minDoseRate, " +
+                        "maxDoseRate, sumDoseRate, sumSqDoseRate, minAtMillis, maxAtMillis, " +
+                        "firstSampleTime, lastSampleTime, admittedCount, profileId) " +
+                        "VALUES (60000, 60, 0.1, 0.2, 9.0, 1.5, 60000, 60030, 60000, 60059, 60, 3)",
+                )
+                statement.execute(
+                    "INSERT OR REPLACE INTO minute_stats (minuteStart, count, minDoseRate, " +
+                        "maxDoseRate, sumDoseRate, sumSqDoseRate, minAtMillis, maxAtMillis, " +
+                        "firstSampleTime, lastSampleTime, admittedCount, profileId) " +
+                        "VALUES (60000, 61, 0.1, 0.2, 9.0, 1.5, 60000, 60030, 60000, 60059, 61, 3)",
+                )
+                val rows = statement.executeQuery(
+                    "SELECT COUNT(*) AS n, MAX(count) AS c FROM minute_stats",
+                )
+                rows.next()
+                assertEquals(1, rows.getInt("n"))
+                assertEquals(61, rows.getInt("c"))
+            }
+        }
+    }
+
+    @Test
     fun `migration 6 to 7 keeps spectra and adds empty experiment tables`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(6))

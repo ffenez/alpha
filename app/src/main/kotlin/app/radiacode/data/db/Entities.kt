@@ -409,3 +409,96 @@ data class ExperimentRunEntity(
     /** Shielding scenario: what was between the object and the detector. */
     val shieldingNote: String? = null,
 )
+
+/**
+ * One closed minute of measurement, reduced to **scalars only** (ADR 004,
+ * CHART SPEC §31). Values are in raw device units, exactly as in
+ * [SampleEntity.doseRate] — raw data stay the source of truth and the
+ * conversion to µSv/h happens on display.
+ *
+ * Why scalars and no per-minute quantile sketch: a minute holds 60 samples
+ * (240 bytes); a serialized sketch of usable accuracy is around a kilobyte, so
+ * per-minute sketches would cost *more* than the raw data they summarize and
+ * still could not be combined into long-window quantiles any better than the
+ * hourly ones (CHART SPEC §28 forbids quantiles-of-quantiles either way).
+ * What these scalars do give, at ~100 bytes per minute, is an exact
+ * n/Σx/Σx²/min/max rollup of any window without reading a single raw row, plus
+ * the extremum timestamps a short transient needs to stay discoverable (§21).
+ *
+ * Rebuildable at any time from `samples`: every row is computed from raw and
+ * written with REPLACE, so re-running the aggregation is a no-op and a
+ * mid-minute restart cannot double-count (ADR 004).
+ */
+@Entity(
+    tableName = "minute_stats",
+    indices = [Index("profileId")],
+)
+data class MinuteStatEntity(
+    /** Epoch millis of the minute boundary, `timestamp / 60000 * 60000`. */
+    @PrimaryKey val minuteStart: Long,
+    /** Raw samples inside the minute — the honest n. */
+    val count: Int,
+    val minDoseRate: Float,
+    val maxDoseRate: Float,
+    /** Σx over the raw samples (pooled mean of any range stays exact). */
+    val sumDoseRate: Double,
+    /** Σx² over the raw samples (pooled SD of any range stays exact). */
+    val sumSqDoseRate: Double,
+    /** Exact instant of [minDoseRate] — a timestamp, not an interval. */
+    val minAtMillis: Long,
+    /** Exact instant of [maxDoseRate] — a timestamp, not an interval. */
+    val maxAtMillis: Long,
+    val firstSampleTime: Long,
+    val lastSampleTime: Long,
+    /** Samples with `baselineExcluded IS NULL`, i.e. admitted to the baseline. */
+    val admittedCount: Int,
+    /**
+     * Profile the minute belongs to, or null when the samples of this minute
+     * belonged to **different** profiles (or to none). A minute in which the
+     * context switched is attributed to nobody on purpose: giving it to one of
+     * the two would feed a place's statistics with another place's readings.
+     */
+    val profileId: Long?,
+)
+
+/**
+ * One closed hour as a mergeable quantile sketch (ADR 004, CHART SPEC §30) —
+ * the long-window quantile path.
+ *
+ * The blob is an [app.radiacode.analysis.quantiles.KllSketch] in raw device
+ * units. Merging the sketches of the hours a chart column covers gives that
+ * column's Q10/Q25/Q50/Q75/Q90 with a bounded, documented error, instead of
+ * the forbidden «quantiles of quantiles» (§28).
+ *
+ * The scalars beside the blob are **exact**: [count] is the true number of
+ * samples, and the extremes carry the exact instant they happened at, so a
+ * five-second spike stays visible — and tappable — on a 30-day window (§21).
+ *
+ * There is deliberately no `profileId` here: an hour may span a context
+ * switch, and unlike a minute an hour is long enough that dropping it for that
+ * reason would leave holes. Per-profile statistics come from `minute_stats`.
+ */
+@Entity(tableName = "hour_sketches")
+data class HourSketchEntity(
+    /** Epoch millis of the hour boundary, `timestamp / 3600000 * 3600000`. */
+    @PrimaryKey val hourStart: Long,
+    /** Raw samples the sketch was built from — exact. */
+    val count: Int,
+    val minDoseRate: Float,
+    val maxDoseRate: Float,
+    /** Exact instant of [minDoseRate]. */
+    val minAtMillis: Long,
+    /** Exact instant of [maxDoseRate]. */
+    val maxAtMillis: Long,
+    /** Serialized KLL sketch, raw device units. */
+    val sketch: ByteArray,
+    /** [app.radiacode.analysis.quantiles.KllSketch.ALGORITHM_VERSION] at build time. */
+    val algorithmVersion: Int,
+    /** Accuracy parameter `k` of the stored sketch (§32: parameters are recorded). */
+    val sketchK: Int,
+) {
+    // ByteArray needs manual equality; the hour boundary identifies the row.
+    override fun equals(other: Any?): Boolean =
+        other is HourSketchEntity && other.hourStart == hourStart
+    override fun hashCode(): Int = hourStart.hashCode()
+}

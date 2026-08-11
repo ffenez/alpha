@@ -20,8 +20,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SpectrumSnapshotEntity::class,
         ExperimentEntity::class,
         ExperimentRunEntity::class,
+        MinuteStatEntity::class,
+        HourSketchEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -33,6 +35,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun trackDao(): TrackDao
     abstract fun spectrumDao(): SpectrumDao
     abstract fun experimentDao(): ExperimentDao
+
+    /** Derived pre-aggregation of ADR 004 (minute scalars, hourly sketches). */
+    abstract fun preAggregateDao(): PreAggregateDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -71,6 +76,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MigrationSql.FROM_7_TO_8.forEach(db::execSQL)
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "radiacode.db")
                 .addMigrations(
@@ -80,6 +91,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_4_5,
                     MIGRATION_5_6,
                     MIGRATION_6_7,
+                    MIGRATION_7_8,
                 )
                 .build()
     }

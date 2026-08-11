@@ -11,6 +11,58 @@ package app.radiacode.data.db
 object MigrationSql {
 
     /**
+     * v7 → v8: the versioned pre-aggregation of ADR 004 — minute scalars
+     * (`minute_stats`) and hourly mergeable quantile sketches
+     * (`hour_sketches`).
+     *
+     * Strategy — add only, and **start empty**:
+     *  - both tables are derived data. Nothing is computed inside the
+     *    migration: filling them here would mean grinding through months of
+     *    `samples` while the user waits for the app to open. The background
+     *    backfill ([app.radiacode.data.preagg.PreAggregator]) rebuilds them
+     *    from raw afterwards, hour by hour, resumably;
+     *  - until an hour is built, the chart says so and falls back to the
+     *    coarser path instead of pretending (CHART SPEC §32);
+     *  - nothing in `samples` is touched. The pre-aggregation is a cache with
+     *    a version, and raw data stay the source of truth (§2).
+     */
+    val FROM_7_TO_8: List<String> = listOf(
+        """
+        CREATE TABLE IF NOT EXISTS `minute_stats` (
+            `minuteStart` INTEGER NOT NULL,
+            `count` INTEGER NOT NULL,
+            `minDoseRate` REAL NOT NULL,
+            `maxDoseRate` REAL NOT NULL,
+            `sumDoseRate` REAL NOT NULL,
+            `sumSqDoseRate` REAL NOT NULL,
+            `minAtMillis` INTEGER NOT NULL,
+            `maxAtMillis` INTEGER NOT NULL,
+            `firstSampleTime` INTEGER NOT NULL,
+            `lastSampleTime` INTEGER NOT NULL,
+            `admittedCount` INTEGER NOT NULL,
+            `profileId` INTEGER,
+            PRIMARY KEY(`minuteStart`)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS `index_minute_stats_profileId` " +
+            "ON `minute_stats` (`profileId`)",
+        """
+        CREATE TABLE IF NOT EXISTS `hour_sketches` (
+            `hourStart` INTEGER NOT NULL,
+            `count` INTEGER NOT NULL,
+            `minDoseRate` REAL NOT NULL,
+            `maxDoseRate` REAL NOT NULL,
+            `minAtMillis` INTEGER NOT NULL,
+            `maxAtMillis` INTEGER NOT NULL,
+            `sketch` BLOB NOT NULL,
+            `algorithmVersion` INTEGER NOT NULL,
+            `sketchK` INTEGER NOT NULL,
+            PRIMARY KEY(`hourStart`)
+        )
+        """.trimIndent(),
+    )
+
+    /**
      * v6 → v7: A/B research experiments (spec §9, §16) and the reproducibility
      * stamp of derived spectra (spec §22).
      *
