@@ -166,14 +166,27 @@ class ChartWindowTest {
     // --- period chips ---
 
     @Test
-    fun `the control row shows a sliding window of period chips`() {
-        val visible = ChartWindows.VISIBLE_PERIOD_CHIPS
+    fun `the chip row scrolls to keep the selection off the edge`() {
         for (selected in ChartWindows.PERIODS.indices) {
-            val range = ChartWindows.periodChipRange(selected)
-            assertEquals(visible, range.count())
-            assertTrue("selection $selected fell out of $range", selected in range)
-            assertTrue(range.first >= 0 && range.last < ChartWindows.PERIODS.size)
+            val target = ChartWindows.scrollTargetIndex(selected)
+            assertTrue("target $target out of range", target in ChartWindows.PERIODS.indices)
+            assertTrue("target $target is past the selection $selected", target <= selected)
         }
+        // Первый чип не уезжает за левый край.
+        assertEquals(0, ChartWindows.scrollTargetIndex(0))
+    }
+
+    @Test
+    fun `the ladder steps like a clock face and starts at a minute`() {
+        val labels = ChartWindows.PERIODS.map { it.first }
+        assertEquals("1м", labels.first())
+        assertEquals(ChartWindows.MIN_SPAN_MILLIS, ChartWindows.PERIODS.first().second)
+        // Знакомый шаг 1-2-3-5-10-30 внутри минут и часов.
+        assertTrue(labels.containsAll(listOf("1м", "2м", "3м", "5м", "10м", "30м")))
+        assertTrue(labels.containsAll(listOf("1ч", "2ч", "3ч", "6ч", "12ч")))
+        assertTrue(labels.containsAll(listOf("1д", "2д", "7д", "30д")))
+        // Окно по умолчанию существует и лежит в лестнице.
+        assertTrue(ChartWindows.DEFAULT_PERIOD_INDEX in ChartWindows.PERIODS.indices)
     }
 
     @Test

@@ -19,6 +19,8 @@ import app.radiacode.device.ConnectionState
 import app.radiacode.device.DeviceLinkFactory
 import app.radiacode.device.KableLinkFactory
 import app.radiacode.device.RadiaCodeScanner
+import app.radiacode.service.AbRunRecorder
+import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.service.FastPollHub
 import app.radiacode.service.LocalBackgroundRecorder
 import app.radiacode.service.ServiceStatus
@@ -159,6 +161,35 @@ class AppGraph private constructor(context: Context) {
                     profileName = profileId?.let { profileRepository.byId(it)?.name },
                     deviceSerial = (serviceStatus.connection.value as? ConnectionState.Connected)
                         ?.info?.serialNumber,
+                )
+            },
+        )
+    }
+
+    /**
+     * Идущий прогон A/B-эксперимента: живёт в графе, а не в экране, поэтому
+     * переход на другую вкладку и сворачивание приложения его не убивают.
+     */
+    val abRun: AbRunRecorder by lazy {
+        AbRunRecorder(
+            scope = appScope,
+            experiments = experimentRepository,
+            spectrumHub = spectrumHub,
+            status = serviceStatus,
+            captureSpectrum = { runId, nowMillis ->
+                experimentRepository.captureIntervalSpectrum(
+                    runId = runId,
+                    liveSpectrum = spectrumHub.state.value.spectrum,
+                    nowMillis = nowMillis,
+                    saveSpectrum = { spectrum, label, meta ->
+                        measurementRepository.saveSpectrum(
+                            spectrum = spectrum,
+                            accumulated = false,
+                            origin = SpectrumSnapshotEntity.ORIGIN_DERIVED,
+                            label = label,
+                            analysisMeta = meta,
+                        ).id
+                    },
                 )
             },
         )

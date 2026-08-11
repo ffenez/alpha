@@ -10,6 +10,9 @@ import app.radiacode.data.db.ExperimentDao
 import app.radiacode.data.db.ExperimentEntity
 import app.radiacode.data.db.ExperimentRunEntity
 import app.radiacode.data.db.SampleDao
+import app.radiacode.data.export.ProcessingMetadata
+import app.radiacode.analysis.SpectrumCompare
+import app.radiacode.protocol.Spectrum
 import app.radiacode.data.db.SpectrumDao
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.device.DoseUnits
@@ -219,4 +222,65 @@ class ExperimentRepository(
         }
 
     suspend fun spectrum(spectrumId: Long): SpectrumSnapshotEntity? = spectrumDao.byId(spectrumId)
+
+    /**
+     * Спектр прогона — разность накоплений его конца и начала.
+     *
+     * Жил в экране A/B и вместе с ним умирал при переходе на другую вкладку;
+     * теперь его снимает владелец прогона ([app.radiacode.service.AbRunRecorder]),
+     * поэтому прогон заканчивается одинаково независимо от того, смотрит ли
+     * кто-нибудь на экран. Сохранение делегируется наружу: репозиторий
+     * экспериментов не должен знать про то, как хранятся спектры.
+     */
+    suspend fun captureIntervalSpectrum(
+        runId: Long,
+        liveSpectrum: Spectrum?,
+        nowMillis: Long,
+        saveSpectrum: suspend (spectrum: Spectrum, label: String, analysisMeta: String) -> Long,
+    ): Long? {
+        val run = run(runId) ?: return null
+        val startId = DoseStatsCodec.startSpectrumId(run.doseStats) ?: return null
+        val start = spectrum(startId) ?: return null
+        if (liveSpectrum == null || liveSpectrum.counts.isEmpty()) return null
+
+        val outcome = SpectrumCompare.extractInterval(
+            first = SpectrumCompare.Input(
+                counts = SpectrumBlob.decode(start.counts),
+                durationSeconds = start.durationSeconds,
+                calibration = EnergyCalibration(start.a0, start.a1, start.a2),
+                timestampMillis = start.timestamp,
+            ),
+            second = SpectrumCompare.Input(
+                counts = liveSpectrum.counts,
+                durationSeconds = liveSpectrum.durationSeconds,
+                calibration = EnergyCalibration(
+                    liveSpectrum.a0,
+                    liveSpectrum.a1,
+                    liveSpectrum.a2,
+                ),
+                timestampMillis = nowMillis,
+            ),
+        )
+        val ok = outcome as? SpectrumCompare.IntervalOutcome.Ok ?: return null
+        return saveSpectrum(
+            Spectrum(
+                durationSeconds = ok.durationSeconds,
+                a0 = ok.calibration.a0,
+                a1 = ok.calibration.a1,
+                a2 = ok.calibration.a2,
+                counts = ok.counts,
+            ),
+            "A/B ${run.label} · интервал",
+            ProcessingMetadata.stamp(
+                method = "interval_subtraction (A/B run)",
+                algorithms = listOf("spectrum_compare", "ab_analysis"),
+                extra = mapOf(
+                    "experimentId" to run.experimentId.toString(),
+                    "run" to run.label,
+                    "startSpectrumId" to startId.toString(),
+                    "intervalSeconds" to ok.durationSeconds.toString(),
+                ),
+            ),
+        )
+    }
 }

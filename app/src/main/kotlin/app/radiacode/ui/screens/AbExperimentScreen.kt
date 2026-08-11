@@ -343,10 +343,14 @@ private fun ExperimentDetail(
     val connection by graph.serviceStatus.connection.collectAsState()
     val hubState by graph.spectrumHub.state.collectAsState()
 
-    var recordingRunId by remember(experimentId) { mutableStateOf<Long?>(null) }
+    // Прогон живёт в графе приложения: переход по вкладкам и сворачивание
+    // приложения его больше не убивают (владелец — service/AbRunRecorder).
+    val activeRun by graph.abRun.state.collectAsState()
+    val recorderNotice by graph.abRun.notice.collectAsState()
+    val recordingRunId = activeRun?.takeIf { it.experimentId == experimentId }?.runId
     var plannedSeconds by rememberSaveable(experimentId) { mutableLongStateOf(RUN_DURATION_SECONDS[1]) }
     var durationIndex by rememberSaveable(experimentId) { mutableIntStateOf(1) }
-    var startedAt by remember(experimentId) { mutableLongStateOf(0L) }
+    val startedAt = activeRun?.startedAtMillis ?: 0L
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var notice by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -357,35 +361,18 @@ private fun ExperimentDetail(
     val current = experiment
     val openRun = runs.firstOrNull { it.endedAt == null }
 
-    // Baseline learning must exclude an experiment interval (spec §4.2 cond. 4).
-    DisposableEffect(recordingRunId) {
-        graph.serviceStatus.onExperiment(
-            ServiceStatus.SOURCE_AB,
-            recordingRunId?.let { "A/B эксперимент" },
-        )
-        onDispose { graph.serviceStatus.onExperiment(ServiceStatus.SOURCE_AB, null) }
-    }
-
-    suspend fun stopRun(runId: Long) {
-        val now = System.currentTimeMillis()
-        val spectrumId = captureRunSpectrum(graph, runId, hubState.spectrum, now)
-        graph.experimentRepository.finishRun(runId, now, spectrumId)
-        recordingRunId = null
-        if (spectrumId == null) {
-            notice = "спектр прогона не записан — сравнение будет только по мощности дозы"
+    // Флаг эксперимента, таймер, автостоп и снимок спектра прогона — всё это
+    // делает владелец прогона. Экран только тикает часами для отрисовки.
+    LaunchedEffect(recordingRunId) {
+        while (recordingRunId != null) {
+            nowMillis = System.currentTimeMillis()
+            delay(1000)
         }
     }
-
-    // Timer + auto-stop for a fixed-duration run.
-    LaunchedEffect(recordingRunId, plannedSeconds) {
-        val runId = recordingRunId ?: return@LaunchedEffect
-        while (true) {
-            nowMillis = System.currentTimeMillis()
-            if (plannedSeconds > 0 && nowMillis - startedAt >= plannedSeconds * 1000L) {
-                stopRun(runId)
-                return@LaunchedEffect
-            }
-            delay(1000)
+    LaunchedEffect(recorderNotice) {
+        recorderNotice?.let {
+            notice = it
+            graph.abRun.dismissNotice()
         }
     }
 
@@ -472,7 +459,7 @@ private fun ExperimentDetail(
                         plannedSeconds = plannedSeconds,
                         onDelete = {
                             scope.launch {
-                                if (run.id == recordingRunId) recordingRunId = null
+                                if (run.id == recordingRunId) graph.abRun.stop()
                                 graph.experimentRepository.deleteRun(run.id)
                             }
                         },
@@ -507,7 +494,7 @@ private fun ExperimentDetail(
                         text = "Остановить прогон",
                         onClick = {
                             val runId = recordingRunId
-                            if (runId != null) scope.launch { stopRun(runId) }
+                            if (runId != null) graph.abRun.stop()
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -568,9 +555,8 @@ private fun ExperimentDetail(
                                         analysisMeta = startStamp(experimentId, nextLetter),
                                     ).id
                                 }
-                                startedAt = now
                                 nowMillis = now
-                                recordingRunId = graph.experimentRepository.startRun(
+                                val runId = graph.experimentRepository.startRun(
                                     experimentId = experimentId,
                                     label = nextLetter,
                                     startedAt = now,
@@ -578,6 +564,12 @@ private fun ExperimentDetail(
                                     distanceCm = distanceInput.replace(',', '.')
                                         .trim().toFloatOrNull(),
                                     shieldingNote = shieldingInput.trim().ifBlank { null },
+                                )
+                                graph.abRun.start(
+                                    experimentId = experimentId,
+                                    runId = runId,
+                                    label = nextLetter,
+                                    plannedSeconds = plannedSeconds,
                                 )
                             }
                         },
@@ -599,7 +591,7 @@ private fun ExperimentDetail(
                         )
                         AppButton(
                             text = "Завершить прогон ${openRun.label}",
-                            onClick = { scope.launch { stopRun(openRun.id) } },
+                            onClick = { graph.abRun.stop() },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -1052,53 +1044,3 @@ private fun startStamp(experimentId: Long, label: String): String = ProcessingMe
  * metadata; null when the device gave nothing comparable (no live spectrum,
  * a reset in between, equal accumulation times).
  */
-private suspend fun captureRunSpectrum(
-    graph: AppGraph,
-    runId: Long,
-    liveSpectrum: Spectrum?,
-    nowMillis: Long,
-): Long? {
-    val run = graph.experimentRepository.run(runId) ?: return null
-    val startId = app.radiacode.data.DoseStatsCodec.startSpectrumId(run.doseStats) ?: return null
-    val start = graph.experimentRepository.spectrum(startId) ?: return null
-    if (liveSpectrum == null || liveSpectrum.counts.isEmpty()) return null
-
-    val outcome = SpectrumCompare.extractInterval(
-        first = SpectrumCompare.Input(
-            counts = SpectrumBlob.decode(start.counts),
-            durationSeconds = start.durationSeconds,
-            calibration = EnergyCalibration(start.a0, start.a1, start.a2),
-            timestampMillis = start.timestamp,
-        ),
-        second = SpectrumCompare.Input(
-            counts = liveSpectrum.counts,
-            durationSeconds = liveSpectrum.durationSeconds,
-            calibration = EnergyCalibration(liveSpectrum.a0, liveSpectrum.a1, liveSpectrum.a2),
-            timestampMillis = nowMillis,
-        ),
-    )
-    val ok = outcome as? SpectrumCompare.IntervalOutcome.Ok ?: return null
-    val spectrum = Spectrum(
-        durationSeconds = ok.durationSeconds,
-        a0 = ok.calibration.a0,
-        a1 = ok.calibration.a1,
-        a2 = ok.calibration.a2,
-        counts = ok.counts,
-    )
-    return graph.measurementRepository.saveSpectrum(
-        spectrum = spectrum,
-        accumulated = false,
-        origin = SpectrumSnapshotEntity.ORIGIN_DERIVED,
-        label = "A/B ${run.label} · интервал",
-        analysisMeta = ProcessingMetadata.stamp(
-            method = "interval_subtraction (A/B run)",
-            algorithms = listOf("spectrum_compare", "ab_analysis"),
-            extra = mapOf(
-                "experimentId" to run.experimentId.toString(),
-                "run" to run.label,
-                "startSpectrumId" to startId.toString(),
-                "intervalSeconds" to ok.durationSeconds.toString(),
-            ),
-        ),
-    ).id
-}

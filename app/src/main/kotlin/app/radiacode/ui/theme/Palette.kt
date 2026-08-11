@@ -61,6 +61,10 @@ data class AppColors(
     val chartField: Color,
     /** Линии сетки поля: тише подписей, но различимы на солнце. */
     val chartGrid: Color,
+    /** Полоса зебры времени на длинных окнах — опора для глаза, не данные. */
+    val chartZebra: Color,
+    /** Область, куда история не доходит: не ноль, а отсутствие данных. */
+    val chartBeyondData: Color,
 )
 
 val DarkColors = AppColors(
@@ -82,6 +86,8 @@ val DarkColors = AppColors(
     // приборного экрана в корпусе.
     chartField = Color(0xFF0D1116),
     chartGrid = Color(0xFF2A333D),
+    chartZebra = Color(0x0DFFFFFF),
+    chartBeyondData = Color(0x14000000),
 )
 
 val LightColors = AppColors(
@@ -103,6 +109,8 @@ val LightColors = AppColors(
     // граница данных была видна без рамки.
     chartField = Color(0xFFEDF1F4),
     chartGrid = Color(0xFFD5DDE4),
+    chartZebra = Color(0x0A000000),
+    chartBeyondData = Color(0x12000000),
 )
 
 val LocalAppColors = staticCompositionLocalOf { DarkColors }

@@ -3,6 +3,9 @@ package app.radiacode.ui.screens
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -58,6 +61,7 @@ import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.logic.ChartBucket
 import app.radiacode.ui.logic.ChartInteraction
 import app.radiacode.ui.logic.ChartInteractions
+import app.radiacode.ui.logic.ChartBackground
 import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartWindows
@@ -109,10 +113,13 @@ import kotlinx.coroutines.withContext
  */
 private const val RELOAD_DEBOUNCE_MILLIS = 250L
 
+/** Ширина шага ленты периодов — чип плюс интервал; для авто-прокрутки. */
+private const val CHIP_STEP_DP = 52
+
 private val CURSOR_TIME = DateTimeFormatter.ofPattern("HH:mm:ss")
 
-/** Default period on open — long enough to show a daily shape, short enough to load fast. */
-private const val DEFAULT_PERIOD_INDEX = 2 // 6ч
+/** Default period on open — long enough to show a shape, short enough to load fast. */
+private val DEFAULT_PERIOD_INDEX = ChartWindows.DEFAULT_PERIOD_INDEX
 
 /**
  * Полноэкранный график мощности дозы (тап по карточке Монитора).
@@ -674,16 +681,32 @@ private fun RowScope.ControlChips(
     availablePeriods: List<Int> = ChartWindows.PERIODS.indices.toList(),
 ) {
     val colors = LocalAppColors.current
-    for (index in ChartWindows.periodChipRange(periodIndex).filter { it in availablePeriods }) {
-        val selected = index == periodIndex
-        Chip(
-            text = ChartWindows.PERIODS[index].first,
-            color = if (selected) colors.ink else colors.ink2,
-            selected = selected,
-            onClick = { onSelectPeriod(index) },
-        )
+    // Лестница окон длиннее экрана, поэтому лента прокручивается и сама
+    // подводит выбранный чип: подрезанный ряд заставлял угадывать, какие
+    // ступени есть по соседству.
+    val scroll = rememberScrollState()
+    val density = LocalDensity.current
+    LaunchedEffect(periodIndex, availablePeriods.size) {
+        val target = ChartWindows.scrollTargetIndex(availablePeriods.indexOf(periodIndex))
+        val offsetPx = with(density) { (target * CHIP_STEP_DP).dp.roundToPx() }
+        scroll.animateScrollTo(offsetPx)
     }
-    Spacer(Modifier.weight(1f))
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.weight(1f).horizontalScroll(scroll),
+    ) {
+        for (index in availablePeriods) {
+            val selected = index == periodIndex
+            Chip(
+                text = ChartWindows.PERIODS[index].first,
+                color = if (selected) colors.ink else colors.ink2,
+                selected = selected,
+                onClick = { onSelectPeriod(index) },
+            )
+        }
+    }
+    Spacer(Modifier.width(Dimens.space1))
     Chip(
         text = if (logScale) "лог" else "лин",
         color = if (logScale) colors.dataText else colors.ink2,
@@ -1175,6 +1198,22 @@ private fun buildFrame(
             yLabels = scale.ticks().map { it to ChartMetrics.format(metric, it, unit) },
             xLabels = TimeAxis.autoLabels(window.fromMillis, window.toMillis, count = 4),
             unitLabel = ChartMetrics.unitLabel(metric, unit),
+            // Фон, который несёт данные: где прибор молчал, куда история не
+            // доходит и где проходят сутки/часы (§2 ТЗ и правило «не
+            // интерполировать пропуски»).
+            gaps = ChartBackground.gaps(
+                buckets = visible,
+                fromMillis = window.fromMillis,
+                toMillis = window.toMillis,
+                bucketMillis = snapshot.bucketMillis,
+            ),
+            beforeHistory = ChartBackground.historyStart(
+                earliestSampleMillis = snapshot.buckets.firstOrNull { it.sampleCount > 0 }
+                    ?.startMillis,
+                fromMillis = window.fromMillis,
+                toMillis = window.toMillis,
+            ),
+            timeBands = ChartBackground.bands(window.fromMillis, window.toMillis),
             rawSamples = rawDots,
             endpointAlert = endpointAlert,
         ),

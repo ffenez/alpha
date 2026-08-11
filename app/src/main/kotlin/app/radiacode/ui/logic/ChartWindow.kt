@@ -16,15 +16,36 @@ object ChartWindows {
     const val MIN_SPAN_MILLIS = 60_000L
     const val MAX_SPAN_MILLIS = 30L * 24 * 3_600_000L
 
-    /** Period chips of the fullscreen chart. */
+    /**
+     * Лестница окон графика.
+     *
+     * Шесть ступеней от 15 минут до месяца оставляли зияние там, где человек
+     * смотрит чаще всего: между «сейчас» и часом. Ряд построен как 1-2-3-5-10-30
+     * внутри каждой единицы времени — знакомый шаг циферблата, в котором глаз
+     * не считает нули, — и продолжается в часы и дни. Ниже минуты идти незачем:
+     * прибор пишет раз в секунду, и окно короче минуты показывало бы горстку
+     * отсчётов.
+     */
     val PERIODS: List<Pair<String, Long>> = listOf(
-        "15м" to 15L * 60_000L,
+        "1м" to 60_000L,
+        "2м" to 2L * 60_000L,
+        "3м" to 3L * 60_000L,
+        "5м" to 5L * 60_000L,
+        "10м" to 10L * 60_000L,
+        "30м" to 30L * 60_000L,
         "1ч" to 3_600_000L,
+        "2ч" to 2L * 3_600_000L,
+        "3ч" to 3L * 3_600_000L,
         "6ч" to 6L * 3_600_000L,
-        "24ч" to 24L * 3_600_000L,
+        "12ч" to 12L * 3_600_000L,
+        "1д" to 24L * 3_600_000L,
+        "2д" to 2L * 24 * 3_600_000L,
         "7д" to 7L * 24 * 3_600_000L,
         "30д" to MAX_SPAN_MILLIS,
     )
+
+    /** Индекс окна, которое открывается по умолчанию (6 ч). */
+    val DEFAULT_PERIOD_INDEX: Int = PERIODS.indexOfFirst { it.second == 6L * 3_600_000L }
 
     /**
      * Padding factor of the loaded range around the visible window. Gestures
@@ -46,20 +67,17 @@ object ChartWindows {
     fun covers(loaded: ChartWindow, window: ChartWindow): Boolean =
         loaded.fromMillis <= window.fromMillis && loaded.toMillis >= window.toMillis
 
-    /** Period chips visible in the control row (the mockup shows four). */
-    const val VISIBLE_PERIOD_CHIPS = 4
-
     /**
-     * A window of [count] neighbouring period chips around the selection, so
-     * the control row keeps the touch targets big on a 360dp screen instead of
-     * squeezing in every period. Stepping through the list stays possible: the
-     * window slides with the selection.
+     * Ряд чипов стал длиннее экрана, поэтому он прокручивается, а не
+     * подрезается: раньше видимое окно из четырёх чипов скользило вместе с
+     * выбором, и соседние ступени приходилось угадывать. Экран сам подкручивает
+     * ленту к выбранному чипу — это [scrollTargetIndex].
+     *
+     * Возвращает индекс, к которому нужно подвести ленту, чтобы выбранный чип
+     * оказался не у самого края и было видно, что ряд продолжается.
      */
-    fun periodChipRange(selectedIndex: Int, count: Int = VISIBLE_PERIOD_CHIPS): IntRange {
-        val visible = count.coerceIn(1, PERIODS.size)
-        val start = (selectedIndex - 1).coerceIn(0, PERIODS.size - visible)
-        return start until start + visible
-    }
+    fun scrollTargetIndex(selectedIndex: Int, lead: Int = 1): Int =
+        (selectedIndex - lead).coerceIn(0, (PERIODS.size - 1).coerceAtLeast(0))
 
     /** Window ending at now with the given span. */
     fun latest(spanMillis: Long, nowMillis: Long): ChartWindow {

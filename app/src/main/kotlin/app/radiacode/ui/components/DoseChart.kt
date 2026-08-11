@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -30,6 +32,8 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import app.radiacode.ui.logic.ChartBucket
+import app.radiacode.ui.logic.DataGap
+import app.radiacode.ui.logic.TimeBand
 import app.radiacode.ui.logic.ChartPixels
 import app.radiacode.ui.logic.ChartProjection
 import app.radiacode.ui.logic.ValueAggregate
@@ -77,6 +81,12 @@ data class DoseChartSpec(
     /** Fraction (0..1) → label of the time axis. */
     val xLabels: List<Pair<Float, String>> = emptyList(),
     val unitLabel: String = "",
+    /** Промежутки без измерений — штриховка, а не пустое поле. */
+    val gaps: List<DataGap> = emptyList(),
+    /** Часть окна левее начала истории: «сюда данные не доходят». */
+    val beforeHistory: DataGap? = null,
+    /** Зебра времени на длинных окнах. */
+    val timeBands: List<TimeBand> = emptyList(),
     /**
      * Individual measurements, drawn as dots only when the columns are short
      * enough that one aggregate ≈ one sample (see
@@ -140,6 +150,8 @@ fun DoseChart(
             bg = appColors.bg,
             field = appColors.chartField,
             grid = appColors.chartGrid,
+            zebra = appColors.chartZebra,
+            beyondData = appColors.chartBeyondData,
         )
     }
 
@@ -230,6 +242,34 @@ fun DoseChart(
 private fun fractionOf(xPx: Float, widthPx: Float): Float =
     (xPx / widthPx.coerceAtLeast(1f)).coerceIn(0f, 1f)
 
+/**
+ * Диагональная штриховка промежутка без измерений: рисуется линиями, а не
+ * заливкой, чтобы её нельзя было прочитать как данные — заливка на графике
+ * измерений всегда что-то означает.
+ */
+private fun DrawScope.hatch(
+    fromX: Float,
+    toX: Float,
+    top: Float,
+    height: Float,
+    color: Color,
+    step: Float,
+) {
+    if (toX <= fromX || height <= 0f || step <= 0f) return
+    clipRect(left = fromX, top = top, right = toX, bottom = top + height) {
+        var x = fromX - height
+        while (x < toX + height) {
+            drawLine(
+                color = color,
+                start = Offset(x, top + height),
+                end = Offset(x + height, top),
+                strokeWidth = 1f,
+            )
+            x += step
+        }
+    }
+}
+
 /** Resolved chart palette — one value for the draw lambdas to capture. */
 @Immutable
 internal data class ChartPalette(
@@ -242,6 +282,8 @@ internal data class ChartPalette(
     val bg: Color,
     val field: Color,
     val grid: Color,
+    val zebra: Color,
+    val beyondData: Color,
 )
 
 /**
@@ -271,6 +313,11 @@ private fun StaticChartLayer(
                 val alarmStroke = 1.dp.toPx()
                 val baselineStroke = 1.5.dp.toPx()
                 val labelInset = 4.dp.toPx()
+                val hatchStep = 7.dp.toPx()
+                val spanMillis = (spec.toMillis - spec.fromMillis).coerceAtLeast(1L)
+                fun xOfTime(millis: Long): Float =
+                    (widthPx * (millis - spec.fromMillis).toFloat() / spanMillis)
+                        .coerceIn(0f, widthPx)
 
                 fun yOf(value: Float): Float? = spec.scale.fractionOrNull(value)
                     ?.let { ChartProjection.yOf(it, plotTop, plotHeight) }
@@ -332,6 +379,46 @@ private fun StaticChartLayer(
                         topLeft = Offset(0f, plotTop),
                         size = Size(widthPx, plotHeight),
                     )
+                    // Зебра времени: опора для глаза на длинных окнах. Полосы
+                    // привязаны к стенным часам, поэтому не дёргаются при
+                    // прокрутке.
+                    for (band in spec.timeBands) {
+                        if (!band.shaded) continue
+                        val left = xOfTime(band.fromMillis)
+                        val right = xOfTime(band.toMillis)
+                        if (right <= left) continue
+                        drawRect(
+                            color = colors.zebra,
+                            topLeft = Offset(left, plotTop),
+                            size = Size(right - left, plotHeight),
+                        )
+                    }
+
+                    // Пропуски потока и область до начала истории: «прибор
+                    // молчал» и «сюда данные не доходят» — не то же самое, что
+                    // «уровень был низкий», и на пустом поле это неразличимо.
+                    for (gap in spec.gaps) {
+                        hatch(
+                            fromX = xOfTime(gap.fromMillis),
+                            toX = xOfTime(gap.toMillis),
+                            top = plotTop,
+                            height = plotHeight,
+                            color = colors.grid,
+                            step = hatchStep,
+                        )
+                    }
+                    spec.beforeHistory?.let { before ->
+                        val left = xOfTime(before.fromMillis)
+                        val right = xOfTime(before.toMillis)
+                        if (right > left) {
+                            drawRect(
+                                color = colors.beyondData,
+                                topLeft = Offset(left, plotTop),
+                                size = Size(right - left, plotHeight),
+                            )
+                        }
+                    }
+
                     // Вертикальные линии времени по тем же подписям, что и
                     // снизу: на суточном окне без них глазу не за что
                     // зацепиться по горизонтали.
