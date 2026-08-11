@@ -1,6 +1,7 @@
 package app.radiacode.data
 
 import app.radiacode.data.db.DoseBucketAggregate
+import app.radiacode.data.db.ValueBucketAggregate
 import app.radiacode.data.db.DownsampledSample
 import app.radiacode.data.db.EventDao
 import app.radiacode.data.db.EventEntity
@@ -174,6 +175,25 @@ class MeasurementRepository(
     /** Bucketed moments (min/max/Σx/Σx²/n) for the fullscreen dose chart. */
     suspend fun doseBuckets(from: Long, to: Long, bucketMillis: Long): List<DoseBucketAggregate> =
         sampleDao.doseBucketRange(from, to, bucketMillis)
+
+    /** Те же корзины для скорости счёта (полноэкранный график, вкладка «счёт»). */
+    suspend fun countRateBuckets(
+        from: Long,
+        to: Long,
+        bucketMillis: Long,
+    ): List<ValueBucketAggregate> = sampleDao.countRateBucketRange(from, to, bucketMillis)
+
+    /**
+     * И для жёсткости: отношение берётся по каждому отсчёту, отсчёты со счётом
+     * ниже порога отбрасываются в самом запросе — делить на них нечего.
+     */
+    suspend fun hardnessBuckets(
+        from: Long,
+        to: Long,
+        bucketMillis: Long,
+        minCountRate: Float,
+    ): List<ValueBucketAggregate> =
+        sampleDao.hardnessBucketRange(from, to, bucketMillis, minCountRate)
 
     /** App-detected deviations and hotspots inside a range (chart episodes). */
     suspend fun deviationEvents(from: Long, to: Long, limit: Int = 200): List<EventEntity> =

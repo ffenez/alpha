@@ -81,7 +81,7 @@ object QuantilePaths {
 
     /**
      * Column width for a span on the given path. The exact path keeps the
-     * geometry of the P0 chart ([DoseChartModel.MAX_BUCKETS] columns); the
+     * geometry of the P0 chart ([ChartSeriesModel.MAX_BUCKETS] columns); the
      * sketch path snaps **up** to whole hours so a column is always the union
      * of complete stored sketches, and never wider than needed to stay under
      * the column cap.
@@ -89,9 +89,9 @@ object QuantilePaths {
     fun bucketMillis(
         spanMillis: Long,
         method: QuantileMethod,
-        bucketCount: Int = DoseChartModel.MAX_BUCKETS,
+        bucketCount: Int = ChartSeriesModel.MAX_BUCKETS,
     ): Long {
-        val plain = DoseChartModel.bucketMillis(spanMillis, bucketCount)
+        val plain = ChartSeriesModel.bucketMillis(spanMillis, bucketCount)
         if (method == QuantileMethod.EXACT_RAW) return plain
         val hours = (plain + SKETCH_PERIOD_MILLIS - 1) / SKETCH_PERIOD_MILLIS
         return hours.coerceAtLeast(1L) * SKETCH_PERIOD_MILLIS

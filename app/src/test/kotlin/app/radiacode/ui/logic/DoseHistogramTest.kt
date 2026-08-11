@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 
 class DoseHistogramTest {
 
-    private fun aggregate(start: Long, value: Float, count: Int = 1) = DoseAggregate(
+    private fun aggregate(start: Long, value: Float, count: Int = 1) = ValueAggregate(
         startMillis = start,
         minMicroSvH = value,
         maxMicroSvH = value,

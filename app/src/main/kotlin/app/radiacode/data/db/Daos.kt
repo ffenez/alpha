@@ -21,7 +21,7 @@ data class DownsampledSample(
  * extremes of the interval plus Σx and Σx², from which the pooled mean and the
  * population σ of any group of buckets are exact (no average of averages).
  * SQLite has no `stddev`, so the sums are reduced in Kotlin
- * ([app.radiacode.ui.logic.DoseChartModel]).
+ * ([app.radiacode.ui.logic.ChartSeriesModel]).
  */
 data class DoseBucketAggregate(
     val bucketStart: Long,
@@ -29,6 +29,20 @@ data class DoseBucketAggregate(
     val maxDoseRate: Float,
     val sumDoseRate: Double,
     val sumSqDoseRate: Double,
+    val sampleCount: Int,
+)
+
+/**
+ * Тот же агрегат корзины, но для произвольной величины: скорости счёта или
+ * жёсткости. Отдельный тип, а не переиспользованный [DoseBucketAggregate], —
+ * чтобы имена полей не врали про содержимое.
+ */
+data class ValueBucketAggregate(
+    val bucketStart: Long,
+    val minValue: Float,
+    val maxValue: Float,
+    val sumValue: Double,
+    val sumSqValue: Double,
     val sampleCount: Int,
 )
 
@@ -119,6 +133,59 @@ interface SampleDao {
         to: Long,
         bucketMillis: Long,
     ): List<DoseBucketAggregate>
+
+    /**
+     * То же самое для СКОРОСТИ СЧЁТА: полноэкранный график умеет показывать не
+     * только дозу, а вся его механика (квантильные конверты, экстремумы,
+     * курсор) работает с одной и той же формой агрегата.
+     */
+    @Query(
+        """
+        SELECT (timestamp / :bucketMillis) * :bucketMillis AS bucketStart,
+               MIN(countRate) AS minValue,
+               MAX(countRate) AS maxValue,
+               SUM(countRate) AS sumValue,
+               SUM(countRate * countRate) AS sumSqValue,
+               COUNT(*) AS sampleCount
+        FROM samples
+        WHERE timestamp BETWEEN :from AND :to
+        GROUP BY timestamp / :bucketMillis
+        ORDER BY bucketStart
+        """,
+    )
+    suspend fun countRateBucketRange(
+        from: Long,
+        to: Long,
+        bucketMillis: Long,
+    ): List<ValueBucketAggregate>
+
+    /**
+     * И для ЖЁСТКОСТИ — отношения, посчитанного **по каждому отсчёту**, а не
+     * по средним корзины: среднее отношений и отношение средних это разные
+     * числа, и второе нельзя выдавать за первое. Отсчёты с малым счётом
+     * выбрасываются здесь же — делить на них нечего (порог совпадает с
+     * `Hardness.MIN_COUNT_RATE`).
+     */
+    @Query(
+        """
+        SELECT (timestamp / :bucketMillis) * :bucketMillis AS bucketStart,
+               MIN(doseRate / countRate) AS minValue,
+               MAX(doseRate / countRate) AS maxValue,
+               SUM(doseRate / countRate) AS sumValue,
+               SUM((doseRate / countRate) * (doseRate / countRate)) AS sumSqValue,
+               COUNT(*) AS sampleCount
+        FROM samples
+        WHERE timestamp BETWEEN :from AND :to AND countRate >= :minCountRate
+        GROUP BY timestamp / :bucketMillis
+        ORDER BY bucketStart
+        """,
+    )
+    suspend fun hardnessBucketRange(
+        from: Long,
+        to: Long,
+        bucketMillis: Long,
+        minCountRate: Float,
+    ): List<ValueBucketAggregate>
 
     /**
      * Same bucketed aggregation restricted to one profile and to samples the

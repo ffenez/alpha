@@ -124,7 +124,7 @@ object TrendFit {
     /**
      * All pairs are evaluated up to this many bins (O(n²) ≈ 31 000 pairs at the
      * cap — microseconds, and the chart never holds more than
-     * [DoseChartModel.MAX_BUCKETS] = 200 columns anyway). Above it the bins are
+     * [ChartSeriesModel.MAX_BUCKETS] = 200 columns anyway). Above it the bins are
      * thinned **deterministically** (fixed stride, first and last kept) so the
      * same window always gives the same slope: no randomness, nothing to seed,
      * nothing that could differ between a test and a phone.

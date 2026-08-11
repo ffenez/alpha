@@ -20,7 +20,7 @@ private class Lcg(private var state: Long = 12345L) {
 }
 
 /** One stored hour of 1 Hz samples with a given value generator. */
-private fun hourSlice(startMillis: Long, values: FloatArray): DoseHourSlice {
+private fun hourSlice(startMillis: Long, values: FloatArray): HourSlice {
     var min = Float.MAX_VALUE
     var max = -Float.MAX_VALUE
     var minAt = startMillis
@@ -35,7 +35,7 @@ private fun hourSlice(startMillis: Long, values: FloatArray): DoseHourSlice {
             maxAt = startMillis + i * 1000L
         }
     }
-    return DoseHourSlice(
+    return HourSlice(
         startMillis = startMillis,
         sampleCount = values.size,
         min = min,
@@ -90,7 +90,7 @@ class QuantilePathTest {
     fun `the exact path keeps the P0 geometry`() {
         val span = 6 * HOUR
         assertEquals(
-            DoseChartModel.bucketMillis(span),
+            ChartSeriesModel.bucketMillis(span),
             QuantilePaths.bucketMillis(span, QuantileMethod.EXACT_RAW),
         )
         assertEquals(1_000L, QuantilePaths.exactSubBucketMillis())
@@ -119,7 +119,7 @@ class QuantilePathTest {
     }
 }
 
-class DoseChartSketchTest {
+class ChartSeriesSketchTest {
 
     @Test
     fun `columns are folded from merged hourly sketches, not from hourly quantiles`() {
@@ -132,7 +132,7 @@ class DoseChartSketchTest {
             hourSlice(0, low),
             hourSlice(HOUR, high),
         )
-        val fold = DoseChartModel.foldSketches(slices, 0, 2 * HOUR, 1)
+        val fold = ChartSeriesModel.foldSketches(slices, 0, 2 * HOUR, 1)
         val column = fold.buckets.single()
         assertEquals(0.10f, column.median, 1e-4f)
         assertEquals(4800, column.sampleCount)
@@ -144,7 +144,7 @@ class DoseChartSketchTest {
     fun `merged column quantiles track the exact quantiles of the raw data`() {
         val hours = (0 until 4).map { background(seed = 100L + it) }
         val slices = hours.mapIndexed { i, values -> hourSlice(i * HOUR, values) }
-        val fold = DoseChartModel.foldSketches(slices, 0, 4 * HOUR, 1)
+        val fold = ChartSeriesModel.foldSketches(slices, 0, 4 * HOUR, 1)
         val column = fold.buckets.single()
 
         val all = FloatArray(hours.sumOf { it.size })
@@ -170,7 +170,7 @@ class DoseChartSketchTest {
             hourSlice(hour * HOUR, values)
         }
         val bucketMillis = QuantilePaths.bucketMillis(30 * DAY, QuantileMethod.KLL_SKETCH)
-        val snapshot = DoseChartModel.snapshotFromSketches(
+        val snapshot = ChartSeriesModel.snapshotFromSketches(
             slices = slices,
             eventTimesMillis = emptyList(),
             alignedFromMillis = 0,
@@ -206,7 +206,7 @@ class DoseChartSketchTest {
     fun `a raised level is not called a transient, a spike inside it is`() {
         val quiet = hourSlice(0, background(seed = 7L))
         val raised = hourSlice(HOUR, background(seed = 8L, level = 0.40f))
-        val fold = DoseChartModel.foldSketches(listOf(quiet, raised), 0, HOUR, 2)
+        val fold = ChartSeriesModel.foldSketches(listOf(quiet, raised), 0, HOUR, 2)
         val markers = DoseExtremes.markers(fold.buckets, alarmMicroSvH = 0.30f, baselineP90MicroSvH = null)
         assertTrue(markers.isEmpty(), "a column that merely sits high is a level, not a spike")
     }
@@ -215,14 +215,14 @@ class DoseChartSketchTest {
     fun `window statistics mix exact moments with approximate percentiles`() {
         val values = background(seed = 42L)
         val slices = listOf(hourSlice(0, values))
-        val rollup = DoseWindowRollup(
+        val rollup = WindowRollup(
             sampleCount = values.size,
             sumMicroSvH = values.sumOf { it.toDouble() },
             sumSqMicroSvH = values.sumOf { it.toDouble() * it },
             min = values.min(),
             max = values.max(),
         )
-        val snapshot = DoseChartModel.snapshotFromSketches(
+        val snapshot = ChartSeriesModel.snapshotFromSketches(
             slices = slices,
             eventTimesMillis = emptyList(),
             alignedFromMillis = 0,
@@ -248,7 +248,7 @@ class DoseChartSketchTest {
     @Test
     fun `window statistics describe the visible window, not the loaded range`() {
         val slices = (0 until 8).map { hourSlice(it * HOUR, background(seed = it.toLong())) }
-        val snapshot = DoseChartModel.snapshotFromSketches(
+        val snapshot = ChartSeriesModel.snapshotFromSketches(
             slices = slices,
             eventTimesMillis = emptyList(),
             alignedFromMillis = 0,
@@ -265,7 +265,7 @@ class DoseChartSketchTest {
     @Test
     fun `the distribution strip can be built from the sketch items`() {
         val values = background(seed = 3L)
-        val snapshot = DoseChartModel.snapshotFromSketches(
+        val snapshot = ChartSeriesModel.snapshotFromSketches(
             slices = listOf(hourSlice(0, values)),
             eventTimesMillis = emptyList(),
             alignedFromMillis = 0,
@@ -282,7 +282,7 @@ class DoseChartSketchTest {
 
     @Test
     fun `an empty range yields no columns and no statistics`() {
-        val snapshot = DoseChartModel.snapshotFromSketches(
+        val snapshot = ChartSeriesModel.snapshotFromSketches(
             slices = emptyList(),
             eventTimesMillis = emptyList(),
             alignedFromMillis = 0,
@@ -301,7 +301,7 @@ class DoseChartSketchTest {
             // hour 1 missing: device was off
             hourSlice(2 * HOUR, background(seed = 2L)),
         )
-        val fold = DoseChartModel.foldSketches(slices, 0, HOUR, 3)
+        val fold = ChartSeriesModel.foldSketches(slices, 0, HOUR, 3)
         assertEquals(listOf(0L, 2 * HOUR), fold.buckets.map { it.startMillis })
     }
 }

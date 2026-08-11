@@ -61,19 +61,23 @@ import app.radiacode.ui.logic.ChartInteractions
 import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartWindows
+import app.radiacode.analysis.Hardness
+import app.radiacode.ui.logic.ChartMetric
+import app.radiacode.ui.logic.ChartMetrics
 import app.radiacode.ui.logic.CursorReadout
-import app.radiacode.ui.logic.DoseAggregate
-import app.radiacode.ui.logic.DoseChartModel
+import app.radiacode.ui.logic.coverageWording
+import app.radiacode.ui.logic.ValueAggregate
+import app.radiacode.ui.logic.ChartSeriesModel
 import app.radiacode.ui.logic.DoseEpisodes
 import app.radiacode.ui.logic.DoseExtremes
 import app.radiacode.ui.logic.DoseFormat
-import app.radiacode.ui.logic.DoseHourSlice
+import app.radiacode.ui.logic.HourSlice
 import app.radiacode.ui.logic.DoseReference
-import app.radiacode.ui.logic.DoseWindowRollup
+import app.radiacode.ui.logic.WindowRollup
 import app.radiacode.ui.logic.DoseHistogram
 import app.radiacode.ui.logic.DoseHistograms
 import app.radiacode.ui.logic.DoseScales
-import app.radiacode.ui.logic.DoseSnapshot
+import app.radiacode.ui.logic.ChartSnapshot
 import app.radiacode.ui.logic.Freshness
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.QuantileMetadata
@@ -141,7 +145,11 @@ private const val DEFAULT_PERIOD_INDEX = 2 // 6ч
  * управлением говорит это словами.
  */
 @Composable
-fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
+fun LiveChartScreen(
+    graph: AppGraph,
+    onBack: () -> Unit,
+    metric: ChartMetric = ChartMetric.DOSE,
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val landscape =
@@ -154,11 +162,15 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     val baseline = (baselineState as? BaselineState.Active)?.baseline
 
-    var periodIndex by rememberSaveable { mutableIntStateOf(DEFAULT_PERIOD_INDEX) }
+    val periodIndices = remember(metric) { ChartMetrics.periodIndices(metric) }
+    var periodIndex by rememberSaveable(metric) {
+        mutableIntStateOf(periodIndices.lastOrNull { it <= DEFAULT_PERIOD_INDEX } ?: 0)
+    }
     var logScale by rememberSaveable { mutableStateOf(false) }
     var follow by rememberSaveable { mutableStateOf(true) }
     var cursorActive by rememberSaveable { mutableStateOf(false) }
     var statsExpanded by rememberSaveable { mutableStateOf(false) }
+    var histogramExpanded by rememberSaveable { mutableStateOf(false) }
     // Crosshair position lives in its own State: the draw layer and the
     // readout card read it, so dragging never recomposes the screen.
     val cursorFraction = remember { mutableStateOf<Float?>(null) }
@@ -171,7 +183,7 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
             ),
         )
     }
-    var snapshot by remember { mutableStateOf<DoseSnapshot?>(null) }
+    var snapshot by remember { mutableStateOf<ChartSnapshot?>(null) }
 
     // Live-follow: advance the right edge at the cadence at which a new column
     // can actually appear (1 s on short windows, at most 15 s on long ones) —
@@ -180,17 +192,17 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
         while (follow) {
             delay(
                 ChartWindows.refreshMillis(
-                    DoseChartModel.bucketMillis(window.spanMillis),
+                    ChartSeriesModel.bucketMillis(window.spanMillis),
                 ),
             )
             window = ChartWindows.follow(window, System.currentTimeMillis())
         }
     }
 
-    LaunchedEffect(graph) {
+    LaunchedEffect(graph, metric) {
         snapshotFlow { window }.collectLatest { w ->
             delay(RELOAD_DEBOUNCE_MILLIS)
-            snapshot = withContext(Dispatchers.IO) { loadSnapshot(graph, w) }
+            snapshot = withContext(Dispatchers.IO) { loadSnapshot(graph, w, metric) }
         }
     }
 
@@ -198,7 +210,9 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
     // republishes that object every second and rebuilding the frame at 1 Hz
     // for an unchanged picture is exactly the waste this screen must avoid.
     val endpointAlert = follow && deviation.alertSince != null
-    val frame = remember(snapshot, window, unit, logScale, thresholds, baseline, endpointAlert) {
+    val frame = remember(
+        snapshot, window, unit, logScale, thresholds, baseline, endpointAlert, metric,
+    ) {
         snapshot?.let {
             buildFrame(
                 snapshot = it,
@@ -206,8 +220,9 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
                 unit = unit,
                 logScale = logScale,
                 thresholds = thresholds,
-                baseline = baseline,
+                baseline = if (ChartMetrics.showsProfileBand(metric)) baseline else null,
                 endpointAlert = endpointAlert,
+                metric = metric,
             )
         }
     }
@@ -242,7 +257,7 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
         val atEdge = ChartWindows.isAtLiveEdge(
             w,
             now,
-            DoseChartModel.bucketMillis(w.spanMillis),
+            ChartSeriesModel.bucketMillis(w.spanMillis),
         )
         val next = ChartInteractions.afterTransform(
             ChartInteraction(follow, cursorFraction.value),
@@ -271,11 +286,17 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
                         follow = false
                         cursorFraction.value = fraction
                     },
+                    onResetScale = {
+                        // §10: «оптимальный масштаб» — это выбранное окно у
+                        // живого края; двойной тап отменяет зум и панораму,
+                        // а не придумывает свой масштаб.
+                        selectPeriod(periodIndex)
+                    },
                     onCursorDismiss = {
                         val atEdge = ChartWindows.isAtLiveEdge(
                             window,
                             System.currentTimeMillis(),
-                            DoseChartModel.bucketMillis(window.spanMillis),
+                            ChartSeriesModel.bucketMillis(window.spanMillis),
                         )
                         cursorActive = false
                         cursorFraction.value = null
@@ -313,6 +334,7 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
                 graph = graph,
                 unit = unit,
                 periodLabel = ChartWindows.PERIODS[periodIndex].first,
+                metricTitle = metric.title,
                 stats = frame?.stats,
                 paused = cursorActive,
                 onBack = onBack,
@@ -331,6 +353,7 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
                     onSelectPeriod = ::selectPeriod,
                     onToggleScale = { logScale = !logScale },
                     onJumpToNow = ::jumpToNow,
+                    availablePeriods = periodIndices,
                 )
             }
         }
@@ -342,17 +365,46 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
             graph = graph,
             unit = unit,
             periodLabel = ChartWindows.PERIODS[periodIndex].first,
+            metricTitle = metric.title,
             paused = cursorActive,
             onBack = onBack,
+            metric = metric,
         )
         chart(Modifier.weight(1f).fillMaxWidth())
         AppDivider()
+        // §2: неполное окно называется словами, а не остаётся пустым полем.
+        coverageWording(frame?.stats, window.spanMillis)?.let { coverage ->
+            Text(
+                text = coverage,
+                style = type.footnote,
+                color = colors.muted,
+                modifier = Modifier.padding(
+                    horizontal = Dimens.space3,
+                    vertical = Dimens.space1,
+                ),
+            )
+        }
+        // §6: распределение — сворачиваемый блок, а не постоянная полоса.
         val histogram = frame?.histogram
         if (frame != null && histogram != null) {
-            DistributionStrip(
-                histogram = histogram,
-                labels = frame.histogramLabels,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Dimens.space3),
+            ) {
+                Chip(
+                    text = if (histogramExpanded) "распределение ▴" else "распределение ▾",
+                    color = colors.ink2,
+                    onClick = { histogramExpanded = !histogramExpanded },
+                )
+            }
+            if (histogramExpanded) {
+                DistributionStrip(
+                    histogram = histogram,
+                    labels = frame.histogramLabels,
+                )
+            }
         } else {
             Spacer(Modifier.fillMaxWidth().height(Dimens.space1))
         }
@@ -362,16 +414,29 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
         // a wall of numbers and SD never appears without its definition.
         StatGrid(
             cells = listOf(
-                StatCell(stats?.let { DoseFormat.rate(it.p10, unit) } ?: "—", "P10"),
-                StatCell(stats?.let { DoseFormat.rate(it.median, unit) } ?: "—", "медиана"),
-                StatCell(stats?.let { DoseFormat.rate(it.p90, unit) } ?: "—", "P90"),
+                StatCell(
+                    stats?.let { ChartMetrics.format(metric, it.p10, unit) } ?: "—",
+                    "P10",
+                ),
+                StatCell(
+                    stats?.let { ChartMetrics.format(metric, it.median, unit) } ?: "—",
+                    "медиана",
+                ),
+                StatCell(
+                    stats?.let { ChartMetrics.format(metric, it.p90, unit) } ?: "—",
+                    "P90",
+                ),
                 StatCell(stats?.let { HistoryFormat.count(it.sampleCount) } ?: "—", "n"),
                 StatCell(HistoryFormat.duration(window.spanMillis / 1000), "окно"),
             ),
         )
-        ExpandedStats(stats = stats, unit = unit, expanded = statsExpanded) {
-            statsExpanded = !statsExpanded
-        }
+        ExpandedStats(
+            stats = stats,
+            unit = unit,
+            expanded = statsExpanded,
+            onToggle = { statsExpanded = !statsExpanded },
+            metric = metric,
+        )
         if (statsExpanded) {
             QuantileDiagnosticPanel(graph = graph, snapshot = snapshot, unit = unit)
         }
@@ -389,15 +454,20 @@ fun LiveChartScreen(graph: AppGraph, onBack: () -> Unit) {
                 onSelectPeriod = ::selectPeriod,
                 onToggleScale = { logScale = !logScale },
                 onJumpToNow = ::jumpToNow,
+                availablePeriods = periodIndices,
             )
         }
         Text(
-            text = truthLine(
-                logScale = logScale,
-                logDropped = frame?.logDropped ?: 0,
-                hasBaseline = baseline != null,
-                method = frame?.stats?.method ?: QuantileMethod.EXACT_RAW,
-            ),
+            text = listOfNotNull(
+                truthLine(
+                    logScale = logScale,
+                    logDropped = frame?.logDropped ?: 0,
+                    hasBaseline = baseline != null && ChartMetrics.showsProfileBand(metric),
+                    method = frame?.stats?.method ?: QuantileMethod.EXACT_RAW,
+                    metric = metric,
+                ),
+                ChartMetrics.spanLimitNote(metric),
+            ).joinToString(" "),
             style = type.footnote,
             color = colors.muted,
             modifier = Modifier.padding(
@@ -421,6 +491,7 @@ private fun liveReading(
     graph: AppGraph,
     unit: DoseUnitSetting,
     compact: Boolean = false,
+    metric: ChartMetric = ChartMetric.DOSE,
 ): Freshness {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -434,18 +505,34 @@ private fun liveReading(
     }
     val freshness = Freshness.of(sample?.timestamp, nowMillis)
     if (!compact) {
-        val dose = sample?.let { DoseUnits.rawToMicroSievertPerHour(it.doseRate) }
+        // Живое значение — та же величина, что на графике: смотреть на дозу
+        // над графиком счёта было бы двумя разными числами в одной шапке.
+        val value = sample?.let { row ->
+            when (metric) {
+                ChartMetric.DOSE -> DoseUnits.rawToMicroSievertPerHour(row.doseRate)
+                ChartMetric.COUNT_RATE -> row.countRate
+                ChartMetric.HARDNESS -> Hardness.of(
+                    doseRateMicroSvH = DoseUnits.rawToMicroSievertPerHour(row.doseRate).toDouble(),
+                    countRate = row.countRate.toDouble(),
+                    seconds = Hardness.MIN_COUNTS / row.countRate.coerceAtLeast(0.01f),
+                )?.value?.toFloat()
+            }
+        }
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                text = dose?.let { DoseFormat.rate(it, unit) } ?: "—",
+                text = value?.let { ChartMetrics.format(metric, it, unit) } ?: "—",
                 style = type.valueLarge,
-                color = if (dose == null || freshness !is Freshness.Fresh) colors.muted
+                color = if (value == null || freshness !is Freshness.Fresh) colors.muted
                 else colors.ink,
             )
             Text(
                 text = listOfNotNull(
-                    Uncertainty.errPercentLabel(sample?.doseRateErr),
-                    DoseFormat.rateUnitLabel(unit),
+                    if (metric == ChartMetric.DOSE) {
+                        Uncertainty.errPercentLabel(sample?.doseRateErr)
+                    } else {
+                        null
+                    },
+                    ChartMetrics.unitLabel(metric, unit),
                 ).joinToString(" "),
                 style = type.footnote,
                 color = colors.ink2,
@@ -461,8 +548,10 @@ private fun PortraitTopBar(
     graph: AppGraph,
     unit: DoseUnitSetting,
     periodLabel: String,
+    metricTitle: String,
     paused: Boolean,
     onBack: () -> Unit,
+    metric: ChartMetric = ChartMetric.DOSE,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -482,12 +571,12 @@ private fun PortraitTopBar(
             Chip(text = "✕", color = colors.ink2, onClick = onBack)
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = "Мощность дозы · $periodLabel".uppercase(),
+                    text = "$metricTitle · $periodLabel".uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                     maxLines = 1,
                 )
-                StatusChipSlot(graph, unit, paused)
+                StatusChipSlot(graph, unit, paused, metric)
             }
         }
         AppDivider()
@@ -496,10 +585,15 @@ private fun PortraitTopBar(
 
 /** Value row plus the status chip, both driven by the same 1 Hz ticker. */
 @Composable
-private fun StatusChipSlot(graph: AppGraph, unit: DoseUnitSetting, paused: Boolean) {
+private fun StatusChipSlot(
+    graph: AppGraph,
+    unit: DoseUnitSetting,
+    paused: Boolean,
+    metric: ChartMetric = ChartMetric.DOSE,
+) {
     val colors = LocalAppColors.current
     Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
-        val freshness = liveReading(graph, unit)
+        val freshness = liveReading(graph, unit, metric = metric)
         Spacer(Modifier.weight(1f))
         FreshnessOrPause(freshness, paused)
     }
@@ -522,6 +616,7 @@ private fun BoxScope.LandscapeTopBar(
     graph: AppGraph,
     unit: DoseUnitSetting,
     periodLabel: String,
+    metricTitle: String,
     stats: WindowStats?,
     paused: Boolean,
     onBack: () -> Unit,
@@ -538,7 +633,7 @@ private fun BoxScope.LandscapeTopBar(
     ) {
         Chip(text = "✕", color = colors.ink2, onClick = onBack)
         Text(
-            text = "Мощность дозы · $periodLabel".uppercase(),
+            text = "$metricTitle · $periodLabel".uppercase(),
             style = type.labelSmall,
             color = colors.ink2,
             maxLines = 1,
@@ -576,9 +671,10 @@ private fun RowScope.ControlChips(
     onSelectPeriod: (Int) -> Unit,
     onToggleScale: () -> Unit,
     onJumpToNow: () -> Unit,
+    availablePeriods: List<Int> = ChartWindows.PERIODS.indices.toList(),
 ) {
     val colors = LocalAppColors.current
-    for (index in ChartWindows.periodChipRange(periodIndex)) {
+    for (index in ChartWindows.periodChipRange(periodIndex).filter { it in availablePeriods }) {
         val selected = index == periodIndex
         Chip(
             text = ChartWindows.PERIODS[index].first,
@@ -613,10 +709,11 @@ private fun ExpandedStats(
     unit: DoseUnitSetting,
     expanded: Boolean,
     onToggle: () -> Unit,
+    metric: ChartMetric = ChartMetric.DOSE,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    val unitLabel = DoseFormat.rateUnitLabel(unit)
+    val unitLabel = ChartMetrics.unitLabel(metric, unit)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -672,11 +769,15 @@ private fun truthLine(
     logDropped: Int,
     hasBaseline: Boolean,
     method: QuantileMethod,
+    metric: ChartMetric = ChartMetric.DOSE,
 ): String {
     val parts = mutableListOf(
         "линия — медиана корзины (Q50)",
         "Q25–Q75 и Q10–Q90 — наблюдаемый разброс измерений, не погрешность",
     )
+    if (metric == ChartMetric.HARDNESS) {
+        parts += "отношение берётся по каждому отсчёту, а не по средним корзины"
+    }
     parts += if (hasBaseline) {
         "серая полоса — исторический P10–P90 профиля, это статистика места, а не норматив"
     } else {
@@ -716,7 +817,7 @@ private fun truthLine(
 @Composable
 private fun QuantileDiagnosticPanel(
     graph: AppGraph,
-    snapshot: DoseSnapshot?,
+    snapshot: ChartSnapshot?,
     unit: DoseUnitSetting,
 ) {
     val colors = LocalAppColors.current
@@ -998,25 +1099,28 @@ private data class ChartFrame(
  * reload refits it afterwards.
  */
 private fun buildFrame(
-    snapshot: DoseSnapshot,
+    snapshot: ChartSnapshot,
     window: ChartWindow,
     unit: DoseUnitSetting,
     logScale: Boolean,
     thresholds: AlarmThresholds,
     baseline: Baseline?,
     endpointAlert: Boolean,
+    metric: ChartMetric = ChartMetric.DOSE,
 ): ChartFrame {
     val visible = snapshot.buckets.filter {
         it.midMillis >= window.fromMillis && it.midMillis <= window.toMillis
     }
-    val alarm = thresholds.l1MicroSvH.takeIf { it > 0f }
+    // Порог L1 задан в единицах дозы: на счёте и на отношении его линии нет —
+    // переносить туда дозовый порог было бы выдумкой.
+    val alarm = thresholds.l1MicroSvH.takeIf { it > 0f && ChartMetrics.showsAlarmLevel(metric) }
     val band = baseline?.let { it.doseLowMicroSvH..it.doseHighMicroSvH }
     // The frame is fitted to what is actually drawn. With raw dots on screen
     // that is the true extremes; without them the envelopes stop at Q10–Q90,
     // and a single off-scale spike is carried by its marker and the cursor
     // card instead of stretching the whole axis (CHART SPEC §7 — an extremum
     // grows with N, so it must not define the frame).
-    val dotsVisible = DoseChartModel.rawDotsVisible(snapshot.bucketMillis)
+    val dotsVisible = ChartSeriesModel.rawDotsVisible(snapshot.bucketMillis)
     val scale = DoseScales.of(
         logarithmic = logScale,
         dataMin = snapshot.buckets.minOfOrNull { if (dotsVisible) it.min else it.q10 },
@@ -1068,16 +1172,16 @@ private fun buildFrame(
                     HistoryFormat.duration(it.durationMillis / 1000)
             },
             extremeMarkers = markers,
-            yLabels = scale.ticks().map { it to DoseFormat.rate(it, unit) },
+            yLabels = scale.ticks().map { it to ChartMetrics.format(metric, it, unit) },
             xLabels = TimeAxis.autoLabels(window.fromMillis, window.toMillis, count = 4),
-            unitLabel = DoseFormat.rateUnitLabel(unit),
+            unitLabel = ChartMetrics.unitLabel(metric, unit),
             rawSamples = rawDots,
             endpointAlert = endpointAlert,
         ),
         // The long path computes the window statistics once per read (merging
         // sketches is far too expensive for a gesture frame); the exact path
         // recomputes them here from the sub-buckets.
-        stats = snapshot.windowStats ?: DoseChartModel.windowStats(
+        stats = snapshot.windowStats ?: ChartSeriesModel.windowStats(
             snapshot.aggregates,
             window.fromMillis,
             window.toMillis,
@@ -1086,7 +1190,7 @@ private fun buildFrame(
         histogramLabels = histogram
             ?.let { h ->
                 DoseHistograms.labelValues(h).map { (fraction, value) ->
-                    fraction to DoseFormat.rate(value, unit)
+                    fraction to ChartMetrics.format(metric, value, unit)
                 }
             }
             .orEmpty(),
@@ -1110,13 +1214,74 @@ private fun buildFrame(
  * still running) it degrades to the coarse sub-bucket estimate and says so
  * everywhere the numbers appear.
  */
-private suspend fun loadSnapshot(graph: AppGraph, window: ChartWindow): DoseSnapshot {
+private suspend fun loadSnapshot(
+    graph: AppGraph,
+    window: ChartWindow,
+    metric: ChartMetric,
+): ChartSnapshot {
     val now = System.currentTimeMillis()
     val load = ChartWindows.loadRange(window, now)
+    // Предагрегация (ADR 004) посчитана для дозы; счёт и жёсткость читаются
+    // точным путём, и длиннее его окна им не предлагаются вовсе.
+    if (metric != ChartMetric.DOSE) {
+        return loadExactValue(graph, load, QuantilePaths.exactSubBucketMillis(), metric)
+    }
     return when (QuantilePaths.methodFor(load.spanMillis)) {
         QuantileMethod.EXACT_RAW -> loadExact(graph, load, QuantilePaths.exactSubBucketMillis())
         else -> loadSketched(graph, load, window)
     }
+}
+
+/**
+ * Точный путь для скорости счёта и жёсткости: тот же SQL-агрегат по корзинам,
+ * та же модель ряда, те же конверты и экстремумы — отличается только колонка,
+ * из которой берутся числа.
+ */
+private suspend fun loadExactValue(
+    graph: AppGraph,
+    load: ChartWindow,
+    subMillis: Long,
+    metric: ChartMetric,
+): ChartSnapshot {
+    val bucketMillis = ChartSeriesModel.bucketMillis(load.spanMillis)
+    val alignedFrom = ChartMapping.alignedFrom(load.toMillis, load.spanMillis, bucketMillis)
+    val rows = when (metric) {
+        ChartMetric.COUNT_RATE ->
+            graph.measurementRepository.countRateBuckets(alignedFrom, load.toMillis, subMillis)
+        else -> graph.measurementRepository.hardnessBuckets(
+            from = alignedFrom,
+            to = load.toMillis,
+            bucketMillis = subMillis,
+            minCountRate = Hardness.MIN_COUNT_RATE.toFloat(),
+        )
+    }
+    // Жёсткость определена в (мкрем/ч)/(имп/с), а в базе доза лежит в сырых
+    // единицах прибора — множитель тот же линейный, что и у самой дозы.
+    val scale = when (metric) {
+        ChartMetric.HARDNESS ->
+            DoseUnits.RAW_TO_MICRO_SIEVERT_PER_HOUR.toDouble() * Hardness.MICRO_REM_PER_MICRO_SV
+        else -> 1.0
+    }
+    val aggregates = rows.map { row ->
+        ValueAggregate(
+            startMillis = row.bucketStart,
+            minMicroSvH = (row.minValue * scale).toFloat(),
+            maxMicroSvH = (row.maxValue * scale).toFloat(),
+            sumMicroSvH = row.sumValue * scale,
+            sumSqMicroSvH = row.sumSqValue * scale * scale,
+            sampleCount = row.sampleCount,
+        )
+    }
+    return ChartSeriesModel.snapshot(
+        aggregates = aggregates,
+        // События журнала — про дозу; на других величинах их маркеры молчат,
+        // чтобы не приписывать эпизод ряду, из которого он не выводился.
+        eventTimesMillis = emptyList(),
+        alignedFromMillis = alignedFrom,
+        toMillis = load.toMillis,
+        bucketMillis = bucketMillis,
+        subBucketMillis = subMillis,
+    )
 }
 
 /** Exact path: raw samples, aggregated by SQL at [subMillis] granularity. */
@@ -1124,12 +1289,12 @@ private suspend fun loadExact(
     graph: AppGraph,
     load: ChartWindow,
     subMillis: Long,
-    bucketMillis: Long = DoseChartModel.bucketMillis(load.spanMillis),
-): DoseSnapshot {
+    bucketMillis: Long = ChartSeriesModel.bucketMillis(load.spanMillis),
+): ChartSnapshot {
     val alignedFrom = ChartMapping.alignedFrom(load.toMillis, load.spanMillis, bucketMillis)
     val rows = graph.measurementRepository.doseBuckets(alignedFrom, load.toMillis, subMillis)
     val aggregates = rows.map { row ->
-        DoseAggregate(
+        ValueAggregate(
             startMillis = row.bucketStart,
             minMicroSvH = DoseUnits.rawToMicroSievertPerHour(row.minDoseRate),
             maxMicroSvH = DoseUnits.rawToMicroSievertPerHour(row.maxDoseRate),
@@ -1143,7 +1308,7 @@ private suspend fun loadExact(
     val events = graph.measurementRepository
         .deviationEvents(alignedFrom, load.toMillis)
         .map { it.timestamp }
-    return DoseChartModel.snapshot(
+    return ChartSeriesModel.snapshot(
         aggregates = aggregates,
         eventTimesMillis = events,
         alignedFromMillis = alignedFrom,
@@ -1158,14 +1323,14 @@ private suspend fun loadSketched(
     graph: AppGraph,
     load: ChartWindow,
     window: ChartWindow,
-): DoseSnapshot {
+): ChartSnapshot {
     val bucketMillis = QuantilePaths.bucketMillis(load.spanMillis, QuantileMethod.KLL_SKETCH)
     val alignedFrom = ChartMapping.alignedFrom(load.toMillis, load.spanMillis, bucketMillis)
     val hours = graph.preAggregateRepository.hourSketchesWithLiveTail(alignedFrom, load.toMillis)
     val factor = DoseUnits.RAW_TO_MICRO_SIEVERT_PER_HOUR
     val slices = hours.mapNotNull { row ->
         val sketch = KllSketch.fromByteArray(row.sketch) ?: return@mapNotNull null
-        DoseHourSlice(
+        HourSlice(
             startMillis = row.hourStart,
             sampleCount = row.count,
             min = DoseUnits.rawToMicroSievertPerHour(row.minDoseRate),
@@ -1178,15 +1343,15 @@ private suspend fun loadSketched(
     if (slices.isEmpty()) {
         // Nothing pre-aggregated for this range yet: fall back to the coarse
         // sub-bucket estimate, which the UI names as such (§32).
-        return loadExact(graph, load, DoseChartModel.subBucketMillis(
-            DoseChartModel.bucketMillis(load.spanMillis),
+        return loadExact(graph, load, ChartSeriesModel.subBucketMillis(
+            ChartSeriesModel.bucketMillis(load.spanMillis),
         ))
     }
     val events = graph.measurementRepository
         .deviationEvents(alignedFrom, load.toMillis)
         .map { it.timestamp }
     val rollup = graph.preAggregateRepository.rollup(window.fromMillis, window.toMillis)
-    return DoseChartModel.snapshotFromSketches(
+    return ChartSeriesModel.snapshotFromSketches(
         slices = slices,
         eventTimesMillis = events,
         alignedFromMillis = alignedFrom,
@@ -1194,15 +1359,15 @@ private suspend fun loadSketched(
         bucketMillis = bucketMillis,
         visibleFromMillis = window.fromMillis,
         visibleToMillis = window.toMillis,
-        rollup = rollup.toDoseWindowRollup(factor),
+        rollup = rollup.toWindowRollup(factor),
     )
 }
 
 /** Minute-scalar rollup → window moments in µSv/h; null when nothing is built. */
-private fun MinuteRollup.toDoseWindowRollup(factor: Float): DoseWindowRollup? {
+private fun MinuteRollup.toWindowRollup(factor: Float): WindowRollup? {
     val n = sampleCount ?: return null
     if (n <= 0) return null
-    return DoseWindowRollup(
+    return WindowRollup(
         sampleCount = n,
         sumMicroSvH = (sumDoseRate ?: 0.0) * factor,
         sumSqMicroSvH = (sumSqDoseRate ?: 0.0) * factor.toDouble() * factor,

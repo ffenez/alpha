@@ -10,13 +10,13 @@ import kotlin.math.sqrt
  * One SQL-aggregated slice of raw 1 Hz samples («под-корзина»), already in
  * µSv/h. The database groups by `timestamp / subBucketMillis`; everything the
  * chart shows is folded from these — the screen never reads individual rows,
- * which is what keeps a 30-day window bounded (see [DoseChartModel]).
+ * which is what keeps a 30-day window bounded (see [ChartSeriesModel]).
  *
  * [sumMicroSvH] and [sumSqMicroSvH] carry Σx and Σx² of the **raw** samples,
  * so the pooled mean and SD of any group of sub-buckets are exact, not an
  * average of averages.
  */
-data class DoseAggregate(
+data class ValueAggregate(
     val startMillis: Long,
     val minMicroSvH: Float,
     val maxMicroSvH: Float,
@@ -115,7 +115,35 @@ data class WindowStats(
     val quantilesExact: Boolean get() = method.exact
 
     val iqr: Float get() = q75 - q25
+
+    /**
+     * Сколько времени окна реально покрыто измерениями, секунды. Прибор пишет
+     * раз в секунду, поэтому число отсчётов — это и есть секунды покрытия.
+     */
+    val coveredSeconds: Long get() = sampleCount.toLong()
+
+    /** Доля окна, покрытая измерениями, 0…1. */
+    val coverage: Float
+        get() = if (spanMillis <= 0L) 0f else (coveredSeconds * 1000f / spanMillis).coerceIn(0f, 1f)
 }
+
+/**
+ * Честная строка о неполном окне (ТЗ полноэкранного графика §2): выбрано «6ч»,
+ * а накоплено 47 минут — и это сказано, а не спрятано пустым полем. Null,
+ * когда окно покрыто целиком: писать «данных: 6 ч из 6 ч» незачем.
+ */
+fun coverageWording(stats: WindowStats?, spanMillis: Long): String? {
+    if (stats == null) return null
+    if (stats.coverage >= COVERAGE_FULL) return null
+    return "данных: ${durationWording(stats.coveredSeconds)} из " +
+        durationWording(spanMillis / 1000)
+}
+
+/**
+ * Выше этой доли окно считается покрытым. **Инженерный параметр**: пропуски
+ * BLE в пару процентов — не «неполное окно», а обычная жизнь потока.
+ */
+const val COVERAGE_FULL = 0.95f
 
 /**
  * One stored hour of the long path (ADR 004): the exact scalars of the hour
@@ -125,7 +153,7 @@ data class WindowStats(
  * fixes the P0 limitation and keeps a five-second transient tappable at 30
  * days (CHART SPEC §21).
  */
-data class DoseHourSlice(
+data class HourSlice(
     val startMillis: Long,
     val sampleCount: Int,
     val min: Float,
@@ -140,7 +168,7 @@ data class DoseHourSlice(
  * Σx² and the extremes, all in µSv/h. Costs no row transfer — SQLite folds
  * `minute_stats` into a single row.
  */
-data class DoseWindowRollup(
+data class WindowRollup(
     val sampleCount: Int,
     val sumMicroSvH: Double,
     val sumSqMicroSvH: Double,
@@ -154,7 +182,7 @@ data class DoseWindowRollup(
  * chart can need inside it. Gestures re-project this value; they never trigger
  * another read (see the loader in `LiveChartScreen`).
  */
-data class DoseSnapshot(
+data class ChartSnapshot(
     val fromMillis: Long,
     val toMillis: Long,
     val bucketMillis: Long,
@@ -162,7 +190,7 @@ data class DoseSnapshot(
     /** Drawn columns; empty columns are absent (gaps stay gaps). */
     val buckets: List<ChartBucket>,
     /** Sub-bucket aggregates, kept for the window statistics and histogram. */
-    val aggregates: List<DoseAggregate>,
+    val aggregates: List<ValueAggregate>,
     /** Timestamps of journal events (deviations, hotspots) inside the range. */
     val eventTimesMillis: List<Long>,
     /** Which path of ADR 004 produced the quantiles of this snapshot. */
@@ -170,7 +198,7 @@ data class DoseSnapshot(
     /** Long path: all hourly sketches of the range merged into one. */
     val windowSketch: KllSketch? = null,
     /** Long path: exact window moments from the minute scalars. */
-    val rollup: DoseWindowRollup? = null,
+    val rollup: WindowRollup? = null,
     /**
      * Long path: statistics of the visible window, computed once per read.
      * The short path recomputes them per frame from [aggregates] instead —
@@ -216,7 +244,7 @@ data class DoseSnapshot(
  * The column count never exceeds [MAX_BUCKETS] + 2 on either path, and
  * gestures never re-enter this code — they only re-project the snapshot.
  */
-object DoseChartModel {
+object ChartSeriesModel {
 
     /** Columns drawn, independent of the range (≈2 px per column on a phone). */
     const val MAX_BUCKETS = 200
@@ -261,16 +289,16 @@ object DoseChartModel {
      * renders exactly as much geometry as a 15-minute one.
      */
     fun snapshot(
-        aggregates: List<DoseAggregate>,
+        aggregates: List<ValueAggregate>,
         eventTimesMillis: List<Long>,
         alignedFromMillis: Long,
         toMillis: Long,
         bucketMillis: Long,
         subBucketMillis: Long = subBucketMillis(bucketMillis),
-    ): DoseSnapshot {
+    ): ChartSnapshot {
         val count = bucketCount(toMillis - alignedFromMillis, bucketMillis)
         val buckets = fold(aggregates, alignedFromMillis, bucketMillis, count, subBucketMillis)
-        return DoseSnapshot(
+        return ChartSnapshot(
             fromMillis = alignedFromMillis,
             toMillis = toMillis,
             bucketMillis = bucketMillis,
@@ -299,19 +327,19 @@ object DoseChartModel {
      * in the data stays a gap on the chart (design-language.md).
      */
     fun fold(
-        aggregates: List<DoseAggregate>,
+        aggregates: List<ValueAggregate>,
         alignedFromMillis: Long,
         bucketMillis: Long,
         bucketCount: Int,
         subBucketMillis: Long = 1_000L,
     ): List<ChartBucket> {
         if (bucketMillis <= 0L || bucketCount <= 0) return emptyList()
-        val slots = arrayOfNulls<MutableList<DoseAggregate>>(bucketCount)
+        val slots = arrayOfNulls<MutableList<ValueAggregate>>(bucketCount)
         for (a in aggregates) {
             if (a.sampleCount <= 0) continue
             val index = ((a.startMillis - alignedFromMillis) / bucketMillis).toInt()
             if (index !in 0 until bucketCount) continue
-            val list = slots[index] ?: ArrayList<DoseAggregate>(SUB_BUCKETS_PER_BUCKET)
+            val list = slots[index] ?: ArrayList<ValueAggregate>(SUB_BUCKETS_PER_BUCKET)
                 .also { slots[index] = it }
             list += a
         }
@@ -325,7 +353,7 @@ object DoseChartModel {
     }
 
     private fun reduce(
-        parts: List<DoseAggregate>,
+        parts: List<ValueAggregate>,
         start: Long,
         end: Long,
         subBucketMillis: Long,
@@ -381,7 +409,7 @@ object DoseChartModel {
 
     /**
      * One database read of the long path → one immutable frame source. The
-     * range costs [DoseHourSlice] rows only: 720 of them for 30 days, against
+     * range costs [HourSlice] rows only: 720 of them for 30 days, against
      * 2 592 000 raw samples (CHART SPEC §34).
      *
      * [bucketMillis] must be a whole number of hours — see [QuantilePaths]: a
@@ -389,15 +417,15 @@ object DoseChartModel {
      * contains.
      */
     fun snapshotFromSketches(
-        slices: List<DoseHourSlice>,
+        slices: List<HourSlice>,
         eventTimesMillis: List<Long>,
         alignedFromMillis: Long,
         toMillis: Long,
         bucketMillis: Long,
         visibleFromMillis: Long = alignedFromMillis,
         visibleToMillis: Long = toMillis,
-        rollup: DoseWindowRollup? = null,
-    ): DoseSnapshot {
+        rollup: WindowRollup? = null,
+    ): ChartSnapshot {
         val count = bucketCount(toMillis - alignedFromMillis, bucketMillis)
         val fold = foldSketches(slices, alignedFromMillis, bucketMillis, count)
         // Window statistics describe the *visible* window, so only the hours
@@ -415,7 +443,7 @@ object DoseChartModel {
             inWindow.first().startMillis..
                 (inWindow.last().startMillis + QuantilePaths.SKETCH_PERIOD_MILLIS - 1)
         }
-        return DoseSnapshot(
+        return ChartSnapshot(
             fromMillis = alignedFromMillis,
             toMillis = toMillis,
             bucketMillis = bucketMillis,
@@ -447,18 +475,18 @@ object DoseChartModel {
      * true instants ([ChartBucket.extremeWindowMillis] = 1 s).
      */
     fun foldSketches(
-        slices: List<DoseHourSlice>,
+        slices: List<HourSlice>,
         alignedFromMillis: Long,
         bucketMillis: Long,
         bucketCount: Int,
     ): SketchFold {
         if (bucketMillis <= 0L || bucketCount <= 0) return SketchFold(emptyList(), null)
-        val slots = arrayOfNulls<MutableList<DoseHourSlice>>(bucketCount)
+        val slots = arrayOfNulls<MutableList<HourSlice>>(bucketCount)
         for (slice in slices) {
             if (slice.sampleCount <= 0) continue
             val index = ((slice.startMillis - alignedFromMillis) / bucketMillis).toInt()
             if (index !in 0 until bucketCount) continue
-            val list = slots[index] ?: ArrayList<DoseHourSlice>(4).also { slots[index] = it }
+            val list = slots[index] ?: ArrayList<HourSlice>(4).also { slots[index] = it }
             list += slice
         }
         val out = ArrayList<ChartBucket>(bucketCount)
@@ -513,7 +541,7 @@ object DoseChartModel {
      * ([WindowStats.method]).
      */
     fun windowStatsFromSketch(
-        rollup: DoseWindowRollup?,
+        rollup: WindowRollup?,
         sketch: KllSketch?,
         fromMillis: Long,
         toMillis: Long,
@@ -564,14 +592,14 @@ object DoseChartModel {
      * [atMillis] because they no longer belong to any single instant — the
      * histogram only ever asks «how much measured time sat at this level».
      */
-    fun sketchAggregates(sketch: KllSketch, atMillis: Long): List<DoseAggregate> {
+    fun sketchAggregates(sketch: KllSketch, atMillis: Long): List<ValueAggregate> {
         val items = sketch.weightedItems()
-        val out = ArrayList<DoseAggregate>(items.values.size)
+        val out = ArrayList<ValueAggregate>(items.values.size)
         for (i in items.values.indices) {
             val value = items.values[i]
             val weight = items.weights[i]
             if (weight <= 0) continue
-            out += DoseAggregate(
+            out += ValueAggregate(
                 startMillis = atMillis,
                 minMicroSvH = value,
                 maxMicroSvH = value,
@@ -593,7 +621,7 @@ object DoseChartModel {
      * (SPEC §2).
      */
     fun windowStats(
-        aggregates: List<DoseAggregate>,
+        aggregates: List<ValueAggregate>,
         fromMillis: Long,
         toMillis: Long,
     ): WindowStats? {

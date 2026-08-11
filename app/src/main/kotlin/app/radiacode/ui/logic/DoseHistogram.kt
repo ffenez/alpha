@@ -180,7 +180,7 @@ object DoseHistograms {
      * [fromMillis]..[toMillis], or the honest reason there is none.
      */
     fun distribution(
-        aggregates: List<DoseAggregate>,
+        aggregates: List<ValueAggregate>,
         fromMillis: Long,
         toMillis: Long,
         baseline: ClosedFloatingPointRange<Float>? = null,
@@ -303,7 +303,7 @@ object DoseHistograms {
         ReplaceWith("distribution(aggregates, fromMillis, toMillis, baseline, alarmLevel)"),
     )
     fun build(
-        aggregates: List<DoseAggregate>,
+        aggregates: List<ValueAggregate>,
         fromMillis: Long,
         toMillis: Long,
         baseline: ClosedFloatingPointRange<Float>? = null,
@@ -321,7 +321,7 @@ object DoseHistograms {
         }
     }
 
-    private fun inWindow(a: DoseAggregate, fromMillis: Long, toMillis: Long): Boolean =
+    private fun inWindow(a: ValueAggregate, fromMillis: Long, toMillis: Long): Boolean =
         a.sampleCount > 0 && a.startMillis >= fromMillis && a.startMillis <= toMillis
 
     /** IQR = Q75 − Q25, weighted by measured samples (nearest-rank, no interpolation). */

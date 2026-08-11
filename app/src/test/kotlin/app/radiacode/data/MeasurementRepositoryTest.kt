@@ -12,6 +12,7 @@ import app.radiacode.data.db.SampleDao
 import app.radiacode.data.db.SampleEntity
 import app.radiacode.data.db.SpectrumDao
 import app.radiacode.data.db.SpectrumMetaRow
+import app.radiacode.data.db.ValueBucketAggregate
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.protocol.Event
 import app.radiacode.protocol.EventId
@@ -36,6 +37,8 @@ internal class FakeSampleDao : SampleDao {
     override suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
     override suspend fun downsampledRangeForProfile(profileId: Long, from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
     override suspend fun doseBucketRange(from: Long, to: Long, bucketMillis: Long): List<DoseBucketAggregate> = emptyList()
+    override suspend fun countRateBucketRange(from: Long, to: Long, bucketMillis: Long): List<ValueBucketAggregate> = emptyList()
+    override suspend fun hardnessBucketRange(from: Long, to: Long, bucketMillis: Long, minCountRate: Float): List<ValueBucketAggregate> = emptyList()
     override suspend fun exclusionCountsForProfile(profileId: Long, from: Long, to: Long): List<ExclusionCount> = emptyList()
     override suspend fun exclusionCountsInRange(from: Long, to: Long): List<ExclusionCount> = emptyList()
     override suspend fun admittedCountInRange(from: Long, to: Long): Int = 0

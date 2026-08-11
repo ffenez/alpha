@@ -65,6 +65,7 @@ import app.radiacode.ui.components.TrendChart
 import app.radiacode.ui.components.TrendChartSpec
 import app.radiacode.ui.components.WhySheet
 import app.radiacode.ui.logic.ChartMapping
+import app.radiacode.ui.logic.ChartMetric
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.Evidence
 import app.radiacode.ui.logic.Freshness
@@ -131,6 +132,7 @@ private data class HardnessChart(
 fun MonitorScreen(
     graph: AppGraph,
     onOpenFingerprint: () -> Unit = {},
+    onOpenMetricChart: (ChartMetric) -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenChart: () -> Unit = {},
 ) {
@@ -275,11 +277,18 @@ fun MonitorScreen(
         )
 
         if (blocks.countRateChart) {
-            CountRateChartCard(chart = hourChart, showStats = blocks.stats)
+            CountRateChartCard(
+                chart = hourChart,
+                showStats = blocks.stats,
+                onOpen = { onOpenMetricChart(ChartMetric.COUNT_RATE) },
+            )
         }
 
         if (blocks.hardnessChart) {
-            HardnessChartCard(chart = hardnessChart)
+            HardnessChartCard(
+                chart = hardnessChart,
+                onOpen = { onOpenMetricChart(ChartMetric.HARDNESS) },
+            )
         }
 
         if (blocks.cpsHint) {
@@ -795,10 +804,22 @@ private fun hardnessOf(chart: HourChart?): HardnessChart? {
  * must not let it look like one.
  */
 @Composable
-private fun CountRateChartCard(chart: HourChart?, showStats: Boolean) {
+private fun CountRateChartCard(
+    chart: HourChart?,
+    showStats: Boolean,
+    onOpen: () -> Unit = {},
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onOpen,
+            ),
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -808,6 +829,7 @@ private fun CountRateChartCard(chart: HourChart?, showStats: Boolean) {
                 )
                 Spacer(Modifier.weight(1f))
                 Text(text = "с⁻¹", style = type.footnote, color = colors.muted)
+                Text(text = "⤢", style = type.label, color = colors.ink2)
             }
             val columns = chart?.cpsColumns.orEmpty()
             val stats = ChartMapping.stats(columns)
@@ -857,10 +879,18 @@ private fun CountRateChartCard(chart: HourChart?, showStats: Boolean) {
  * accumulates spectra in the background.
  */
 @Composable
-private fun HardnessChartCard(chart: HardnessChart?) {
+private fun HardnessChartCard(chart: HardnessChart?, onOpen: () -> Unit = {}) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onOpen,
+            ),
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -877,6 +907,12 @@ private fun HardnessChartCard(chart: HardnessChart?) {
                         color = colors.ink,
                     )
                 }
+                Text(
+                    text = "⤢",
+                    style = type.label,
+                    color = colors.ink2,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
             }
             val columns = chart?.columns.orEmpty()
             if (chart == null || columns.all { it == null }) {

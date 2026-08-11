@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import app.radiacode.ui.logic.ChartBucket
 import app.radiacode.ui.logic.ChartPixels
 import app.radiacode.ui.logic.ChartProjection
-import app.radiacode.ui.logic.DoseAggregate
+import app.radiacode.ui.logic.ValueAggregate
 import app.radiacode.ui.logic.DoseEpisode
 import app.radiacode.ui.logic.DoseReference
 import app.radiacode.ui.logic.DoseScale
@@ -80,9 +80,9 @@ data class DoseChartSpec(
     /**
      * Individual measurements, drawn as dots only when the columns are short
      * enough that one aggregate ≈ one sample (see
-     * [app.radiacode.ui.logic.DoseChartModel.rawDotsVisible]).
+     * [app.radiacode.ui.logic.ChartSeriesModel.rawDotsVisible]).
      */
-    val rawSamples: List<DoseAggregate> = emptyList(),
+    val rawSamples: List<ValueAggregate> = emptyList(),
     val endpointAlert: Boolean = false,
 )
 
@@ -121,6 +121,8 @@ fun DoseChart(
     cursorActive: Boolean = false,
     onCursorFraction: (Float) -> Unit = {},
     onCursorDismiss: () -> Unit = {},
+    /** Double tap: back to the chosen window at the live edge (spec §10). */
+    onResetScale: (() -> Unit)? = null,
     onTransform: ((panFraction: Float, zoomFactor: Float, focusFraction: Float) -> Unit)? = null,
 ) {
     val appColors = LocalAppColors.current
@@ -186,6 +188,7 @@ fun DoseChart(
         val active = rememberUpdatedState(cursorActive)
         val setCursor = rememberUpdatedState(onCursorFraction)
         val dismissCursor = rememberUpdatedState(onCursorDismiss)
+        val resetScale = rememberUpdatedState(onResetScale)
         val transform = rememberUpdatedState(onTransform)
         Spacer(
             Modifier
@@ -200,7 +203,10 @@ fun DoseChart(
                     )
                 }
                 .pointerInput(widthPx) {
-                    detectTapGestures(onTap = { if (active.value) dismissCursor.value() })
+                    detectTapGestures(
+                        onTap = { if (active.value) dismissCursor.value() },
+                        onDoubleTap = { resetScale.value?.invoke() },
+                    )
                 }
                 .pointerInput(widthPx) {
                     detectTransformGestures { centroid, pan, zoom, _ ->
@@ -274,8 +280,18 @@ private fun StaticChartLayer(
                 }
                 val unitText = spec.unitLabel.takeIf { it.isNotEmpty() }
                     ?.let { textMeasurer.measure(it, axisStyle) }
-                val alarmText = spec.alarmLabel?.let { textMeasurer.measure(it, axisStyle) }
-                val alarmY = spec.alarmLevel?.let { yOf(it) }
+                // §3: далёкий L1 НЕ растягивает ось (это делает ChartMapping),
+                // но и не исчезает — когда он выше кадра, вместо линии
+                // рисуется закреплённый указатель «↑ L1 0,30» у верхней
+                // кромки. Порог, о котором забыли, — это порог, которого нет.
+                val alarmAbove = spec.alarmLevel != null &&
+                    spec.alarmLevel > spec.scale.maxValue
+                val alarmText = spec.alarmLabel
+                    ?.let { if (alarmAbove) "↑ $it" else it }
+                    ?.let { textMeasurer.measure(it, axisStyle) }
+                val alarmY = spec.alarmLevel
+                    ?.takeIf { !alarmAbove }
+                    ?.let { yOf(it) }
                 val bandTop = spec.baselineBand?.let { yOf(it.endInclusive) }
                 val bandBottom = spec.baselineBand?.let { yOf(it.start) }
                 val baselineMedianY = spec.baselineMedian?.let { yOf(it) }
@@ -368,7 +384,15 @@ private fun StaticChartLayer(
                         )
                     }
 
-                    // 4. Named alarm level.
+                    // 4. Named alarm level — a line inside the frame, a pinned
+                    // pointer above it.
+                    if (alarmY == null && alarmAbove && alarmText != null) {
+                        drawText(
+                            textLayoutResult = alarmText,
+                            color = colors.crit,
+                            topLeft = Offset(labelInset, 1f),
+                        )
+                    }
                     if (alarmY != null) {
                         drawLine(
                             color = colors.crit.copy(alpha = 0.7f),

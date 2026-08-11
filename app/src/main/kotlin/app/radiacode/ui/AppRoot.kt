@@ -24,6 +24,7 @@ import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.NavBar
 import app.radiacode.ui.logic.NavConfig
 import app.radiacode.ui.screens.AbExperimentScreen
+import app.radiacode.ui.logic.ChartMetric
 import app.radiacode.ui.screens.FingerprintScreen
 import app.radiacode.ui.screens.HistoryScreen
 import app.radiacode.ui.screens.LiveChartScreen
@@ -97,6 +98,9 @@ private fun MainScaffold(graph: AppGraph) {
     // track map on top. Back and tab switches dismiss them.
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showFingerprint by rememberSaveable { mutableStateOf(false) }
+    // Какую величину показывает полноэкранный график: доза с карточки, счёт
+    // или жёсткость — экран и жесты одни и те же.
+    var chartMetricId by rememberSaveable { mutableStateOf(ChartMetric.DOSE.id) }
     var showLiveChart by rememberSaveable { mutableStateOf(false) }
     var showSpectrogram by rememberSaveable { mutableStateOf(false) }
     var showExperiments by rememberSaveable { mutableStateOf(false) }
@@ -128,7 +132,11 @@ private fun MainScaffold(graph: AppGraph) {
     // renders above the tab bar (and handles its own system-bar insets), so
     // the plot really does fill the screen instead of a strip in the middle.
     if (showLiveChart) {
-        LiveChartScreen(graph, onBack = { showLiveChart = false })
+        LiveChartScreen(
+            graph = graph,
+            onBack = { showLiveChart = false },
+            metric = ChartMetric.of(chartMetricId),
+        )
         return
     }
 
@@ -168,7 +176,14 @@ private fun MainScaffold(graph: AppGraph) {
                     AppTab.HOME -> MonitorScreen(
                         graph = graph,
                         onOpenSettings = { showSettings = true },
-                        onOpenChart = { showLiveChart = true },
+                        onOpenChart = {
+                            chartMetricId = ChartMetric.DOSE.id
+                            showLiveChart = true
+                        },
+                        onOpenMetricChart = { metric ->
+                            chartMetricId = metric.id
+                            showLiveChart = true
+                        },
                         onOpenFingerprint = { showFingerprint = true },
                     )
                     AppTab.SEARCH -> SearchScreen(

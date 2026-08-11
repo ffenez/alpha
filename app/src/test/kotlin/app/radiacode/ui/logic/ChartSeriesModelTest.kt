@@ -8,7 +8,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class DoseChartModelTest {
+class ChartSeriesModelTest {
 
     private fun aggregate(
         start: Long,
@@ -16,7 +16,7 @@ class DoseChartModelTest {
         count: Int = 1,
         min: Float = value,
         max: Float = value,
-    ) = DoseAggregate(
+    ) = ValueAggregate(
         startMillis = start,
         minMicroSvH = min,
         maxMicroSvH = max,
@@ -36,7 +36,7 @@ class DoseChartModelTest {
             aggregate(0, 0.10f, count = 10, min = 0.05f, max = 0.20f),
             aggregate(1_000, 0.20f, count = 10, min = 0.18f, max = 0.40f),
         )
-        val columns = DoseChartModel.fold(parts, 0L, 10_000L, 1, subBucketMillis = 1_000L)
+        val columns = ChartSeriesModel.fold(parts, 0L, 10_000L, 1, subBucketMillis = 1_000L)
         assertEquals(1, columns.size)
         val c = columns.first()
         assertEquals(0.05f, c.min)
@@ -56,7 +56,7 @@ class DoseChartModelTest {
             aggregate(0, 0.10f, count = 100),
             aggregate(1_000, 5.00f, count = 1),
         )
-        val c = DoseChartModel.fold(parts, 0L, 10_000L, 1).single()
+        val c = ChartSeriesModel.fold(parts, 0L, 10_000L, 1).single()
         assertEquals(0.10f, c.median)
         assertEquals(5.00f, c.max)
         // Every sub-bucket carries a single value → exact order statistics.
@@ -66,7 +66,7 @@ class DoseChartModelTest {
     @Test
     fun `column carries all five quantiles, ordered`() {
         val parts = (1..10).map { raw(it.toLong(), it.toFloat()) }
-        val c = DoseChartModel.fold(parts, 0L, 20_000L, 1).single()
+        val c = ChartSeriesModel.fold(parts, 0L, 20_000L, 1).single()
         assertEquals(1f, c.q10)
         assertEquals(3f, c.q25)
         assertEquals(5f, c.median)
@@ -78,7 +78,7 @@ class DoseChartModelTest {
 
     @Test
     fun `a single-sample column collapses every quantile onto the value`() {
-        val c = DoseChartModel.fold(listOf(raw(0, 0.42f)), 0L, 10_000L, 1).single()
+        val c = ChartSeriesModel.fold(listOf(raw(0, 0.42f)), 0L, 10_000L, 1).single()
         assertEquals(0.42f, c.q10)
         assertEquals(0.42f, c.q25)
         assertEquals(0.42f, c.median)
@@ -94,7 +94,7 @@ class DoseChartModelTest {
     fun `duplicate timestamps inside one second are honest about exactness`() {
         // Two readings inside the same second: SQL folds them into one
         // sub-bucket whose mean is neither of them.
-        val duplicate = DoseAggregate(
+        val duplicate = ValueAggregate(
             startMillis = 0L,
             minMicroSvH = 0.10f,
             maxMicroSvH = 0.30f,
@@ -102,7 +102,7 @@ class DoseChartModelTest {
             sumSqMicroSvH = 0.10,
             sampleCount = 2,
         )
-        val c = DoseChartModel.fold(listOf(duplicate, raw(1, 0.5f)), 0L, 10_000L, 1).single()
+        val c = ChartSeriesModel.fold(listOf(duplicate, raw(1, 0.5f)), 0L, 10_000L, 1).single()
         assertFalse(c.quantilesExact)
         assertEquals(0.10f, c.min)
         assertEquals(0.5f, c.max)
@@ -113,8 +113,8 @@ class DoseChartModelTest {
     fun `out-of-order sub-buckets fold into the same column as sorted ones`() {
         val ordered = (1..5).map { raw(it.toLong(), it.toFloat()) }
         val shuffled = listOf(raw(3, 3f), raw(1, 1f), raw(5, 5f), raw(2, 2f), raw(4, 4f))
-        val a = DoseChartModel.fold(ordered, 0L, 10_000L, 1).single()
-        val b = DoseChartModel.fold(shuffled, 0L, 10_000L, 1).single()
+        val a = ChartSeriesModel.fold(ordered, 0L, 10_000L, 1).single()
+        val b = ChartSeriesModel.fold(shuffled, 0L, 10_000L, 1).single()
         assertEquals(a.median, b.median)
         assertEquals(a.q10, b.q10)
         assertEquals(a.q90, b.q90)
@@ -125,7 +125,7 @@ class DoseChartModelTest {
     @Test
     fun `extreme numeric values survive folding without overflow`() {
         val parts = listOf(raw(0, 1e-6f), raw(1, 1e6f), raw(2, 0f))
-        val c = DoseChartModel.fold(parts, 0L, 10_000L, 1).single()
+        val c = ChartSeriesModel.fold(parts, 0L, 10_000L, 1).single()
         assertEquals(0f, c.min)
         assertEquals(1e6f, c.max)
         assertEquals(1e-6f, c.median)
@@ -135,7 +135,7 @@ class DoseChartModelTest {
     @Test
     fun `empty columns are absent, not interpolated`() {
         val parts = listOf(aggregate(0, 0.1f), aggregate(20_000, 0.3f))
-        val columns = DoseChartModel.fold(parts, 0L, 10_000L, 3)
+        val columns = ChartSeriesModel.fold(parts, 0L, 10_000L, 3)
         assertEquals(2, columns.size)
         assertEquals(0L, columns[0].startMillis)
         assertEquals(20_000L, columns[1].startMillis)
@@ -144,7 +144,7 @@ class DoseChartModelTest {
     @Test
     fun `sub-buckets outside the frame are dropped`() {
         val parts = listOf(aggregate(-5_000, 9f), aggregate(50_000, 9f), aggregate(0, 0.1f))
-        val columns = DoseChartModel.fold(parts, 0L, 10_000L, 2)
+        val columns = ChartSeriesModel.fold(parts, 0L, 10_000L, 2)
         assertEquals(1, columns.size)
         assertEquals(0.1f, columns.single().median)
     }
@@ -152,9 +152,9 @@ class DoseChartModelTest {
     @Test
     fun `the extremum timestamp carries the resolution it really has`() {
         val parts = listOf(aggregate(0, 1f, count = 60, min = 1f, max = 3f))
-        val coarse = DoseChartModel.fold(parts, 0L, 600_000L, 1, subBucketMillis = 60_000L).single()
+        val coarse = ChartSeriesModel.fold(parts, 0L, 600_000L, 1, subBucketMillis = 60_000L).single()
         assertEquals(60_000L, coarse.extremeWindowMillis)
-        val fine = DoseChartModel.fold(listOf(raw(0, 1f)), 0L, 10_000L, 1).single()
+        val fine = ChartSeriesModel.fold(listOf(raw(0, 1f)), 0L, 10_000L, 1).single()
         assertEquals(1_000L, fine.extremeWindowMillis)
     }
 
@@ -163,7 +163,7 @@ class DoseChartModelTest {
     @Test
     fun `window stats give exact SD and nearest-rank percentiles`() {
         val parts = (1..10).map { aggregate(it * 1_000L, it.toFloat()) }
-        val stats = DoseChartModel.windowStats(parts, 0L, 20_000L)
+        val stats = ChartSeriesModel.windowStats(parts, 0L, 20_000L)
         assertNotNull(stats)
         assertEquals(1f, stats.min)
         assertEquals(10f, stats.max)
@@ -190,7 +190,7 @@ class DoseChartModelTest {
             aggregate(0, 0.1f, count = 1_000),
             aggregate(1_000, 9.0f, count = 1),
         )
-        val stats = DoseChartModel.windowStats(parts, 0L, 10_000L)!!
+        val stats = ChartSeriesModel.windowStats(parts, 0L, 10_000L)!!
         assertEquals(0.1f, stats.median)
         assertEquals(0.1f, stats.p90)
         assertEquals(9.0f, stats.max)
@@ -200,9 +200,9 @@ class DoseChartModelTest {
 
     @Test
     fun `window stats of an empty range are null, not zeros`() {
-        assertNull(DoseChartModel.windowStats(emptyList(), 0L, 1_000L))
+        assertNull(ChartSeriesModel.windowStats(emptyList(), 0L, 1_000L))
         assertNull(
-            DoseChartModel.windowStats(listOf(aggregate(0, 1f)), 50_000L, 60_000L),
+            ChartSeriesModel.windowStats(listOf(aggregate(0, 1f)), 50_000L, 60_000L),
         )
     }
 
@@ -210,9 +210,9 @@ class DoseChartModelTest {
     fun `weighted percentile matches the baseline engine definition`() {
         val values = floatArrayOf(3f, 1f, 2f)
         val weights = intArrayOf(1, 1, 1)
-        assertEquals(1f, DoseChartModel.weightedPercentile(values, weights, 0.0))
-        assertEquals(2f, DoseChartModel.weightedPercentile(values, weights, 0.5))
-        assertEquals(3f, DoseChartModel.weightedPercentile(values, weights, 1.0))
+        assertEquals(1f, ChartSeriesModel.weightedPercentile(values, weights, 0.0))
+        assertEquals(2f, ChartSeriesModel.weightedPercentile(values, weights, 0.5))
+        assertEquals(3f, ChartSeriesModel.weightedPercentile(values, weights, 1.0))
     }
 
     @Test
@@ -220,9 +220,9 @@ class DoseChartModelTest {
         val values = FloatArray(37) { (it * 7 % 37).toFloat() }
         val weights = IntArray(37) { 1 + it % 3 }
         val qs = doubleArrayOf(0.10, 0.25, 0.50, 0.75, 0.90)
-        val many = DoseChartModel.weightedPercentiles(values, weights, qs)
+        val many = ChartSeriesModel.weightedPercentiles(values, weights, qs)
         qs.forEachIndexed { i, q ->
-            assertEquals(DoseChartModel.weightedPercentile(values, weights, q), many[i])
+            assertEquals(ChartSeriesModel.weightedPercentile(values, weights, q), many[i])
         }
     }
 
@@ -230,10 +230,10 @@ class DoseChartModelTest {
     fun `MAD is the weighted median absolute deviation, no normality factor`() {
         val values = floatArrayOf(1f, 2f, 3f, 4f, 100f)
         val weights = intArrayOf(1, 1, 1, 1, 1)
-        val median = DoseChartModel.weightedPercentile(values, weights, 0.5)
+        val median = ChartSeriesModel.weightedPercentile(values, weights, 0.5)
         assertEquals(3f, median)
         // |1-3|,|2-3|,|3-3|,|4-3|,|100-3| = 2,1,0,1,97 → median 1.
-        assertEquals(1f, DoseChartModel.weightedMad(values, weights, median))
+        assertEquals(1f, ChartSeriesModel.weightedMad(values, weights, median))
     }
 
     // --- exact vs approximate quantiles (ADR 004, spec §29/§34/§37G) ---
@@ -254,7 +254,7 @@ class DoseChartModelTest {
         val exactRows = List(seconds) { raw(it.toLong(), values[it]) }
         val minuteRows = (0 until seconds / 60).map { minute ->
             val slice = values.copyOfRange(minute * 60, minute * 60 + 60)
-            DoseAggregate(
+            ValueAggregate(
                 startMillis = minute * 60_000L,
                 minMicroSvH = slice.min(),
                 maxMicroSvH = slice.max(),
@@ -263,8 +263,8 @@ class DoseChartModelTest {
                 sampleCount = slice.size,
             )
         }
-        val exact = DoseChartModel.windowStats(exactRows, 0L, 3_600_000L)!!
-        val approx = DoseChartModel.windowStats(minuteRows, 0L, 3_600_000L)!!
+        val exact = ChartSeriesModel.windowStats(exactRows, 0L, 3_600_000L)!!
+        val approx = ChartSeriesModel.windowStats(minuteRows, 0L, 3_600_000L)!!
 
         assertTrue(exact.quantilesExact)
         assertFalse(approx.quantilesExact, "minute means are not raw samples")
@@ -287,9 +287,9 @@ class DoseChartModelTest {
 
     @Test
     fun `raw dots appear only when a column holds a handful of samples`() {
-        assertTrue(DoseChartModel.rawDotsVisible(1_000L))
-        assertTrue(DoseChartModel.rawDotsVisible(DoseChartModel.RAW_DOTS_MAX_BUCKET_MILLIS))
-        assertTrue(!DoseChartModel.rawDotsVisible(60_000L))
+        assertTrue(ChartSeriesModel.rawDotsVisible(1_000L))
+        assertTrue(ChartSeriesModel.rawDotsVisible(ChartSeriesModel.RAW_DOTS_MAX_BUCKET_MILLIS))
+        assertTrue(!ChartSeriesModel.rawDotsVisible(60_000L))
     }
 
     @Test
@@ -297,11 +297,11 @@ class DoseChartModelTest {
         // A 1-hour window aggregates into 1-second sub-buckets: exact.
         assertEquals(
             1_000L,
-            DoseChartModel.subBucketMillis(DoseChartModel.bucketMillis(3_600_000L)),
+            ChartSeriesModel.subBucketMillis(ChartSeriesModel.bucketMillis(3_600_000L)),
         )
         // A 24-hour window cannot: its sub-buckets average many seconds.
         assertTrue(
-            DoseChartModel.subBucketMillis(DoseChartModel.bucketMillis(24 * 3_600_000L)) > 1_000L,
+            ChartSeriesModel.subBucketMillis(ChartSeriesModel.bucketMillis(24 * 3_600_000L)) > 1_000L,
         )
     }
 
@@ -320,12 +320,12 @@ class DoseChartModelTest {
 
         for (s in listOf(short, week, month)) {
             assertTrue(
-                s.buckets.size <= DoseChartModel.MAX_BUCKETS + 2,
+                s.buckets.size <= ChartSeriesModel.MAX_BUCKETS + 2,
                 "columns ${s.buckets.size} exceed the cap",
             )
             assertTrue(
                 s.aggregates.size <=
-                    (DoseChartModel.MAX_BUCKETS + 2) * DoseChartModel.SUB_BUCKETS_PER_BUCKET,
+                    (ChartSeriesModel.MAX_BUCKETS + 2) * ChartSeriesModel.SUB_BUCKETS_PER_BUCKET,
                 "rows ${s.aggregates.size} exceed the query budget",
             )
         }
@@ -337,7 +337,7 @@ class DoseChartModelTest {
     @Test
     fun `seven days of synthetic data still yield usable statistics`() {
         val snapshot = snapshotOf(spanMillis = 7L * 24 * 3_600_000L)
-        val stats = DoseChartModel.windowStats(
+        val stats = ChartSeriesModel.windowStats(
             snapshot.aggregates,
             snapshot.fromMillis,
             snapshot.toMillis,
@@ -349,12 +349,12 @@ class DoseChartModelTest {
     }
 
     /** A full synthetic range aggregated exactly as the loader would. */
-    private fun snapshotOf(spanMillis: Long): DoseSnapshot {
-        val bucketMillis = DoseChartModel.bucketMillis(spanMillis)
-        val subMillis = DoseChartModel.subBucketMillis(bucketMillis)
+    private fun snapshotOf(spanMillis: Long): ChartSnapshot {
+        val bucketMillis = ChartSeriesModel.bucketMillis(spanMillis)
+        val subMillis = ChartSeriesModel.subBucketMillis(bucketMillis)
         val from = 0L
         val to = spanMillis
-        val rows = ArrayList<DoseAggregate>()
+        val rows = ArrayList<ValueAggregate>()
         var t = from
         var i = 0
         while (t < to) {
@@ -364,7 +364,7 @@ class DoseChartModelTest {
             t += subMillis
             i++
         }
-        return DoseChartModel.snapshot(
+        return ChartSeriesModel.snapshot(
             aggregates = rows,
             eventTimesMillis = emptyList(),
             alignedFromMillis = from,
