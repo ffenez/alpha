@@ -176,6 +176,56 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 8 to 9 produces exactly the exported v9 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(8))
+            MigrationSql.FROM_8_TO_9.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(9))
+        }
+    }
+
+    @Test
+    fun `migration 8 to 9 keeps every profile and starts every epoch open`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(8))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO profiles " +
+                        "(id, name, icon, parentId, archived, autoActivate, " +
+                        "baselineLearning, role, createdAt) " +
+                        "VALUES (7, 'Дом', '', NULL, 0, 1, 1, 'user', 100)",
+                )
+            }
+
+            MigrationSql.FROM_8_TO_9.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT name, baselineEpochMillis, shiftDeclinedAtMillis FROM profiles",
+                )
+                assertTrue(rows.next())
+                assertEquals("Дом", rows.getString("name"))
+                // NULL epoch = «the whole sliding window», i.e. exactly the
+                // behaviour of every version before this one.
+                rows.getLong("baselineEpochMillis")
+                assertTrue(rows.wasNull(), "an existing profile keeps its whole history")
+                rows.getLong("shiftDeclinedAtMillis")
+                assertTrue(rows.wasNull())
+                assertTrue(!rows.next())
+            }
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery("SELECT COUNT(*) AS n FROM baseline_epochs")
+                rows.next()
+                assertEquals(0, rows.getInt("n"), "no period is closed by a migration")
+            }
+        }
+    }
+
+    @Test
     fun `migration 7 to 8 keeps samples and starts the pre-aggregation empty`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(7))

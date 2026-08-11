@@ -68,6 +68,8 @@ import app.radiacode.ui.logic.Evidence
 import app.radiacode.ui.logic.Freshness
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.MonitorStatus
+import app.radiacode.ui.logic.BaselineSnapshot
+import app.radiacode.ui.logic.ProfileShift
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.TimeAxis
 import app.radiacode.ui.logic.TrendFit
@@ -261,9 +263,38 @@ fun MonitorScreen(
     }
 
     if (showWhy) {
+        // §7: after hours of a held deviation the app may ask whether the place
+        // itself changed. It never decides that by itself — a source that stays
+        // put would otherwise redefine the room it is in.
+        val profile = activeProfile
+        val shiftOffered = profile != null && ProfileShift.shouldOffer(
+            status = status,
+            declinedAtMillis = profile.shiftDeclinedAtMillis,
+            nowMillis = System.currentTimeMillis(),
+        )
         WhySheet(
             expanded = whyExpanded,
             onExpandedChange = { scope.launch { graph.settings.setWhyCalculationsExpanded(it) } },
+            offerProfileShift = shiftOffered,
+            onUpdateProfile = {
+                val profileId = profile?.id
+                val current = (baselineState as? BaselineState.Active)?.baseline
+                if (profileId != null && current != null) {
+                    scope.launch {
+                        graph.baselineRepository.startNewPeriod(
+                            profileId = profileId,
+                            stats = BaselineSnapshot.encode(current),
+                        )
+                    }
+                }
+                showWhy = false
+            },
+            onKeepProfile = {
+                profile?.id?.let { id ->
+                    scope.launch { graph.baselineRepository.declineShift(id) }
+                }
+                showWhy = false
+            },
             input = WhyInput(
                 status = status,
                 baselineState = baselineState,

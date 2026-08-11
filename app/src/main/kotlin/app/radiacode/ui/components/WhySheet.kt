@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import app.radiacode.ui.logic.ProfileShift
 import app.radiacode.ui.logic.WhyInput
 import app.radiacode.ui.logic.WhyLine
 import app.radiacode.ui.logic.WhyReport
@@ -48,6 +49,10 @@ fun WhySheet(
     input: WhyInput,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
+    /** §7: the deviation has held long enough to ask about the place itself. */
+    offerProfileShift: Boolean = false,
+    onUpdateProfile: () -> Unit = {},
+    onKeepProfile: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val colors = LocalAppColors.current
@@ -96,6 +101,14 @@ fun WhySheet(
                     verticalArrangement = Arrangement.spacedBy(Dimens.space3),
                 ) {
                     report.sections.filter { !it.advanced }.forEach { SectionBlock(it) }
+
+                    if (offerProfileShift) {
+                        ProfileShiftBlock(
+                            profileName = input.profileName,
+                            onUpdate = onUpdateProfile,
+                            onKeep = onKeepProfile,
+                        )
+                    }
 
                     if (report.hasAdvanced) {
                         Chip(
@@ -163,6 +176,43 @@ private fun BandScale(scale: WhyScale, tone: Color) {
             )
             Spacer(Modifier.weight(1f))
             Text(text = "P90 ${scale.highLabel}", style = type.axis, color = colors.muted)
+        }
+    }
+}
+
+/**
+ * «Уровень изменился надолго» (§7). The app may ask; only the user may answer,
+ * and both answers are spelled out before either is pressed — the update is
+ * not something the app can undo for them.
+ */
+@Composable
+private fun ProfileShiftBlock(
+    profileName: String?,
+    onUpdate: () -> Unit,
+    onKeep: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+        StatusRow(text = ProfileShift.TITLE, color = colors.warn)
+        Text(
+            text = ProfileShift.sentence(profileName),
+            style = type.bodySmall,
+            color = colors.ink2,
+        )
+        Text(text = ProfileShift.EXPLANATION, style = type.footnote, color = colors.muted)
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            AppButton(
+                text = ProfileShift.UPDATE_ACTION,
+                onClick = onUpdate,
+                primary = true,
+                modifier = Modifier.weight(1f),
+            )
+            AppButton(
+                text = ProfileShift.KEEP_ACTION,
+                onClick = onKeep,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }

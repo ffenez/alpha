@@ -258,6 +258,18 @@ interface ProfileDao {
     @Query("UPDATE profiles SET parentId = NULL WHERE parentId = :profileId")
     suspend fun detachChildren(profileId: Long)
 
+    @Query("UPDATE profiles SET baselineEpochMillis = :epochMillis, shiftDeclinedAtMillis = NULL WHERE id = :profileId")
+    suspend fun setBaselineEpoch(profileId: Long, epochMillis: Long)
+
+    @Query("UPDATE profiles SET shiftDeclinedAtMillis = :atMillis WHERE id = :profileId")
+    suspend fun setShiftDeclined(profileId: Long, atMillis: Long)
+
+    @Insert
+    suspend fun insertEpoch(epoch: BaselineEpochEntity): Long
+
+    @Query("SELECT * FROM baseline_epochs WHERE profileId = :profileId ORDER BY endedAtMillis DESC")
+    suspend fun epochs(profileId: Long): List<BaselineEpochEntity>
+
     @Query("SELECT * FROM profiles ORDER BY createdAt")
     fun observeAll(): Flow<List<ProfileEntity>>
 

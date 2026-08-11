@@ -1,5 +1,6 @@
 package app.radiacode.data
 
+import app.radiacode.data.db.BaselineEpochEntity
 import app.radiacode.data.db.ProfileDao
 import app.radiacode.data.db.ProfileEntity
 import app.radiacode.data.db.ProfileMaintenanceDao
@@ -71,6 +72,31 @@ class ProfileRepositoryTest {
             profiles.firstOrNull { it.role == role }
 
         override suspend fun count(): Long = profiles.size.toLong()
+
+        val epochs = mutableListOf<BaselineEpochEntity>()
+
+        override suspend fun setBaselineEpoch(profileId: Long, epochMillis: Long) {
+            val index = profiles.indexOfFirst { it.id == profileId }
+            if (index >= 0) {
+                profiles[index] = profiles[index].copy(
+                    baselineEpochMillis = epochMillis,
+                    shiftDeclinedAtMillis = null,
+                )
+            }
+        }
+
+        override suspend fun setShiftDeclined(profileId: Long, atMillis: Long) {
+            val index = profiles.indexOfFirst { it.id == profileId }
+            if (index >= 0) profiles[index] = profiles[index].copy(shiftDeclinedAtMillis = atMillis)
+        }
+
+        override suspend fun insertEpoch(epoch: BaselineEpochEntity): Long {
+            epochs += epoch.copy(id = epochs.size + 1L)
+            return epochs.size.toLong()
+        }
+
+        override suspend fun epochs(profileId: Long): List<BaselineEpochEntity> =
+            epochs.filter { it.profileId == profileId }.sortedByDescending { it.endedAtMillis }
 
         override suspend fun insertNetwork(network: ProfileNetworkEntity): Long {
             networks.removeAll { it.networkHash == network.networkHash }

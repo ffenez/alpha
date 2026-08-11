@@ -94,7 +94,9 @@ class AppGraph private constructor(context: Context) {
         )
     }
 
-    val baselineRepository: BaselineRepository by lazy { BaselineRepository(database.sampleDao()) }
+    val baselineRepository: BaselineRepository by lazy {
+        BaselineRepository(database.sampleDao(), database.profileDao())
+    }
 
     val sessionRepository: SessionRepository by lazy {
         SessionRepository(

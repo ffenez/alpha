@@ -147,6 +147,18 @@ data class ProfileEntity(
     val baselineLearning: Boolean = true,
     /** [ROLE_USER], [ROLE_TRANSIT] or [ROLE_NO_PLACE]. */
     val role: String = ROLE_USER,
+    /**
+     * Earliest instant this profile's baseline statistics may look at; null =
+     * the whole sliding window (why-spec §7).
+     *
+     * It moves only when the **user** confirms that the place itself changed.
+     * Raw measurements before it are never touched — they simply stop feeding
+     * the historical range, and the period they described is kept in
+     * [BaselineEpochEntity].
+     */
+    val baselineEpochMillis: Long? = null,
+    /** When «оставить как есть» was last chosen, so the offer stops nagging. */
+    val shiftDeclinedAtMillis: Long? = null,
     val createdAt: Long,
 ) {
     companion object {
@@ -501,4 +513,36 @@ data class HourSketchEntity(
     override fun equals(other: Any?): Boolean =
         other is HourSketchEntity && other.hourStart == hourStart
     override fun hashCode(): Int = hourStart.hashCode()
+}
+
+
+/**
+ * A closed baseline period of a profile (why-spec §7).
+ *
+ * When the user confirms that the situation itself changed, the historical
+ * range that was in force is written here and a new period begins. Nothing is
+ * recalculated and nothing is deleted: this row is the record of what «обычно
+ * здесь» used to mean and when that stopped being true.
+ */
+@Entity(
+    tableName = "baseline_epochs",
+    indices = [Index(value = ["profileId", "endedAtMillis"])],
+)
+data class BaselineEpochEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val profileId: Long,
+    /** Start of the closed period; equals the previous epoch or the first data. */
+    val startedAtMillis: Long,
+    /** The instant the user started the new period. */
+    val endedAtMillis: Long,
+    /** Flat JSON snapshot of the band that was in force ([app.radiacode.data.JsonMap]). */
+    val stats: String,
+    /** Why the period ended; [REASON_USER_SHIFT] is the only one today. */
+    val reason: String,
+    val createdAt: Long,
+) {
+    companion object {
+        /** The user confirmed «Уровень изменился надолго → Обновить профиль». */
+        const val REASON_USER_SHIFT = "user_shift"
+    }
 }

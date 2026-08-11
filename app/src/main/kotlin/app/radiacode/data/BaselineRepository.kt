@@ -5,6 +5,8 @@ import app.radiacode.baseline.BaselineComputer
 import app.radiacode.baseline.BaselineConfig
 import app.radiacode.baseline.BaselineExclusion
 import app.radiacode.baseline.BaselineState
+import app.radiacode.data.db.BaselineEpochEntity
+import app.radiacode.data.db.ProfileDao
 import app.radiacode.data.db.SampleDao
 import app.radiacode.device.DoseUnits
 
@@ -23,12 +25,13 @@ data class ExclusionSummary(val reason: BaselineExclusion, val seconds: Long)
  */
 class BaselineRepository(
     private val sampleDao: SampleDao,
+    private val profileDao: ProfileDao? = null,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
 
     suspend fun state(profileId: Long): BaselineState {
         val to = clock()
-        val from = to - windowMillis()
+        val from = windowStart(profileId, to)
         val buckets = sampleDao.downsampledRangeForProfile(
             profileId = profileId,
             from = from,
@@ -53,12 +56,53 @@ class BaselineRepository(
      */
     suspend fun exclusions(profileId: Long): List<ExclusionSummary> {
         val to = clock()
-        val from = to - windowMillis()
+        val from = windowStart(profileId, to)
         return sampleDao.exclusionCountsForProfile(profileId, from, to).mapNotNull { row ->
             BaselineExclusion.fromStorage(row.reason)?.let {
                 ExclusionSummary(it, row.samples.toLong())
             }
         }
+    }
+
+    /**
+     * Start of the window the statistics may read: the sliding window, cut at
+     * the profile's baseline epoch if the user started a new period
+     * (why-spec §7). The samples before it stay in the database untouched —
+     * they simply stop describing «обычно здесь».
+     */
+    private suspend fun windowStart(profileId: Long, nowMillis: Long): Long {
+        val sliding = nowMillis - windowMillis()
+        val epoch = profileDao?.byId(profileId)?.baselineEpochMillis ?: return sliding
+        return maxOf(sliding, epoch)
+    }
+
+    /**
+     * Starts a new baseline period for a profile, keeping the old one.
+     *
+     * Called **only** from the user's explicit «Обновить профиль» (why-spec
+     * §7): a long deviation may never become the new usual by itself, because
+     * then a source that stays put would quietly redefine the place it is in.
+     */
+    suspend fun startNewPeriod(profileId: Long, stats: String) {
+        val dao = profileDao ?: return
+        val now = clock()
+        val previous = dao.byId(profileId)?.baselineEpochMillis
+        dao.insertEpoch(
+            BaselineEpochEntity(
+                profileId = profileId,
+                startedAtMillis = previous ?: (now - windowMillis()),
+                endedAtMillis = now,
+                stats = stats,
+                reason = BaselineEpochEntity.REASON_USER_SHIFT,
+                createdAt = now,
+            ),
+        )
+        dao.setBaselineEpoch(profileId, now)
+    }
+
+    /** «Оставить как есть» — remembered so the offer stops coming back. */
+    suspend fun declineShift(profileId: Long) {
+        profileDao?.setShiftDeclined(profileId, clock())
     }
 
     private fun windowMillis(): Long = BaselineConfig.WINDOW_DAYS * 24L * 3600_000L

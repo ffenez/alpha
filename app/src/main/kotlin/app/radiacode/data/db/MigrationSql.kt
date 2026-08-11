@@ -63,6 +63,38 @@ object MigrationSql {
     )
 
     /**
+     * v8 → v9: a profile's baseline may be **started over** by the user
+     * (why-spec §7), and the old period is kept.
+     *
+     * Strategy — add only:
+     *  - `profiles.baselineEpochMillis` is the earliest instant the statistics
+     *    of that profile may look at; NULL (every existing row) means «the
+     *    whole sliding window», which is exactly today's behaviour;
+     *  - `profiles.shiftDeclinedAtMillis` remembers «оставить как есть», so the
+     *    offer does not come back every time the sheet is opened;
+     *  - `baseline_epochs` keeps the closed period with a snapshot of the band
+     *    it had. Raw measurements are **never** touched by any of this: the
+     *    epoch moves what the statistics read, not what the app stored.
+     */
+    val FROM_8_TO_9: List<String> = listOf(
+        "ALTER TABLE `profiles` ADD COLUMN `baselineEpochMillis` INTEGER",
+        "ALTER TABLE `profiles` ADD COLUMN `shiftDeclinedAtMillis` INTEGER",
+        """
+        CREATE TABLE IF NOT EXISTS `baseline_epochs` (
+            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            `profileId` INTEGER NOT NULL,
+            `startedAtMillis` INTEGER NOT NULL,
+            `endedAtMillis` INTEGER NOT NULL,
+            `stats` TEXT NOT NULL,
+            `reason` TEXT NOT NULL,
+            `createdAt` INTEGER NOT NULL
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS `index_baseline_epochs_profileId_endedAtMillis` " +
+            "ON `baseline_epochs` (`profileId`, `endedAtMillis`)",
+    )
+
+    /**
      * v6 → v7: A/B research experiments (spec §9, §16) and the reproducibility
      * stamp of derived spectra (spec §22).
      *
