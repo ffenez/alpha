@@ -5,6 +5,7 @@ import app.radiacode.data.AppSettings
 import app.radiacode.data.BaselineRepository
 import app.radiacode.data.ExperimentRepository
 import app.radiacode.data.MeasurementRepository
+import app.radiacode.data.PreAggregateRepository
 import app.radiacode.data.ProfileRepository
 import app.radiacode.data.SessionRepository
 import app.radiacode.data.TrackRepository
@@ -12,6 +13,7 @@ import app.radiacode.context.ContextController
 import app.radiacode.context.ContextHub
 import app.radiacode.context.WifiNetworkSource
 import app.radiacode.data.db.AppDatabase
+import app.radiacode.data.preagg.PreAggregator
 import app.radiacode.device.DeviceLinkFactory
 import app.radiacode.device.KableLinkFactory
 import app.radiacode.device.RadiaCodeScanner
@@ -40,6 +42,18 @@ class AppGraph private constructor(context: Context) {
     }
 
     val trackRepository: TrackRepository by lazy { TrackRepository(database.trackDao()) }
+
+    /** Read side of the minute/hour pre-aggregation (ADR 004). */
+    val preAggregateRepository: PreAggregateRepository by lazy {
+        PreAggregateRepository(database.preAggregateDao())
+    }
+
+    /**
+     * The single writer of the pre-aggregation: closes minutes and hours while
+     * measuring and backfills existing history once. Started from the
+     * measurement service, so there is never a second writer.
+     */
+    val preAggregator: PreAggregator by lazy { PreAggregator(database.preAggregateDao()) }
 
     /** A/B research experiments (spec §9, §16). */
     val experimentRepository: ExperimentRepository by lazy {

@@ -152,6 +152,9 @@ class MeasurementService : Service() {
         }
         // Wi-Fi context: no GPS involved (spec §3.3).
         graph.contextController.start(scope)
+        // Versioned pre-aggregation of ADR 004: minute scalars and hourly
+        // quantile sketches. Owns its own IO loop and history backfill.
+        graph.preAggregator.start(scope)
         scope.launch {
             graph.settings.alarmThresholds.collect { next ->
                 val persistenceChanged = next.persistenceSeconds != thresholds.persistenceSeconds
