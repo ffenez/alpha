@@ -98,6 +98,12 @@ object AlgorithmVersions {
     const val SEARCH_LADDER = 1
 
     /**
+     * Жёсткость: share of the counts above the split energy ([Hardness]).
+     * v1 = fixed 100/300/1500 keV bands, binomial σ of the fraction.
+     */
+    const val HARDNESS = 1
+
+    /**
      * Поиск: shape-only comparison of two accumulated spectra ([ShapeChange],
      * search redesign §13). v1 = two-sample χ² homogeneity on merged energy
      * bands, significance through the shared Wilson–Hilferty transform.
@@ -133,6 +139,7 @@ object AlgorithmVersions {
         "rate_comparison" to RATE_COMPARISON,
         "search_ladder" to SEARCH_LADDER,
         "shape_change" to SHAPE_CHANGE,
+        "hardness" to HARDNESS,
         "anomaly_test_candidate" to ANOMALY_TEST_CANDIDATE,
     )
 

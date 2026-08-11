@@ -42,6 +42,7 @@ class AlgorithmVersionsTest {
         assertEquals(1, AlgorithmVersions.RATE_COMPARISON)
         assertEquals(1, AlgorithmVersions.SEARCH_LADDER)
         assertEquals(1, AlgorithmVersions.SHAPE_CHANGE)
+        assertEquals(1, AlgorithmVersions.HARDNESS)
     }
 
     @Test
@@ -61,6 +62,7 @@ class AlgorithmVersionsTest {
         )
         assertEquals(AlgorithmVersions.RATE_COMPARISON, RateComparison.ALGORITHM_VERSION)
         assertEquals(AlgorithmVersions.SHAPE_CHANGE, ShapeChange.ALGORITHM_VERSION)
+        assertEquals(AlgorithmVersions.HARDNESS, Hardness.ALGORITHM_VERSION)
         assertEquals(
             AlgorithmVersions.SEARCH_LADDER,
             app.radiacode.ui.logic.SearchLadder.ALGORITHM_VERSION,
@@ -94,6 +96,7 @@ class AlgorithmVersionsTest {
             "rate_comparison",
             "search_ladder",
             "shape_change",
+            "hardness",
         )
         assertEquals(expected, AlgorithmVersions.all.keys)
         assertTrue(AlgorithmVersions.all.values.all { it >= 1 })

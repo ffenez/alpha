@@ -36,6 +36,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
+import app.radiacode.analysis.EnergyCalibration
+import app.radiacode.analysis.Hardness
+import app.radiacode.analysis.RadonTrend
+import app.radiacode.data.toSpectrum
 import app.radiacode.baseline.Admission
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
@@ -83,6 +87,7 @@ import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -90,6 +95,9 @@ private const val CHART_COLUMNS = 48
 private const val CHART_WINDOW_MILLIS = 60L * 60_000L
 private const val CHART_BUCKET_MILLIS = CHART_WINDOW_MILLIS / CHART_COLUMNS
 private const val CHART_REFRESH_MILLIS = 15_000L
+
+/** Жёсткость is an hourly quantity; refreshing it faster buys nothing. */
+private const val HARDNESS_REFRESH_MILLIS = 5L * 60_000L
 
 /** Hour-chart snapshot loaded off the 1 Hz path; values in µSv/h. */
 @Immutable
@@ -101,6 +109,17 @@ private data class HourChart(
     val fromMillis: Long,
     val toMillis: Long,
     val doseTodayMicroSv: Double,
+    /** Same buckets, count rate — drawn only when the block is on. */
+    val cpsColumns: List<Float?> = emptyList(),
+)
+
+/** Жёсткость за сутки: hourly points from accumulated spectra. */
+@Immutable
+private data class HardnessChart(
+    val columns: List<Float?>,
+    val current: Hardness.HourPoint?,
+    val fromMillis: Long,
+    val toMillis: Long,
 )
 
 /**
@@ -148,6 +167,20 @@ fun MonitorScreen(
         while (true) {
             hourChart = loadHourChart(graph)
             delay(CHART_REFRESH_MILLIS)
+        }
+    }
+
+    // Жёсткость reads accumulated spectra, so it is loaded only while its
+    // block is on — and slowly: an hourly point cannot change every 15 s.
+    var hardnessChart by remember { mutableStateOf<HardnessChart?>(null) }
+    LaunchedEffect(blocks.hardnessChart) {
+        if (!blocks.hardnessChart) {
+            hardnessChart = null
+            return@LaunchedEffect
+        }
+        while (true) {
+            hardnessChart = loadHardness(graph)
+            delay(HARDNESS_REFRESH_MILLIS)
         }
     }
 
@@ -231,6 +264,14 @@ fun MonitorScreen(
             onOpen = onOpenChart,
             showStats = blocks.stats,
         )
+
+        if (blocks.countRateChart) {
+            CountRateChartCard(chart = hourChart, showStats = blocks.stats)
+        }
+
+        if (blocks.hardnessChart) {
+            HardnessChartCard(chart = hardnessChart)
+        }
 
         if (blocks.cpsHint) {
             Text(
@@ -666,6 +707,14 @@ private suspend fun loadHourChart(graph: AppGraph): HourChart {
         bucketMillis = CHART_BUCKET_MILLIS,
         columnCount = CHART_COLUMNS,
     ) { DoseUnits.rawToMicroSievertPerHour(it.avgDoseRate) }
+    // The same buckets, read as count rate: the optional CPS chart costs one
+    // more mapping, not one more query.
+    val cpsColumns = ChartMapping.toColumns(
+        buckets = buckets,
+        alignedFromMillis = from,
+        bucketMillis = CHART_BUCKET_MILLIS,
+        columnCount = CHART_COLUMNS,
+    ) { it.avgCountRate }
 
     val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault())
         .toInstant().toEpochMilli()
@@ -682,5 +731,179 @@ private suspend fun loadHourChart(graph: AppGraph): HourChart {
         fromMillis = from,
         toMillis = now,
         doseTodayMicroSv = ChartMapping.integrateDoseMicroSv(todayBuckets),
+        cpsColumns = cpsColumns,
     )
+}
+
+/**
+ * Жёсткость за последние сутки, по одному снимку спектра в час.
+ *
+ * Loaded only while the block is on: it reads accumulated spectra, and asking
+ * for a day of them on every Монитор refresh would be work nobody asked for.
+ */
+private suspend fun loadHardness(graph: AppGraph): HardnessChart {
+    val now = System.currentTimeMillis()
+    val hourCount = 24
+    val currentHour = now / RadonTrend.HOUR_MILLIS
+    val fromHour = currentHour - hourCount + 1
+    val from = fromHour * RadonTrend.HOUR_MILLIS
+
+    // Hourly thinning first (the same trick as the radon trend): a day of
+    // per-minute autosave blobs is never loaded, only one snapshot per hour
+    // plus the anchor before the window.
+    val metas = graph.measurementRepository
+        .deviceSnapshotMeta(from - RadonTrend.HOUR_MILLIS, now)
+        .map { RadonTrend.Meta(it.id, it.timestamp, it.durationSeconds) }
+    val snapshots = RadonTrend.selectHourlyIds(metas).mapNotNull { id ->
+        graph.measurementRepository.spectrumById(id)?.let { entity ->
+            val spectrum = entity.toSpectrum()
+            RadonTrend.Snapshot(
+                timestampMillis = entity.timestamp,
+                durationSeconds = spectrum.durationSeconds,
+                counts = spectrum.counts,
+                calibration = EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2),
+            )
+        }
+    }
+    val hours = Hardness.hourly(Hardness.intervals(snapshots))
+        .filter { it.hourStartMillis >= from }
+    val byHour = hours.associateBy { it.hourStartMillis / RadonTrend.HOUR_MILLIS }
+    return HardnessChart(
+        columns = List(hourCount) { i -> byHour[fromHour + i]?.fraction?.toFloat() },
+        current = hours.lastOrNull(),
+        fromMillis = from,
+        toMillis = now,
+    )
+}
+
+
+/**
+ * Отдельный график скорости счёта (Настройки → Вид → блоки Главной).
+ *
+ * Off by default and never above the dose chart: CPS is a **detection**
+ * signal — it reacts faster than dose and is what a search leans on — but it
+ * is not the quantity that describes the radiation situation, and the screen
+ * must not let it look like one.
+ */
+@Composable
+private fun CountRateChartCard(chart: HourChart?, showStats: Boolean) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Скорость счёта · час".uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(text = "с⁻¹", style = type.footnote, color = colors.muted)
+            }
+            val columns = chart?.cpsColumns.orEmpty()
+            val stats = ChartMapping.stats(columns)
+            if (chart == null || stats == null) {
+                Text(
+                    text = "накапливаем измерения…",
+                    style = type.bodySmall,
+                    color = colors.muted,
+                )
+            } else {
+                val yMax = ChartMapping.yMax(stats.max, 0f)
+                TrendChart(
+                    spec = TrendChartSpec(
+                        columns = columns,
+                        yMax = yMax,
+                        yTicks = ChartMapping.yTicks(yMax).map { it to Uncertainty.num1(it) },
+                        xLabels = TimeAxis.labels(chart.fromMillis, chart.toMillis),
+                    ),
+                )
+                if (showStats) {
+                    StatGrid(
+                        cells = listOf(
+                            StatCell(Uncertainty.num1(stats.min), "мин"),
+                            StatCell(Uncertainty.num1(stats.median), "медиана"),
+                            StatCell(Uncertainty.num1(stats.max), "макс"),
+                            StatCell(Uncertainty.num1(stats.sigma), "SD, с⁻¹"),
+                        ),
+                    )
+                }
+            }
+            Text(
+                text = "CPS — счёт событий детектора, не мера опасности: одно и то же " +
+                    "число даёт и слабый близкий источник, и сильный далёкий.",
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+    }
+}
+
+/**
+ * График жёсткости (Настройки → Вид → блоки Главной).
+ *
+ * The product spec keeps this off Главная by default and demands the sentence
+ * under it; both are honoured — but the choice is the user's, so the block can
+ * be turned on. Hourly points, because that is the cadence at which the app
+ * accumulates spectra in the background.
+ */
+@Composable
+private fun HardnessChartCard(chart: HardnessChart?) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Жёсткость · сутки".uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                )
+                EvidenceTag(Evidence.CALCULATED, Modifier.padding(start = 6.dp))
+                Spacer(Modifier.weight(1f))
+                chart?.current?.let {
+                    Text(
+                        text = "${(it.fraction * 100).roundToInt()} % ± " +
+                            "${(it.sigma * 100).roundToInt()} %",
+                        style = type.value,
+                        color = colors.ink,
+                    )
+                }
+            }
+            val columns = chart?.columns.orEmpty()
+            if (chart == null || columns.all { it == null }) {
+                Text(
+                    text = "нужны накопленные спектры — приложение собирает их в фоне " +
+                        "примерно раз в час",
+                    style = type.bodySmall,
+                    color = colors.muted,
+                )
+            } else {
+                TrendChart(
+                    spec = TrendChartSpec(
+                        columns = columns,
+                        // A share lives in 0…1 by definition: a frame that
+                        // rescaled to the data would turn 2 % of noise into a
+                        // mountain.
+                        yMax = 1f,
+                        yTicks = listOf(0.25f to "25 %", 0.5f to "50 %", 0.75f to "75 %"),
+                        xLabels = TimeAxis.labels(chart.fromMillis, chart.toMillis),
+                    ),
+                )
+            }
+            Text(
+                text = Hardness.EXPLANATION,
+                style = type.footnote,
+                color = colors.muted,
+            )
+            Text(
+                text = "Доля счёта выше ${Hardness.SPLIT_KEV.toInt()} кэВ в полосе " +
+                    "${Hardness.LOW_KEV.toInt()}–${Hardness.HIGH_KEV.toInt()} кэВ. " +
+                    "Границы — параметр анализа: два значения сравнимы, только если " +
+                    "считались с одинаковыми.",
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+    }
 }

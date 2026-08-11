@@ -1130,7 +1130,8 @@ private fun InterfaceSection(graph: AppGraph) {
 
             AppDivider()
             Text(
-                text = "Блоки Главной. Число, статус и график остаются всегда.",
+                text = "Блоки Главной. Число, статус и график мощности дозы остаются " +
+                    "всегда; остальное — по вашему выбору.",
                 style = type.bodySmall,
                 color = colors.ink2,
             )
@@ -1139,6 +1140,12 @@ private fun InterfaceSection(graph: AppGraph) {
             }
             BlockToggleRow("Доза сегодня", blocks.doseToday) {
                 scope.launch { graph.settings.setMonitorBlocks(blocks.copy(doseToday = it)) }
+            }
+            BlockToggleRow("График скорости счёта", blocks.countRateChart) {
+                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(countRateChart = it)) }
+            }
+            BlockToggleRow("График жёсткости", blocks.hardnessChart) {
+                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(hardnessChart = it)) }
             }
             BlockToggleRow("Статистика под графиком (мин/медиана/макс/SD/n)", blocks.stats) {
                 scope.launch { graph.settings.setMonitorBlocks(blocks.copy(stats = it)) }
