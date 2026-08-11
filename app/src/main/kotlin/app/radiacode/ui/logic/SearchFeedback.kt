@@ -1,10 +1,8 @@
 package app.radiacode.ui.logic
 
 import kotlin.math.exp
-import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 /**
  * Search-mode audio/vibration feedback policies (SPEC «Search»: sound and
@@ -112,56 +110,6 @@ class ClickEngine(
 }
 
 /**
- * Vibration policy for Search: one short pulse each time the count rate
- * climbs to a new whole-σ step above the local background, starting at +2σ
- * (below that is ordinary Poisson fluctuation, ~95% band). σ = √background
- * (1 s counting). Falling back re-arms a step only after dropping a full σ
- * below it, so boundary noise cannot buzz. Honest and quiet: a stationary
- * meter — even over a source — does not vibrate; only getting *closer*
- * (rising σ level) does.
- *
- * Consequence the UI must state out loud: **without a recorded local
- * background there is no σ and no reference, so this never pulses.** That is
- * a deliberate policy, not a failure — but silently never vibrating reads as
- * a broken feature, so the Поиск screen says «фон не записан» ([FeedbackReason]).
- */
-class VibrationPolicy {
-
-    private var level = 0
-
-    /** Feed one 1 Hz sample; true = emit one pulse now. */
-    fun onSample(cps: Float, backgroundCps: Float?): Boolean {
-        if (backgroundCps == null || backgroundCps <= 0f) {
-            level = 0
-            return false
-        }
-        val sigma = sqrt(backgroundCps)
-        val step = floor((cps - backgroundCps) / sigma).toInt().coerceAtLeast(0)
-        return when {
-            step >= MIN_STEP && step > level -> {
-                level = step
-                true
-            }
-            step < level - 1 -> {
-                // 1σ hysteresis on the way down; never pulses.
-                level = step.coerceAtLeast(0)
-                false
-            }
-            else -> false
-        }
-    }
-
-    fun reset() {
-        level = 0
-    }
-
-    companion object {
-        /** First pulsing step: +2σ over background. */
-        const val MIN_STEP = 2
-    }
-}
-
-/**
  * The click waveform, generated programmatically (no bundled audio assets):
  * a short sine with a fast exponential decay — a dry «tick». The default
  * pitch is 2.6 kHz; «тон по энергии» renders the same tick at the band
@@ -229,8 +177,8 @@ object EnergyTone {
  * Booleans only, so the wording is pure and JVM-testable.
  */
 data class FeedbackState(
-    val soundEnabled: Boolean,
-    val vibrationEnabled: Boolean,
+    /** The single feedback channel the user chose (redesign §7). */
+    val mode: SearchFeedbackMode,
     val deviceConnected: Boolean,
     /** A sample arrived recently enough to drive clicks. */
     val dataFresh: Boolean,
@@ -239,9 +187,23 @@ data class FeedbackState(
     val audioUnavailable: Boolean,
     /** Media volume is at zero — the stream the clicks play on. */
     val volumeZero: Boolean,
-    /** A local background reference exists; σ-steps are relative to it. */
+    /** A local background reference exists; everything relative needs it. */
     val backgroundRecorded: Boolean,
-)
+    /**
+     * The tone/vibration is silent because the count rate is inside the
+     * background right now. That is the **designed** behaviour, not a fault —
+     * but a channel that is simply quiet reads as broken, so it is said out
+     * loud (redesign §7).
+     */
+    val insideBackground: Boolean = false,
+) {
+    val usesSound: Boolean
+        get() = mode == SearchFeedbackMode.CLICKS || mode == SearchFeedbackMode.TONE
+
+    /** Modes that describe the rate *relative to* the recorded background. */
+    val usesBackground: Boolean
+        get() = mode == SearchFeedbackMode.TONE || mode == SearchFeedbackMode.VIBRO
+}
 
 /**
  * Silence must be explainable. Instead of a screen that just says nothing,
@@ -251,22 +213,29 @@ data class FeedbackState(
 object FeedbackReason {
 
     fun line(state: FeedbackState): String? = when {
-        !state.soundEnabled && !state.vibrationEnabled ->
-            "звук и вибрация выключены"
+        state.mode == SearchFeedbackMode.OFF ->
+            "отклик выключен — сигнал виден только на экране"
         !state.deviceConnected ->
-            "прибор не подключён — клики и вибрация появятся после подключения"
+            "прибор не подключён — отклик появится после подключения"
         !state.dataFresh ->
-            "нет данных с прибора — клики молчат, пока поток не восстановится"
+            "нет данных с прибора — отклик молчит, пока поток не восстановится"
         state.dndBlocked ->
-            "режим «не беспокоить» — клики и вибрация молчат, пока он включён"
-        state.soundEnabled && state.audioUnavailable ->
+            "режим «не беспокоить» — звук и вибрация молчат, пока он включён"
+        state.usesSound && state.audioUnavailable ->
             "звук не запустился — система не дала звуковой канал"
-        state.soundEnabled && state.volumeZero ->
+        state.usesSound && state.volumeZero ->
             "громкость мультимедиа на нуле — прибавьте громкость кнопкой"
-        state.vibrationEnabled && !state.backgroundRecorded ->
-            "фон не записан — вибрация включится после записи фона"
-        !state.soundEnabled ->
-            "звук выключен — работает только вибрация"
+        state.usesBackground && !state.backgroundRecorded ->
+            "фон не записан — ${channel(state.mode)} включится после записи фона"
+        state.usesBackground && state.insideBackground ->
+            "счёт в пределах записанного фона — ${channel(state.mode)} появится, " +
+                "когда он станет выше"
         else -> null
+    }
+
+    private fun channel(mode: SearchFeedbackMode): String = when (mode) {
+        SearchFeedbackMode.TONE -> "тон"
+        SearchFeedbackMode.VIBRO -> "вибрация"
+        else -> "отклик"
     }
 }

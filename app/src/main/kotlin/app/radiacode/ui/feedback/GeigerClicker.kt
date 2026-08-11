@@ -10,6 +10,7 @@ import app.radiacode.ui.logic.ClickEngine
 import app.radiacode.ui.logic.ClickRate
 import app.radiacode.ui.logic.ClickWaveform
 import app.radiacode.ui.logic.EnergyTone
+import app.radiacode.ui.logic.ToneEngine
 import kotlin.random.Random
 
 /**
@@ -82,6 +83,19 @@ class GeigerClicker(context: Context) {
     @Volatile
     private var toneBand: EnergyTone.Band? = null
 
+    /**
+     * Target pitch of the **search tone**, Hz; null = the tone is silent (the
+     * mode is off, or the ratio is inside the background). Non-null switches
+     * the render loop from clicks to a continuous tone: the two are
+     * alternatives, never a mix — the redesign asks for one channel the user
+     * can follow without looking, not for two overlapping ones.
+     */
+    @Volatile
+    private var searchToneHz: Float? = null
+
+    @Volatile
+    private var toneMode = false
+
     /** Media volume is at zero — the engine is fine, the slider is not. */
     val volumeZero: Boolean
         get() = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) == 0
@@ -98,6 +112,16 @@ class GeigerClicker(context: Context) {
      */
     fun setToneBand(band: EnergyTone.Band?) {
         toneBand = band
+    }
+
+    /**
+     * Switches the engine into search-tone mode ([enabled]) and steers its
+     * pitch. The pitch is a **target**: [ToneEngine] glides towards it, so a
+     * step in the ratio is never a step in the audio.
+     */
+    fun setSearchTone(enabled: Boolean, targetHz: Float?) {
+        toneMode = enabled
+        searchToneHz = if (enabled) targetHz else null
     }
 
     fun start() {
@@ -156,6 +180,7 @@ class GeigerClicker(context: Context) {
         try {
             track.play()
             val engine = ClickEngine(SAMPLE_RATE) { Random.nextFloat() }
+            val tone = ToneEngine(SAMPLE_RATE)
             val chunk = ShortArray(CHUNK_FRAMES)
             var lastDndCheckAt = 0L
 
@@ -165,9 +190,14 @@ class GeigerClicker(context: Context) {
                     lastDndCheckAt = now
                     dndBlocked = !Feedback.dndAllowsFeedback(appContext)
                 }
-                val currentRate = if (focusLost || dndBlocked) 0f else rate
-                val click = toneBand?.let { bandClicks[it] } ?: defaultClick
-                engine.fillChunk(chunk, currentRate, click)
+                val silenced = focusLost || dndBlocked
+                if (toneMode) {
+                    tone.fillChunk(chunk, if (silenced) null else searchToneHz)
+                } else {
+                    val currentRate = if (silenced) 0f else rate
+                    val click = toneBand?.let { bandClicks[it] } ?: defaultClick
+                    engine.fillChunk(chunk, currentRate, click)
+                }
                 // Blocking write paces the loop at real time.
                 track.write(chunk, 0, chunk.size)
             }

@@ -72,69 +72,6 @@ class ClickRateTest {
     }
 }
 
-class VibrationPolicyTest {
-
-    // Background 25 cps → σ = 5.
-    private val bg = 25f
-
-    @Test
-    fun `no pulses without a background reference`() {
-        val policy = VibrationPolicy()
-        assertFalse(policy.onSample(1000f, null))
-        assertFalse(policy.onSample(1000f, 0f))
-    }
-
-    @Test
-    fun `no pulse inside normal fluctuation below two sigma`() {
-        val policy = VibrationPolicy()
-        assertFalse(policy.onSample(bg, bg))
-        assertFalse(policy.onSample(bg + 5f, bg)) // +1σ
-        assertFalse(policy.onSample(bg + 9.9f, bg)) // just under +2σ
-    }
-
-    @Test
-    fun `one pulse per new sigma step starting at two sigma`() {
-        val policy = VibrationPolicy()
-        assertTrue(policy.onSample(bg + 10f, bg)) // +2σ
-        assertFalse(policy.onSample(bg + 11f, bg)) // still step 2
-        assertTrue(policy.onSample(bg + 15f, bg)) // +3σ
-        assertTrue(policy.onSample(bg + 20f, bg)) // +4σ
-    }
-
-    @Test
-    fun `boundary noise does not retrigger`() {
-        val policy = VibrationPolicy()
-        assertTrue(policy.onSample(bg + 15f, bg)) // step 3
-        assertFalse(policy.onSample(bg + 12f, bg)) // step 2: within hysteresis
-        assertFalse(policy.onSample(bg + 15f, bg)) // step 3 again: no new pulse
-    }
-
-    @Test
-    fun `dropping a full sigma re-arms the step`() {
-        val policy = VibrationPolicy()
-        assertTrue(policy.onSample(bg + 15f, bg)) // step 3
-        assertFalse(policy.onSample(bg + 5f, bg)) // step 1: level drops, silent
-        assertTrue(policy.onSample(bg + 10f, bg)) // step 2 again: real climb
-    }
-
-    @Test
-    fun `stationary high level stays silent`() {
-        val policy = VibrationPolicy()
-        assertTrue(policy.onSample(bg + 25f, bg)) // step 5
-        repeat(30) {
-            assertFalse(policy.onSample(bg + 25f, bg))
-        }
-    }
-
-    @Test
-    fun `reset re-arms from zero`() {
-        val policy = VibrationPolicy()
-        assertTrue(policy.onSample(bg + 10f, bg))
-        policy.reset()
-        assertTrue(policy.onSample(bg + 10f, bg))
-    }
-}
-
 class ClickWaveformTest {
 
     @Test
@@ -303,8 +240,7 @@ class ClickEngineTest {
 class FeedbackReasonTest {
 
     private val running = FeedbackState(
-        soundEnabled = true,
-        vibrationEnabled = true,
+        mode = SearchFeedbackMode.CLICKS,
         deviceConnected = true,
         dataFresh = true,
         dndBlocked = false,
@@ -316,14 +252,14 @@ class FeedbackReasonTest {
     @Test
     fun `no reason when feedback really is running`() {
         assertEquals(null, FeedbackReason.line(running))
+        assertEquals(null, FeedbackReason.line(running.copy(mode = SearchFeedbackMode.TONE)))
+        assertEquals(null, FeedbackReason.line(running.copy(mode = SearchFeedbackMode.VIBRO)))
     }
 
     @Test
-    fun `both switches off is stated plainly`() {
-        val reason = FeedbackReason.line(
-            running.copy(soundEnabled = false, vibrationEnabled = false),
-        )
-        assertEquals("звук и вибрация выключены", reason)
+    fun `the off mode is stated plainly`() {
+        val reason = FeedbackReason.line(running.copy(mode = SearchFeedbackMode.OFF))
+        assertEquals("отклик выключен — сигнал виден только на экране", reason)
     }
 
     @Test
@@ -358,24 +294,45 @@ class FeedbackReasonTest {
         assertTrue(reason, reason!!.contains("громкость"))
     }
 
-    /** The silent-vibration trap: no background means no sigma, ever. */
+    /** Audio problems belong to the audio modes only. */
     @Test
-    fun `vibration without a recorded background says so`() {
-        val reason = FeedbackReason.line(running.copy(backgroundRecorded = false))
-        assertEquals("фон не записан — вибрация включится после записи фона", reason)
+    fun `a dead audio channel is irrelevant to the silent mode`() {
+        val silent = running.copy(mode = SearchFeedbackMode.VIBRO, audioUnavailable = true, volumeZero = true)
+        assertEquals(null, FeedbackReason.line(silent))
     }
 
+    /** The silent-vibration trap: no background means nothing relative, ever. */
     @Test
-    fun `a missing background is irrelevant when vibration is off`() {
-        val reason = FeedbackReason.line(
-            running.copy(vibrationEnabled = false, backgroundRecorded = false),
+    fun `the relative modes without a recorded background say so`() {
+        val vibro = FeedbackReason.line(
+            running.copy(mode = SearchFeedbackMode.VIBRO, backgroundRecorded = false),
         )
-        assertEquals(null, reason)
+        assertEquals("фон не записан — вибрация включится после записи фона", vibro)
+
+        val tone = FeedbackReason.line(
+            running.copy(mode = SearchFeedbackMode.TONE, backgroundRecorded = false),
+        )
+        assertEquals("фон не записан — тон включится после записи фона", tone)
     }
 
     @Test
-    fun `sound off with vibration on is stated, not silent`() {
-        val reason = FeedbackReason.line(running.copy(soundEnabled = false))
-        assertEquals("звук выключен — работает только вибрация", reason)
+    fun `a missing background is irrelevant to clicks, which are absolute`() {
+        assertEquals(null, FeedbackReason.line(running.copy(backgroundRecorded = false)))
+    }
+
+    /**
+     * Designed silence is still silence: a tone that says nothing at
+     * background level must say *why* it says nothing.
+     */
+    @Test
+    fun `silence inside the background is explained, not left hanging`() {
+        val tone = FeedbackReason.line(
+            running.copy(mode = SearchFeedbackMode.TONE, insideBackground = true),
+        )
+        assertTrue(tone, tone!!.contains("в пределах записанного фона"))
+        assertTrue(tone, tone.contains("тон"))
+
+        // Clicks are absolute — they click at background level too.
+        assertEquals(null, FeedbackReason.line(running.copy(insideBackground = true)))
     }
 }

@@ -70,19 +70,30 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         }
     }
 
-    /** Search mode: Geiger-style click feedback. Off by default — sound is opt-in. */
-    val searchSoundEnabled: Flow<Boolean> = dataStore.data.map { it[SEARCH_SOUND] ?: false }
-
-    suspend fun setSearchSoundEnabled(enabled: Boolean) {
-        dataStore.edit { it[SEARCH_SOUND] = enabled }
+    /**
+     * Search feedback channel, as the id of `ui/logic/SearchFeedbackMode`:
+     * нет / клики / тон / вибро (redesign §7 — one choice, not three switches).
+     *
+     * Until the user touches it, the value is derived from the two pre-redesign
+     * booleans, so an existing setup keeps sounding the way it did: sound on →
+     * клики, sound off with vibration on → вибро, neither → нет.
+     */
+    val searchFeedbackMode: Flow<String?> = dataStore.data.map { prefs ->
+        prefs[SEARCH_FEEDBACK_MODE] ?: when {
+            prefs[SEARCH_SOUND] == true -> "clicks"
+            prefs[SEARCH_VIBRATION] == true -> "vibro"
+            else -> null
+        }
     }
 
-    /** Search mode: σ-step vibration pulses. Off by default. */
-    val searchVibrationEnabled: Flow<Boolean> =
-        dataStore.data.map { it[SEARCH_VIBRATION] ?: false }
-
-    suspend fun setSearchVibrationEnabled(enabled: Boolean) {
-        dataStore.edit { it[SEARCH_VIBRATION] = enabled }
+    suspend fun setSearchFeedbackMode(id: String) {
+        dataStore.edit {
+            it[SEARCH_FEEDBACK_MODE] = id
+            // The legacy booleans are no longer read once a mode is chosen;
+            // dropping them keeps one source of truth on disk.
+            it.remove(SEARCH_SOUND)
+            it.remove(SEARCH_VIBRATION)
+        }
     }
 
     /** Search mode: click pitch follows the mean photon energy. Off by default. */
@@ -259,8 +270,10 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         /** Pre-metadata reference (bare CPS); only ever removed now. */
         private val SEARCH_BACKGROUND_CPS = floatPreferencesKey("search_background_cps")
         private val SEARCH_BACKGROUND = stringPreferencesKey("search_background")
+        /** Pre-redesign toggles; read once for migration, then removed. */
         private val SEARCH_SOUND = booleanPreferencesKey("search_sound")
         private val SEARCH_VIBRATION = booleanPreferencesKey("search_vibration")
+        private val SEARCH_FEEDBACK_MODE = stringPreferencesKey("search_feedback_mode")
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")
         private val ACTIVE_PROFILE_ID = longPreferencesKey("active_profile_id")
 

@@ -39,6 +39,7 @@ import app.radiacode.ui.components.LedMeter
 import app.radiacode.ui.components.SearchChartSpec
 import app.radiacode.ui.components.SearchRateChart
 import app.radiacode.ui.components.SearchWhySheet
+import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.components.StatusRow
@@ -54,12 +55,14 @@ import app.radiacode.ui.logic.LocalBackground
 import app.radiacode.ui.logic.LocalBackgroundMachine
 import app.radiacode.ui.logic.SearchBaseline
 import app.radiacode.ui.logic.SearchEngine
+import app.radiacode.ui.logic.SearchFeedbackMode
 import app.radiacode.ui.logic.SearchLevel
 import app.radiacode.ui.logic.SearchState
+import app.radiacode.ui.logic.SearchTone
 import app.radiacode.ui.logic.SearchVerdict
+import app.radiacode.ui.logic.SearchVibro
 import app.radiacode.ui.logic.SearchWhyInput
 import app.radiacode.ui.logic.Uncertainty
-import app.radiacode.ui.logic.VibrationPolicy
 import app.radiacode.ui.logic.backgroundBand
 import app.radiacode.ui.logic.ledLevel
 import app.radiacode.ui.theme.Dimens
@@ -101,8 +104,8 @@ fun SearchScreen(graph: AppGraph) {
     val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
     val background by graph.searchBackground.collectAsState(initial = null)
     val activeProfileId by graph.contextHub.activeProfileId.collectAsState()
-    val soundEnabled by graph.settings.searchSoundEnabled.collectAsState(initial = false)
-    val vibrationEnabled by graph.settings.searchVibrationEnabled.collectAsState(initial = false)
+    val feedbackModeId by graph.settings.searchFeedbackMode.collectAsState(initial = null)
+    val mode = SearchFeedbackMode.of(feedbackModeId) ?: SearchFeedbackMode.OFF
     val energyToneEnabled by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
     val connection by graph.serviceStatus.connection.collectAsState()
 
@@ -122,8 +125,6 @@ fun SearchScreen(graph: AppGraph) {
 
     // --- Geiger-style feedback: foreground-only, this screen only ---
     val clicker = remember { GeigerClicker(context) }
-    // Recreated on background change: σ-steps are relative to the reference.
-    val vibrationPolicy = remember(background?.cps) { VibrationPolicy() }
     val lifecycleOwner = LocalLifecycleOwner.current
     var resumed by remember {
         mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
@@ -146,7 +147,8 @@ fun SearchScreen(graph: AppGraph) {
         onDispose { if (resumed) graph.fastPollHub.detach() }
     }
 
-    val clickerActive = soundEnabled && resumed
+    val soundMode = mode == SearchFeedbackMode.CLICKS || mode == SearchFeedbackMode.TONE
+    val clickerActive = soundMode && resumed
     // Silence must be explainable: these are polled once a second so the
     // screen can name the actual reason instead of just staying quiet.
     var dndBlocked by remember { mutableStateOf(false) }
@@ -170,8 +172,9 @@ fun SearchScreen(graph: AppGraph) {
     // «Тон по энергии»: needs the 5 s spectrum poll — attach a hub watcher
     // while active, then steer the click pitch from the newest interval
     // slice's mean photon energy; stale/no data honestly falls back to the
-    // plain default tick.
-    val toneActive = clickerActive && energyToneEnabled
+    // plain default tick. It pitches the *clicks*, so it never runs together
+    // with the search tone, whose pitch already carries the ratio.
+    val toneActive = clickerActive && mode == SearchFeedbackMode.CLICKS && energyToneEnabled
     DisposableEffect(toneActive) {
         if (toneActive) graph.spectrumHub.attach()
         onDispose {
@@ -217,9 +220,6 @@ fun SearchScreen(graph: AppGraph) {
             background = background,
         )
         clicker.setRate(ClickRate.clicksPerSecond(s.countRate))
-        if (vibrationEnabled && vibrationPolicy.onSample(s.countRate, background?.cps)) {
-            Feedback.pulse(context)
-        }
         dataFresh = true
     }
 
@@ -234,6 +234,35 @@ fun SearchScreen(graph: AppGraph) {
                 background = background,
                 nowMillis = System.currentTimeMillis() - deviceClockOffset,
             )
+        }
+    }
+
+    // The search tone follows the **ratio of the decision window**, not the
+    // raw rate: that is what makes it a signal a person can walk towards
+    // instead of a stream of chatter (redesign §7). The engine glides to the
+    // target, so a step in the ratio is never a step in the audio.
+    val ratio = search.comparison?.ratio
+    LaunchedEffect(mode, ratio, clickerActive) {
+        clicker.setSearchTone(
+            enabled = clickerActive && mode == SearchFeedbackMode.TONE,
+            targetHz = SearchTone.frequencyHz(ratio),
+        )
+    }
+
+    // The silent equivalent: pulse cadence carries the same ratio, so the
+    // instrument can be searched with the phone in a pocket. It repeats on
+    // purpose — «холодно/горячо» is the whole point — unlike the σ-step
+    // policy, which fires once per newly reached step.
+    LaunchedEffect(mode, resumed) {
+        if (mode != SearchFeedbackMode.VIBRO) return@LaunchedEffect
+        while (resumed) {
+            val interval = SearchVibro.intervalMillis(search.comparison?.ratio)
+            if (interval == null || !Feedback.dndAllowsFeedback(context)) {
+                delay(SearchVibro.SLOW_INTERVAL_MILLIS / 2)
+                continue
+            }
+            Feedback.pulse(context)
+            delay(interval)
         }
     }
 
@@ -292,35 +321,49 @@ fun SearchScreen(graph: AppGraph) {
         ) {
             Chip(text = "Поиск источника", color = colors.ink)
             Spacer(Modifier.weight(1f))
-            // Feature toggles: state is dot + color together, never color alone.
-            Chip(
-                text = "звук",
-                color = if (soundEnabled) colors.dataText else colors.muted,
-                dot = if (soundEnabled) colors.data else null,
-                onClick = {
-                    scope.launch { graph.settings.setSearchSoundEnabled(!soundEnabled) }
-                },
-            )
-            Chip(
-                text = "вибро",
-                color = if (vibrationEnabled) colors.dataText else colors.muted,
-                dot = if (vibrationEnabled) colors.data else null,
-                onClick = {
-                    scope.launch { graph.settings.setSearchVibrationEnabled(!vibrationEnabled) }
-                },
-            )
+            Text(text = "отклик", style = type.footnote, color = colors.muted)
         }
+        // One choice, not three switches (redesign §7): the four channels are
+        // alternatives — silence, clicks per event, a tone that follows the
+        // ratio to the background, and the same in vibration for a search
+        // with the phone in a pocket.
+        Segmented(
+            options = SearchFeedbackMode.entries.map { it.label },
+            selectedIndex = SearchFeedbackMode.entries.indexOf(mode),
+            onSelect = { index ->
+                val next = SearchFeedbackMode.entries[index]
+                scope.launch { graph.settings.setSearchFeedbackMode(next.id) }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = when (mode) {
+                SearchFeedbackMode.OFF -> "сигнал только на экране"
+                SearchFeedbackMode.CLICKS ->
+                    "щелчок на каждый зарегистрированный импульс — как у счётчика Гейгера"
+                SearchFeedbackMode.TONE ->
+                    "непрерывный тон, выше — дальше от записанного фона; " +
+                        "высота идёт от окна решения " +
+                        "${SearchEngine.DECISION_WINDOW_MILLIS / 1000} с, не от одиночного импульса" +
+                        (SearchTone.pitchLabel(ratio)?.let { " · сейчас $it" } ?: "")
+                SearchFeedbackMode.VIBRO ->
+                    "то же без звука: чаще пульс — дальше от записанного фона" +
+                        (SearchVibro.cadenceLabel(ratio)?.let { " · сейчас $it" } ?: "")
+            },
+            style = type.footnote,
+            color = colors.muted,
+        )
 
         val reason = FeedbackReason.line(
             FeedbackState(
-                soundEnabled = soundEnabled,
-                vibrationEnabled = vibrationEnabled,
+                mode = mode,
                 deviceConnected = connection is ConnectionState.Connected,
                 dataFresh = dataFresh,
                 dndBlocked = dndBlocked,
                 audioUnavailable = audioUnavailable,
                 volumeZero = volumeZero,
                 backgroundRecorded = record != null,
+                insideBackground = SearchTone.frequencyHz(ratio) == null,
             ),
         )
         if (reason != null) {
@@ -413,11 +456,7 @@ fun SearchScreen(graph: AppGraph) {
                 )
                 if (record == null) {
                     Text(
-                        text = if (vibrationEnabled) {
-                            "индикатор и вибро-пульсы заработают после замера фона"
-                        } else {
-                            "индикатор заработает после замера фона"
-                        },
+                        text = "индикатор заработает после замера фона",
                         style = type.footnote,
                         color = colors.muted,
                     )
@@ -609,39 +648,39 @@ fun SearchScreen(graph: AppGraph) {
             modifier = Modifier.fillMaxWidth(),
         )
 
-        // Тон по энергии is a research toggle: it steers the pitch of the
-        // clicks, so it lives next to the sound explanation, not at the top.
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-        ) {
-            Chip(
-                text = "тон по энергии",
-                color = if (energyToneEnabled) colors.dataText else colors.muted,
-                dot = if (energyToneEnabled) colors.data else null,
-                onClick = {
-                    scope.launch { graph.settings.setSearchEnergyToneEnabled(!energyToneEnabled) }
-                },
-            )
+        // «Тон по энергии» is a research toggle on top of the *clicks*: it
+        // steers their pitch, so it only appears in that mode.
+        if (mode == SearchFeedbackMode.CLICKS) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+            ) {
+                Chip(
+                    text = "тон по энергии",
+                    color = if (energyToneEnabled) colors.dataText else colors.muted,
+                    dot = if (energyToneEnabled) colors.data else null,
+                    onClick = {
+                        scope.launch {
+                            graph.settings.setSearchEnergyToneEnabled(!energyToneEnabled)
+                        }
+                    },
+                )
+                if (energyToneEnabled) {
+                    Text(
+                        text = "клик выше при жёстких гамма — 3 ступени по среднему кэВ",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+            }
             if (energyToneEnabled) {
                 Text(
-                    text = if (soundEnabled) {
-                        "клик выше при жёстких гамма — 3 ступени по среднему кэВ"
-                    } else {
-                        "заработает вместе со «звук»"
-                    },
+                    text = "тон: <300 кэВ — ниже · 300–1000 — обычный · >1000 — выше; " +
+                        "по среднему кэВ спектра за 5 с, без потока спектра — обычные клики",
                     style = type.footnote,
                     color = colors.muted,
                 )
             }
-        }
-        if (energyToneEnabled && soundEnabled) {
-            Text(
-                text = "тон: <300 кэВ — ниже · 300–1000 — обычный · >1000 — выше; " +
-                    "по среднему кэВ спектра за 5 с, без потока спектра — обычные клики",
-                style = type.footnote,
-                color = colors.muted,
-            )
         }
     }
 }
