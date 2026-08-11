@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
@@ -55,11 +56,10 @@ import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.RadioMark
-import app.radiacode.ui.feedback.FeedbackSelfTest
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.NavConfig
 import app.radiacode.ui.logic.ProfileTree
-import app.radiacode.ui.logic.SelfTestText
+import app.radiacode.ui.logic.ProfileDeletion
 import app.radiacode.ui.logic.NavEntry
 import app.radiacode.ui.logic.Freshness
 import app.radiacode.ui.logic.baselineCollectedWording
@@ -74,7 +74,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Настройки (SPEC: opens separately, not a tab). Sections: Тревоги, Профили,
- * Обычный фон, Прибор, Единицы, Интерфейс, Проверка, О приложении.
+ * Обычный фон, Прибор, Единицы, Интерфейс, Лицензии.
  */
 @Composable
 fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
@@ -99,8 +99,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         DeviceSection(graph)
         UnitsSection(graph)
         InterfaceSection(graph)
-        SelfTestSection()
-        AboutSection()
+        LicensesSection()
     }
 }
 
@@ -477,7 +476,9 @@ private fun ProfileSettingsRow(
     val type = LocalAppTypography.current
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     var renameText by remember(profile.name, expanded) { mutableStateOf(profile.name) }
-    var confirmingDelete by remember(expanded) { mutableStateOf(false) }
+    var confirmingDelete by remember(profile.id) { mutableStateOf(false) }
+    // Pure guard, recomputed from the live list: the button can explain itself.
+    val deletion = ProfileDeletion.evaluate(allProfiles, profile.id)
     var baselineState by remember(profile.id) { mutableStateOf<BaselineState?>(null) }
     LaunchedEffect(profile.id, expanded) {
         if (expanded) baselineState = graph.baselineRepository.state(profile.id)
@@ -524,27 +525,6 @@ private fun ProfileSettingsRow(
         }
 
         if (!expanded) return@Column
-
-        if (confirmingDelete) {
-            Text(
-                text = "Удалить профиль «${profile.name}»? Его измерения останутся " +
-                    "в журнале без привязки к профилю.",
-                style = type.bodySmall,
-                color = colors.ink2,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                AppButton(
-                    text = "Удалить",
-                    onClick = {
-                        scope.launch { graph.profileRepository.delete(profile.id) }
-                        onCollapse()
-                    },
-                )
-                AppButton(text = "Отмена", onClick = { confirmingDelete = false })
-            }
-            AppDivider()
-            return@Column
-        }
 
         baselineStatsLine(baselineState, unit)?.let {
             Text(text = it, style = type.footnote, color = colors.muted)
@@ -673,9 +653,61 @@ private fun ProfileSettingsRow(
                     },
                 )
             }
-            AppButton(text = "Удалить профиль", onClick = { confirmingDelete = true })
+            AppButton(
+                text = "Удалить профиль",
+                enabled = deletion is ProfileDeletion.Allowed,
+                onClick = { confirmingDelete = true },
+            )
+        }
+        (deletion as? ProfileDeletion.Blocked)?.let { blocked ->
+            Text(
+                text = ProfileDeletion.blockedWording(blocked),
+                style = type.footnote,
+                color = colors.muted,
+            )
         }
         AppDivider()
+    }
+
+    // A dialog, not an inline block: the confirmation must not depend on the
+    // panel it replaces still being on screen.
+    if (confirmingDelete && deletion is ProfileDeletion.Allowed) {
+        ConfirmDeleteProfileDialog(
+            profileName = profile.name,
+            onConfirm = {
+                confirmingDelete = false
+                scope.launch { graph.profileRepository.delete(profile.id) }
+                onCollapse()
+            },
+            onDismiss = { confirmingDelete = false },
+        )
+    }
+}
+
+/** Confirmation for «Удалить профиль»: says out loud that measurements stay. */
+@Composable
+private fun ConfirmDeleteProfileDialog(
+    profileName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(text = "Удалить профиль?", style = type.title, color = colors.ink)
+                Text(
+                    text = ProfileDeletion.confirmWording(profileName),
+                    style = type.bodySmall,
+                    color = colors.ink2,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    AppButton(text = "Удалить", onClick = onConfirm)
+                    AppButton(text = "Отмена", onClick = onDismiss)
+                }
+            }
+        }
     }
 }
 
@@ -1052,79 +1084,18 @@ private fun BlockToggleRow(title: String, enabled: Boolean, onChange: (Boolean) 
     }
 }
 
-// --- Проверка ---
+// --- Лицензии ---
 
 /**
- * Two probes that answer «does the feedback engine work at all», bypassing
- * every gate of the Поиск screen. Without them a field report of «no sound»
- * cannot be told apart from wrong wiring — and we have no logs from the
- * user's phone.
+ * The only «about» content left: the version and the notices the bundled
+ * third-party work legally requires. Kept deliberately — the app ships a
+ * Kotlin port of cdump/radiacode (MIT), Kable and osmdroid (Apache-2.0) and
+ * IBM Plex (OFL), and renders OpenStreetMap data (ODbL): all four licences
+ * require the notice to travel with the binary, so this section is not
+ * decoration and must not be trimmed away.
  */
 @Composable
-private fun SelfTestSection() {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val context = LocalContext.current
-    var soundResult by remember { mutableStateOf<String?>(null) }
-    var vibrationResult by remember { mutableStateOf<String?>(null) }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Проверка")
-            Text(
-                text = "Короткая проба звука и вибрации — без прибора и без " +
-                    "настроек Поиска. Помогает понять, молчит сам телефон или " +
-                    "приложение не получает данные.",
-                style = type.bodySmall,
-                color = colors.ink2,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                AppButton(
-                    text = "Проверить звук",
-                    onClick = {
-                        soundResult = SelfTestText.sound(FeedbackSelfTest.playClicks(context))
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                AppButton(
-                    text = "Проверить вибрацию",
-                    onClick = {
-                        vibrationResult = SelfTestText.vibration(FeedbackSelfTest.pulse(context))
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            soundResult?.let { ResultLine(label = "звук", text = it) }
-            vibrationResult?.let { ResultLine(label = "вибрация", text = it) }
-        }
-    }
-}
-
-/** Honest one-line outcome: green only when nothing stood in the way. */
-@Composable
-private fun ResultLine(label: String, text: String) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val clean = text == "звук воспроизведён" || text == "импульс отправлен"
-    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-        Chip(
-            text = label,
-            color = if (clean) colors.ok else colors.warn,
-            dot = if (clean) colors.ok else colors.warn,
-        )
-        Text(
-            text = text,
-            style = type.bodySmall,
-            color = if (clean) colors.ink2 else colors.warn,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-// --- О приложении ---
-
-@Composable
-private fun AboutSection() {
+private fun LicensesSection() {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val context = LocalContext.current
@@ -1148,26 +1119,18 @@ private fun AboutSection() {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("О приложении")
+            SectionTitle("Лицензии")
             InfoRow("alpha", "версия $version")
-            Text(
-                text = "Данные измерений не покидают телефон: без телеметрии, " +
-                    "аналитики и сетевых запросов.",
-                style = type.bodySmall,
-                color = colors.ink2,
-            )
-            AppDivider()
             Text(
                 text = "Протокол RadiaCode — порт библиотеки cdump/radiacode (MIT). " +
                     "BLE — Kable (Apache-2.0). Карта — osmdroid (Apache-2.0), " +
-                    "данные карты © участники OpenStreetMap. Шрифты IBM Plex Sans " +
-                    "и IBM Plex Mono (OFL). Полные тексты — в файлах NOTICE " +
-                    "внутри приложения.",
+                    "данные карты © участники OpenStreetMap (ODbL). Шрифты IBM Plex Sans " +
+                    "и IBM Plex Mono (OFL).",
                 style = type.bodySmall,
                 color = colors.muted,
             )
             AppButton(
-                text = if (showLicenses) "Скрыть лицензии" else "Показать лицензии",
+                text = if (showLicenses) "Скрыть тексты лицензий" else "Показать тексты лицензий",
                 onClick = { showLicenses = !showLicenses },
             )
             if (showLicenses) {

@@ -18,9 +18,13 @@ import app.radiacode.device.DeviceLinkFactory
 import app.radiacode.device.KableLinkFactory
 import app.radiacode.device.RadiaCodeScanner
 import app.radiacode.service.FastPollHub
+import app.radiacode.service.LocalBackgroundRecorder
 import app.radiacode.service.ServiceStatus
 import app.radiacode.service.SpectrogramStore
 import app.radiacode.service.SpectrumHub
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /**
  * Manual dependency graph (no DI framework, ADR 001). One instance per process,
@@ -67,7 +71,7 @@ class AppGraph private constructor(context: Context) {
     val profileRepository: ProfileRepository by lazy {
         ProfileRepository(
             profileDao = database.profileDao(),
-            sampleDao = database.sampleDao(),
+            maintenanceDao = database.profileMaintenanceDao(),
             settings = settings,
             contextProfileId = contextHub.activeProfileId,
         )
@@ -113,6 +117,25 @@ class AppGraph private constructor(context: Context) {
 
     /** In-memory спектрограмма ring (~2 ч), fed by the service's spectrum poll. */
     val spectrogramStore: SpectrogramStore = SpectrogramStore()
+
+    /**
+     * Process-lifetime scope for work that must outlive any screen. Never
+     * cancelled: the graph is a singleton owned by the application object.
+     */
+    private val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Поиск → «Записать локальный фон». App-scoped so navigating away or the
+     * display sleeping cannot destroy 45 s of averaging.
+     */
+    val localBackground: LocalBackgroundRecorder by lazy {
+        LocalBackgroundRecorder(
+            scope = appScope,
+            samples = measurementRepository.latestSample(),
+            serviceRunning = serviceStatus.serviceRunning,
+            storeReference = { settings.setSearchBackgroundCps(it) },
+        )
+    }
 
     companion object {
         @Volatile

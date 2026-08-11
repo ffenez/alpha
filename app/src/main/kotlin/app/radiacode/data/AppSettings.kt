@@ -18,8 +18,25 @@ import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
+/**
+ * The slice of the settings the profile layer needs: which profile the user
+ * pinned by hand and how to release that pin. Narrow on purpose — profile
+ * deletion has to clear the pin, and that rule is worth a JVM test without
+ * dragging DataStore and an Android context into it.
+ */
+interface ActiveProfilePin {
+
+    /** Last explicitly chosen profile; null = follow the automatic context. */
+    val activeProfileId: Flow<Long?>
+
+    /** Null releases the pin (the deleted profile must not stay selected). */
+    suspend fun setActiveProfileId(profileId: Long?)
+
+    suspend fun setContextManual(manual: Boolean)
+}
+
 /** App settings in Preferences DataStore. */
-class AppSettings(private val dataStore: DataStore<Preferences>) {
+class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfilePin {
 
     constructor(context: Context) : this(context.settingsDataStore)
 
@@ -68,11 +85,23 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
      * Falls back to the pre-v6 «active place» key so an update keeps the
      * user's selection.
      */
-    val activeProfileId: Flow<Long?> =
+    override val activeProfileId: Flow<Long?> =
         dataStore.data.map { it[ACTIVE_PROFILE_ID] ?: it[LEGACY_ACTIVE_PLACE_ID] }
 
-    suspend fun setActiveProfileId(profileId: Long) {
-        dataStore.edit { it[ACTIVE_PROFILE_ID] = profileId }
+    /**
+     * A null id clears the pin, including the pre-v6 legacy key — otherwise
+     * deleting the pinned profile would leave the old «active place» pointing
+     * at a row that no longer exists.
+     */
+    override suspend fun setActiveProfileId(profileId: Long?) {
+        dataStore.edit {
+            if (profileId == null) {
+                it.remove(ACTIVE_PROFILE_ID)
+                it.remove(LEGACY_ACTIVE_PLACE_ID)
+            } else {
+                it[ACTIVE_PROFILE_ID] = profileId
+            }
+        }
     }
 
     /**
@@ -81,7 +110,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) {
      */
     val contextManual: Flow<Boolean> = dataStore.data.map { it[CONTEXT_MANUAL] ?: false }
 
-    suspend fun setContextManual(manual: Boolean) {
+    override suspend fun setContextManual(manual: Boolean) {
         dataStore.edit { it[CONTEXT_MANUAL] = manual }
     }
 

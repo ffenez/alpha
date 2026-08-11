@@ -40,6 +40,7 @@ import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.EnergyWindow
 import app.radiacode.analysis.IsotopeHint
 import app.radiacode.analysis.IsotopeMatcher
+import app.radiacode.analysis.NuclideInfoLibrary
 import app.radiacode.analysis.Peak
 import app.radiacode.analysis.PeakDetection
 import app.radiacode.analysis.SpectrumDisplay
@@ -61,6 +62,7 @@ import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.SpectrumChart
 import app.radiacode.ui.components.SpectrumChartSpec
+import app.radiacode.ui.components.NuclideInfoDialog
 import app.radiacode.ui.components.SpectrumPeakMark
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.Evidence
@@ -570,6 +572,13 @@ private fun SpectrumContent(
     }
     val hints = remember(peaks) { IsotopeMatcher.match(peaks) }
     var highlightedIsotope by remember { mutableStateOf<String?>(null) }
+    // Tapping a candidate row opens its offline reference card (спец §12).
+    var infoIsotope by remember { mutableStateOf<String?>(null) }
+    infoIsotope?.let { symbol ->
+        NuclideInfoLibrary.of(symbol)?.let { nuclide ->
+            NuclideInfoDialog(nuclide = nuclide, onDismiss = { infoIsotope = null })
+        }
+    }
     val highlightedHint = hints.firstOrNull { it.isotope == highlightedIsotope }
         ?: hints.firstOrNull { !it.natural }
         ?: hints.firstOrNull()
@@ -694,7 +703,10 @@ private fun SpectrumContent(
                     peaks = peaks,
                     hints = hints,
                     highlightedHint = highlightedHint,
-                    onSelect = { highlightedIsotope = it },
+                    onSelect = { isotope ->
+                        highlightedIsotope = isotope
+                        infoIsotope = isotope
+                    },
                 )
             }
             highlightedHint?.let { hint ->
@@ -704,7 +716,7 @@ private fun SpectrumContent(
             }
             Text(
                 text = "возможное совпадение ≠ обнаружение · нужно подтверждение: " +
-                    "копите дольше",
+                    "копите дольше · нажмите строку — справка о нуклиде",
                 style = type.footnote,
                 color = colors.muted,
             )
