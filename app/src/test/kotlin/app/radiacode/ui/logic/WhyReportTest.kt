@@ -113,6 +113,20 @@ class WhyReportTest {
     }
 
     @Test
+    fun `a degenerate band still puts the dot on the right side`() {
+        val flat = baseline.copy(doseLowMicroSvH = 0.15f, doseHighMicroSvH = 0.15f)
+        val above = assertNotNull(
+            WhyScale.of(0.40f, flat, DoseUnitSetting.MICRO_SIEVERT),
+        )
+        assertEquals(1f, above.position)
+        assertTrue(above.outside)
+
+        val below = WhyScale.of(0.01f, flat, DoseUnitSetting.MICRO_SIEVERT)
+        assertEquals(0f, below.position)
+        assertTrue(below.outside)
+    }
+
+    @Test
     fun `without a current reading there is no scale to draw`() {
         val report = WhyReportBuilder.build(input(status = MonitorStatus.Unknown, dose = null))
         assertNull(report.scale)

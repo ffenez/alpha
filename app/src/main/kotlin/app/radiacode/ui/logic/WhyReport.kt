@@ -31,7 +31,15 @@ data class WhyScale(
             val low = baseline.doseLowMicroSvH
             val high = baseline.doseHighMicroSvH
             val span = (high - low).takeIf { it > 0f }
-            val raw = span?.let { (currentMicroSvH - low) / it } ?: 0.5f
+            // A degenerate band (P10 == P90 — a very flat history) has no
+            // inside to place a dot in, so the position follows the side the
+            // value is on rather than sitting in a middle that means nothing.
+            val raw = when {
+                span != null -> (currentMicroSvH - low) / span
+                currentMicroSvH > high -> 1f
+                currentMicroSvH < low -> 0f
+                else -> 0.5f
+            }
             return WhyScale(
                 lowLabel = DoseFormat.rate(low, unit),
                 highLabel = DoseFormat.rate(high, unit),
