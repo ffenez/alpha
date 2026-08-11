@@ -112,7 +112,7 @@ class PreAggregator(
      * passed, and the newest complete hour when it is missing or stale.
      * Idempotent — calling it twice changes nothing.
      */
-    suspend fun advance(nowMillis: Long = clock()): Unit {
+    suspend fun advance(nowMillis: Long = clock()) {
         val currentMinute = PreAggregateMath.minuteStartOf(nowMillis)
         val tailStart = currentMinute - LIVE_TAIL_MINUTES * MINUTE_MILLIS
         if (currentMinute > tailStart) {

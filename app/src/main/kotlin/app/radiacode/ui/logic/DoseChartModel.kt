@@ -525,25 +525,21 @@ object DoseChartModel {
         // samples; without them (backfill still running) the same moments are
         // estimated from the sketch's weighted items, which is approximate but
         // honest — never a zero pretending to be a spread.
-        val sum: Double
-        val sumSq: Double
-        if (rollup != null) {
-            sum = rollup.sumMicroSvH
-            sumSq = rollup.sumSqMicroSvH
-        } else {
+        var sum = rollup?.sumMicroSvH ?: 0.0
+        var sumSq = rollup?.sumSqMicroSvH ?: 0.0
+        var total = n
+        if (rollup == null) {
             val items = sketch.weightedItems()
-            var s = 0.0
-            var sq = 0.0
+            var weight = 0
             for (i in items.values.indices) {
                 val v = items.values[i].toDouble()
                 val w = items.weights[i]
-                s += v * w
-                sq += v * v * w
+                sum += v * w
+                sumSq += v * v * w
+                weight += w
             }
-            sum = s
-            sumSq = sq
+            total = weight.coerceAtLeast(1)
         }
-        val total = if (rollup != null) n else sketch.weightedItems().weights.sum().coerceAtLeast(1)
         val mean = sum / total
         val variance = (sumSq / total) - mean * mean
         return WindowStats(
