@@ -184,6 +184,22 @@ class MeasurementRepository(
             limit = limit,
         )
 
+    /** Located hotspots inside a map viewport, from any recording, newest first. */
+    suspend fun hotspotsInBounds(
+        minLatitude: Double,
+        maxLatitude: Double,
+        minLongitude: Double,
+        maxLongitude: Double,
+        limit: Int = 200,
+    ): List<EventEntity> = eventDao.locatedInBounds(
+        source = EventEntity.SOURCE_HOTSPOT,
+        minLatitude = minLatitude,
+        maxLatitude = maxLatitude,
+        minLongitude = minLongitude,
+        maxLongitude = maxLongitude,
+        limit = limit,
+    )
+
     fun latestRareData(): Flow<RareDataEntity?> = rareDataDao.observeLatest()
 
     fun recentEvents(limit: Int = 100): Flow<List<EventEntity>> = eventDao.observeRecent(limit)

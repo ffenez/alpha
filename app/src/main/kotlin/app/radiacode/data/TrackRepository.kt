@@ -1,6 +1,9 @@
 package app.radiacode.data
 
+import app.radiacode.data.db.TrackAreaSummaryRow
+import app.radiacode.data.db.TrackBoundsRow
 import app.radiacode.data.db.TrackDao
+import app.radiacode.data.db.TrackGridBinRow
 import app.radiacode.data.db.TrackPointEntity
 import app.radiacode.data.db.TrackSessionEntity
 import kotlinx.coroutines.flow.Flow
@@ -54,4 +57,58 @@ class TrackRepository(
     /** Track sessions overlapping a measurement-session time range. */
     suspend fun sessionsOverlapping(from: Long, to: Long): List<TrackSessionEntity> =
         trackDao.sessionsOverlapping(from, to)
+
+    // --- accumulated map («все записи») ---
+
+    /** Box covering every fix ever recorded; null when nothing was recorded. */
+    suspend fun allPointsBounds(): TrackBoundsRow? =
+        trackDao.allPointsBounds().takeIf { it.minLatitude != null }
+
+    /**
+     * Exact aggregate of one viewport over all recordings — the numbers the
+     * summary card shows. Never derived from the drawn subset.
+     */
+    suspend fun areaSummary(
+        useDose: Boolean,
+        minLatitude: Double,
+        maxLatitude: Double,
+        minLongitude: Double,
+        maxLongitude: Double,
+        maxAccuracyMeters: Float,
+    ): TrackAreaSummaryRow = trackDao.boundsSummary(
+        useDose = useDose,
+        minLatitude = minLatitude,
+        maxLatitude = maxLatitude,
+        minLongitude = minLongitude,
+        maxLongitude = maxLongitude,
+        maxAccuracyMeters = maxAccuracyMeters,
+    )
+
+    /** Grid × value histogram of a viewport (see `ui/logic/TrackGrid`). */
+    @Suppress("LongParameterList")
+    suspend fun gridHistogram(
+        useDose: Boolean,
+        minLatitude: Double,
+        maxLatitude: Double,
+        minLongitude: Double,
+        maxLongitude: Double,
+        maxAccuracyMeters: Float,
+        latStepDeg: Double,
+        lonStepDeg: Double,
+        valueMin: Float,
+        valueStep: Float,
+        limit: Int,
+    ): List<TrackGridBinRow> = trackDao.gridHistogram(
+        useDose = useDose,
+        minLatitude = minLatitude,
+        maxLatitude = maxLatitude,
+        minLongitude = minLongitude,
+        maxLongitude = maxLongitude,
+        maxAccuracyMeters = maxAccuracyMeters,
+        latStepDeg = latStepDeg,
+        lonStepDeg = lonStepDeg,
+        valueMin = valueMin,
+        valueStep = valueStep,
+        limit = limit,
+    )
 }

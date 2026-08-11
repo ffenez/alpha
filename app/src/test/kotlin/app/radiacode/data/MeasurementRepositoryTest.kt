@@ -64,6 +64,22 @@ private class FakeEventDao : EventDao {
     override fun observeRange(from: Long, to: Long): Flow<List<EventEntity>> = flowOf(emptyList())
     override suspend fun inRangeBySource(from: Long, to: Long, sources: List<String>, limit: Int): List<EventEntity> =
         inserted.filter { it.timestamp in from..to && it.source in sources }.take(limit)
+    override suspend fun locatedInBounds(
+        source: String,
+        minLatitude: Double,
+        maxLatitude: Double,
+        minLongitude: Double,
+        maxLongitude: Double,
+        limit: Int,
+    ): List<EventEntity> = inserted
+        .filter { event ->
+            val latitude = event.latitude
+            val longitude = event.longitude
+            event.source == source && latitude != null && longitude != null &&
+                latitude in minLatitude..maxLatitude && longitude in minLongitude..maxLongitude
+        }
+        .sortedByDescending { it.timestamp }
+        .take(limit)
 }
 
 internal class FakeSpectrumDao : SpectrumDao {

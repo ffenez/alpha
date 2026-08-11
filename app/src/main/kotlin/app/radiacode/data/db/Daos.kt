@@ -361,6 +361,29 @@ interface EventDao {
         sources: List<String>,
         limit: Int,
     ): List<EventEntity>
+
+    /**
+     * Located hotspots inside a map viewport, any time («все записи»): the
+     * accumulated map shows every sustained excess ever recorded there, not
+     * just the ones of the session on screen.
+     */
+    @Query(
+        """
+        SELECT * FROM events
+        WHERE source = :source
+          AND latitude BETWEEN :minLatitude AND :maxLatitude
+          AND longitude BETWEEN :minLongitude AND :maxLongitude
+        ORDER BY timestamp DESC LIMIT :limit
+        """,
+    )
+    suspend fun locatedInBounds(
+        source: String,
+        minLatitude: Double,
+        maxLatitude: Double,
+        minLongitude: Double,
+        maxLongitude: Double,
+        limit: Int,
+    ): List<EventEntity>
 }
 
 @Dao
@@ -423,7 +446,99 @@ interface TrackDao {
         """,
     )
     suspend fun highAltitudePointCount(from: Long, to: Long, minAltitudeMeters: Double): Int
+
+    /**
+     * Bounding box of every recorded fix — the first camera of «все записи»
+     * (nothing else knows where the user has ever measured). All four values
+     * are null when nothing was ever recorded.
+     */
+    @Query(
+        """
+        SELECT MIN(latitude) AS minLatitude, MAX(latitude) AS maxLatitude,
+               MIN(longitude) AS minLongitude, MAX(longitude) AS maxLongitude
+        FROM track_points
+        """,
+    )
+    suspend fun allPointsBounds(): TrackBoundsRow
+
+    /**
+     * Aggregate over every fix inside a map viewport, across all recordings.
+     * This is the honest denominator of the accumulated map: the summary card
+     * is computed from these numbers, never from the subset that got drawn.
+     *
+     * `useDose` picks the metric column without a second copy of the query;
+     * fixes worse than `maxAccuracyMeters` are excluded here and in the grid
+     * histogram alike, so both talk about the same set of points.
+     */
+    @Query(TrackGridSql.AREA_SUMMARY)
+    suspend fun boundsSummary(
+        useDose: Boolean,
+        minLatitude: Double,
+        maxLatitude: Double,
+        minLongitude: Double,
+        maxLongitude: Double,
+        maxAccuracyMeters: Float,
+    ): TrackAreaSummaryRow
+
+    /**
+     * Grid + value histogram of the accumulated map: one row per (cell, value
+     * bin) with the exact count, extremes and time span of that pair. Bounded
+     * by cells × value bins instead of by the number of fixes, so a viewport
+     * costs the same whether the user recorded one walk or three years of them
+     * (see [app.radiacode.ui.logic.TrackGrid] for the math and the reasoning).
+     *
+     * `CAST(… AS INTEGER)` truncates towards zero rather than flooring, which
+     * is why coordinates are shifted into positive space (+90 / +180) before
+     * the division — the pure `TrackGrid.latKey/lonKey` do exactly the same.
+     * SQLite before 3.35 (below API 31) has no `floor()`, so this is not
+     * stylistic.
+     */
+    @Query(TrackGridSql.GRID_HISTOGRAM)
+    suspend fun gridHistogram(
+        useDose: Boolean,
+        minLatitude: Double,
+        maxLatitude: Double,
+        minLongitude: Double,
+        maxLongitude: Double,
+        maxAccuracyMeters: Float,
+        latStepDeg: Double,
+        lonStepDeg: Double,
+        valueMin: Float,
+        valueStep: Float,
+        limit: Int,
+    ): List<TrackGridBinRow>
 }
+
+/** Bounding box of stored fixes; all null when there are none. */
+data class TrackBoundsRow(
+    val minLatitude: Double?,
+    val maxLatitude: Double?,
+    val minLongitude: Double?,
+    val maxLongitude: Double?,
+)
+
+/** Exact aggregate of one viewport over the full matching set. */
+data class TrackAreaSummaryRow(
+    val pointCount: Int,
+    val valueCount: Int,
+    /** Raw device units for dose, CPS for count rate; null = no values. */
+    val minValue: Float?,
+    val maxValue: Float?,
+    val firstTime: Long?,
+    val lastTime: Long?,
+)
+
+/** One (cell, value bin) pair of the accumulated-map histogram. */
+data class TrackGridBinRow(
+    val latKey: Int,
+    val lonKey: Int,
+    val valueKey: Int,
+    val pointCount: Int,
+    val minValue: Float,
+    val maxValue: Float,
+    val minTime: Long,
+    val maxTime: Long,
+)
 
 /** An experiment together with its runs (one screen read). */
 data class ExperimentWithRuns(

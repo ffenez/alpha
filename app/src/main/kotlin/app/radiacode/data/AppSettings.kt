@@ -197,6 +197,18 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         dataStore.edit { if (value == null) it.remove(ENERGY_WINDOWS) else it[ENERGY_WINDOWS] = value }
     }
 
+    /**
+     * What the Карта tab shows: the current/selected recording or every
+     * recording ever made. Null = the user never chose, and
+     * [MapTrackScope.resolve] picks the default from what is actually stored.
+     */
+    val mapTrackScope: Flow<MapTrackScope?> =
+        dataStore.data.map { MapTrackScope.fromStorage(it[MAP_TRACK_SCOPE]) }
+
+    suspend fun setMapTrackScope(scope: MapTrackScope) {
+        dataStore.edit { it[MAP_TRACK_SCOPE] = scope.name }
+    }
+
     /** Optional Монитор blocks; hero value, status and chart are fixed. */
     val monitorBlocks: Flow<MonitorBlocks> = dataStore.data.map { prefs ->
         MonitorBlocks(
@@ -252,6 +264,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val MONITOR_SHOW_DOSE_TODAY = booleanPreferencesKey("monitor_show_dose_today")
         private val MONITOR_SHOW_STATS = booleanPreferencesKey("monitor_show_stats")
         private val MONITOR_SHOW_CPS_HINT = booleanPreferencesKey("monitor_show_cps_hint")
+        private val MAP_TRACK_SCOPE = stringPreferencesKey("map_track_scope")
     }
 }
 
@@ -262,6 +275,33 @@ data class MonitorBlocks(
     val stats: Boolean = true,
     val cpsHint: Boolean = true,
 )
+
+/**
+ * Which track data the Карта tab draws.
+ *
+ * [CURRENT] is the recording being made (or the newest finished one) — the
+ * behaviour the screen always had. [ALL] is the accumulated radiation map:
+ * every fix of every recording, aggregated into grid cells.
+ */
+enum class MapTrackScope {
+    CURRENT,
+    ALL,
+    ;
+
+    companion object {
+        fun fromStorage(value: String?): MapTrackScope? =
+            entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
+
+        /**
+         * Default when the user never chose: the accumulated map as soon as
+         * anything was ever recorded (that is the question «строится ли карта
+         * следа» answers itself), and the single-recording view otherwise, so
+         * an empty install lands on the state that teaches recording.
+         */
+        fun resolve(stored: MapTrackScope?, hasRecordings: Boolean): MapTrackScope =
+            stored ?: if (hasRecordings) ALL else CURRENT
+    }
+}
 
 /** Stored dose display unit. */
 enum class DoseUnitSetting {
