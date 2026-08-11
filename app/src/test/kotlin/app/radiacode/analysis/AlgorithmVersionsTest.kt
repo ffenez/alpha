@@ -3,6 +3,8 @@ package app.radiacode.analysis
 import app.radiacode.baseline.BaselineAdmission
 import app.radiacode.baseline.BaselineConfig
 import app.radiacode.context.NetworkIdentity
+import app.radiacode.ui.logic.DoseHistograms
+import app.radiacode.ui.logic.TrendFit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -31,6 +33,10 @@ class AlgorithmVersionsTest {
         assertEquals(1, AlgorithmVersions.ENERGY_WINDOWS)
         assertEquals(1, AlgorithmVersions.DOSE_PROJECTION)
         assertEquals(1, AlgorithmVersions.AB_ANALYSIS)
+        assertEquals(2, AlgorithmVersions.TREND_FIT)
+        assertEquals(2, AlgorithmVersions.DOSE_HISTOGRAM)
+        assertEquals(1, AlgorithmVersions.DESCRIPTIVE_DEVIATION)
+        assertEquals(1, AlgorithmVersions.ANOMALY_TEST_CANDIDATE)
     }
 
     @Test
@@ -41,6 +47,17 @@ class AlgorithmVersionsTest {
         assertEquals(AlgorithmVersions.ENERGY_WINDOWS, EnergyWindows.ALGORITHM_VERSION)
         assertEquals(AlgorithmVersions.DOSE_PROJECTION, DoseProjection.ALGORITHM_VERSION)
         assertEquals(AlgorithmVersions.AB_ANALYSIS, AbAnalysis.ALGORITHM_VERSION)
+        assertEquals(AlgorithmVersions.TREND_FIT, TrendFit.ALGORITHM_VERSION)
+        assertEquals(AlgorithmVersions.DOSE_HISTOGRAM, DoseHistograms.ALGORITHM_VERSION)
+        assertEquals(
+            AlgorithmVersions.DESCRIPTIVE_DEVIATION,
+            DescriptiveDeviation.ALGORITHM_VERSION,
+        )
+        @OptIn(ExperimentalRadiationStatistics::class)
+        assertEquals(
+            AlgorithmVersions.ANOMALY_TEST_CANDIDATE,
+            AnomalyStatistics.ALGORITHM_VERSION,
+        )
     }
 
     @Test
@@ -57,6 +74,10 @@ class AlgorithmVersionsTest {
             "energy_windows",
             "dose_projection",
             "ab_analysis",
+            "trend_fit",
+            "dose_histogram",
+            "descriptive_deviation",
+            "anomaly_test_candidate",
         )
         assertEquals(expected, AlgorithmVersions.all.keys)
         assertTrue(AlgorithmVersions.all.values.all { it >= 1 })

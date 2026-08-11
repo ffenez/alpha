@@ -4,37 +4,115 @@ import app.radiacode.data.DoseUnitSetting
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class TrendFitTest {
 
+    private val minute = 60_000L
+
+    /** A line of [n] one-minute bins rising by [perBucket] µSv/h per bin. */
+    private fun line(n: Int, start: Float = 0.10f, perBucket: Float = 0.01f) =
+        List(n) { start + perBucket * it }
+
     @Test
     fun `flat series has zero slope`() {
-        val slope = TrendFit.slopePerHour(List(10) { 0.11f }, bucketMillis = 60_000)!!
+        val slope = TrendFit.slopePerHour(List(20) { 0.11f }, bucketMillis = minute)!!
         assertTrue(abs(slope) < 1e-6f)
     }
 
     @Test
     fun `linear rise recovers the exact per-hour slope`() {
         // +0.01 per bucket, bucket = 1 min -> +0.6/h.
-        val columns = List(10) { 0.1f + 0.01f * it }
-        val slope = TrendFit.slopePerHour(columns, bucketMillis = 60_000)!!
-        assertTrue(abs(slope - 0.6f) < 1e-4f)
+        val slope = TrendFit.slopePerHour(line(20), bucketMillis = minute)!!
+        assertTrue(abs(slope - 0.6f) < 1e-4f, "slope was $slope")
+    }
+
+    @Test
+    fun `a single spike moves OLS but not Theil-Sen`() {
+        val columns = line(20).toMutableList()
+        columns[17] = columns[17] + 5f
+        val theilSen = TrendFit.slopePerHour(columns, minute)!!
+        val ols = TrendFit.researchOlsSlopePerHour(columns, minute)!!
+        // Theil–Sen: 19 of the 190 pairwise slopes touch the spike; the median
+        // of the rest is still the line.
+        assertTrue(abs(theilSen - 0.6f) < 1e-3f, "Theil–Sen moved: $theilSen")
+        // Least squares is dragged by several µSv/h per hour by that one bin.
+        assertTrue(ols > 3f, "OLS should have been dragged, was $ols")
     }
 
     @Test
     fun `gaps are skipped, not interpolated`() {
-        val columns = listOf(0.1f, null, 0.12f, null, 0.14f)
-        // Present points (0,0.1),(2,0.12),(4,0.14): slope 0.01/bucket = 0.6/h at 1 min.
-        val slope = TrendFit.slopePerHour(columns, bucketMillis = 60_000)!!
-        assertTrue(abs(slope - 0.6f) < 1e-4f)
+        // Present bins at 0, 2, 4 ... minutes: real timestamps, same 0.6/h.
+        val columns = (0 until 30).map { if (it % 2 == 0) 0.10f + 0.005f * it else null }
+        val slope = TrendFit.slopePerHour(columns, bucketMillis = minute)!!
+        assertTrue(abs(slope - 0.3f) < 1e-4f, "slope was $slope")
     }
 
     @Test
-    fun `fewer than two points is honest null`() {
-        assertNull(TrendFit.slopePerHour(listOf(null, 0.1f, null), bucketMillis = 60_000))
-        assertNull(TrendFit.slopePerHour(emptyList(), bucketMillis = 60_000))
+    fun `too few present bins is honest null`() {
+        val columns = line(TrendFit.MIN_PRESENT_BINS - 1)
+        assertNull(TrendFit.slopePerHour(columns, minute))
+        assertNull(TrendFit.slopePerHour(listOf(null, 0.1f, null), minute))
+        assertNull(TrendFit.slopePerHour(emptyList(), minute))
+    }
+
+    @Test
+    fun `too short a time span is honest null`() {
+        // 20 bins of 10 s = 190 s of span, far below the 10 min minimum.
+        assertNull(TrendFit.slopePerHour(line(20), bucketMillis = 10_000L))
+        // The same bins over minutes are enough.
+        assertNotNull(TrendFit.slopePerHour(line(20), bucketMillis = minute))
+    }
+
+    @Test
+    fun `the availability rule is exactly the documented one`() {
+        val enough = TrendFit.fit(line(TrendFit.MIN_PRESENT_BINS), minute)
+        assertNotNull(enough)
+        assertEquals(TrendFit.MIN_PRESENT_BINS, enough.presentBins)
+        assertEquals(TrendMethod.THEIL_SEN, enough.method)
+        val n = TrendFit.MIN_PRESENT_BINS.toLong()
+        assertEquals(n * (n - 1) / 2, enough.pairCount)
+        assertTrue(enough.spanMillis >= TrendFit.MIN_SPAN_MILLIS)
+    }
+
+    @Test
+    fun `large windows are subsampled deterministically`() {
+        val points = (0 until 1_000).map {
+            TrendPoint(timeMillis = it * 1_000L, valueMicroSvH = 0.10f + 0.0001f * it)
+        }
+        val first = TrendFit.fit(points)!!
+        val second = TrendFit.fit(points)!!
+        assertTrue(first.subsampled)
+        assertTrue(first.pointsUsed <= TrendFit.MAX_PAIRED_POINTS + 1)
+        assertEquals(1_000, first.presentBins)
+        // No randomness anywhere: the same input is the same number, bit for bit.
+        assertEquals(first.slopePerHourBits(), second.slopePerHourBits())
+        // +0.0001 µSv/h per second = 0.36 per hour.
+        assertTrue(abs(first.slopeMicroSvHPerHour - 0.36f) < 1e-3f)
+        // The span is preserved exactly — the last bin is always kept.
+        assertEquals(999_000L, first.spanMillis)
+    }
+
+    @Test
+    fun `duplicate timestamps do not produce infinite slopes`() {
+        // 13 distinct minutes, each measured twice with the same timestamp.
+        val points = (0 until 26).map {
+            TrendPoint(timeMillis = (it / 2) * minute, valueMicroSvH = 0.10f + 0.01f * (it / 2))
+        }
+        val fit = TrendFit.fit(points)!!
+        assertTrue(fit.slopeMicroSvHPerHour.isFinite())
+        assertTrue(abs(fit.slopeMicroSvHPerHour - 0.6f) < 1e-3f)
+    }
+
+    @Test
+    fun `research OLS is available but is not the default`() {
+        val columns = line(20)
+        val ols = TrendFit.researchOlsSlope(TrendFit.toPoints(columns, minute))!!
+        assertEquals(TrendMethod.OLS, ols.method)
+        assertTrue(abs(ols.slopeMicroSvHPerHour - 0.6f) < 1e-3f)
+        assertEquals(TrendMethod.THEIL_SEN, TrendFit.fit(columns, minute)!!.method)
     }
 
     @Test
@@ -46,4 +124,12 @@ class TrendFitTest {
         // µR display unit is 100×: one decimal.
         assertEquals("+0,4 ↗", TrendFit.label(0.004f, DoseUnitSetting.MICRO_ROENTGEN))
     }
+
+    @Test
+    fun `unavailable wording is the honest one`() {
+        assertEquals("тренд недоступен", TrendFit.UNAVAILABLE)
+    }
+
+    private fun TrendResult.slopePerHourBits(): Int =
+        java.lang.Float.floatToIntBits(slopeMicroSvHPerHour)
 }

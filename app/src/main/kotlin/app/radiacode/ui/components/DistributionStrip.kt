@@ -13,6 +13,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.radiacode.ui.logic.DoseHistogram
+import app.radiacode.ui.logic.DoseHistograms
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 
@@ -38,7 +39,10 @@ fun DistributionStrip(
     modifier: Modifier = Modifier,
     height: Dp = 62.dp,
     caption: String = "распределение за окно",
-    countCaption: String = "измерений на уровень",
+    // Say exactly what the bars count (graph spec §14, §39): raw 1 Hz samples,
+    // i.e. measured seconds at the device's nominal cadence — not columns and
+    // not a probability density.
+    countCaption: String = DoseHistograms.COUNT_AXIS_LABEL,
 ) {
     val colors = LocalAppColors.current
     val axisStyle = LocalAppTypography.current.axis
