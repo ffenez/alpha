@@ -86,6 +86,15 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         }
     }
 
+    /**
+     * Какой именно звук включает кнопка «звук» на экране Поиска — клики или
+     * тон. Выбирается в Настройках; экран Поиска только включает и выключает
+     * канал, поэтому у него две маленькие кнопки, а не выбор из четырёх.
+     */
+    val searchSoundFlavour: Flow<String> = dataStore.data.map {
+        it[SEARCH_SOUND_FLAVOUR] ?: "clicks"
+    }
+
     suspend fun setSearchFeedbackMode(id: String) {
         dataStore.edit {
             it[SEARCH_FEEDBACK_MODE] = id
@@ -93,6 +102,9 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             // dropping them keeps one source of truth on disk.
             it.remove(SEARCH_SOUND)
             it.remove(SEARCH_VIBRATION)
+            // Выбор звукового канала запоминается отдельно: кнопка «звук» на
+            // Поиске должна вернуть именно то, что человек выбрал раньше.
+            if (id == "clicks" || id == "tone") it[SEARCH_SOUND_FLAVOUR] = id
         }
     }
 
@@ -106,6 +118,16 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
 
     suspend fun setWhyCalculationsExpanded(expanded: Boolean) {
         dataStore.edit { it[WHY_EXPANDED] = expanded }
+    }
+
+    /**
+     * Отладочный отчёт: выключен по умолчанию. Инструмент разбора полевых
+     * наблюдений, а не повседневная функция, поэтому его надо включить.
+     */
+    val debugReportEnabled: Flow<Boolean> = dataStore.data.map { it[DEBUG_REPORT] ?: false }
+
+    suspend fun setDebugReportEnabled(enabled: Boolean) {
+        dataStore.edit { it[DEBUG_REPORT] = enabled }
     }
 
     /**
@@ -302,9 +324,11 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val SEARCH_SOUND = booleanPreferencesKey("search_sound")
         private val SEARCH_VIBRATION = booleanPreferencesKey("search_vibration")
         private val SEARCH_FEEDBACK_MODE = stringPreferencesKey("search_feedback_mode")
+        private val SEARCH_SOUND_FLAVOUR = stringPreferencesKey("search_sound_flavour")
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")
         private val WHY_EXPANDED = booleanPreferencesKey("why_calculations_expanded")
         private val THEME = stringPreferencesKey("theme")
+        private val DEBUG_REPORT = booleanPreferencesKey("debug_report")
         private val ACTIVE_PROFILE_ID = longPreferencesKey("active_profile_id")
 
         /** Pre-v6 key; read-only fallback so an update keeps the selection. */

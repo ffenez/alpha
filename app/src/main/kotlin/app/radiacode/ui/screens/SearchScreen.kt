@@ -107,6 +107,7 @@ fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
     val activeProfileId by graph.contextHub.activeProfileId.collectAsState()
     val feedbackModeId by graph.settings.searchFeedbackMode.collectAsState(initial = null)
     val mode = SearchFeedbackMode.of(feedbackModeId) ?: SearchFeedbackMode.OFF
+    val soundFlavour by graph.settings.searchSoundFlavour.collectAsState(initial = "clicks")
     val energyToneEnabled by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
     val connection by graph.serviceStatus.connection.collectAsState()
 
@@ -353,33 +354,47 @@ fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
         ) {
             Chip(text = "Поиск источника", color = colors.ink)
             Spacer(Modifier.weight(1f))
-            Text(text = "отклик", style = type.footnote, color = colors.muted)
+            // Две маленькие кнопки, как и было: экран Поиска включает канал, а
+            // не выбирает его — выбор между кликами и тоном живёт в Настройках,
+            // и кнопка «звук» возвращает именно то, что там выбрано.
+            val soundOn = mode == SearchFeedbackMode.CLICKS || mode == SearchFeedbackMode.TONE
+            Chip(
+                text = "звук",
+                color = if (soundOn) colors.dataText else colors.muted,
+                dot = if (soundOn) colors.data else null,
+                onClick = {
+                    val next = if (soundOn) {
+                        SearchFeedbackMode.OFF
+                    } else {
+                        SearchFeedbackMode.of(soundFlavour) ?: SearchFeedbackMode.CLICKS
+                    }
+                    scope.launch { graph.settings.setSearchFeedbackMode(next.id) }
+                },
+            )
+            Chip(
+                text = "вибро",
+                color = if (mode == SearchFeedbackMode.VIBRO) colors.dataText else colors.muted,
+                dot = if (mode == SearchFeedbackMode.VIBRO) colors.data else null,
+                onClick = {
+                    val next = if (mode == SearchFeedbackMode.VIBRO) {
+                        SearchFeedbackMode.OFF
+                    } else {
+                        SearchFeedbackMode.VIBRO
+                    }
+                    scope.launch { graph.settings.setSearchFeedbackMode(next.id) }
+                },
+            )
         }
-        // One choice, not three switches (redesign §7): the four channels are
-        // alternatives — silence, clicks per event, a tone that follows the
-        // ratio to the background, and the same in vibration for a search
-        // with the phone in a pocket.
-        Segmented(
-            options = SearchFeedbackMode.entries.map { it.label },
-            selectedIndex = SearchFeedbackMode.entries.indexOf(mode),
-            onSelect = { index ->
-                val next = SearchFeedbackMode.entries[index]
-                scope.launch { graph.settings.setSearchFeedbackMode(next.id) }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
         Text(
             text = when (mode) {
-                SearchFeedbackMode.OFF -> "сигнал только на экране"
+                SearchFeedbackMode.OFF -> "сигнал только на экране · канал выбирается в Настройках"
                 SearchFeedbackMode.CLICKS ->
-                    "щелчок на каждый зарегистрированный импульс — как у счётчика Гейгера"
+                    "щелчок на каждый зарегистрированный импульс"
                 SearchFeedbackMode.TONE ->
-                    "непрерывный тон, выше — дальше от записанного фона; " +
-                        "высота идёт от окна решения " +
-                        "${SearchEngine.DECISION_WINDOW_MILLIS / 1000} с, не от одиночного импульса" +
+                    "тон: выше — дальше от записанного фона" +
                         (SearchTone.pitchLabel(ratio)?.let { " · сейчас $it" } ?: "")
                 SearchFeedbackMode.VIBRO ->
-                    "то же без звука: чаще пульс — дальше от записанного фона" +
+                    "чаще пульс — дальше от записанного фона" +
                         (SearchVibro.cadenceLabel(ratio)?.let { " · сейчас $it" } ?: "")
             },
             style = type.footnote,

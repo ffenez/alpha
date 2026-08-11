@@ -61,7 +61,6 @@ import app.radiacode.ui.components.RadioMark
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.NavConfig
-import app.radiacode.ui.logic.SearchFeedbackMode
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.ProfileDeletion
 import app.radiacode.ui.logic.NavEntry
@@ -73,6 +72,20 @@ import app.radiacode.ui.logic.learningWording
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import app.radiacode.baseline.Admission
+import app.radiacode.data.export.DebugReport
+import app.radiacode.data.export.DebugSnapshot
+import app.radiacode.device.DoseUnits
+import app.radiacode.ui.logic.MonitorStatus
+import app.radiacode.ui.logic.SearchFeedbackMode
+import app.radiacode.ui.logic.statusDetail
+import app.radiacode.ui.logic.statusHeadline
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -88,6 +101,7 @@ private enum class SettingsCategory(val title: String, val subtitle: String) {
     SOUND("Звук", "отклик Поиска, звук тревоги"),
     VIEW("Вид", "тема, единицы, вкладки и блоки Главной"),
     DEVICE("Прибор", "серийный номер, прошивка, батарея"),
+    DEBUG("Отладка", "отчёт о состоянии приложения в файл"),
     ABOUT("О приложении", "версия и лицензии"),
 }
 
@@ -137,6 +151,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                 InterfaceSection(graph)
             }
             SettingsCategory.DEVICE -> DeviceSection(graph)
+            SettingsCategory.DEBUG -> DebugSection(graph)
             SettingsCategory.ABOUT -> LicensesSection()
         }
     }
@@ -238,6 +253,177 @@ private fun SoundSection(graph: AppGraph) {
         }
     }
 }
+
+// --- Отладка ---
+
+/**
+ * Отчёт «что сейчас думает приложение» — для разбора наблюдений вида
+ * «поставил порог, а на экране ничего». Выключен по умолчанию: это инструмент
+ * разбора, а не повседневная функция.
+ */
+@Composable
+private fun DebugSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val enabled by graph.settings.debugReportEnabled.collectAsState(initial = false)
+    var pending by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+
+    val saveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri ->
+        val content = pending
+        pending = null
+        if (uri != null && content != null) {
+            scope.launch {
+                notice = if (writeTextToUri(context, uri, content)) {
+                    "отчёт сохранён"
+                } else {
+                    "отчёт не записался — попробуйте другую папку"
+                }
+            }
+        }
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle("Отладка")
+            BlockToggleRow("Отчёт о состоянии", enabled) {
+                scope.launch { graph.settings.setDebugReportEnabled(it) }
+            }
+            Text(
+                text = "Текстовый файл с тем, что приложение видит прямо сейчас: показание " +
+                    "прибора, статус на экране, параметры тревоги и её отсчёт, объёмы " +
+                    "данных, версии алгоритмов.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            Text(
+                text = DebugReport.PRIVACY_NOTE,
+                style = type.footnote,
+                color = colors.muted,
+            )
+            if (enabled) {
+                AppButton(
+                    text = "Сохранить отчёт в файл",
+                    onClick = {
+                        scope.launch {
+                            val report = buildDebugReport(graph, context)
+                            pending = report
+                            saveLauncher.launch(
+                                DebugReport.fileName(System.currentTimeMillis()) { millis ->
+                                    FILE_STAMP.format(
+                                        Instant.ofEpochMilli(millis)
+                                            .atZone(ZoneId.systemDefault()),
+                                    )
+                                },
+                            )
+                        }
+                    },
+                    primary = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            notice?.let {
+                Text(text = it, style = type.footnote, color = colors.ink2)
+            }
+        }
+    }
+}
+
+/**
+ * Собирает снимок состояния для отчёта. Строки статуса берутся ТЕМИ ЖЕ
+ * функциями, что рисуют экран: отчёт, в котором формулировки пересобраны
+ * заново, отвечал бы на другой вопрос.
+ */
+private suspend fun buildDebugReport(
+    graph: AppGraph,
+    context: android.content.Context,
+): String {
+    val now = System.currentTimeMillis()
+    val sample = graph.measurementRepository.latestSample().first()
+    val baselineState = graph.serviceStatus.baseline.value
+    val deviation = graph.serviceStatus.deviation.value
+    val thresholds = graph.settings.alarmThresholds.first()
+    val unit = graph.settings.doseUnit.first()
+    val profile = graph.profileRepository.activeProfile().first()
+    val dose = sample?.let { DoseUnits.rawToMicroSievertPerHour(it.doseRate) }
+    val status = MonitorStatus.of(
+        doseRateMicroSvH = dose,
+        baselineState = baselineState,
+        deviation = deviation,
+        thresholds = thresholds,
+        nowMillis = now,
+    )
+    val connection = graph.serviceStatus.connection.value
+    val connected = connection as? ConnectionState.Connected
+    val background = graph.searchBackground.first()
+    val fingerprint = profile?.id?.let { graph.fingerprintRepository.entity(it) }
+
+    val snapshot = DebugSnapshot(
+        appVersion = appVersionName(context) ?: "—",
+        androidSdk = android.os.Build.VERSION.SDK_INT,
+        deviceModel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
+        instrumentSerial = connected?.info?.serialNumber,
+        instrumentFirmware = connected?.info?.firmware?.toString(),
+        serviceRunning = graph.serviceStatus.serviceRunning.value,
+        connection = when (connection) {
+            is ConnectionState.Connected -> "подключён"
+            is ConnectionState.Connecting -> "подключается"
+            else -> "не подключён"
+        },
+        doseRateMicroSvH = dose,
+        doseErrPercent = sample?.doseRateErr,
+        countRate = sample?.countRate,
+        sampleAgeSeconds = sample?.let { (now - it.timestamp) / 1000L },
+        profileName = profile?.name,
+        contextWording = graph.contextHub.state.value::class.simpleName,
+        statusHeadline = statusHeadline(status),
+        statusDetail = statusDetail(status, unit),
+        baselineWording = when (val state = baselineState) {
+            is BaselineState.Active -> baselineCollectedWording(state.baseline)
+            is BaselineState.Learning -> learningWording(state)
+            null -> "нет данных"
+        },
+        admissionWording = when (val admission = graph.serviceStatus.admission.value) {
+            is Admission.Excluded -> "исключено: ${admission.reason.label}"
+            else -> "измерения учитываются"
+        },
+        alarmL1MicroSvH = thresholds.l1MicroSvH,
+        alarmL2MicroSvH = thresholds.l2MicroSvH,
+        alarmPersistenceSeconds = thresholds.persistenceSeconds,
+        alarmRelativeFactor = thresholds.relativeFactor,
+        alarmSensitivity = graph.settings.alarmSensitivity.first().name,
+        aboveUsualSinceMillis = deviation.aboveUsualSince,
+        alarmConditionSinceMillis = deviation.alarmConditionSince,
+        alertSinceMillis = deviation.alertSince,
+        nowMillis = now,
+        sampleCount = graph.database.sampleDao().count(),
+        sessionCount = graph.sessionRepository.count(),
+        spectrumCount = graph.database.spectrumDao().count(),
+        minuteStatCount = graph.database.preAggregateDao().minuteCount(),
+        hourSketchCount = graph.database.preAggregateDao().hourCount(0, now),
+        doseUnit = DoseFormat.rateUnitLabel(unit),
+        theme = graph.settings.themeSetting.first().label,
+        searchFeedbackMode = SearchFeedbackMode.of(
+            graph.settings.searchFeedbackMode.first(),
+        )?.label ?: "нет",
+        searchBackgroundWording = background
+            ?.let { "${it.cps} с⁻¹ · ${it.window.samples} показаний" }
+            ?: "не записан",
+        fingerprintWording = fingerprint
+            ?.let { "создан ${REPORT_STAMP.format(Instant.ofEpochMilli(it.createdAt).atZone(ZoneId.systemDefault()))}" }
+            ?: "не создан",
+    )
+    return DebugReport.build(snapshot) { millis ->
+        REPORT_STAMP.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
+    }
+}
+
+private val FILE_STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm")
+private val REPORT_STAMP = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
 
 // --- Вид: тема ---
 

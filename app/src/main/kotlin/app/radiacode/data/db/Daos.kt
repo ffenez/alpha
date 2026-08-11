@@ -772,6 +772,9 @@ interface SpectrumDao {
     @Query("SELECT * FROM spectra WHERE id = :id")
     suspend fun byId(id: Long): SpectrumSnapshotEntity?
 
+    @Query("SELECT COUNT(*) FROM spectra")
+    suspend fun count(): Long
+
     /** Deletes the chosen snapshots — an explicit act from История. */
     @Query("DELETE FROM spectra WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>): Int

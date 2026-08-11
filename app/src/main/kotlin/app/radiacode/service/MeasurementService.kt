@@ -349,6 +349,11 @@ class MeasurementService : Service() {
                     PersistenceTracker.State.Idle -> null
                 },
                 alertSince = (alert.state as? PersistenceTracker.State.Confirmed)?.sinceMillis,
+                alarmConditionSince = when (val s = alert.state) {
+                    is PersistenceTracker.State.Building -> s.sinceMillis
+                    is PersistenceTracker.State.Confirmed -> s.sinceMillis
+                    PersistenceTracker.State.Idle -> null
+                },
             )
         }
         graph.serviceStatus.onDeviation(snapshot)

@@ -30,6 +30,20 @@ sealed interface MonitorStatus {
     /** Above the typical band and holding (magnitude + dwell). */
     data class AboveUsual(val baseline: Baseline, val heldSeconds: Long) : MonitorStatus
 
+    /**
+     * Значение уже выше порога тревоги, но ещё не выдержало по длительности.
+     *
+     * Отдельная ступень, потому что молчать здесь нельзя: человек сам поставил
+     * порог и смотрит на число выше него. Тревога — про величину И
+     * длительность, поэтому ступень называет обе.
+     */
+    data class AboveThreshold(
+        val baseline: Baseline?,
+        val heldSeconds: Long,
+        val requiredSeconds: Long,
+        val thresholdMicroSvH: Float,
+    ) : MonitorStatus
+
     /** Confirmed persistent deviation — the alarm-worthy state. */
     data class Alert(
         val baseline: Baseline?,
@@ -53,6 +67,20 @@ sealed interface MonitorStatus {
                 return Alert(
                     baseline = baseline,
                     heldSeconds = heldSeconds(nowMillis, alertSince),
+                    thresholdMicroSvH = thresholds.l1MicroSvH,
+                )
+            }
+
+            // Порог тревоги виден сразу, ещё до выдержки, и виден независимо
+            // от того, собран ли исторический диапазон места: это НАСТРОЙКА
+            // пользователя, а не статистика, и прятать её превышение внутри
+            // «в обычном диапазоне» нельзя.
+            val conditionSince = deviation.alarmConditionSince
+            if (conditionSince != null) {
+                return AboveThreshold(
+                    baseline = baseline,
+                    heldSeconds = heldSeconds(nowMillis, conditionSince),
+                    requiredSeconds = thresholds.persistenceSeconds.toLong(),
                     thresholdMicroSvH = thresholds.l1MicroSvH,
                 )
             }
@@ -92,6 +120,7 @@ fun statusHeadline(status: MonitorStatus): String = when (status) {
     is MonitorStatus.Fixed -> if (status.above) "Выше порога L1" else "Ниже порога L1"
     is MonitorStatus.Usual -> "В обычном диапазоне этого профиля"
     is MonitorStatus.AboveUsual -> "Выше обычного диапазона профиля"
+    is MonitorStatus.AboveThreshold -> "Выше вашего порога тревоги"
     is MonitorStatus.Alert -> "Уровень радиации изменился"
 }
 
@@ -99,6 +128,7 @@ fun statusHeadline(status: MonitorStatus): String = when (status) {
 fun statusHeadlineShort(status: MonitorStatus): String = when (status) {
     is MonitorStatus.Usual -> "Обычный для этого места"
     is MonitorStatus.AboveUsual -> "Выше обычного"
+    is MonitorStatus.AboveThreshold -> "Выше порога"
     else -> statusHeadline(status)
 }
 
@@ -118,6 +148,11 @@ fun statusDetail(status: MonitorStatus, unit: DoseUnitSetting): String? = when (
     is MonitorStatus.AboveUsual ->
         "P10–P90 профиля: ${baselineRange(status.baseline, unit)} " +
             "${DoseFormat.rateUnitLabel(unit)} · ${heldWording(status.heldSeconds)}"
+    is MonitorStatus.AboveThreshold ->
+        // Величина И длительность: обе названы, поэтому ожидание видно, а не
+        // выглядит как «приложение ничего не заметило».
+        "порог L1 ${DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit)} превышен · " +
+            "держится ${status.heldSeconds} с из ${status.requiredSeconds} с до тревоги"
     is MonitorStatus.Alert -> {
         val reference = status.baseline
             ?.let {

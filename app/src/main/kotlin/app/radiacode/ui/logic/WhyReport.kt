@@ -138,6 +138,7 @@ object WhyReportBuilder {
         is MonitorStatus.Fixed -> if (status.above) WhyTone.ATTENTION else WhyTone.OK
         is MonitorStatus.Usual -> WhyTone.OK
         is MonitorStatus.AboveUsual -> WhyTone.ATTENTION
+        is MonitorStatus.AboveThreshold -> WhyTone.ATTENTION
         is MonitorStatus.Alert -> WhyTone.ALARM
     }
 

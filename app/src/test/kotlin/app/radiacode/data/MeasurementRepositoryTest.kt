@@ -100,6 +100,7 @@ private class FakeEventDao : EventDao {
 
 internal class FakeSpectrumDao : SpectrumDao {
     val inserted = mutableListOf<SpectrumSnapshotEntity>()
+    override suspend fun count(): Long = inserted.size.toLong()
     override suspend fun deleteByIds(ids: List<Long>): Int {
         val before = inserted.size
         inserted.removeAll { it.id in ids }
