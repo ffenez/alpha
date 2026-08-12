@@ -72,10 +72,17 @@ data class WaterfallSpec(
     val timeLabels: List<Pair<Float, String>> = emptyList(),
     /** Dose rate per column for the synced strip, µSv/h; null = unknown. */
     val stripValues: List<Float?> = emptyList(),
+    /** Подпись мини-графика под картой: что за величина и в чём. */
+    val stripLabel: String = "",
 )
 
 private const val STRIP_GAP_DP = 4
-private const val STRIP_HEIGHT_DP = 30
+/**
+ * Полоса мощности дозы под картой — отдельный мини-график, а не часть heatmap.
+ * Своя высота и своя подпись единицы: иначе бирюзовая линия читается как ещё
+ * один энергетический ряд.
+ */
+private const val STRIP_HEIGHT_DP = 52
 
 @Composable
 fun WaterfallChart(
@@ -262,6 +269,14 @@ fun WaterfallChart(
                     }
                 }
                 drawPath(path, colors.data, style = Stroke(width = 1.6.dp.toPx()))
+                // Мини-график называет свою величину и свой максимум: без
+                // этого бирюзовая линия читается как часть карты энергий.
+                val label = textMeasurer.measure(spec.stripLabel, axisStyle)
+                drawText(
+                    textLayoutResult = label,
+                    color = colors.muted,
+                    topLeft = Offset(padL + 2.dp.toPx(), stripBottom - stripH),
+                )
             }
         }
 

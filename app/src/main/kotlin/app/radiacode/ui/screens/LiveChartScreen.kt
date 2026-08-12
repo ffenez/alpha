@@ -1171,11 +1171,32 @@ private fun BoxScope.CursorCard(
     val type = LocalAppTypography.current
     val fraction = cursorFraction.value ?: return
     val time = ChartWindows.timeAt(window, fraction)
-    val bucket = CursorReadout.nearestBucket(buckets, time) ?: return
-    val above = alarmLevel != null && bucket.median >= alarmLevel
     val clock: (Long) -> String = { millis ->
         Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(CURSOR_TIME)
     }
+    val bucket = CursorReadout.nearestBucket(buckets, time)
+    if (bucket == null) {
+        // Курсор стоит там, где измерений не было: место обязано назвать
+        // себя, иначе плоскость «нет данных» неотличима от низкого уровня.
+        Card(
+            modifier = Modifier
+                .align(if (fraction < 0.5f) Alignment.TopEnd else Alignment.TopStart)
+                .padding(Dimens.space2),
+            contentPadding = Dimens.space2,
+        ) {
+            Column {
+                Text(text = clock(time), style = type.footnote, color = colors.ink2)
+                Text(text = "нет данных", style = type.value, color = colors.muted)
+                Text(
+                    text = "прибор не писал в этот момент",
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
+        }
+        return
+    }
+    val above = alarmLevel != null && bucket.median >= alarmLevel
     val extreme = DoseExtremes.classify(bucket, alarmLevel, baseline?.doseHighMicroSvH)
     Card(
         modifier = Modifier

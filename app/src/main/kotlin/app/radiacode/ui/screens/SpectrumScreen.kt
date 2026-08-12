@@ -47,6 +47,7 @@ import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.EnergyWindow
 import app.radiacode.analysis.IsotopeHint
 import app.radiacode.analysis.IsotopeMatcher
+import app.radiacode.analysis.LineConsistency
 import app.radiacode.analysis.NuclideInfoLibrary
 import app.radiacode.analysis.Peak
 import app.radiacode.analysis.PeakDetection
@@ -735,7 +736,15 @@ private fun SpectrumContent(
     var infoIsotope by remember { mutableStateOf<String?>(null) }
     infoIsotope?.let { symbol ->
         NuclideInfoLibrary.of(symbol)?.let { nuclide ->
-            NuclideInfoDialog(nuclide = nuclide, onDismiss = { infoIsotope = null })
+            NuclideInfoDialog(
+                nuclide = nuclide,
+                // Проверка по нескольким линиям считается по ТЕМ ЖЕ найденным
+                // пикам, что и подсказка: карточка не пересчитывает спектр.
+                consistency = LineConsistency.check(symbol, peaks) { energy ->
+                    IsotopeMatcher.toleranceKeV(energy, resolution662)
+                },
+                onDismiss = { infoIsotope = null },
+            )
         }
     }
     val highlightedHint = hints.firstOrNull { it.isotope == highlightedIsotope }

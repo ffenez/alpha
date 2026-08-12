@@ -28,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
 import app.radiacode.analysis.Spectrogram
@@ -268,6 +269,7 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                                     toMillis ?: 0L,
                                 ),
                                 stripValues = columnsData.map { it?.doseMicroSvH },
+                                stripLabel = "мощность дозы, ${DoseFormat.rateUnitLabel(unit)}",
                             ),
                             height = chartHeight,
                             onTapColumn = { index ->
@@ -475,13 +477,16 @@ private fun LegendRamp(shapeMode: Boolean, scaleTop: Float) {
         // Шкала называет ВЕЛИЧИНУ и её концы. «Меньше ■■■ больше» в режиме
         // формы означало бы «меньше излучения», хотя это доля внутри столбца.
         Text(text = "0", style = type.axis, color = colors.muted)
-        waterfallLegendColors().forEach { color ->
-            Box(
-                Modifier
-                    .size(width = 12.dp, height = 7.dp)
-                    .background(color, RoundedCornerShape(2.dp)),
-            )
-        }
+        // Непрерывная полоса вместо отдельных квадратиков: шкала интенсивности
+        // непрерывна, и разрывы в легенде подсказывали бы ступени, которых нет.
+        Box(
+            Modifier
+                .size(width = 72.dp, height = 8.dp)
+                .background(
+                    Brush.horizontalGradient(waterfallLegendColors()),
+                    RoundedCornerShape(2.dp),
+                ),
+        )
         Text(
             text = if (shapeMode) {
                 "макс. столбца"

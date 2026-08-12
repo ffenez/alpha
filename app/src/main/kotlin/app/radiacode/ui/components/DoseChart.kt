@@ -269,33 +269,6 @@ fun DoseChart(
 private fun fractionOf(xPx: Float, widthPx: Float): Float =
     (xPx / widthPx.coerceAtLeast(1f)).coerceIn(0f, 1f)
 
-/**
- * Диагональная штриховка промежутка без измерений: рисуется линиями, а не
- * заливкой, чтобы её нельзя было прочитать как данные — заливка на графике
- * измерений всегда что-то означает.
- */
-private fun DrawScope.hatch(
-    fromX: Float,
-    toX: Float,
-    top: Float,
-    height: Float,
-    color: Color,
-    step: Float,
-) {
-    if (toX <= fromX || height <= 0f || step <= 0f) return
-    clipRect(left = fromX, top = top, right = toX, bottom = top + height) {
-        var x = fromX - height
-        while (x < toX + height) {
-            drawLine(
-                color = color,
-                start = Offset(x, top + height),
-                end = Offset(x + height, top),
-                strokeWidth = 1f,
-            )
-            x += step
-        }
-    }
-}
 
 /** Resolved chart palette — one value for the draw lambdas to capture. */
 @Immutable
@@ -340,7 +313,6 @@ private fun StaticChartLayer(
                 val alarmStroke = 1.dp.toPx()
                 val baselineStroke = 1.5.dp.toPx()
                 val labelInset = 4.dp.toPx()
-                val hatchStep = 7.dp.toPx()
                 val spanMillis = (spec.toMillis - spec.fromMillis).coerceAtLeast(1L)
                 fun xOfTime(millis: Long): Float =
                     (widthPx * (millis - spec.fromMillis).toFloat() / spanMillis)
@@ -436,14 +408,19 @@ private fun StaticChartLayer(
                     // Пропуски потока и область до начала истории: «прибор
                     // молчал» и «сюда данные не доходят» — не то же самое, что
                     // «уровень был низкий», и на пустом поле это неразличимо.
+                    // Спокойная плоскость вместо диагональной штриховки: она
+                    // читалась как ошибка рендера или чужая сетка. Та же
+                    // краска, что у «сюда данные не доходят» и у пустой
+                    // ячейки спектрограммы — одно значение, один вид на всех
+                    // экранах. Причина называется словами в карточке курсора.
                     for (gap in spec.gaps) {
-                        hatch(
-                            fromX = xOfTime(gap.fromMillis),
-                            toX = xOfTime(gap.toMillis),
-                            top = plotTop,
-                            height = plotHeight,
-                            color = colors.grid,
-                            step = hatchStep,
+                        val left = xOfTime(gap.fromMillis)
+                        val right = xOfTime(gap.toMillis)
+                        if (right <= left) continue
+                        drawRect(
+                            color = colors.beyondData,
+                            topLeft = Offset(left, plotTop),
+                            size = Size(right - left, plotHeight),
                         )
                     }
                     spec.beforeHistory?.let { before ->

@@ -38,6 +38,10 @@ object Uncertainty {
     }
 
     /** One-decimal number with a comma: 24.31 → «24,3». */
+    /** Два знака — для отношений: «1,04», «0,82». */
+    fun num2(value: Float): String =
+        String.format(java.util.Locale.US, "%.2f", value).replace('.', ',')
+
     fun num1(value: Float): String =
         String.format(Locale.US, "%.1f", value).replace('.', ',')
 }
