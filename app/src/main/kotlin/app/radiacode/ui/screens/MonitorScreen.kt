@@ -73,6 +73,7 @@ import app.radiacode.ui.logic.MonitorStatus
 import app.radiacode.ui.logic.BaselineSnapshot
 import app.radiacode.ui.logic.ProfileShift
 import app.radiacode.ui.logic.ProfileTree
+import app.radiacode.ui.logic.TrendAvailability
 import app.radiacode.ui.logic.TrendFit
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.WhyInput
@@ -256,11 +257,13 @@ fun MonitorScreen(
             doseMicroSvH = doseMicroSvH,
             errPercent = sample?.doseRateErr,
             cps = sample?.countRate,
-            trendMicroSvHPerHour = charts[ChartMetric.DOSE]?.let { loaded ->
-                TrendFit.slopePerHour(
+            trend = charts[ChartMetric.DOSE]?.let { loaded ->
+                TrendFit.availability(
                     loaded.snapshot.buckets.map { TrendPoint(it.midMillis, it.median) },
                 )
             },
+            trendWindowLabel = charts[ChartMetric.DOSE]
+                ?.let { windowLabel(ChartMetric.DOSE, it.window) },
             doseTodayMicroSv = doseTodayMicroSv,
             status = status,
             baselineState = baselineState,
@@ -456,7 +459,8 @@ private fun HeroCard(
     doseMicroSvH: Float?,
     errPercent: Float?,
     cps: Float?,
-    trendMicroSvHPerHour: Float?,
+    trend: TrendAvailability?,
+    trendWindowLabel: String?,
     doseTodayMicroSv: Double?,
     status: MonitorStatus,
     baselineState: BaselineState?,
@@ -554,12 +558,21 @@ private fun HeroCard(
                     ),
                 )
                 if (blocks.trend) {
+                    val slope = (trend as? TrendAvailability.Ready)?.result?.slopeMicroSvHPerHour
                     add(
                         HeroTile(
                             label = "Тренд/ч",
-                            value = trendMicroSvHPerHour?.let { TrendFit.label(it, unit) } ?: "—",
-                            valueColor = trendWarnColor(trendMicroSvHPerHour, status),
+                            value = slope?.let { TrendFit.label(it, unit) } ?: "—",
+                            valueColor = trendWarnColor(slope, status),
                             evidence = Evidence.CALCULATED,
+                            // Прочерк без причины неотличим от поломки: плитка
+                            // говорит, чего именно не хватает — или за какое
+                            // окно посчитан показанный наклон.
+                            note = when {
+                                trend == null -> null
+                                slope != null -> trendWindowLabel?.let { "за $it" }
+                                else -> TrendFit.unavailableNote(trend)
+                            },
                         ),
                     )
                 }
@@ -608,6 +621,8 @@ private data class HeroTile(
     val value: String,
     val valueColor: Color? = null,
     val evidence: Evidence? = null,
+    /** Одна тихая строка под значением: за какое окно оно или чего не хватает. */
+    val note: String? = null,
 )
 
 @Composable
@@ -638,6 +653,9 @@ private fun HeroTileBox(tile: HeroTile, modifier: Modifier = Modifier) {
             color = tile.valueColor ?: colors.ink,
             maxLines = 1,
         )
+        tile.note?.let {
+            Text(text = it, style = type.footnote, color = colors.muted, maxLines = 1)
+        }
     }
 }
 

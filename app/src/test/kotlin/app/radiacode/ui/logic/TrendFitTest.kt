@@ -132,4 +132,35 @@ class TrendFitTest {
 
     private fun TrendResult.slopePerHourBits(): Int =
         java.lang.Float.floatToIntBits(slopeMicroSvHPerHour)
+
+    @Test
+    fun `an unavailable trend says which condition failed, with numbers`() {
+        // Мало интервалов: причина называет и сколько есть, и сколько нужно.
+        val few = (0 until 5).map { TrendPoint(it * 60_000L, 0.15f) }
+        val fewResult = TrendFit.availability(few)
+        assertTrue(fewResult is TrendAvailability.TooFewBins, "$fewResult")
+        assertEquals(5, (fewResult as TrendAvailability.TooFewBins).present)
+        val fewNote = TrendFit.unavailableNote(fewResult)
+        assertTrue(fewNote!!.contains("5"), fewNote)
+        assertTrue(fewNote.contains("${TrendFit.MIN_PRESENT_BINS}"), fewNote)
+
+        // Интервалов хватает, но они занимают меньше десяти минут.
+        val short = (0 until 20).map { TrendPoint(it * 10_000L, 0.15f) }
+        val shortResult = TrendFit.availability(short)
+        assertTrue(shortResult is TrendAvailability.TooShort, "$shortResult")
+        val shortNote = TrendFit.unavailableNote(shortResult)
+        assertTrue(shortNote!!.contains("мин"), shortNote)
+
+        // Когда тренд есть, причины нет.
+        val enough = (0 until 30).map { TrendPoint(it * 60_000L, 0.15f + it * 0.001f) }
+        val ready = TrendFit.availability(enough)
+        assertTrue(ready is TrendAvailability.Ready, "$ready")
+        assertEquals(null, TrendFit.unavailableNote(ready))
+        // Старый вход в тот же расчёт продолжает отдавать то же число.
+        assertEquals(
+            (ready as TrendAvailability.Ready).result.slopeMicroSvHPerHour,
+            TrendFit.slopePerHour(enough)!!,
+            1e-6f,
+        )
+    }
 }

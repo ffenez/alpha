@@ -15,6 +15,19 @@ data class TrendPoint(
     val valueMicroSvH: Float,
 )
 
+/**
+ * Тренд посчитан — или не посчитан, и тогда с числами, объясняющими почему.
+ */
+sealed interface TrendAvailability {
+    data class Ready(val result: TrendResult) : TrendAvailability
+
+    /** Присутствующих интервалов меньше [TrendFit.MIN_PRESENT_BINS]. */
+    data class TooFewBins(val present: Int) : TrendAvailability
+
+    /** Интервалы есть, но они покрывают меньше [TrendFit.MIN_SPAN_MILLIS]. */
+    data class TooShort(val spanMillis: Long) : TrendAvailability
+}
+
 /** Which estimator produced a slope. */
 enum class TrendMethod {
     /** Median of all pairwise slopes (default, graph spec §23). */
@@ -142,29 +155,54 @@ object TrendFit {
     fun fit(
         points: List<TrendPoint>,
         method: TrendMethod = TrendMethod.THEIL_SEN,
-    ): TrendResult? {
+    ): TrendResult? = (availability(points, method) as? TrendAvailability.Ready)?.result
+
+    /**
+     * Тренд — или ПРИЧИНА, по которой его нет.
+     *
+     * Голый прочерк на месте числа не отличим от поломки: человек видит «—» и
+     * не знает, копится ли ещё окно, прервана ли связь или что-то сломалось.
+     * Правило доступности здесь одно и то же, но оно возвращает числа, из
+     * которых можно составить честную подпись.
+     */
+    fun availability(
+        points: List<TrendPoint>,
+        method: TrendMethod = TrendMethod.THEIL_SEN,
+    ): TrendAvailability {
         val usable = points
             .filter { it.valueMicroSvH.isFinite() }
             .sortedBy { it.timeMillis }
-        if (usable.size < MIN_PRESENT_BINS) return null
+        if (usable.size < MIN_PRESENT_BINS) return TrendAvailability.TooFewBins(usable.size)
         val span = usable.last().timeMillis - usable.first().timeMillis
-        if (span < MIN_SPAN_MILLIS) return null
+        if (span < MIN_SPAN_MILLIS) return TrendAvailability.TooShort(span)
 
         val paired = subsample(usable)
         val slope = when (method) {
             TrendMethod.THEIL_SEN -> theilSen(paired)
             TrendMethod.OLS -> ols(paired)
-        } ?: return null
+        } ?: return TrendAvailability.TooFewBins(usable.size)
         val n = paired.size.toLong()
-        return TrendResult(
-            slopeMicroSvHPerHour = slope,
-            method = method,
-            presentBins = usable.size,
-            pointsUsed = paired.size,
-            spanMillis = span,
-            pairCount = n * (n - 1) / 2,
-            subsampled = paired.size != usable.size,
+        return TrendAvailability.Ready(
+            TrendResult(
+                slopeMicroSvHPerHour = slope,
+                method = method,
+                presentBins = usable.size,
+                pointsUsed = paired.size,
+                spanMillis = span,
+                pairCount = n * (n - 1) / 2,
+                subsampled = paired.size != usable.size,
+            ),
         )
+    }
+
+    /** Короткая подпись «почему тренда нет»; null, когда он есть. */
+    fun unavailableNote(availability: TrendAvailability): String? = when (availability) {
+        is TrendAvailability.Ready -> null
+        is TrendAvailability.TooFewBins ->
+            "интервалов ${availability.present} из $MIN_PRESENT_BINS"
+        is TrendAvailability.TooShort ->
+            "измерений ${HistoryFormat.duration(availability.spanMillis / 1000)} " +
+                "из ${HistoryFormat.duration(MIN_SPAN_MILLIS / 1000)}"
     }
 
     /**
