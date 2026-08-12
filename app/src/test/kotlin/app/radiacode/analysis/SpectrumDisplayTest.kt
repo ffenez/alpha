@@ -132,11 +132,14 @@ class SpectrumDisplayTest {
     }
 
     @Test
-    fun `channelRange covers the window and clamps to the spectrum`() {
+    fun `channelRange covers the window and stops before the edge channel`() {
         val full = SpectrumDisplay.fullWindow(CALIBRATION, 1024)
         val range = SpectrumDisplay.channelRange(full, CALIBRATION, 1024)
         assertTrue(range.first >= 0)
-        assertEquals(1023, range.last)
+        // 1023 — граница шкалы, а не точка спектра: она не рисуется и не
+        // задаёт масштаб оси (SpectrumEdge).
+        assertEquals(1022, range.last)
+        assertTrue(full.endKeV < CALIBRATION.energyAt(1023f))
     }
 
     // --- smoothing (display-only) ---

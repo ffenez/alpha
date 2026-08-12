@@ -239,9 +239,14 @@ object Fingerprint {
                 "спектры сняты с разной сеткой каналов",
             )
         }
+        // Крайний канал — граница шкалы, а не форма спектра ([SpectrumEdge]).
         val result = ShapeChange.compare(
-            reference = DoubleArray(reference.spectrum.size) { reference.spectrum[it].toDouble() },
-            excursion = DoubleArray(window.spectrum.size) { window.spectrum[it].toDouble() },
+            reference = SpectrumEdge.withoutEdge(
+                DoubleArray(reference.spectrum.size) { reference.spectrum[it].toDouble() },
+            ),
+            excursion = SpectrumEdge.withoutEdge(
+                DoubleArray(window.spectrum.size) { window.spectrum[it].toDouble() },
+            ),
         )
         val state = when (result.verdict) {
             ShapeVerdict.NOT_ENOUGH_DATA -> FingerprintState.NOT_ENOUGH_DATA

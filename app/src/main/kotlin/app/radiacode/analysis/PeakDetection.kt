@@ -56,7 +56,9 @@ object PeakDetection {
         calibration: EnergyCalibration,
         minSnr: Float = DEFAULT_MIN_SNR,
     ): List<Peak> {
-        val n = counts.size
+        // Крайний канал — граница шкалы, а не точка спектра ([SpectrumEdge]):
+        // сюда поиск пиков не заходит вовсе.
+        val n = SpectrumEdge.lastAnalysableChannel(counts.size) + 1
         if (n < 32) return emptyList()
         val smoothed = SpectrumDisplay.movingAverage(counts.map { it.toFloat() })
 

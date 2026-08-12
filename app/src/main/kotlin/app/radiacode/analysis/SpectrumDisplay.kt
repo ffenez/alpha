@@ -49,10 +49,15 @@ object SpectrumDisplay {
 
     private const val ZOOM_STEP = 2f
 
-    /** Full visible range: channel 0 (clamped to 0 keV) .. last channel. */
+    /**
+     * Full visible range: channel 0 (clamped to 0 keV) .. последний КАНАЛ
+     * СПЕКТРА. Крайний канал — граница шкалы, а не точка спектра
+     * ([SpectrumEdge]), поэтому он не входит ни в окно, ни в масштаб оси: на
+     * линейной шкале он один сжимал всю картинку в полоску у нуля.
+     */
     fun fullWindow(calibration: EnergyCalibration, channelCount: Int): EnergyWindow {
         val start = calibration.energyAt(0f).coerceAtLeast(0f)
-        val end = calibration.energyAt((channelCount - 1).toFloat())
+        val end = calibration.energyAt(SpectrumEdge.lastAnalysableChannel(channelCount).toFloat())
         return EnergyWindow(start, max(end, start + MIN_WINDOW_KEV))
     }
 
@@ -100,8 +105,9 @@ object SpectrumDisplay {
 
     /** Channels covered by the window, clamped to the spectrum. */
     fun channelRange(window: EnergyWindow, calibration: EnergyCalibration, channelCount: Int): IntRange {
-        val first = calibration.channelAt(window.startKeV).toInt().coerceIn(0, channelCount - 1)
-        val last = ceil(calibration.channelAt(window.endKeV)).toInt().coerceIn(first, channelCount - 1)
+        val edge = SpectrumEdge.lastAnalysableChannel(channelCount)
+        val first = calibration.channelAt(window.startKeV).toInt().coerceIn(0, edge)
+        val last = ceil(calibration.channelAt(window.endKeV)).toInt().coerceIn(first, edge)
         return first..last
     }
 

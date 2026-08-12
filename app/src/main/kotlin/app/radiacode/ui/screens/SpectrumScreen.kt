@@ -44,6 +44,7 @@ import app.radiacode.analysis.NuclideInfoLibrary
 import app.radiacode.analysis.Peak
 import app.radiacode.analysis.PeakDetection
 import app.radiacode.analysis.SpectrumDisplay
+import app.radiacode.analysis.SpectrumEdge
 import app.radiacode.analysis.SpectrumMerge
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.data.export.N42
@@ -633,6 +634,18 @@ private fun SpectrumContent(
                         label = "фон ${HistoryFormat.day(backgroundEntity!!.timestamp)}",
                     )
                 }
+            }
+            // Крайний канал не нарисован — но и не выброшен молча: прибор в
+            // нём что-то регистрировал, и это отдельный факт, а не пик.
+            val edgeCounts = SpectrumEdge.edgeCounts(spectrum.counts)
+            if (edgeCounts > 0) {
+                Text(
+                    text = "у верхней границы шкалы: ${HistoryFormat.count(edgeCounts.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())} имп. " +
+                        "· ${SpectrumEdge.EXPLANATION}",
+                    style = type.footnote,
+                    color = colors.muted,
+                    modifier = Modifier.padding(horizontal = Dimens.space1),
+                )
             }
             Row(
                 verticalAlignment = Alignment.CenterVertically,

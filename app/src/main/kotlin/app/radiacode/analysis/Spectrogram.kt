@@ -54,7 +54,9 @@ object Spectrogram {
      */
     fun bandCounts(counts: IntArray, calibration: EnergyCalibration): FloatArray {
         val bands = FloatArray(BAND_COUNT)
-        for (channel in counts.indices) {
+        // Крайний канал не относится ни к одной полосе: он граница шкалы, а
+        // не энергия ([SpectrumEdge]).
+        for (channel in SpectrumEdge.analysable(counts.size)) {
             val n = counts[channel]
             if (n <= 0) continue
             val band = bandOfEnergy(calibration.energyAt(channel.toFloat())) ?: continue

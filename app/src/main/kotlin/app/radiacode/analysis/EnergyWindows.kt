@@ -125,9 +125,12 @@ object EnergyWindows {
         channelCount: Int,
     ): IntRange? {
         if (channelCount <= 0 || spec.endKeV <= spec.startKeV) return null
-        val first = ceil(calibration.channelAt(spec.startKeV)).toInt().coerceIn(0, channelCount)
+        // Крайний канал не является измерением энергии в этой точке, поэтому
+        // не попадает ни в одно окно ([SpectrumEdge]).
+        val usable = SpectrumEdge.lastAnalysableChannel(channelCount) + 1
+        val first = ceil(calibration.channelAt(spec.startKeV)).toInt().coerceIn(0, usable)
         val last = (ceil(calibration.channelAt(spec.endKeV)).toInt() - 1)
-            .coerceIn(-1, channelCount - 1)
+            .coerceIn(-1, usable - 1)
         if (last < first) return null
         return first..last
     }

@@ -112,6 +112,12 @@ class SearchSpectrumHintTest {
             SearchSpectrumHint.compare(slices, start, start + 30_000L),
         )
         // 24 reference slices of 1 000 counts each; the ancient one is outside.
-        assertEquals(24_000.0, comparison.referenceCounts, 1.0)
+        // Крайняя полоса в сравнение формы не входит (SpectrumEdge), поэтому
+        // сумма меньше ровно на её долю — а не на что-то ещё.
+        val edgeShare = run {
+            val raw = DoubleArray(bands) { i -> 1.0 / (1.0 + i * 0.15) }
+            raw.last() / raw.sum() * 1_000.0 * 24
+        }
+        assertEquals(24_000.0 - edgeShare, comparison.referenceCounts, 1.0)
     }
 }

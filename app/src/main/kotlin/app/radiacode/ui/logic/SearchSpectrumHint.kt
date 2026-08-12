@@ -1,6 +1,7 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.analysis.ShapeChange
+import app.radiacode.analysis.SpectrumEdge
 import app.radiacode.analysis.ShapeComparison
 import app.radiacode.analysis.ShapeVerdict
 import app.radiacode.analysis.SpectrogramSlice
@@ -55,7 +56,12 @@ object SearchSpectrumHint {
             },
         ) ?: return null
         if (reference.size != excursion.size) return null
-        return ShapeChange.compare(reference, excursion)
+        // Крайний канал — граница шкалы, а не форма спектра ([SpectrumEdge]):
+        // всплеск в нём не является изменением формы.
+        return ShapeChange.compare(
+            SpectrumEdge.withoutEdge(reference),
+            SpectrumEdge.withoutEdge(excursion),
+        )
     }
 
     /** The invitation itself; null unless the shapes really differ. */
