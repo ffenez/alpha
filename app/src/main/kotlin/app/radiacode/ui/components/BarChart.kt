@@ -10,6 +10,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
@@ -37,6 +38,13 @@ data class BarChartSpec(
     val dimAtOrBelow: Float? = null,
     /** История: all bars at 60% alpha except the freshest one. */
     val emphasizeLast: Boolean = false,
+    /**
+     * Столбцы, посчитанные по НЕПОЛНОМУ интервалу (день измерен частично):
+     * рисуются контуром, а не заливкой. Полный и неполный столбик — разные
+     * величины, и различать их прозрачностью нельзя: прозрачность уже занята
+     * под «внутри полосы фона».
+     */
+    val partial: List<Boolean> = emptyList(),
     val xStartLabel: String? = null,
     val xEndLabel: String? = null,
 )
@@ -101,12 +109,25 @@ fun BarChart(
                 spec.dimAtOrBelow != null && value <= spec.dimAtOrBelow -> 0.5f
                 else -> 1f
             }
-            drawRoundRect(
-                color = colors.data.copy(alpha = alpha),
-                topLeft = Offset(index * (barWidth + gap), top),
-                size = Size(barWidth, (bottom - top).coerceAtLeast(1f)),
-                cornerRadius = radius,
-            )
+            val partial = spec.partial.getOrElse(index) { false }
+            if (partial) {
+                // Контур вместо заливки: величина посчитана по неполному
+                // интервалу и не сравнима с соседями напрямую.
+                drawRoundRect(
+                    color = colors.data.copy(alpha = alpha),
+                    topLeft = Offset(index * (barWidth + gap), top),
+                    size = Size(barWidth, (bottom - top).coerceAtLeast(1f)),
+                    cornerRadius = radius,
+                    style = Stroke(width = 1.dp.toPx()),
+                )
+            } else {
+                drawRoundRect(
+                    color = colors.data.copy(alpha = alpha),
+                    topLeft = Offset(index * (barWidth + gap), top),
+                    size = Size(barWidth, (bottom - top).coerceAtLeast(1f)),
+                    cornerRadius = radius,
+                )
+            }
         }
 
         // Edge time labels.

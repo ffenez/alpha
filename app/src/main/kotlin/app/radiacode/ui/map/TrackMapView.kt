@@ -17,6 +17,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import app.radiacode.ui.logic.GridCell
+import app.radiacode.ui.logic.MIN_CONFIDENT_POINTS
 import app.radiacode.ui.logic.MapBounds
 import app.radiacode.ui.logic.MapHotspot
 import app.radiacode.ui.logic.MapTrackPoint
@@ -185,6 +186,9 @@ private const val STALE_DOT_ALPHA = 110
 
 /** Accumulated-map cells: translucent so the streets under them stay legible. */
 private const val CELL_ALPHA = 190
+
+/** Клетка с малым числом точек — та же краска, но заметно бледнее. */
+private const val CELL_ALPHA_SPARSE = 80
 private const val CELL_GAP_PX = 1f
 
 private const val METERS_PER_DEGREE_LATITUDE = 111_320.0
@@ -550,7 +554,13 @@ private class CellOverlay(
             } else {
                 fallbackColor
             }
-            fillPaint.alpha = CELL_ALPHA
+            // Клетка из горстки фиксов не должна выглядеть так же уверенно,
+            // как клетка из сотен: медиана по двум точкам — это одна из них.
+            fillPaint.alpha = if (cell.count < MIN_CONFIDENT_POINTS) {
+                CELL_ALPHA_SPARSE
+            } else {
+                CELL_ALPHA
+            }
             // A hairline inset keeps neighbouring cells distinguishable.
             canvas.drawRect(left, top, right - CELL_GAP_PX, bottom - CELL_GAP_PX, fillPaint)
         }

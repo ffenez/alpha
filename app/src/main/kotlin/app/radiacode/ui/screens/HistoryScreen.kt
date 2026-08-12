@@ -110,7 +110,7 @@ private data class HistoryModel(
     val dose7dMicroSv: Double,
     val dose30dMicroSv: Double,
     /** µSv per local day, oldest first, [DOSE_DAYS] entries. */
-    val dailyDoseMicroSv: List<Float>,
+    val dailyDose: List<DailyDose.Day>,
     /** Seconds of *actual measurement* behind the 7- and 30-day integrals. */
     val measured7dSeconds: Long,
     val measured30dSeconds: Long,
@@ -362,11 +362,15 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                 Spacer(Modifier.weight(1f))
                 Text(text = "расчёт", style = type.footnote, color = colors.muted)
             }
-            val dailyMax = model.dailyDoseMicroSv.maxOrNull() ?: 0f
+            val dailyMax = model.dailyDose.maxOfOrNull { it.microSv } ?: 0f
             if (dailyMax > 0f) {
                 BarChart(
                     spec = BarChartSpec(
-                        values = model.dailyDoseMicroSv.map { if (it > 0f) it else null },
+                        values = model.dailyDose.map { it.microSv.takeIf { v -> v > 0f } },
+                        // Полый столбик = день измерен не полностью: доза
+                        // накоплена только за время записи, и сравнивать её с
+                        // полным днём как равную нельзя.
+                        partial = model.dailyDose.map { !it.full },
                         yMax = dailyMax * 1.15f,
                         emphasizeLast = true,
                         xStartLabel = HistoryFormat.day(model.fromMillis),
@@ -374,6 +378,14 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                     ),
                     height = 55.dp,
                 )
+                if (model.dailyDose.any { it.microSv > 0f && !it.full }) {
+                    Text(
+                        text = "полые столбцы — день измерен не полностью: доза накоплена " +
+                            "только за время записи, а не за сутки",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
             }
             StatGrid(
                 cells = listOf(
@@ -1135,7 +1147,7 @@ private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryMode
         doseTodayMicroSv = ChartMapping.integrateDoseMicroSv(todayBuckets),
         dose7dMicroSv = ChartMapping.integrateDoseMicroSv(buckets7),
         dose30dMicroSv = ChartMapping.integrateDoseMicroSv(buckets30),
-        dailyDoseMicroSv = DailyDose.perDay(buckets30, now, zone, DOSE_DAYS),
+        dailyDose = DailyDose.perDay(buckets30, now, zone, DOSE_DAYS),
         // 1 Hz sampling: one sample ≈ one measured second, the same assumption
         // the dose integral itself uses (ChartMapping.integrateDoseMicroSv).
         measured7dSeconds = buckets7.sumOf { it.sampleCount.toLong() },

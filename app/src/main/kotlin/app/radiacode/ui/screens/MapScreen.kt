@@ -60,6 +60,7 @@ import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.GridBin
 import app.radiacode.ui.logic.GridCell
+import app.radiacode.ui.logic.MIN_CONFIDENT_POINTS
 import app.radiacode.ui.logic.GridStats
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.MapBounds
@@ -702,7 +703,14 @@ private fun TrackMapCard(
                     // A cell is an area statement, so the legend says what one
                     // cell means before its colors mean anything.
                     caption = grid?.let {
-                        "клетка ≈ " + TrackGrid.formatCellSize(it.cellMeters) + " · медиана"
+                        val sparse = it.cells.count { cell -> cell.count < MIN_CONFIDENT_POINTS }
+                        "клетка ≈ " + TrackGrid.formatCellSize(it.cellMeters) + " · медиана" +
+                            if (sparse > 0) {
+                                " · бледные клетки ($sparse) — меньше " +
+                                    "$MIN_CONFIDENT_POINTS точек"
+                            } else {
+                                ""
+                            }
                     },
                 )
             }
