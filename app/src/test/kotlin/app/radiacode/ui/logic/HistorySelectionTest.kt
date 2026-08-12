@@ -113,4 +113,43 @@ class HistoryDeletionTest {
             "the separator must be a no-break space",
         )
     }
+
+    @Test
+    fun `select all takes everything offered, and the same tap clears it`() {
+        // Отмечать двадцать сессий по одной ради удаления всех — работа,
+        // которую человек делать не обязан.
+        val sessions = listOf(1L, 2L, 3L)
+        val spectra = listOf(10L, 11L)
+        val all = HistorySelection(active = true).toggleAll(sessions, spectra)
+        assertEquals(sessions.toSet(), all.sessions)
+        assertEquals(spectra.toSet(), all.spectra)
+        assertEquals(5, all.count)
+        assertTrue(all.isAllSelected(sessions, spectra))
+
+        // Повторное нажатие снимает выбор, а не выбирает заново.
+        val cleared = all.toggleAll(sessions, spectra)
+        assertTrue(cleared.isEmpty)
+        assertTrue(cleared.active, "режим выбора не должен закрываться")
+        assertTrue(!cleared.isAllSelected(sessions, spectra))
+    }
+
+    @Test
+    fun `a partial selection is completed, not cleared`() {
+        val sessions = listOf(1L, 2L, 3L)
+        val spectra = listOf(10L)
+        val partial = HistorySelection(active = true).toggleSession(2L)
+        val all = partial.toggleAll(sessions, spectra)
+        assertEquals(4, all.count)
+        assertTrue(all.isAllSelected(sessions, spectra))
+    }
+
+    @Test
+    fun `what cannot be deleted is not counted as selected`() {
+        // Идущая сессия в список выбираемых не попадает, поэтому «всё»
+        // считается по тому, что реально можно удалить.
+        val selectable = listOf(1L, 2L)
+        val all = HistorySelection(active = true).toggleAll(selectable, emptyList())
+        assertEquals(2, all.count)
+        assertTrue(all.isAllSelected(selectable, emptyList()))
+    }
 }

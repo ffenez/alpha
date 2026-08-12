@@ -150,6 +150,10 @@ fun HistoryScreen(
     // Уборка журнала: один режим выбора на сессии и спектры — они лежат в
     // одном списке, и «убрать лишнее» это одна задача, а не две.
     var selection by remember { mutableStateOf(HistorySelection()) }
+    // «Выбрать всё» обязано знать, что такое «всё»: id снимков живут в
+    // карточке спектров, поэтому список поднят сюда и передаётся вниз.
+    val savedSpectra by graph.measurementRepository.savedSpectra(SPECTRA_LIMIT)
+        .collectAsState(initial = emptyList())
     var confirming by remember { mutableStateOf<DeletionPlan?>(null) }
 
     confirming?.let { plan ->
@@ -228,15 +232,36 @@ fun HistoryScreen(
             }
         }
         if (selection.active) {
-            Text(
-                text = if (selection.isEmpty) {
-                    HistoryDeletion.emptyHint()
-                } else {
-                    "выбрано: ${selection.count}"
-                },
-                style = type.footnote,
-                color = colors.muted,
-            )
+            // Идущая сессия не удаляется, поэтому и в «всё» не входит:
+            // «выбрано 13» при двенадцати удаляемых было бы неправдой.
+            val selectableSessions = model?.items.orEmpty()
+                .filterIsInstance<HistoryItem.Session>()
+                .filter { it.summary.endedAt != null }
+                .map { it.summary.id }
+            val selectableSpectra = savedSpectra.map { it.id }
+            val allSelected = selection.isAllSelected(selectableSessions, selectableSpectra)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+            ) {
+                Chip(
+                    text = if (allSelected) "Снять всё" else "Выбрать всё",
+                    color = if (allSelected) colors.dataText else colors.ink2,
+                    selected = allSelected,
+                    onClick = {
+                        selection = selection.toggleAll(selectableSessions, selectableSpectra)
+                    },
+                )
+                Text(
+                    text = if (selection.isEmpty) {
+                        HistoryDeletion.emptyHint()
+                    } else {
+                        "выбрано: ${selection.count}"
+                    },
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
         }
 
         val m = model
@@ -249,6 +274,7 @@ fun HistoryScreen(
 
             SavedSpectraCard(
                 graph = graph,
+                spectra = savedSpectra,
                 onCompare = { first, second -> comparePair = first to second },
                 onContinue = onContinueSpectrum,
                 selectionActive = selection.active,
@@ -722,6 +748,7 @@ private const val SPECTRA_LIMIT = 30
 @Composable
 private fun SavedSpectraCard(
     graph: AppGraph,
+    spectra: List<SpectrumSnapshotEntity>,
     onCompare: (Long, Long) -> Unit,
     onContinue: (Long) -> Unit,
     selectionActive: Boolean = false,
@@ -733,8 +760,6 @@ private fun SavedSpectraCard(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val spectra by graph.measurementRepository.savedSpectra(SPECTRA_LIMIT)
-        .collectAsState(initial = emptyList())
     if (spectra.isEmpty()) return
 
     var compareMode by remember { mutableStateOf(false) }

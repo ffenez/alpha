@@ -23,6 +23,33 @@ data class HistorySelection(
     fun start(): HistorySelection = HistorySelection(active = true)
 
     fun cancel(): HistorySelection = HistorySelection()
+
+    /**
+     * «Выбрать всё» и «снять всё» одним действием.
+     *
+     * Отмечать двадцать сессий по одной, чтобы удалить их все, — работа,
+     * которую человек делать не обязан. Кнопка одна и переключается по тому,
+     * выбрано ли уже всё: отдельные «выбрать всё» и «снять всё» рядом
+     * заставляли бы читать, какая из них сейчас нужна.
+     *
+     * Идущая сессия в список не попадает — её нельзя удалить, и «выбрано 13»
+     * при двенадцати удаляемых было бы неправдой.
+     */
+    fun toggleAll(sessionIds: Collection<Long>, spectrumIds: Collection<Long>): HistorySelection {
+        val allSelected = sessions.containsAll(sessionIds) && spectra.containsAll(spectrumIds) &&
+            count == sessionIds.size + spectrumIds.size
+        return if (allSelected) {
+            copy(sessions = emptySet(), spectra = emptySet())
+        } else {
+            copy(sessions = sessionIds.toSet(), spectra = spectrumIds.toSet())
+        }
+    }
+
+    /** Выбрано ли всё, что вообще можно выбрать. */
+    fun isAllSelected(sessionIds: Collection<Long>, spectrumIds: Collection<Long>): Boolean =
+        count == sessionIds.size + spectrumIds.size &&
+            sessions.containsAll(sessionIds) &&
+            spectra.containsAll(spectrumIds)
 }
 
 /**
