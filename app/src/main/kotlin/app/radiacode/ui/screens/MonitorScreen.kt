@@ -81,6 +81,7 @@ import app.radiacode.ui.logic.WhyInput
 import app.radiacode.ui.logic.learningWording
 import app.radiacode.ui.logic.statusDetail
 import app.radiacode.ui.logic.statusHeadline
+import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -246,6 +247,7 @@ fun MonitorScreen(
     )
 
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -442,15 +444,16 @@ fun contextWording(context: MeasurementContext): String = when (context) {
 @Composable
 private fun ConnectionChip(connection: ConnectionState, serviceRunning: Boolean) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val (dot, text) = when {
         // Модель берётся у прибора, а не вписана в код: приложение работает
         // со всей серией, и чужому прибору нельзя приписывать чужое имя.
         connection is ConnectionState.Connected ->
             colors.ok to "${connection.info.model.displayName} · 1 Гц"
-        connection is ConnectionState.Connecting -> colors.warn to "подключение"
-        connection is ConnectionState.Reconnecting -> colors.warn to "переподкл."
-        !serviceRunning -> colors.muted to "служба выкл."
-        else -> colors.muted to "нет связи"
+        connection is ConnectionState.Connecting -> colors.warn to strings.connecting
+        connection is ConnectionState.Reconnecting -> colors.warn to strings.reconnecting
+        !serviceRunning -> colors.muted to strings.serviceOff
+        else -> colors.muted to strings.noLink
     }
     Chip(text = text, dot = dot)
 }
@@ -459,7 +462,7 @@ private fun ConnectionChip(connection: ConnectionState, serviceRunning: Boolean)
 private fun FreshnessChip(freshness: Freshness) {
     val colors = LocalAppColors.current
     // Пока поток идёт, подписи нет вовсе: чип говорит об ОТСТАВАНИИ данных.
-    val label = freshnessChipLabel(freshness) ?: return
+    val label = freshnessChipLabel(freshness, LocalStrings.current) ?: return
     when (freshness) {
         Freshness.NoData -> Chip(text = label, color = colors.muted)
         is Freshness.Fresh -> Chip(text = label, color = colors.warn)
@@ -497,6 +500,7 @@ private fun HeroCard(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
             // 1. Величина, ради которой открывают приложение. По центру: это
@@ -508,7 +512,7 @@ private fun HeroCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Мощность дозы".uppercase(),
+                        text = strings.doseRate.uppercase(),
                         style = type.labelSmall,
                         color = colors.ink2,
                     )
@@ -559,7 +563,7 @@ private fun HeroCard(
                 ) {
                     StatusDot(statusColor)
                     Text(
-                        text = statusHeadline(status),
+                        text = statusHeadline(status, strings),
                         style = type.label,
                         color = statusColor,
                         textAlign = TextAlign.Center,
@@ -575,7 +579,7 @@ private fun HeroCard(
                 // Эталон, по которому сделан вывод, стоит под ним ВСЕГДА: без
                 // диапазона и объёма истории «в обычном диапазоне» — это
                 // утверждение, которое нечем проверить.
-                statusDetail(status, unit)?.let { detail ->
+                statusDetail(status, unit, strings)?.let { detail ->
                     Text(
                         text = detail,
                         style = type.footnote,
@@ -605,7 +609,7 @@ private fun HeroCard(
                     textAlign = TextAlign.Center,
                 )
                 Text(
-                    text = "почему такой вывод ›",
+                    text = strings.whyThisConclusion,
                     style = type.footnote,
                     color = colors.dataText,
                 )
@@ -623,7 +627,7 @@ private fun HeroCard(
                     val slope = (trend as? TrendAvailability.Ready)?.result?.slopeMicroSvHPerHour
                     add(
                         HeroTile(
-                            label = "Тренд/ч",
+                            label = strings.trendPerHour,
                             value = slope?.let { TrendFit.label(it, unit) } ?: "—",
                             valueColor = trendWarnColor(slope, status),
                             evidence = Evidence.CALCULATED,
@@ -641,7 +645,7 @@ private fun HeroCard(
                 if (blocks.doseToday) {
                     add(
                         HeroTile(
-                            label = "Сегодня",
+                            label = strings.doseToday,
                             value = doseTodayMicroSv?.let { DoseFormat.doseWithUnit(it, unit) }
                                 ?: "—",
                             // Integral of the measured rate, not a measured dose.
@@ -755,6 +759,7 @@ private fun MetricChartCard(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
     val cursor = remember { mutableStateOf<Float?>(null) }
     Card(
         modifier = Modifier
@@ -771,7 +776,7 @@ private fun MetricChartCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    text = metric.title.uppercase(),
+                    text = ChartMetrics.title(metric, strings).uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )

@@ -1,5 +1,8 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.text.Strings
+
 /**
  * Data honesty (SPEC): when the stream stops, the app must say so instead of
  * presenting the last value as current. Pure state machine, JVM-tested.
@@ -39,12 +42,12 @@ sealed interface Freshness {
  * поток идёт, чипа нет вовсе; он появляется ровно в тот момент, когда данные
  * начали отставать, — и это появление само по себе информация.
  */
-fun freshnessChipLabel(freshness: Freshness): String? = when (freshness) {
-    Freshness.NoData -> "нет данных"
+fun freshnessChipLabel(freshness: Freshness, s: Strings = RuStrings): String? = when (freshness) {
+    Freshness.NoData -> s.noData
     is Freshness.Fresh ->
         if (freshness.ageSeconds <= FRESH_NOW_SECONDS) null
-        else "${freshness.ageSeconds} с назад"
-    is Freshness.Stale -> "прервано ${freshness.ageSeconds} с назад"
+        else s.agoSeconds(freshness.ageSeconds)
+    is Freshness.Stale -> s.interruptedAgo(freshness.ageSeconds)
 }
 
 /**
@@ -55,10 +58,10 @@ fun freshnessChipLabel(freshness: Freshness): String? = when (freshness) {
 const val FRESH_NOW_SECONDS = 2L
 
 /** UI wording for the staleness indicator; amber only in the stale state. */
-fun freshnessLabel(freshness: Freshness): String = when (freshness) {
-    Freshness.NoData -> "данных ещё нет"
+fun freshnessLabel(freshness: Freshness, s: Strings = RuStrings): String = when (freshness) {
+    Freshness.NoData -> s.noData
     is Freshness.Fresh ->
-        if (freshness.ageSeconds <= FRESH_NOW_SECONDS) "поток идёт"
-        else "обновлено ${freshness.ageSeconds} с назад"
-    is Freshness.Stale -> "поток прерван ${freshness.ageSeconds} с назад"
+        if (freshness.ageSeconds <= FRESH_NOW_SECONDS) s.streamRunning
+        else s.updatedAgo(freshness.ageSeconds)
+    is Freshness.Stale -> "${s.streamInterruptedFor} ${s.agoSeconds(freshness.ageSeconds)}"
 }

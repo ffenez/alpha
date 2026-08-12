@@ -31,6 +31,7 @@ object EnStrings : Strings {
 
     override val doseRate = "Dose rate"
     override val countRate = "Count rate"
+    override val hardness = "Hardness"
     override val trendPerHour = "Trend/h"
     override val doseToday = "Today"
     override val whyThisConclusion = "why this conclusion ›"
@@ -54,6 +55,54 @@ object EnStrings : Strings {
 
     override val languageTitle = "Language"
     override val languageSystem = "System"
+
+    override val statusNoData = "No data"
+    override val statusAboveL1 = "Above the L1 threshold"
+    override val statusBelowL1 = "Below the L1 threshold"
+    override val statusUsual = "Within this place's usual range"
+    override val statusUsualShort = "Usual for this place"
+    override val statusAboveUsual = "Above this place's usual range"
+    override val statusAboveUsualShort = "Above usual"
+    override val statusAboveThreshold = "Above your alarm threshold"
+    override val statusAboveThresholdShort = "Above threshold"
+    override val statusAlert = "The radiation level has changed"
+
+    override fun detailNoBaseline(threshold: String) =
+        "L1 threshold $threshold · this place's historical range is not collected yet"
+
+    override fun detailUsual(range: String, unit: String, collected: String) =
+        "P10–P90: $range $unit · observations: $collected"
+
+    override fun detailAboveUsual(range: String, unit: String, held: String) =
+        "place P10–P90: $range $unit · $held"
+
+    override fun detailAboveThreshold(threshold: String, heldSeconds: Long, requiredSeconds: Long) =
+        "L1 threshold $threshold exceeded · held ${heldSeconds}s of the ${requiredSeconds}s " +
+            "needed for an alarm"
+
+    override fun detailAlert(reference: String, held: String) = "$reference · $held"
+
+    override fun referenceThreshold(threshold: String) = "L1 threshold $threshold"
+
+    override fun referenceProfileBand(range: String, unit: String) = "place P10–P90: $range $unit"
+
+    override fun held(text: String) = "held for $text"
+
+    override fun seconds(value: Long) = "${value}s"
+
+    override fun minutes(value: Long) = "$value min"
+
+    override fun hoursMinutes(hours: Long, minutes: Long) = "${hours}h ${minutes}min"
+
+    override fun agoSeconds(value: Long) = "$value s ago"
+
+    override fun interruptedAgo(value: Long) = "interrupted $value s ago"
+
+    override val streamRunning = "stream running"
+
+    override fun updatedAgo(value: Long) = "updated $value s ago"
+
+    override val streamInterruptedFor = "stream interrupted"
 
     override val deviceSignals = "Instrument signals"
     override val deviceSignalsNote =

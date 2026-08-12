@@ -31,7 +31,7 @@ class FreshnessTest {
 
     @Test
     fun `labels are honest about the stream state`() {
-        assertEquals("данных ещё нет", freshnessLabel(Freshness.NoData))
+        assertEquals("нет данных", freshnessLabel(Freshness.NoData))
         assertEquals("поток идёт", freshnessLabel(Freshness.Fresh(1)))
         assertEquals("обновлено 7 с назад", freshnessLabel(Freshness.Fresh(7)))
         assertEquals("поток прерван 34 с назад", freshnessLabel(Freshness.Stale(34)))

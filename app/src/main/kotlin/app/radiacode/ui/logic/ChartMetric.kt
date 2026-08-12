@@ -1,6 +1,8 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.analysis.Hardness
+import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.text.Strings
 import app.radiacode.data.DoseUnitSetting
 
 /**
@@ -25,6 +27,14 @@ enum class ChartMetric(val id: String, val title: String) {
 
 /** Единицы, формат и границы применимости величины на графике. */
 object ChartMetrics {
+
+    /** Название величины на языке интерфейса. */
+    fun title(metric: ChartMetric, s: Strings = RuStrings): String = when (metric) {
+        ChartMetric.DOSE -> s.doseRate
+        ChartMetric.COUNT_RATE -> s.countRate
+        ChartMetric.HARDNESS -> s.hardness
+    }
+
 
     /**
      * Самое длинное окно, которое величина умеет показать **честно**.

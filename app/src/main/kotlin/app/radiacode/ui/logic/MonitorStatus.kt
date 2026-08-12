@@ -2,6 +2,8 @@ package app.radiacode.ui.logic
 
 import app.radiacode.baseline.ABOVE_USUAL_MIN_DWELL_SECONDS
 import app.radiacode.baseline.AlarmThresholds
+import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.text.Strings
 import app.radiacode.baseline.Baseline
 import app.radiacode.baseline.BaselineState
 import app.radiacode.baseline.DeviationSnapshot
@@ -115,53 +117,64 @@ sealed interface MonitorStatus {
  * обычном диапазоне этого профиля»; [statusHeadlineShort] is the only shorter
  * variant, for places where the line must physically fit.
  */
-fun statusHeadline(status: MonitorStatus): String = when (status) {
-    MonitorStatus.Unknown -> "Нет данных"
-    is MonitorStatus.Fixed -> if (status.above) "Выше порога L1" else "Ниже порога L1"
-    is MonitorStatus.Usual -> "В обычном диапазоне этого профиля"
-    is MonitorStatus.AboveUsual -> "Выше обычного диапазона профиля"
-    is MonitorStatus.AboveThreshold -> "Выше вашего порога тревоги"
-    is MonitorStatus.Alert -> "Уровень радиации изменился"
+fun statusHeadline(status: MonitorStatus, s: Strings = RuStrings): String = when (status) {
+    MonitorStatus.Unknown -> s.statusNoData
+    is MonitorStatus.Fixed -> if (status.above) s.statusAboveL1 else s.statusBelowL1
+    is MonitorStatus.Usual -> s.statusUsual
+    is MonitorStatus.AboveUsual -> s.statusAboveUsual
+    is MonitorStatus.AboveThreshold -> s.statusAboveThreshold
+    is MonitorStatus.Alert -> s.statusAlert
 }
 
 /** Short variant for narrow slots; same meaning, same forbidden words. */
-fun statusHeadlineShort(status: MonitorStatus): String = when (status) {
-    is MonitorStatus.Usual -> "Обычный для этого места"
-    is MonitorStatus.AboveUsual -> "Выше обычного"
-    is MonitorStatus.AboveThreshold -> "Выше порога"
-    else -> statusHeadline(status)
+fun statusHeadlineShort(status: MonitorStatus, s: Strings = RuStrings): String = when (status) {
+    is MonitorStatus.Usual -> s.statusUsualShort
+    is MonitorStatus.AboveUsual -> s.statusAboveUsualShort
+    is MonitorStatus.AboveThreshold -> s.statusAboveThresholdShort
+    else -> statusHeadline(status, s)
 }
 
 /**
  * Second line under the status — the reference is **always** shown (§18):
  * which band, and how much history it is built on.
  */
-fun statusDetail(status: MonitorStatus, unit: DoseUnitSetting): String? = when (status) {
+fun statusDetail(
+    status: MonitorStatus,
+    unit: DoseUnitSetting,
+    s: Strings = RuStrings,
+): String? = when (status) {
     MonitorStatus.Unknown -> null
     is MonitorStatus.Fixed ->
-        "порог L1 ${DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit)} · " +
-            "исторический диапазон профиля ещё не собран"
+        s.detailNoBaseline(DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit))
     is MonitorStatus.Usual ->
-        "P10–P90: ${baselineRange(status.baseline, unit)} " +
-            // «baseline» — внутреннее имя движка; на экране у величины есть
-            // человеческое название, и смешивать их незачем.
-            "${DoseFormat.rateUnitLabel(unit)} · наблюдений: " +
-            baselineCollectedShort(status.baseline)
+        // «baseline» — внутреннее имя движка; на экране у величины есть
+        // человеческое название, и смешивать их незачем.
+        s.detailUsual(
+            baselineRange(status.baseline, unit),
+            DoseFormat.rateUnitLabel(unit),
+            baselineCollectedShort(status.baseline),
+        )
     is MonitorStatus.AboveUsual ->
-        "P10–P90 профиля: ${baselineRange(status.baseline, unit)} " +
-            "${DoseFormat.rateUnitLabel(unit)} · ${heldWording(status.heldSeconds)}"
+        s.detailAboveUsual(
+            baselineRange(status.baseline, unit),
+            DoseFormat.rateUnitLabel(unit),
+            heldWording(status.heldSeconds, s),
+        )
     is MonitorStatus.AboveThreshold ->
         // Величина И длительность: обе названы, поэтому ожидание видно, а не
         // выглядит как «приложение ничего не заметило».
-        "порог L1 ${DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit)} превышен · " +
-            "держится ${status.heldSeconds} с из ${status.requiredSeconds} с до тревоги"
+        s.detailAboveThreshold(
+            DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit),
+            status.heldSeconds,
+            status.requiredSeconds,
+        )
     is MonitorStatus.Alert -> {
         val reference = status.baseline
             ?.let {
-                "P10–P90 профиля: ${baselineRange(it, unit)} ${DoseFormat.rateUnitLabel(unit)}"
+                s.referenceProfileBand(baselineRange(it, unit), DoseFormat.rateUnitLabel(unit))
             }
-            ?: "порог L1 ${DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit)}"
-        "$reference · ${heldWording(status.heldSeconds)}"
+            ?: s.referenceThreshold(DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit))
+        s.detailAlert(reference, heldWording(status.heldSeconds, s))
     }
 }
 
@@ -169,13 +182,13 @@ private fun baselineRange(baseline: Baseline, unit: DoseUnitSetting): String =
     DoseFormat.range(baseline.doseLowMicroSvH, baseline.doseHighMicroSvH, unit)
 
 /** «держится 45 с» / «держится 4 мин» / «держится 1 ч 12 мин». */
-fun heldWording(heldSeconds: Long): String {
+fun heldWording(heldSeconds: Long, s: Strings = RuStrings): String {
     val text = when {
-        heldSeconds < 60 -> "$heldSeconds с"
-        heldSeconds < 3600 -> "${heldSeconds / 60} мин"
-        else -> "${heldSeconds / 3600} ч ${heldSeconds % 3600 / 60} мин"
+        heldSeconds < 60 -> s.seconds(heldSeconds)
+        heldSeconds < 3600 -> s.minutes(heldSeconds / 60)
+        else -> s.hoursMinutes(heldSeconds / 3600, heldSeconds % 3600 / 60)
     }
-    return "держится $text"
+    return s.held(text)
 }
 
 /** Learning progress: «изучаю обычный фон — 1,5 ч из 3». */

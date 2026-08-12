@@ -23,6 +23,7 @@ object RuStrings : Strings {
 
     override val doseRate = "Мощность дозы"
     override val countRate = "Скорость счёта"
+    override val hardness = "Жёсткость"
     override val trendPerHour = "Тренд/ч"
     override val doseToday = "Сегодня"
     override val whyThisConclusion = "почему такой вывод ›"
@@ -46,6 +47,54 @@ object RuStrings : Strings {
 
     override val languageTitle = "Язык"
     override val languageSystem = "Системный"
+
+    override val statusNoData = "Нет данных"
+    override val statusAboveL1 = "Выше порога L1"
+    override val statusBelowL1 = "Ниже порога L1"
+    override val statusUsual = "В обычном диапазоне этого профиля"
+    override val statusUsualShort = "Обычный для этого места"
+    override val statusAboveUsual = "Выше обычного диапазона профиля"
+    override val statusAboveUsualShort = "Выше обычного"
+    override val statusAboveThreshold = "Выше вашего порога тревоги"
+    override val statusAboveThresholdShort = "Выше порога"
+    override val statusAlert = "Уровень радиации изменился"
+
+    override fun detailNoBaseline(threshold: String) =
+        "порог L1 $threshold · исторический диапазон профиля ещё не собран"
+
+    override fun detailUsual(range: String, unit: String, collected: String) =
+        "P10–P90: $range $unit · наблюдений: $collected"
+
+    override fun detailAboveUsual(range: String, unit: String, held: String) =
+        "P10–P90 профиля: $range $unit · $held"
+
+    override fun detailAboveThreshold(threshold: String, heldSeconds: Long, requiredSeconds: Long) =
+        "порог L1 $threshold превышен · держится $heldSeconds с из $requiredSeconds с до тревоги"
+
+    override fun detailAlert(reference: String, held: String) = "$reference · $held"
+
+    override fun referenceThreshold(threshold: String) = "порог L1 $threshold"
+
+    override fun referenceProfileBand(range: String, unit: String) =
+        "P10–P90 профиля: $range $unit"
+
+    override fun held(text: String) = "держится $text"
+
+    override fun seconds(value: Long) = "$value с"
+
+    override fun minutes(value: Long) = "$value мин"
+
+    override fun hoursMinutes(hours: Long, minutes: Long) = "$hours ч $minutes мин"
+
+    override fun agoSeconds(value: Long) = "$value с назад"
+
+    override fun interruptedAgo(value: Long) = "прервано $value с назад"
+
+    override val streamRunning = "поток идёт"
+
+    override fun updatedAgo(value: Long) = "обновлено $value с назад"
+
+    override val streamInterruptedFor = "поток прерван"
 
     override val deviceSignals = "Сигналы прибора"
     override val deviceSignalsNote =

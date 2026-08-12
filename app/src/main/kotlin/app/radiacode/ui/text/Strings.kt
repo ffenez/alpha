@@ -79,6 +79,7 @@ interface Strings {
     // --- Главная ---
     val doseRate: String
     val countRate: String
+    val hardness: String
     val trendPerHour: String
     val doseToday: String
     val whyThisConclusion: String
@@ -105,6 +106,47 @@ interface Strings {
     val languageTitle: String
     val languageSystem: String
 
+    // --- статус Монитора ---
+    val statusNoData: String
+    val statusAboveL1: String
+    val statusBelowL1: String
+    val statusUsual: String
+    val statusUsualShort: String
+    val statusAboveUsual: String
+    val statusAboveUsualShort: String
+    val statusAboveThreshold: String
+    val statusAboveThresholdShort: String
+    val statusAlert: String
+
+    /** «порог L1 0,30 мкЗв/ч · исторический диапазон профиля ещё не собран». */
+    fun detailNoBaseline(threshold: String): String
+
+    /** «P10–P90: 0,09–0,14 мкЗв/ч · наблюдений: 26 ч». */
+    fun detailUsual(range: String, unit: String, collected: String): String
+
+    /** «P10–P90 профиля: … · держится 4 мин». */
+    fun detailAboveUsual(range: String, unit: String, held: String): String
+
+    /** «порог L1 … превышен · держится 40 с из 120 с до тревоги». */
+    fun detailAboveThreshold(threshold: String, heldSeconds: Long, requiredSeconds: Long): String
+
+    fun detailAlert(reference: String, held: String): String
+    fun referenceThreshold(threshold: String): String
+    fun referenceProfileBand(range: String, unit: String): String
+
+    /** «держится 4 мин» — длительность вместе со словом. */
+    fun held(text: String): String
+    fun seconds(value: Long): String
+    fun minutes(value: Long): String
+    fun hoursMinutes(hours: Long, minutes: Long): String
+
+    // --- свежесть потока ---
+    fun agoSeconds(value: Long): String
+    fun interruptedAgo(value: Long): String
+    val streamRunning: String
+    fun updatedAgo(value: Long): String
+    val streamInterruptedFor: String
+
     // --- сигналы прибора ---
     val deviceSignals: String
     val deviceSignalsNote: String
@@ -127,12 +169,22 @@ interface Strings {
 fun Strings.allTexts(): List<String> = listOf(
     tabHome, tabSearch, tabSpectrum, tabMap, tabHistory, back, close, settings,
     connected, connecting, reconnecting, serviceOff, noLink, noData,
-    doseRate, countRate, trendPerHour, doseToday, whyThisConclusion, placeFingerprint,
+    doseRate, countRate, hardness, trendPerHour, doseToday, whyThisConclusion, placeFingerprint,
     groupMeasurement, groupApp, groupOther,
     settingsAlarms, settingsAlarmsSub, settingsProfiles, settingsProfilesSub,
     settingsNotifications, settingsNotificationsSub, settingsView, settingsViewSub,
     settingsDevice, settingsDeviceSub, settingsAbout, settingsAboutSub,
     languageTitle, languageSystem,
+    statusNoData, statusAboveL1, statusBelowL1, statusUsual, statusUsualShort,
+    statusAboveUsual, statusAboveUsualShort, statusAboveThreshold, statusAboveThresholdShort,
+    statusAlert, streamRunning, streamInterruptedFor,
+    detailNoBaseline("0,30"), detailUsual("0,09–0,14", "мкЗв/ч", "26 ч"),
+    detailAboveUsual("0,09–0,14", "мкЗв/ч", held(minutes(4))),
+    detailAboveThreshold("0,30", 40L, 120),
+    detailAlert(referenceThreshold("0,30"), held(seconds(45))),
+    referenceProfileBand("0,09–0,14", "мкЗв/ч"),
+    held(seconds(45)), seconds(45), minutes(4), hoursMinutes(1, 12),
+    agoSeconds(5), interruptedAgo(30), updatedAgo(7),
     deviceSignals, deviceSignalsNote, deviceSound, deviceVibro,
     stateUnknown, stateOnByApp, stateOffByApp, on, off,
 )
