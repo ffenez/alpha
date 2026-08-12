@@ -147,6 +147,25 @@ interface Strings {
     fun updatedAgo(value: Long): String
     val streamInterruptedFor: String
 
+    // --- Поиск ---
+    val searchNoBackground: String
+    val searchWaiting: String
+    val searchNoExcess: String
+    val searchSmallChange: String
+    val searchConfirmedExcess: String
+    val searchConfirmedDeficit: String
+    val countRising: String
+    val countFalling: String
+    val countSteady: String
+    fun directionOverLast(seconds: Long): String
+    val searchCannotCompare: String
+    fun searchNotConfirmed(ratio: String?): String
+    fun searchTooShort(confirmSeconds: String): String
+    fun searchExcessExplained(confirmSeconds: String, ratio: String?): String
+    fun searchDeficitExplained(confirmSeconds: String, ratio: String?): String
+    fun ratioToBackground(ratio: String, interval: String?): String
+    fun confidenceInterval(level: Int, low: String, high: String): String
+
     // --- сигналы прибора ---
     val deviceSignals: String
     val deviceSignalsNote: String
@@ -185,6 +204,12 @@ fun Strings.allTexts(): List<String> = listOf(
     referenceProfileBand("0,09–0,14", "мкЗв/ч"),
     held(seconds(45)), seconds(45), minutes(4), hoursMinutes(1, 12),
     agoSeconds(5), interruptedAgo(30), updatedAgo(7),
+    searchNoBackground, searchWaiting, searchNoExcess, searchSmallChange,
+    searchConfirmedExcess, searchConfirmedDeficit,
+    countRising, countFalling, countSteady, directionOverLast(10),
+    searchCannotCompare, searchNotConfirmed(null), searchTooShort("4 с"),
+    searchExcessExplained("4 с", null), searchDeficitExplained("4 с", null),
+    ratioToBackground("1,8", null), confidenceInterval(95, "1,5", "2,2"),
     deviceSignals, deviceSignalsNote, deviceSound, deviceVibro,
     stateUnknown, stateOnByApp, stateOffByApp, on, off,
 )

@@ -104,6 +104,45 @@ object EnStrings : Strings {
 
     override val streamInterruptedFor = "stream interrupted"
 
+    override val searchNoBackground = "No background recorded — nothing to compare with"
+    override val searchWaiting = "Waiting for readings"
+    override val searchNoExcess = "No excess over the background found"
+    override val searchSmallChange = "A small change — not enough data yet"
+    override val searchConfirmedExcess = "Sustained excess over the background count"
+    override val searchConfirmedDeficit = "Count sustained below the recorded background"
+    override val countRising = "count rising"
+    override val countFalling = "count falling"
+    override val countSteady = "count unchanged"
+
+    override fun directionOverLast(seconds: Long) = "over the last ${seconds}s"
+
+    override val searchCannotCompare =
+        "Without a recorded background and a live stream there is nothing to compare."
+
+    override fun searchNotConfirmed(ratio: String?) =
+        "A difference from the recorded background is not supported by the counting statistics" +
+            (ratio?.let { ": $it" } ?: ".")
+
+    override fun searchTooShort(confirmSeconds: String) =
+        "There is a difference, but it has held for less than $confirmSeconds — one short " +
+            "window is not enough to conclude from."
+
+    override fun searchExcessExplained(confirmSeconds: String, ratio: String?) =
+        "The count rate has been above the recorded background for over $confirmSeconds" +
+            (ratio?.let { ", $it" } ?: "") +
+            ". This is a statement about count rate, not about dose and not about an isotope."
+
+    override fun searchDeficitExplained(confirmSeconds: String, ratio: String?) =
+        "The count rate has been below the recorded background for over $confirmSeconds" +
+            (ratio?.let { ", $it" } ?: "") +
+            ". That is what moving away from a source, or shielding, looks like."
+
+    override fun ratioToBackground(ratio: String, interval: String?) =
+        "×$ratio of the recorded background" + (interval ?: "")
+
+    override fun confidenceInterval(level: Int, low: String, high: String) =
+        " ($level % interval $low–$high)"
+
     override val deviceSignals = "Instrument signals"
     override val deviceSignalsNote =
         "The instrument's own sound and vibration. They work even with the phone " +

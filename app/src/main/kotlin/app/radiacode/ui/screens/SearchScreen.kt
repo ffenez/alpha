@@ -77,6 +77,7 @@ import app.radiacode.ui.logic.SearchWhyInput
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.backgroundBand
 import app.radiacode.ui.logic.ledLevel
+import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -114,6 +115,7 @@ fun SearchScreen(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -501,23 +503,28 @@ fun SearchScreen(
                         .padding(vertical = Dimens.space1, horizontal = Dimens.space2),
                 ) {
                     StatusRow(
-                        text = SearchVerdict.headline(level, search.direction, record != null),
+                        text = SearchVerdict.headline(
+                            level,
+                            search.direction,
+                            record != null,
+                            strings,
+                        ),
                         color = levelColor,
                     )
                     Text(
-                        text = SearchVerdict.explanation(level, search.comparison),
+                        text = SearchVerdict.explanation(level, search.comparison, strings),
                         style = type.footnote,
                         color = colors.muted,
                         textAlign = TextAlign.Center,
                     )
                     Text(
-                        text = "почему такой вывод ›",
+                        text = strings.whyThisConclusion,
                         style = type.footnote,
                         color = colors.dataText,
                     )
                 }
 
-                SearchVerdict.directionLabel(search.direction)?.let { label ->
+                SearchVerdict.directionLabel(search.direction, strings)?.let { label ->
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(top = Dimens.space2),
@@ -526,6 +533,7 @@ fun SearchScreen(
                         SearchVerdict.directionNote(
                             search.direction,
                             SearchDirectionFit.WINDOW_MILLIS,
+                            strings,
                         )?.let {
                             Text(
                                 text = it,

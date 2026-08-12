@@ -1,5 +1,7 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.text.Strings
 import app.radiacode.analysis.RateComparisonResult
 import app.radiacode.analysis.RateTest
 import java.util.Locale
@@ -24,59 +26,50 @@ object SearchVerdict {
         level: SearchLevel,
         direction: SearchDirection,
         hasBackground: Boolean,
-    ): String = when (level) {
-        SearchLevel.UNKNOWN ->
-            if (!hasBackground) "Фон не записан — сравнивать не с чем" else "Ждём данные прибора"
-        // «На уровне фона» — утверждение о равенстве, которого тест не делал:
-        // непринятие различия не доказывает совпадение (NIST, интервалы для
-        // слабого пуассоновского сигнала на фоне). Говорится ровно то, что
-        // проверено: превышения не обнаружено.
-        SearchLevel.BACKGROUND -> when (direction) {
-            SearchDirection.RISING -> "Превышение над фоном не обнаружено · счёт растёт"
-            SearchDirection.FALLING -> "Превышение над фоном не обнаружено · счёт снижается"
-            else -> "Превышение над фоном не обнаружено"
+        s: Strings = RuStrings,
+    ): String {
+        // Направление — приписка к вердикту, а не его часть: оно уточняет,
+        // куда идёт счёт, но вывод делает не оно.
+        fun withDirection(base: String): String = when (direction) {
+            SearchDirection.RISING -> "$base · ${s.countRising}"
+            SearchDirection.FALLING -> "$base · ${s.countFalling}"
+            else -> base
         }
-        SearchLevel.POSSIBLE_CHANGE ->
-            "Небольшое изменение — пока недостаточно данных"
-        SearchLevel.CONFIRMED_EXCESS -> when (direction) {
-            SearchDirection.RISING -> "Устойчивое превышение фонового счёта · продолжает расти"
-            SearchDirection.FALLING -> "Устойчивое превышение фонового счёта · счёт снижается"
-            else -> "Устойчивое превышение фонового счёта"
+        return when (level) {
+            SearchLevel.UNKNOWN ->
+                if (!hasBackground) s.searchNoBackground else s.searchWaiting
+            // «На уровне фона» — утверждение о равенстве, которого тест не
+            // делал: непринятие различия не доказывает совпадение (NIST,
+            // интервалы для слабого пуассоновского сигнала на фоне).
+            SearchLevel.BACKGROUND -> withDirection(s.searchNoExcess)
+            SearchLevel.POSSIBLE_CHANGE -> s.searchSmallChange
+            SearchLevel.CONFIRMED_EXCESS -> withDirection(s.searchConfirmedExcess)
+            SearchLevel.CONFIRMED_DEFICIT -> s.searchConfirmedDeficit
         }
-        SearchLevel.CONFIRMED_DEFICIT ->
-            "Счёт устойчиво ниже записанного фона"
     }
 
     /**
      * Half a sentence naming what the verdict was compared with, so the
      * headline is never read as an absolute statement about the place.
      */
-    fun explanation(level: SearchLevel, comparison: RateComparisonResult?): String {
-        val since = comparison?.let { ratioPhrase(it) }
+    fun explanation(
+        level: SearchLevel,
+        comparison: RateComparisonResult?,
+        s: Strings = RuStrings,
+    ): String {
+        val since = comparison?.let { ratioPhrase(it, s) }
+        val confirm = seconds(SearchLadder.CONFIRM_MILLIS)
         return when (level) {
-            SearchLevel.UNKNOWN ->
-                "Без записанного фона и живого потока данных сравнение невозможно."
-            SearchLevel.BACKGROUND ->
-                "Различие с записанным фоном не подтверждено статистикой счёта" +
-                    (since?.let { ": $it" } ?: ".")
-            SearchLevel.POSSIBLE_CHANGE ->
-                "Отличие есть, но держится меньше ${seconds(SearchLadder.CONFIRM_MILLIS)} — " +
-                    "по одному короткому окну вывод не делается."
-            SearchLevel.CONFIRMED_EXCESS ->
-                "Скорость счёта выше записанного фона дольше " +
-                    "${seconds(SearchLadder.CONFIRM_MILLIS)}" +
-                    (since?.let { ", $it" } ?: "") +
-                    ". Это утверждение о скорости счёта, а не о дозе и не об изотопе."
-            SearchLevel.CONFIRMED_DEFICIT ->
-                "Скорость счёта ниже записанного фона дольше " +
-                    "${seconds(SearchLadder.CONFIRM_MILLIS)}" +
-                    (since?.let { ", $it" } ?: "") +
-                    ". Так выглядит уход от источника или экранирование."
+            SearchLevel.UNKNOWN -> s.searchCannotCompare
+            SearchLevel.BACKGROUND -> s.searchNotConfirmed(since)
+            SearchLevel.POSSIBLE_CHANGE -> s.searchTooShort(confirm)
+            SearchLevel.CONFIRMED_EXCESS -> s.searchExcessExplained(confirm, since)
+            SearchLevel.CONFIRMED_DEFICIT -> s.searchDeficitExplained(confirm, since)
         }
     }
 
     /** «×1,8 к фону (95 % интервал 1,5–2,2)» — always with its denominator. */
-    fun ratioPhrase(comparison: RateComparisonResult): String? {
+    fun ratioPhrase(comparison: RateComparisonResult, s: Strings = RuStrings): String? {
         if (comparison.test == RateTest.NONE) return null
         val ratio = comparison.ratio
         if (!ratio.isFinite() || ratio <= 0.0) return null
@@ -84,11 +77,11 @@ object SearchVerdict {
         val low = comparison.ratioLow
         val high = comparison.ratioHigh
         val interval = if (low.isFinite() && high.isFinite()) {
-            " ($level % интервал ${num2(low)}–${num2(high)})"
+            s.confidenceInterval(level, num2(low), num2(high))
         } else {
-            ""
+            null
         }
-        return "×${num2(ratio)} к записанному фону$interval"
+        return s.ratioToBackground(num2(ratio), interval)
     }
 
     /**
@@ -122,19 +115,24 @@ object SearchVerdict {
      * относятся к последним [SearchDirectionFit.WINDOW_MILLIS] — окно
      * названо рядом, в подписи под чипом.
      */
-    fun directionLabel(direction: SearchDirection): String? = when (direction) {
-        SearchDirection.UNKNOWN -> null
-        SearchDirection.STEADY -> "→ счёт не меняется"
-        SearchDirection.RISING -> "↑ счёт растёт"
-        SearchDirection.FALLING -> "↓ счёт снижается"
-    }
+    fun directionLabel(direction: SearchDirection, s: Strings = RuStrings): String? =
+        when (direction) {
+            SearchDirection.UNKNOWN -> null
+            SearchDirection.STEADY -> "→ ${s.countSteady}"
+            SearchDirection.RISING -> "↑ ${s.countRising}"
+            SearchDirection.FALLING -> "↓ ${s.countFalling}"
+        }
 
     /** За какое время сделан вывод о направлении — подпись под чипом. */
-    fun directionNote(direction: SearchDirection, windowMillis: Long): String? =
+    fun directionNote(
+        direction: SearchDirection,
+        windowMillis: Long,
+        s: Strings = RuStrings,
+    ): String? =
         if (direction == SearchDirection.UNKNOWN) {
             null
         } else {
-            "по последним ${windowMillis / 1000} с"
+            s.directionOverLast(windowMillis / 1000)
         }
 
     /** Line about short excursions that never reached the confirmation time. */

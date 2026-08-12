@@ -96,6 +96,45 @@ object RuStrings : Strings {
 
     override val streamInterruptedFor = "поток прерван"
 
+    override val searchNoBackground = "Фон не записан — сравнивать не с чем"
+    override val searchWaiting = "Ждём данные прибора"
+    override val searchNoExcess = "Превышение над фоном не обнаружено"
+    override val searchSmallChange = "Небольшое изменение — пока недостаточно данных"
+    override val searchConfirmedExcess = "Устойчивое превышение фонового счёта"
+    override val searchConfirmedDeficit = "Счёт устойчиво ниже записанного фона"
+    override val countRising = "счёт растёт"
+    override val countFalling = "счёт снижается"
+    override val countSteady = "счёт не меняется"
+
+    override fun directionOverLast(seconds: Long) = "по последним $seconds с"
+
+    override val searchCannotCompare =
+        "Без записанного фона и живого потока данных сравнение невозможно."
+
+    override fun searchNotConfirmed(ratio: String?) =
+        "Различие с записанным фоном не подтверждено статистикой счёта" +
+            (ratio?.let { ": $it" } ?: ".")
+
+    override fun searchTooShort(confirmSeconds: String) =
+        "Отличие есть, но держится меньше $confirmSeconds — по одному короткому окну " +
+            "вывод не делается."
+
+    override fun searchExcessExplained(confirmSeconds: String, ratio: String?) =
+        "Скорость счёта выше записанного фона дольше $confirmSeconds" +
+            (ratio?.let { ", $it" } ?: "") +
+            ". Это утверждение о скорости счёта, а не о дозе и не об изотопе."
+
+    override fun searchDeficitExplained(confirmSeconds: String, ratio: String?) =
+        "Скорость счёта ниже записанного фона дольше $confirmSeconds" +
+            (ratio?.let { ", $it" } ?: "") +
+            ". Так выглядит уход от источника или экранирование."
+
+    override fun ratioToBackground(ratio: String, interval: String?) =
+        "×$ratio к записанному фону" + (interval ?: "")
+
+    override fun confidenceInterval(level: Int, low: String, high: String) =
+        " ($level % интервал $low–$high)"
+
     override val deviceSignals = "Сигналы прибора"
     override val deviceSignalsNote =
         "Звук и вибрация самого прибора. Они работают, даже когда телефон отключён " +
