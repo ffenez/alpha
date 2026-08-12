@@ -89,6 +89,7 @@ import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.QuantileMetadata
 import app.radiacode.ui.logic.QuantileMethod
 import app.radiacode.ui.logic.RatioDenominator
+import app.radiacode.ui.logic.markerWording
 import app.radiacode.ui.logic.referenceWording
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.WindowStats
@@ -1224,11 +1225,27 @@ private fun BoxScope.CursorCard(
             )
             CursorRow("измерений", HistoryFormat.count(bucket.sampleCount))
             if (extreme != null) {
+                // Маркер сообщает ФАКТ СРАВНЕНИЯ и сразу показывает оба числа,
+                // на которых он стоит: «выше P90 профиля» без самого P90 —
+                // это утверждение, которое нечем проверить.
+                val reference = when (extreme) {
+                    DoseReference.ALARM_L1 -> alarmLevel
+                    DoseReference.BASELINE_P90 -> baseline?.doseHighMicroSvH
+                }
                 Text(
-                    text = "▲ экстремум ${referenceWording(extreme)}",
+                    text = "▲ " + markerWording(extreme),
                     style = type.footnote,
                     color = if (extreme == DoseReference.ALARM_L1) colors.crit else colors.warn,
                 )
+                if (reference != null) {
+                    Text(
+                        text = "макс ${DoseFormat.rate(bucket.max, unit)} · " +
+                            (if (extreme == DoseReference.ALARM_L1) "L1 " else "P90 профиля ") +
+                            DoseFormat.rate(reference, unit),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
             }
             if (!bucket.quantilesExact) {
                 Text(

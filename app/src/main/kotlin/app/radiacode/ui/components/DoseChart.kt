@@ -364,11 +364,23 @@ private fun StaticChartLayer(
                 // кромки. Порог, о котором забыли, — это порог, которого нет.
                 val alarmAbove = spec.alarmLevel != null &&
                     spec.alarmLevel > spec.scale.maxValue
+                // Симметрично: кадр подогнан к данным и может целиком уйти
+                // ВЫШЕ порога — тогда указатель «↓ L1 0,30» стоит у нижней
+                // кромки. Иначе на графике превышения не было бы видно самой
+                // величины, относительно которой оно превышение.
+                val alarmBelow = spec.alarmLevel != null &&
+                    spec.alarmLevel < spec.scale.minValue
                 val alarmText = spec.alarmLabel
-                    ?.let { if (alarmAbove) "↑ $it" else it }
+                    ?.let {
+                        when {
+                            alarmAbove -> "↑ $it"
+                            alarmBelow -> "↓ $it"
+                            else -> it
+                        }
+                    }
                     ?.let { textMeasurer.measure(it, axisStyle) }
                 val alarmY = spec.alarmLevel
-                    ?.takeIf { !alarmAbove }
+                    ?.takeIf { !alarmAbove && !alarmBelow }
                     ?.let { yOf(it) }
                 val bandTop = spec.baselineBand?.let { yOf(it.endInclusive) }
                 val bandBottom = spec.baselineBand?.let { yOf(it.start) }
@@ -527,12 +539,23 @@ private fun StaticChartLayer(
 
                     // 4. Named alarm level — a line inside the frame, a pinned
                     // pointer above it.
-                    if (alarmY == null && alarmAbove && alarmText != null) {
-                        drawText(
-                            textLayoutResult = alarmText,
-                            color = colors.crit,
-                            topLeft = Offset(labelInset, 1f),
-                        )
+                    if (alarmY == null && alarmText != null) {
+                        if (alarmAbove) {
+                            drawText(
+                                textLayoutResult = alarmText,
+                                color = colors.crit,
+                                topLeft = Offset(labelInset, plotTop + 1f),
+                            )
+                        } else if (alarmBelow) {
+                            drawText(
+                                textLayoutResult = alarmText,
+                                color = colors.crit,
+                                topLeft = Offset(
+                                    labelInset,
+                                    plotTop + plotHeight - alarmText.size.height - 1f,
+                                ),
+                            )
+                        }
                     }
                     if (alarmY != null) {
                         drawLine(

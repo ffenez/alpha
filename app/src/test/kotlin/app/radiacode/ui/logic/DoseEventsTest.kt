@@ -205,4 +205,18 @@ class DoseEventsTest {
         val columns = listOf(ChartBucket(0, 1_000, 0.1f, 0.1f, 0.1f, sampleCount = 1))
         assertTrue(DoseEpisodes.around(columns, listOf(99_000L), 0.3f).isEmpty())
     }
+
+    @Test
+    fun `a marker is a comparison, not a verdict about anomaly`() {
+        for (reference in DoseReference.entries) {
+            val text = markerWording(reference)
+            // «Экстремум» — математическое название min/max, а не класс
+            // аномальности: выше P90 по определению лежит около 10 %
+            // исторических измерений.
+            assertTrue(!text.contains("экстремум"), text)
+            assertTrue(text.startsWith("максимум интервала выше"), text)
+        }
+        assertTrue(markerWording(DoseReference.BASELINE_P90).contains("P90 профиля"))
+        assertTrue(markerWording(DoseReference.ALARM_L1).contains("L1"))
+    }
 }

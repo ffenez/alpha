@@ -92,19 +92,23 @@ internal fun buildFrame(
     // Порог L1 задан в единицах дозы: на счёте и на отношении его линии нет —
     // переносить туда дозовый порог было бы выдумкой.
     val alarm = thresholds.l1MicroSvH.takeIf { it > 0f && ChartMetrics.showsAlarmLevel(metric) }
-    val band = baseline?.let { it.doseLowMicroSvH..it.doseHighMicroSvH }
-    // The frame is fitted to what is actually drawn. With raw dots on screen
-    // that is the true extremes; without them the envelopes stop at Q10–Q90,
-    // and a single off-scale spike is carried by its marker and the cursor
-    // card instead of stretching the whole axis (CHART SPEC §7 — an extremum
-    // grows with N, so it must not define the frame).
+    // Полоса профиля задана в единицах ДОЗЫ — на счёте и на отношении её нет
+    // по той же причине, что и порога L1.
+    val band = baseline
+        ?.takeIf { ChartMetrics.showsProfileBand(metric) }
+        ?.let { it.doseLowMicroSvH..it.doseHighMicroSvH }
+    // Кадр подгоняется к наблюдаемым значениям по устойчивым границам колонок
+    // (Q10/Q90): один всплеск не сжимает весь ряд, а далёкий порог не
+    // растягивает ось (CHART SPEC §7 + `DoseScales`). Выброс не теряется — его
+    // несут маркер над полем и карточка курсора.
     val dotsVisible = ChartSeriesModel.rawDotsVisible(snapshot.bucketMillis)
     val scale = DoseScales.of(
         logarithmic = logScale,
-        dataMin = snapshot.buckets.minOfOrNull { if (dotsVisible) it.min else it.q10 },
-        dataMax = snapshot.buckets.maxOfOrNull { if (dotsVisible) it.max else it.q90 },
+        lows = snapshot.buckets.map { it.q10 },
+        highs = snapshot.buckets.map { it.q90 },
+        minSpan = ChartMetrics.minAxisSpan(metric),
         alarmLevel = alarm,
-        baselineHigh = baseline?.doseHighMicroSvH,
+        baselineBand = band,
     )
     val episodes = DoseEpisodes.around(
         buckets = visible,

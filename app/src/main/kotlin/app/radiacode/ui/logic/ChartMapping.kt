@@ -85,7 +85,8 @@ object ChartMapping {
         return ticks
     }
 
-    private fun niceStep(raw: Double): Double {
+    /** «Красивый» шаг 1/2/5·10^k, не меньше [raw]. */
+    fun niceStep(raw: Double): Double {
         val mag = Math.pow(10.0, floor(Math.log10(raw)))
         val norm = raw / mag
         val nice = when {

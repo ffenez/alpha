@@ -28,6 +28,22 @@ fun referenceWordingShort(reference: DoseReference): String = when (reference) {
     DoseReference.BASELINE_P90 -> "> P90 профиля"
 }
 
+/**
+ * Как называется ОДИН помеченный отсчёт — маркер ▲ над колонкой.
+ *
+ * Не «экстремум»: P90 профиля это девятый дециль исторического распределения,
+ * выше него по определению лежит около 10 % пригодных исторических измерений,
+ * и превышение P90 само по себе не делает значение статистически
+ * исключительным. Маркер сообщает ровно то, что известно: максимум колонки
+ * оказался выше НАЗВАННОЙ величины. Слово «экстремум» остаётся математическим
+ * названием min/max внутри колонки и не используется как классификация
+ * аномальности.
+ */
+fun markerWording(reference: DoseReference): String = when (reference) {
+    DoseReference.ALARM_L1 -> "максимум интервала выше порога L1"
+    DoseReference.BASELINE_P90 -> "максимум интервала выше P90 профиля"
+}
+
 /** A stretch of the window that stayed above a named reference (§20). */
 data class DoseEpisode(
     val fromMillis: Long,
