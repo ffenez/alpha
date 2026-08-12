@@ -90,6 +90,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import app.radiacode.ui.components.DoseChart
 import app.radiacode.ui.logic.ChartMetrics
+import app.radiacode.ui.logic.coverageWording
 import app.radiacode.ui.logic.ChartSnapshot
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartWindows
@@ -318,6 +319,7 @@ fun MonitorScreen(
                 metric = metric,
                 frame = frame,
                 windowLabel = loaded?.let { windowLabel(metric, it.window) },
+                spanMillis = loaded?.window?.spanMillis,
                 hasBaselineBand = baseline != null,
                 unit = unit,
                 showStats = blocks.stats,
@@ -742,6 +744,7 @@ private fun MetricChartCard(
     metric: ChartMetric,
     frame: ChartFrame?,
     windowLabel: String?,
+    spanMillis: Long?,
     hasBaselineBand: Boolean,
     unit: DoseUnitSetting,
     showStats: Boolean,
@@ -809,6 +812,23 @@ private fun MetricChartCard(
                         .height(if (metric == ChartMetric.DOSE) 168.dp else 132.dp),
                 )
                 val stats = frame.stats
+                // Оговорки окна — те же, что на полноэкранном: сколько окна
+                // реально покрыто измерениями и каким путём получены квантили.
+                // Карточка показывает ТЕ ЖЕ числа, значит обязана нести и их
+                // условия — иначе месячное окно с двумя часами данных выглядит
+                // как месяц измерений.
+                if (spanMillis != null) {
+                    coverageWording(stats, spanMillis)?.let {
+                        Text(text = it, style = type.footnote, color = colors.muted)
+                    }
+                }
+                if (stats != null && !stats.quantilesExact) {
+                    Text(
+                        text = "квантили — приближение по почасовым выжимкам распределения",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
                 if (showStats && stats != null) {
                     StatGrid(
                         cells = listOf(
