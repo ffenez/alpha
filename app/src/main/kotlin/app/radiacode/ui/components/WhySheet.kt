@@ -28,6 +28,7 @@ import app.radiacode.ui.logic.WhyReportBuilder
 import app.radiacode.ui.logic.WhyScale
 import app.radiacode.ui.logic.WhySection
 import app.radiacode.ui.logic.WhyTone
+import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -57,7 +58,7 @@ fun WhySheet(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    val report = WhyReportBuilder.build(input)
+    val report = WhyReportBuilder.build(input, LocalStrings.current)
 
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {

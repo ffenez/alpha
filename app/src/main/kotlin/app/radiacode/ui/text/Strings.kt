@@ -296,6 +296,61 @@ interface Strings {
     val backgroundTag: String
     val delete: String
 
+
+    // --- «Почему такой вывод» ---
+    val evidenceLegend: String
+    val nowSection: String
+    val poissonNote: String
+    val dataSection: String
+    val profile: String
+    val outsideProfile: String
+    val comparisonSection: String
+    val historicalRange: String
+    val notCollectedYet: String
+    val comparisonRuns: String
+    fun withThresholdL1(value: String): String
+    val thresholdIsNotSafety: String
+    val currentValue: String
+    val position: String
+    val bandExplained: String
+    val belowP10: String
+    val aboveP90: String
+    val insideBand: String
+    val profileStatistics: String
+    val median: String
+    val madNote: String
+    val usableData: String
+    val minuteBuckets: String
+    val honestN: String
+    val notEnoughData: String
+    val updating: String
+    val temporarilyNotUpdating: String
+    val updatingNote: String
+    val notUpdatingNote: String
+    val state: String
+    val excludedFromStatistics: String
+    val statisticsState: String
+    val quarantineNote: String
+    val howDetected: String
+    val absoluteThresholdL1: String
+    val relativeCriterion: String
+    fun timesProfileP90(factor: String): String
+    val minimumDuration: String
+    val shorterNotAnnounced: String
+    val returnCriterion: String
+    val backBelowThreshold: String
+    val exclusionAfterEvent: String
+    val fromEndOfDeviation: String
+    val criteriaNote: String
+    val notEvaluated: String
+    val notEnoughStatistics: String
+    val noChangeDetected: String
+    val changeDetected: String
+    val spectralNoReference: String
+    fun spectralTooLittle(detail: String): String
+    fun spectralCompared(detail: String): String
+    val spectralComparison: String
+
     // --- сигналы прибора ---
     val deviceSignals: String
     val deviceSignalsNote: String
@@ -368,6 +423,18 @@ fun Strings.allTexts(): List<String> = listOf(
     markForDeletion, pickTwoToCompare, pickTwoOrMoreToMerge, snapshotOpensActions,
     mergeAction(2), mergedSaved("x"), mergeImpossible, compareWithAnother,
     continueAccumulation, continueAccumulationNote, importedTag, backgroundTag, delete,
+    evidenceLegend, nowSection, poissonNote, dataSection, profile, outsideProfile,
+    comparisonSection, historicalRange, notCollectedYet, comparisonRuns,
+    withThresholdL1("0,30"), thresholdIsNotSafety, currentValue, position, bandExplained,
+    belowP10, aboveP90, insideBand, profileStatistics, median, madNote, usableData,
+    minuteBuckets, honestN, notEnoughData, updating, temporarilyNotUpdating, updatingNote,
+    notUpdatingNote, state, excludedFromStatistics, statisticsState, quarantineNote,
+    howDetected, absoluteThresholdL1, relativeCriterion, timesProfileP90("×2"),
+    minimumDuration, shorterNotAnnounced, returnCriterion, backBelowThreshold,
+    exclusionAfterEvent, fromEndOfDeviation, criteriaNote, notEvaluated,
+    notEnoughStatistics, noChangeDetected, changeDetected, spectralNoReference,
+    spectralTooLittle("—"), spectralCompared("—"), spectralComparison,
+
 
 
 

@@ -4,6 +4,8 @@ import app.radiacode.analysis.FingerprintComparison
 import app.radiacode.analysis.FingerprintDimension
 import app.radiacode.analysis.FingerprintState
 import app.radiacode.baseline.Admission
+import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.text.Strings
 import app.radiacode.baseline.Baseline
 import app.radiacode.baseline.BaselineAdmission
 import app.radiacode.baseline.BaselineState
@@ -99,10 +101,19 @@ data class WhyReport(
  */
 object WhyReportBuilder {
 
-    const val LEGEND = "изм. — измерено прибором · расчёт — вычислено из измерений · " +
-        "стат. — результат статистической модели профиля"
+    /**
+     * Каталог языка держится в поле на время сборки отчёта: у сборщика два
+     * десятка приватных функций, и протаскивать параметр через каждую значило
+     * бы переписать файл ради одного и того же аргумента. Сборка синхронная и
+     * однопоточная (её вызывает композиция или отчёт), поэтому поле безопасно.
+     */
+    private var s: Strings = RuStrings
 
-    fun build(input: WhyInput): WhyReport {
+    /** Пояснение меток достоверности — на языке интерфейса. */
+    fun legend(strings: Strings = RuStrings): String = strings.evidenceLegend
+
+    fun build(input: WhyInput, strings: Strings = RuStrings): WhyReport {
+        s = strings
         val baseline = (input.baselineState as? BaselineState.Active)?.baseline
         val unit = input.unit
         val current = input.doseRateMicroSvH
@@ -128,7 +139,7 @@ object WhyReportBuilder {
                 add(criteriaSection(input))
                 add(spectralSection(input.fingerprint))
             },
-            legend = LEGEND,
+            legend = legend(s),
         )
     }
 
@@ -145,11 +156,11 @@ object WhyReportBuilder {
     // ------------------------------------------------------------- §3 «Сейчас»
 
     private fun nowSection(input: WhyInput): WhySection = WhySection(
-        title = "Сейчас",
+        title = s.nowSection,
         lines = buildList {
             add(
                 WhyLine(
-                    label = "Мощность дозы",
+                    label = s.doseRate,
                     value = input.doseRateMicroSvH
                         ?.let { DoseFormat.rateWithUnit(it, input.unit) } ?: "—",
                     evidence = Evidence.MEASURED,
@@ -157,24 +168,23 @@ object WhyReportBuilder {
             )
             add(
                 WhyLine(
-                    label = "Скорость счёта",
+                    label = s.countRate,
                     value = input.cps?.let { Uncertainty.cpsWithSigma(it) } ?: "—",
                     evidence = Evidence.MEASURED,
-                    note = "1σ Пуассона ≈ √(N/τ), τ = 1 с · счёт сам по себе не " +
-                        "пересчитывается в дозу",
+                    note = s.poissonNote,
                 ),
             )
             add(
                 WhyLine(
-                    label = "Данные",
+                    label = s.dataSection,
                     value = freshnessLabel(input.freshness),
                     evidence = Evidence.MEASURED,
                 ),
             )
             add(
                 WhyLine(
-                    label = "Профиль",
-                    value = input.profileName ?: "вне профиля",
+                    label = s.profile,
+                    value = input.profileName ?: s.outsideProfile,
                     evidence = Evidence.MEASURED,
                     note = input.contextWording,
                 ),
@@ -188,28 +198,29 @@ object WhyReportBuilder {
         if (baseline == null) {
             val learning = input.baselineState as? BaselineState.Learning
             return WhySection(
-                title = "Сравнение с профилем",
+                title = s.comparisonSection,
                 lines = listOf(
                     WhyLine(
-                        label = "Исторический диапазон",
-                        value = "ещё не собран",
+                        label = s.historicalRange,
+                        value = s.notCollectedYet,
                         evidence = Evidence.STATISTICALLY_DETECTED,
                         note = learning?.let { shortfallWording(it) },
                     ),
                     WhyLine(
-                        label = "Сравнение идёт",
-                        value = "с порогом L1 " +
+                        label = s.comparisonRuns,
+                        value = s.withThresholdL1(
                             DoseFormat.rateWithUnit(input.thresholds.l1MicroSvH, input.unit),
+                        ),
                         evidence = Evidence.CALCULATED,
                     ),
                 ),
-                note = "Порог L1 — параметр тревоги приложения, а не граница безопасности.",
+                note = s.thresholdIsNotSafety,
             )
         }
         val unit = input.unit
         val current = input.doseRateMicroSvH
         return WhySection(
-            title = "Сравнение с профилем",
+            title = s.comparisonSection,
             lines = listOf(
                 WhyLine(
                     label = "P10–P90",
@@ -221,38 +232,36 @@ object WhyReportBuilder {
                     evidence = Evidence.STATISTICALLY_DETECTED,
                 ),
                 WhyLine(
-                    label = "Текущее значение",
+                    label = s.currentValue,
                     value = current?.let { DoseFormat.rateWithUnit(it, unit) } ?: "—",
                     evidence = Evidence.MEASURED,
                 ),
                 WhyLine(
-                    label = "Положение",
+                    label = s.position,
                     value = positionWording(current, baseline),
                     evidence = Evidence.CALCULATED,
                 ),
             ),
-            note = "P10–P90 — диапазон, внутри которого находилось около 80 % пригодных " +
-                "исторических измерений этого профиля. Это характеристика данного места, " +
-                "а не норматив радиационной безопасности.",
+            note = s.bandExplained,
         )
     }
 
     private fun positionWording(current: Float?, baseline: Baseline): String = when {
         current == null -> "—"
-        current < baseline.doseLowMicroSvH -> "ниже P10"
-        current > baseline.doseHighMicroSvH -> "выше P90"
-        else -> "внутри P10–P90"
+        current < baseline.doseLowMicroSvH -> s.belowP10
+        current > baseline.doseHighMicroSvH -> s.aboveP90
+        else -> s.insideBand
     }
 
     // ----------------------------------------- §5 «Статистика профиля»
 
     private fun statisticsSection(baseline: Baseline, unit: DoseUnitSetting): WhySection =
         WhySection(
-            title = "Статистика профиля",
+            title = s.profileStatistics,
             advanced = true,
             lines = listOf(
                 WhyLine(
-                    label = "Медиана",
+                    label = s.median,
                     value = DoseFormat.rateWithUnit(baseline.doseMedianMicroSvH, unit),
                     evidence = Evidence.STATISTICALLY_DETECTED,
                 ),
@@ -269,9 +278,7 @@ object WhyReportBuilder {
                     label = "MAD",
                     value = DoseFormat.rateWithUnit(baseline.doseMadMicroSvH, unit),
                     evidence = Evidence.STATISTICALLY_DETECTED,
-                    note = "median(|xᵢ − медиана|) — робастная характеристика наблюдаемого " +
-                        "разброса, не требующая нормального распределения. Это не " +
-                        "погрешность прибора",
+                    note = s.madNote,
                 ),
                 WhyLine(
                     label = "P10–P90",
@@ -283,15 +290,15 @@ object WhyReportBuilder {
                     evidence = Evidence.STATISTICALLY_DETECTED,
                 ),
                 WhyLine(
-                    label = "Пригодных данных",
+                    label = s.usableData,
                     value = durationWording(baseline.accumulatedSeconds),
                     evidence = Evidence.CALCULATED,
                 ),
                 WhyLine(
-                    label = "Минутных корзин",
+                    label = s.minuteBuckets,
                     value = "${baseline.bucketCount}",
                     evidence = Evidence.CALCULATED,
-                    note = "честное n порядковых статистик",
+                    note = s.honestN,
                 ),
             ),
         )
@@ -302,22 +309,20 @@ object WhyReportBuilder {
         val learning = input.baselineState as? BaselineState.Learning
         val updating = input.admission is Admission.Admitted
         val headline = when {
-            learning != null -> "Недостаточно данных"
-            updating -> "Обновляется"
-            else -> "Временно не обновляется"
+            learning != null -> s.notEnoughData
+            updating -> s.updating
+            else -> s.temporarilyNotUpdating
         }
         val explanation = when {
             learning != null -> shortfallWording(learning)
-            updating -> "Новые пригодные измерения учитываются при пересчёте " +
-                "исторического диапазона."
-            else -> "Новые измерения сохраняются, но временно не используются для " +
-                "обновления исторического диапазона."
+            updating -> s.updatingNote
+            else -> s.notUpdatingNote
         }
         val exclusions = input.exclusions
         val lines = buildList {
             add(
                 WhyLine(
-                    label = "Состояние",
+                    label = s.state,
                     value = headline,
                     evidence = Evidence.CALCULATED,
                     note = (input.admission as? Admission.Excluded)?.reason?.label,
@@ -326,7 +331,7 @@ object WhyReportBuilder {
             if (exclusions.isNotEmpty()) {
                 add(
                     WhyLine(
-                        label = "Не учтено в статистике",
+                        label = s.excludedFromStatistics,
                         value = durationWording(exclusions.sumOf { it.seconds }),
                         evidence = Evidence.CALCULATED,
                     ),
@@ -348,14 +353,14 @@ object WhyReportBuilder {
             // Not «Статистика профиля»: that heading belongs to the numbers
             // above, and two identical headings in one sheet is one heading
             // too many.
-            title = "Состояние статистики",
+            title = s.statisticsState,
             lines = lines,
             // The quarantine paragraph is shown where it explains something —
             // otherwise it is a warning about a situation the user is not in.
             note = if (exclusions.isEmpty() && updating) {
                 explanation
             } else {
-                explanation + " " + QUARANTINE_WORDING
+                explanation + " " + quarantineWording(s)
             },
             tone = when {
                 learning != null -> WhyTone.ATTENTION
@@ -370,10 +375,7 @@ object WhyReportBuilder {
      * stays out of the sheet: what matters is *why* the app refuses to absorb a
      * deviation into the usual range.
      */
-    const val QUARANTINE_WORDING =
-        "После устойчивого отклонения новые измерения некоторое время сохраняются, " +
-            "но не добавляются в обычный диапазон профиля. Это предотвращает " +
-            "постепенное превращение самого отклонения в новый baseline."
+    fun quarantineWording(strings: Strings = RuStrings): String = strings.quarantineNote
 
     // ---------------------------------- §8 «Как обнаруживается отклонение»
 
@@ -381,39 +383,38 @@ object WhyReportBuilder {
         val thresholds = input.thresholds
         val unit = input.unit
         return WhySection(
-            title = "Как обнаруживается отклонение",
+            title = s.howDetected,
             advanced = true,
             lines = listOf(
                 WhyLine(
-                    label = "Абсолютный порог L1",
+                    label = s.absoluteThresholdL1,
                     value = DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit),
                     evidence = Evidence.CALCULATED,
                 ),
                 WhyLine(
-                    label = "Относительный критерий",
-                    value = "${factorLabel(thresholds.relativeFactor)} × P90 профиля",
+                    label = s.relativeCriterion,
+                    value = s.timesProfileP90(factorLabel(thresholds.relativeFactor)),
                     evidence = Evidence.CALCULATED,
                 ),
                 WhyLine(
-                    label = "Минимальная длительность",
+                    label = s.minimumDuration,
                     value = durationWording(thresholds.persistenceSeconds.toLong()),
                     evidence = Evidence.CALCULATED,
-                    note = "короче — отклонение не объявляется",
+                    note = s.shorterNotAnnounced,
                 ),
                 WhyLine(
-                    label = "Возврат",
-                    value = "значение снова ниже порога",
+                    label = s.returnCriterion,
+                    value = s.backBelowThreshold,
                     evidence = Evidence.CALCULATED,
                 ),
                 WhyLine(
-                    label = "Исключение после события",
+                    label = s.exclusionAfterEvent,
                     value = durationWording(BaselineAdmission.QUARANTINE_MILLIS / 1000),
                     evidence = Evidence.CALCULATED,
-                    note = "отсчитывается от конца отклонения",
+                    note = s.fromEndOfDeviation,
                 ),
             ),
-            note = "Это параметры алгоритма обнаружения события, а не научные границы " +
-                "опасности. Те же числа используют движок и настройки тревоги.",
+            note = s.criteriaNote,
         )
     }
 
@@ -427,28 +428,24 @@ object WhyReportBuilder {
     private fun spectralSection(comparison: FingerprintComparison?): WhySection {
         val shape = comparison?.of(FingerprintDimension.SPECTRUM)
         val value = when (shape?.state) {
-            null, FingerprintState.NOT_EVALUATED -> "не оценивалось"
-            FingerprintState.NOT_ENOUGH_DATA -> "недостаточно статистики"
-            FingerprintState.SAME -> "изменение не обнаружено"
-            FingerprintState.CHANGED -> "обнаружено изменение"
+            null, FingerprintState.NOT_EVALUATED -> s.notEvaluated
+            FingerprintState.NOT_ENOUGH_DATA -> s.notEnoughStatistics
+            FingerprintState.SAME -> s.noChangeDetected
+            FingerprintState.CHANGED -> s.changeDetected
         }
         val note = when (shape?.state) {
             null, FingerprintState.NOT_EVALUATED ->
-                "Эталон этого места ещё не создан, поэтому спектр в вывод не входит. " +
-                    "«Не оценивалось» — это не «изменений нет»."
+                s.spectralNoReference
             FingerprintState.NOT_ENOUGH_DATA ->
-                "Сравнение с эталоном места началось, но данных пока мало: " +
-                    shape.detail
+                s.spectralTooLittle(shape.detail)
             else ->
-                "Форма спектра сравнивается с эталоном места (не с абсолютным " +
-                    "уровнем): ${shape.detail}. Вывод описывает состав излучения, " +
-                    "а не его опасность."
+                s.spectralCompared(shape.detail)
         }
         return WhySection(
-            title = "Спектральное сравнение",
+            title = s.spectralComparison,
             lines = listOf(
                 WhyLine(
-                    label = "Состояние",
+                    label = s.state,
                     value = value,
                     evidence = Evidence.STATISTICALLY_DETECTED,
                 ),

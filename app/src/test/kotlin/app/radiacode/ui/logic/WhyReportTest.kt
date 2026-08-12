@@ -253,7 +253,9 @@ class WhyReportTest {
             listOf(BaselineExclusion.EXPERIMENT.label, BaselineExclusion.QUARANTINE.label),
             reasons,
         )
-        assertTrue(assertNotNull(state.note).contains("новый baseline"), state.note!!)
+        // «baseline» — имя движка, на экране его нет: оговорка объясняет, что
+        // отклонение не становится новым ОБЫЧНЫМ ФОНОМ.
+        assertTrue(assertNotNull(state.note).contains("новый обычный фон"), state.note!!)
     }
 
     @Test

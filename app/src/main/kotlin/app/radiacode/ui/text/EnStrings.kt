@@ -348,6 +348,90 @@ object EnStrings : Strings {
     override val backgroundTag = "background"
     override val delete = "Delete"
 
+    override val evidenceLegend =
+        "meas. — measured by the instrument · calc. — computed from measurements · " +
+            "stat. — the result of the place's statistical model"
+    override val nowSection = "Now"
+    override val poissonNote =
+        "Poisson 1σ ≈ √(N/τ), τ = 1 s · a count on its own is not converted into a dose"
+    override val dataSection = "Data"
+    override val profile = "Place"
+    override val outsideProfile = "outside any place"
+    override val comparisonSection = "Comparison with the place"
+    override val historicalRange = "Historical range"
+    override val notCollectedYet = "not collected yet"
+    override val comparisonRuns = "Compared"
+
+    override fun withThresholdL1(value: String) = "against the L1 threshold $value"
+
+    override val thresholdIsNotSafety =
+        "L1 is a parameter of the app's alarm, not a safety limit."
+    override val currentValue = "Current value"
+    override val position = "Position"
+    override val bandExplained =
+        "P10–P90 is the range that held about 80 % of this place's usable historical " +
+            "measurements. It describes this place, not a radiation-safety limit."
+    override val belowP10 = "below P10"
+    override val aboveP90 = "above P90"
+    override val insideBand = "inside P10–P90"
+    override val profileStatistics = "Statistics of the place"
+    override val median = "Median"
+    override val madNote =
+        "median(|xᵢ − median|) — a robust description of the observed spread that assumes " +
+            "no normal distribution. It is not the instrument's uncertainty"
+    override val usableData = "Usable data"
+    override val minuteBuckets = "Minute buckets"
+    override val honestN = "the honest n of the order statistics"
+    override val notEnoughData = "Not enough data"
+    override val updating = "Updating"
+    override val temporarilyNotUpdating = "Temporarily not updating"
+    override val updatingNote =
+        "New usable measurements are taken into account when the historical range is " +
+            "recomputed."
+    override val notUpdatingNote =
+        "New measurements are being stored, but are temporarily not used to update the " +
+            "historical range."
+    override val state = "State"
+    override val excludedFromStatistics = "Not counted in the statistics"
+    override val statisticsState = "State of the statistics"
+    override val quarantineNote =
+        "After a sustained deviation, new measurements are stored for a while but not " +
+            "added to the place's usual range. That prevents the deviation itself from " +
+            "gradually becoming the new usual background."
+    override val howDetected = "How a deviation is detected"
+    override val absoluteThresholdL1 = "Absolute threshold L1"
+    override val relativeCriterion = "Relative criterion"
+
+    override fun timesProfileP90(factor: String) = "$factor × the place's P90"
+
+    override val minimumDuration = "Minimum duration"
+    override val shorterNotAnnounced = "shorter than this and no deviation is announced"
+    override val returnCriterion = "Return"
+    override val backBelowThreshold = "the value is below the threshold again"
+    override val exclusionAfterEvent = "Exclusion after an event"
+    override val fromEndOfDeviation = "counted from the end of the deviation"
+    override val criteriaNote =
+        "These are parameters of the event-detection algorithm, not scientific limits of " +
+            "harm. The engine and the alarm settings use the same numbers."
+    override val notEvaluated = "not evaluated"
+    override val notEnoughStatistics = "not enough statistics"
+    override val noChangeDetected = "no change detected"
+    override val changeDetected = "a change was detected"
+    override val spectralNoReference =
+        "This place has no reference fingerprint yet, so the spectrum is not part of the " +
+            "conclusion. «Not evaluated» is not «no change»."
+
+    override fun spectralTooLittle(detail: String) =
+        "Comparison with the place's reference has started, but there is little data yet: " +
+            detail
+
+    override fun spectralCompared(detail: String) =
+        "The shape of the spectrum is compared with the place's reference (not with an " +
+            "absolute level): $detail. The conclusion describes the composition of the " +
+            "radiation, not its harm."
+
+    override val spectralComparison = "Spectral comparison"
+
     override val deviceSignals = "Instrument signals"
     override val deviceSignalsNote =
         "The instrument's own sound and vibration. They work even with the phone " +

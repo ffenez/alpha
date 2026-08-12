@@ -334,6 +334,88 @@ object RuStrings : Strings {
     override val backgroundTag = "фон"
     override val delete = "Удалить"
 
+    override val evidenceLegend =
+        "изм. — измерено прибором · расчёт — вычислено из измерений · " +
+            "стат. — результат статистической модели профиля"
+    override val nowSection = "Сейчас"
+    override val poissonNote =
+        "1σ Пуассона ≈ √(N/τ), τ = 1 с · счёт сам по себе не пересчитывается в дозу"
+    override val dataSection = "Данные"
+    override val profile = "Профиль"
+    override val outsideProfile = "вне профиля"
+    override val comparisonSection = "Сравнение с профилем"
+    override val historicalRange = "Исторический диапазон"
+    override val notCollectedYet = "ещё не собран"
+    override val comparisonRuns = "Сравнение идёт"
+
+    override fun withThresholdL1(value: String) = "с порогом L1 $value"
+
+    override val thresholdIsNotSafety =
+        "Порог L1 — параметр тревоги приложения, а не граница безопасности."
+    override val currentValue = "Текущее значение"
+    override val position = "Положение"
+    override val bandExplained =
+        "P10–P90 — диапазон, внутри которого находилось около 80 % пригодных исторических " +
+            "измерений этого профиля. Это характеристика данного места, а не норматив " +
+            "радиационной безопасности."
+    override val belowP10 = "ниже P10"
+    override val aboveP90 = "выше P90"
+    override val insideBand = "внутри P10–P90"
+    override val profileStatistics = "Статистика профиля"
+    override val median = "Медиана"
+    override val madNote =
+        "median(|xᵢ − медиана|) — робастная характеристика наблюдаемого разброса, не " +
+            "требующая нормального распределения. Это не погрешность прибора"
+    override val usableData = "Пригодных данных"
+    override val minuteBuckets = "Минутных корзин"
+    override val honestN = "честное n порядковых статистик"
+    override val notEnoughData = "Недостаточно данных"
+    override val updating = "Обновляется"
+    override val temporarilyNotUpdating = "Временно не обновляется"
+    override val updatingNote =
+        "Новые пригодные измерения учитываются при пересчёте исторического диапазона."
+    override val notUpdatingNote =
+        "Новые измерения сохраняются, но временно не используются для обновления " +
+            "исторического диапазона."
+    override val state = "Состояние"
+    override val excludedFromStatistics = "Не учтено в статистике"
+    override val statisticsState = "Состояние статистики"
+    override val quarantineNote =
+        "После устойчивого отклонения новые измерения некоторое время сохраняются, но не " +
+            "добавляются в обычный диапазон профиля. Это предотвращает постепенное " +
+            "превращение самого отклонения в новый обычный фон."
+    override val howDetected = "Как обнаруживается отклонение"
+    override val absoluteThresholdL1 = "Абсолютный порог L1"
+    override val relativeCriterion = "Относительный критерий"
+
+    override fun timesProfileP90(factor: String) = "$factor × P90 профиля"
+
+    override val minimumDuration = "Минимальная длительность"
+    override val shorterNotAnnounced = "короче — отклонение не объявляется"
+    override val returnCriterion = "Возврат"
+    override val backBelowThreshold = "значение снова ниже порога"
+    override val exclusionAfterEvent = "Исключение после события"
+    override val fromEndOfDeviation = "отсчитывается от конца отклонения"
+    override val criteriaNote =
+        "Это параметры алгоритма обнаружения события, а не научные границы опасности. Те " +
+            "же числа используют движок и настройки тревоги."
+    override val notEvaluated = "не оценивалось"
+    override val notEnoughStatistics = "недостаточно статистики"
+    override val noChangeDetected = "изменение не обнаружено"
+    override val changeDetected = "обнаружено изменение"
+    override val spectralNoReference =
+        "Эталон этого места ещё не создан, поэтому спектр в вывод не входит. " +
+            "«Не оценивалось» — это не «изменений нет»."
+
+    override fun spectralTooLittle(detail: String) =
+        "Сравнение с эталоном места началось, но данных пока мало: $detail"
+
+    override fun spectralCompared(detail: String) =
+        "Форма спектра сравнивается с эталоном места (не с абсолютным уровнем): $detail. " +
+            "Вывод описывает состав излучения, а не его опасность."
+
+    override val spectralComparison = "Спектральное сравнение"
+
     override val deviceSignals = "Сигналы прибора"
     override val deviceSignalsNote =
         "Звук и вибрация самого прибора. Они работают, даже когда телефон отключён " +
