@@ -105,6 +105,22 @@ import kotlinx.coroutines.withContext
 private const val CHART_REFRESH_MILLIS = 15_000L
 
 /**
+ * Окно тренда на Главной — ЧАС, независимо от того, какое окно выбрано у
+ * карточки графика.
+ *
+ * Тренд считался по окну карточки, а оно с некоторых пор общее с
+ * полноэкранным графиком и запоминается: стоило выбрать там «5м», и правило
+ * доступности (размах ≥10 мин) переставало выполняться НАВСЕГДА — плитка
+ * показывала вечный прочерк «нужно 10 мин · есть 6 мин», хотя измерений
+ * накопились часы. Величина, подписанная «Тренд/ч», обязана иметь собственное
+ * названное окно, а не зависеть от того, что человек рассматривает рядом.
+ */
+private const val TREND_WINDOW_MILLIS = 3_600_000L
+
+/** Как это окно называется в подписи под значением. */
+private const val TREND_WINDOW_LABEL = "1 ч"
+
+/**
  * Загруженный кадр одной величины: окно и снимок ровно те же, что у
  * полноэкранного графика, поэтому тап по карточке увеличивает картинку, а не
  * заменяет её другой.
@@ -168,6 +184,7 @@ fun MonitorScreen(
         }
     }
     var charts by remember { mutableStateOf<Map<ChartMetric, LoadedChart>>(emptyMap()) }
+    var trend by remember { mutableStateOf<TrendAvailability?>(null) }
     var doseTodayMicroSv by remember { mutableStateOf<Double?>(null) }
     LaunchedEffect(chartMetrics, savedSpans) {
         while (true) {
@@ -177,6 +194,14 @@ fun MonitorScreen(
                     val window = ChartMetrics.startWindow(metric, savedSpans, now)
                     LoadedChart(window, loadSnapshot(graph, window, metric))
                 }
+            }
+            trend = withContext(Dispatchers.IO) {
+                val hour = ChartWindows.latest(TREND_WINDOW_MILLIS, now)
+                TrendFit.availability(
+                    loadSnapshot(graph, hour, ChartMetric.DOSE).buckets
+                        .filter { it.midMillis >= hour.fromMillis }
+                        .map { TrendPoint(it.midMillis, it.median) },
+                )
             }
             doseTodayMicroSv = withContext(Dispatchers.IO) { loadDoseToday(graph) }
             delay(CHART_REFRESH_MILLIS)
@@ -257,13 +282,8 @@ fun MonitorScreen(
             doseMicroSvH = doseMicroSvH,
             errPercent = sample?.doseRateErr,
             cps = sample?.countRate,
-            trend = charts[ChartMetric.DOSE]?.let { loaded ->
-                TrendFit.availability(
-                    loaded.snapshot.buckets.map { TrendPoint(it.midMillis, it.median) },
-                )
-            },
-            trendWindowLabel = charts[ChartMetric.DOSE]
-                ?.let { windowLabel(ChartMetric.DOSE, it.window) },
+            trend = trend,
+            trendWindowLabel = TREND_WINDOW_LABEL,
             doseTodayMicroSv = doseTodayMicroSv,
             status = status,
             baselineState = baselineState,

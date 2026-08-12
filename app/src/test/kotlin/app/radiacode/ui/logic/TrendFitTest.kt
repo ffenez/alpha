@@ -163,4 +163,23 @@ class TrendFitTest {
             1e-6f,
         )
     }
+
+    @Test
+    fun `a window shorter than the availability rule can never produce a trend`() {
+        // Ровно та ловушка, в которую попала Главная: окно 5 мин (плюс запас
+        // загрузки) физически не может дать размах 10 мин, сколько бы часов
+        // измерений ни накопилось. Значит, окно тренда не имеет права
+        // зависеть от того, какой масштаб выбран у графика рядом.
+        val windowMillis = 5L * 60_000L
+        val loaded = (windowMillis * 5 / 4)
+        val bins = (0 until 200).map {
+            TrendPoint(it * loaded / 200, 0.15f + it * 0.0001f)
+        }
+        val result = TrendFit.availability(bins)
+        assertTrue(result is TrendAvailability.TooShort, "$result")
+
+        // То же количество измерений в часовом окне тренд даёт.
+        val hour = (0 until 200).map { TrendPoint(it * 3_600_000L / 200, 0.15f + it * 0.0001f) }
+        assertTrue(TrendFit.availability(hour) is TrendAvailability.Ready)
+    }
 }
