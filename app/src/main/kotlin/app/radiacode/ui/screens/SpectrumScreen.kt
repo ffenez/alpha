@@ -845,6 +845,9 @@ private fun SpectrumContent(
                 Chip(
                     text = "сглаж.",
                     color = if (smoothing) colors.dataText else colors.ink2,
+                    // Подсветка выбранного — то же правило, что у чипов
+                    // графика: обведён = названное состояние включено.
+                    selected = smoothing,
                     onClick = { smoothing = !smoothing },
                 )
                 AppButton(
@@ -859,13 +862,6 @@ private fun SpectrumContent(
                 )
             }
             Column(modifier = Modifier.padding(horizontal = Dimens.space1)) {
-                if (smoothing) {
-                    Text(
-                        text = "сглаживание — только отображение, исходные данные не меняются",
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
                 if (!connected) {
                     Text(
                         text = "нет соединения — показан последний прочитанный спектр",

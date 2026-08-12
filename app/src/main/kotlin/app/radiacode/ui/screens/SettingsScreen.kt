@@ -47,6 +47,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.res.stringResource
+import app.radiacode.R
 import app.radiacode.AppGraph
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
@@ -1837,11 +1839,6 @@ private fun LicensesSection() {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val context = LocalContext.current
-    val version = remember {
-        runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        }.getOrNull() ?: "?"
-    }
     var licensesText by remember { mutableStateOf<String?>(null) }
     var showLicenses by remember { mutableStateOf(false) }
     var showNotes by rememberSaveable { mutableStateOf(false) }
@@ -1859,7 +1856,7 @@ private fun LicensesSection() {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle("О приложении")
-            VersionRow(version, showNotes) { showNotes = !showNotes }
+            VersionRow(showNotes) { showNotes = !showNotes }
             AnimatedVisibility(
                 visible = showNotes,
                 enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
@@ -1899,7 +1896,7 @@ private fun LicensesSection() {
  * раскрывается список последних обновлений человеческими словами.
  */
 @Composable
-private fun VersionRow(version: String, expanded: Boolean, onToggle: () -> Unit) {
+private fun VersionRow(expanded: Boolean, onToggle: () -> Unit) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Row(
@@ -1915,7 +1912,13 @@ private fun VersionRow(version: String, expanded: Boolean, onToggle: () -> Unit)
             ),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(text = "Версия $version", style = type.label, color = colors.ink)
+            // То же имя, что под иконкой: обе строки собраны из одного
+            // источника в сборке, поэтому разойтись не могут.
+            Text(
+                text = stringResource(R.string.app_name),
+                style = type.label,
+                color = colors.ink,
+            )
             Text(
                 text = if (expanded) "последние обновления" else "что изменилось",
                 style = type.footnote,
