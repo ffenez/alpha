@@ -6,7 +6,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -32,6 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -439,6 +440,17 @@ private fun FreshnessChip(freshness: Freshness) {
     }
 }
 
+/**
+ * Карточка главного экрана: величина → состояние → плитки → действия.
+ *
+ * Порядок — это ответ на вопросы в том порядке, в каком их задают: «сколько
+ * сейчас», «это обычно для этого места», «а что ещё известно», «почему так
+ * решено». Раньше карточка делилась пополам: слева крупное число, справа
+ * колонка «Счёт / Тренд / Сегодня» мелким шрифтом — и вход в «Почему?»
+ * оказывался чипом в хвосте строки статуса, где его было не найти. Теперь
+ * вспомогательные величины стоят плитками во всю ширину, а оба входа —
+ * «Почему такой вывод?» и «Отпечаток места» — отдельной строкой действий.
+ */
 @Composable
 private fun HeroCard(
     doseMicroSvH: Float?,
@@ -459,68 +471,35 @@ private fun HeroCard(
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
-                Column(Modifier.weight(1.35f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Мощность дозы".uppercase(),
-                            style = type.labelSmall,
-                            color = colors.ink2,
-                        )
-                        EvidenceTag(Evidence.MEASURED, Modifier.padding(start = 6.dp))
-                    }
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+            // 1. Величина, ради которой открывают приложение.
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = doseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
-                        style = type.valueHero,
-                        color = if (doseMicroSvH == null || stale) colors.muted else colors.ink,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                    Text(
-                        text = listOfNotNull(
-                            DoseFormat.rateUnitLabel(unit),
-                            Uncertainty.errPercentLabel(errPercent),
-                        ).joinToString(" · "),
-                        style = type.footnote,
+                        text = "Мощность дозы".uppercase(),
+                        style = type.labelSmall,
                         color = colors.ink2,
-                        modifier = Modifier.padding(top = 2.dp),
                     )
+                    EvidenceTag(Evidence.MEASURED, Modifier.padding(start = 6.dp))
                 }
-                Row(Modifier.weight(1f).height(IntrinsicSize.Min)) {
-                    Box(
-                        Modifier
-                            .width(Dimens.border)
-                            .fillMaxHeight()
-                            .background(colors.line),
-                    )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = Dimens.space3),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        KvRow("Счёт", cps?.let { Uncertainty.cpsWithSigma(it) } ?: "—")
-                        if (blocks.trend) {
-                            KvRow(
-                                label = "Тренд/ч",
-                                value = trendMicroSvHPerHour?.let { TrendFit.label(it, unit) }
-                                    ?: "—",
-                                valueColor = trendWarnColor(trendMicroSvHPerHour, status),
-                            )
-                        }
-                        if (blocks.doseToday) {
-                            KvRow(
-                                label = "Сегодня",
-                                value = doseTodayMicroSv?.let { DoseFormat.doseWithUnit(it, unit) }
-                                    ?: "—",
-                                // Integral of the measured rate, not a measured dose.
-                                evidence = Evidence.CALCULATED,
-                            )
-                        }
-                    }
-                }
+                Text(
+                    text = doseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
+                    style = type.valueHero,
+                    color = if (doseMicroSvH == null || stale) colors.muted else colors.ink,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                Text(
+                    text = listOfNotNull(
+                        DoseFormat.rateUnitLabel(unit),
+                        Uncertainty.errPercentLabel(errPercent),
+                    ).joinToString(" · "),
+                    style = type.footnote,
+                    color = colors.ink2,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
 
+            // 2. Состояние фона: во всю ширину, без соседей по строке.
             // Red is reserved for the confirmed alarm; amber for «выше
             // обычного»; normal states never shout (design rule).
             val statusColor = when {
@@ -530,44 +509,135 @@ private fun HeroCard(
                 status is MonitorStatus.Fixed && status.above -> colors.warn
                 else -> colors.ok
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
-                StatusDot(statusColor)
-                Text(
-                    text = statusHeadline(status),
-                    style = type.label,
-                    color = statusColor,
-                )
-                // The verdict leans on a statistical model, not on a reading.
-                if (status is MonitorStatus.Usual || status is MonitorStatus.AboveUsual ||
-                    status is MonitorStatus.Alert
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
-                    EvidenceTag(Evidence.STATISTICALLY_DETECTED)
+                    StatusDot(statusColor)
+                    Text(
+                        text = statusHeadline(status),
+                        style = type.label,
+                        color = statusColor,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    // The verdict leans on a statistical model, not on a reading.
+                    if (status is MonitorStatus.Usual || status is MonitorStatus.AboveUsual ||
+                        status is MonitorStatus.Alert
+                    ) {
+                        EvidenceTag(Evidence.STATISTICALLY_DETECTED)
+                    }
                 }
-                Spacer(Modifier.weight(1f))
-                // Два входа рядом: «почему такой вывод сейчас» и «чем это место
-                // отличается от себя прежнего» — разные вопросы об одном месте.
-                Chip(text = "Отпечаток", color = colors.ink2, onClick = onFingerprint)
-                Chip(text = "Почему?", color = colors.dataText, onClick = onWhy)
+                statusDetail(status, unit)?.let { detail ->
+                    Text(text = detail, style = type.footnote, color = colors.ink2)
+                }
+                (baselineState as? BaselineState.Learning)?.let { learning ->
+                    Text(
+                        text = learningWording(learning),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+                // Learning is silent by nature, so the one case where it is NOT
+                // happening must be visible without opening «Почему?».
+                admissionNote(admission, frozen)?.let { note ->
+                    Text(text = note, style = type.footnote, color = colors.warn)
+                }
             }
-            statusDetail(status, unit)?.let { detail ->
-                Text(text = detail, style = type.footnote, color = colors.ink2)
-            }
-            (baselineState as? BaselineState.Learning)?.let { learning ->
-                Text(
-                    text = learningWording(learning),
-                    style = type.footnote,
-                    color = colors.muted,
+
+            // 3. Плитки: то, что дополняет главное число, а не спорит с ним.
+            val tiles = buildList {
+                add(
+                    HeroTile(
+                        label = "Счёт",
+                        value = cps?.let { Uncertainty.cpsWithSigma(it) } ?: "—",
+                    ),
                 )
+                if (blocks.trend) {
+                    add(
+                        HeroTile(
+                            label = "Тренд/ч",
+                            value = trendMicroSvHPerHour?.let { TrendFit.label(it, unit) } ?: "—",
+                            valueColor = trendWarnColor(trendMicroSvHPerHour, status),
+                            evidence = Evidence.CALCULATED,
+                        ),
+                    )
+                }
+                if (blocks.doseToday) {
+                    add(
+                        HeroTile(
+                            label = "Сегодня",
+                            value = doseTodayMicroSv?.let { DoseFormat.doseWithUnit(it, unit) }
+                                ?: "—",
+                            // Integral of the measured rate, not a measured dose.
+                            evidence = Evidence.CALCULATED,
+                        ),
+                    )
+                }
             }
-            // Learning is silent by nature, so the one case where it is NOT
-            // happening must be visible without opening «Почему?».
-            admissionNote(admission, frozen)?.let { note ->
-                Text(text = note, style = type.footnote, color = colors.warn)
+            if (tiles.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    for (tile in tiles) {
+                        HeroTileBox(tile, Modifier.weight(1f))
+                    }
+                }
+            }
+
+            // 4. Два входа в объяснение — разные вопросы об одном месте:
+            // «почему такой вывод сейчас» и «чем это место отличается от себя
+            // прежнего». Это строка действий, а не хвост строки статуса.
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                AppButton(
+                    text = "Почему такой вывод?",
+                    onClick = onWhy,
+                    modifier = Modifier.weight(1.4f),
+                )
+                AppButton(
+                    text = "Отпечаток места",
+                    onClick = onFingerprint,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
+    }
+}
+
+/** Одна плитка под главным числом. */
+private data class HeroTile(
+    val label: String,
+    val value: String,
+    val valueColor: Color? = null,
+    val evidence: Evidence? = null,
+)
+
+@Composable
+private fun HeroTileBox(tile: HeroTile, modifier: Modifier = Modifier) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(Dimens.radiusChip))
+            .background(colors.surface2)
+            .padding(horizontal = Dimens.space2, vertical = Dimens.space2),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = tile.label.uppercase(),
+                style = type.overline,
+                color = colors.muted,
+                maxLines = 1,
+            )
+            if (tile.evidence != null) {
+                EvidenceTag(tile.evidence, Modifier.padding(start = 4.dp))
+            }
+        }
+        Text(
+            text = tile.value,
+            style = type.value,
+            color = tile.valueColor ?: colors.ink,
+            maxLines = 1,
+        )
     }
 }
 
@@ -589,31 +659,6 @@ private fun trendWarnColor(trend: Float?, status: MonitorStatus): Color? {
     return when (status) {
         is MonitorStatus.AboveUsual, is MonitorStatus.Alert -> LocalAppColors.current.warn
         else -> null
-    }
-}
-
-@Composable
-private fun KvRow(
-    label: String,
-    value: String,
-    valueColor: Color? = null,
-    evidence: Evidence? = null,
-) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(text = label, style = type.bodySmall, color = colors.ink2)
-        Spacer(Modifier.weight(1f))
-        evidence?.let { EvidenceTag(it, Modifier.padding(end = 5.dp)) }
-        Text(
-            text = value,
-            style = type.value,
-            color = valueColor ?: colors.ink,
-            maxLines = 1,
-        )
     }
 }
 
