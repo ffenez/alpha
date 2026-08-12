@@ -6,7 +6,11 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -73,6 +77,7 @@ import app.radiacode.ui.logic.ProfileDeletion
 import app.radiacode.ui.logic.NavEntry
 import app.radiacode.ui.logic.Freshness
 import app.radiacode.ui.logic.baselineCollectedWording
+import app.radiacode.ui.logic.ReleaseNotes
 import app.radiacode.ui.logic.freshnessLabel
 import app.radiacode.ui.logic.heldWording
 import app.radiacode.ui.logic.learningWording
@@ -121,6 +126,11 @@ private enum class SettingsCategory(val title: String, val subtitle: String) {
 fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
     val colors = LocalAppColors.current
     var category by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
+
+    // Системная «назад» (в том числе жест от края) обязана значить ровно то же,
+    // что кнопка на экране: один шаг вверх. Без этого свайп из открытого
+    // раздела закрывал сразу все настройки и выбрасывал на Главную.
+    BackHandler(enabled = category != null) { category = null }
 
     Column(
         modifier = Modifier
@@ -1485,6 +1495,7 @@ private fun LicensesSection() {
     }
     var licensesText by remember { mutableStateOf<String?>(null) }
     var showLicenses by remember { mutableStateOf(false) }
+    var showNotes by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(showLicenses) {
         if (showLicenses && licensesText == null) {
@@ -1498,8 +1509,16 @@ private fun LicensesSection() {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle("О приложении")
+            VersionRow(version, showNotes) { showNotes = !showNotes }
+            AnimatedVisibility(
+                visible = showNotes,
+                enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
+                exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
+            ) {
+                ReleaseNotesList()
+            }
             SectionTitle("Лицензии")
-            InfoRow("alpha", "версия $version")
             Text(
                 text = "Протокол RadiaCode — порт библиотеки cdump/radiacode (MIT). " +
                     "BLE — Kable (Apache-2.0). Карта — osmdroid (Apache-2.0), " +
@@ -1518,6 +1537,70 @@ private fun LicensesSection() {
                     style = type.bodySmall,
                     color = colors.muted,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Версия — и вход в короткую историю обновлений.
+ *
+ * Номер версии сам по себе не отвечает на вопрос, который человек задаёт,
+ * нажимая на него: «а что изменилось?». Поэтому строка кликабельная, а под ней
+ * раскрывается список последних обновлений человеческими словами.
+ */
+@Composable
+private fun VersionRow(version: String, expanded: Boolean, onToggle: () -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTarget)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggle,
+            ),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(text = "Версия $version", style = type.label, color = colors.ink)
+            Text(
+                text = if (expanded) "последние обновления" else "что изменилось",
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+        Text(text = if (expanded) "▴" else "▾", style = type.label, color = colors.ink2)
+    }
+}
+
+/** Последние [ReleaseNotes.SHOWN] обновлений — по датам, не по номерам версий. */
+@Composable
+private fun ReleaseNotesList() {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+        Text(
+            text = ReleaseNotes.VERSIONING_NOTE,
+            style = type.footnote,
+            color = colors.muted,
+        )
+        for (note in ReleaseNotes.shown) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    Text(text = note.date, style = type.axis, color = colors.ink2)
+                    Text(text = note.title, style = type.label, color = colors.ink)
+                }
+                for (line in note.lines) {
+                    Text(
+                        text = "· $line",
+                        style = type.bodySmall,
+                        color = colors.muted,
+                    )
+                }
             }
         }
     }
