@@ -66,6 +66,22 @@ class DeviceConnection private constructor(
         writeSfrU32(Vsfr.DOSE_RESET, 0L)
     }
 
+    /**
+     * Звук самого прибора (VSFR SOUND_ON) — он пищит и без телефона.
+     *
+     * Запись u32 0/1, как в референсной реализации `cdump/radiacode`
+     * (`set_sound_on`). Тем же путём, которым при подключении уже пишется
+     * DEVICE_TIME, — то есть путь проверен на приборе.
+     */
+    suspend fun setDeviceSoundOn(on: Boolean) {
+        writeSfrU32(Vsfr.SOUND_ON, if (on) 1L else 0L)
+    }
+
+    /** Вибрация самого прибора (VSFR VIBRO_ON), `cdump: set_vibro_on`. */
+    suspend fun setDeviceVibroOn(on: Boolean) {
+        writeSfrU32(Vsfr.VIBRO_ON, if (on) 1L else 0L)
+    }
+
     private suspend fun readVs(id: Int): ByteArray =
         VsCodec.parseReadPayload(client.execute(Command.RD_VIRT_STRING, VsCodec.readRequestArgs(id)))
 

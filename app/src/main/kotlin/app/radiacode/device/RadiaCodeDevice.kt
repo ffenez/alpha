@@ -118,6 +118,11 @@ class RadiaCodeDevice(
 
     suspend fun resetDose() = requireConnection().resetDose()
 
+    /** Звук/вибрация САМОГО прибора — они работают и без телефона. */
+    suspend fun setDeviceSoundOn(on: Boolean) = requireConnection().setDeviceSoundOn(on)
+
+    suspend fun setDeviceVibroOn(on: Boolean) = requireConnection().setDeviceVibroOn(on)
+
     private fun requireConnection(): DeviceConnection =
         connection ?: throw DeviceNotConnectedException()
 

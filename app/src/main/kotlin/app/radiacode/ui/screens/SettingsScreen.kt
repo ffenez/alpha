@@ -70,6 +70,7 @@ import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.RadioMark
+import app.radiacode.service.DeviceControlHub
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
@@ -141,7 +142,7 @@ private enum class SettingsCategory(
     ),
     SOUND(SettingsGroup.APP, "Уведомления и отклик", "звук Поиска, вибрация, тревога"),
     VIEW(SettingsGroup.APP, "Вид", "тема, единицы, вкладки и блоки Главной"),
-    DEVICE(SettingsGroup.OTHER, "Прибор", "модель, серийный номер, прошивка"),
+    DEVICE(SettingsGroup.OTHER, "Прибор", "модель, прошивка, звук и вибрация прибора"),
     ABOUT(SettingsGroup.OTHER, "О приложении", "версия, обновления, лицензии, диагностика"),
 }
 
@@ -221,7 +222,10 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                 UnitsSection(graph)
                 InterfaceSection(graph)
             }
-            SettingsCategory.DEVICE -> DeviceSection(graph)
+            SettingsCategory.DEVICE -> {
+                DeviceSection(graph)
+                DeviceSignalsSection(graph)
+            }
             SettingsCategory.ABOUT -> {
                 LicensesSection()
                 DebugSection(graph)
@@ -1326,6 +1330,97 @@ private fun BaselineSection(graph: AppGraph) {
 
 // --- Прибор ---
 
+/**
+ * Сигналы САМОГО прибора: он пищит и вибрирует без телефона.
+ *
+ * Отдельно от звука приложения намеренно — это разные вещи, и человек должен
+ * понимать, что произойдёт, когда телефон в кармане или выключен.
+ *
+ * Состояние показывается честно: прибор подтверждает запись, но опросить
+ * текущее значение мы не умеем, поэтому до первой команды в этом сеансе
+ * состояние НЕИЗВЕСТНО — и так и написано, вместо выключенного тумблера,
+ * который выглядел бы как факт.
+ */
+@Composable
+private fun DeviceSignalsSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val connection by graph.serviceStatus.connection.collectAsState()
+    val applied by graph.deviceControlHub.applied.collectAsState()
+    val connected = connection is ConnectionState.Connected
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle("Сигналы прибора")
+            Text(
+                text = "Звук и вибрация самого прибора. Они работают, даже когда телефон " +
+                    "отключён или приложение закрыто, и не связаны с откликом Поиска.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            DeviceSignalRow(
+                title = "Звук прибора",
+                state = applied.sound,
+                enabled = connected,
+                onSet = { graph.deviceControlHub.request(DeviceControlHub.Command.Sound(it)) },
+            )
+            DeviceSignalRow(
+                title = "Вибрация прибора",
+                state = applied.vibro,
+                enabled = connected,
+                onSet = { graph.deviceControlHub.request(DeviceControlHub.Command.Vibro(it)) },
+            )
+            Text(
+                text = if (connected) {
+                    "Приложение умеет включить и выключить их, но не умеет спросить прибор, " +
+                        "что в нём стоит сейчас: до первой команды состояние неизвестно."
+                } else {
+                    "Прибор не подключён — команду отправить некуда."
+                },
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+    }
+}
+
+/** Строка сигнала прибора: три состояния — вкл, выкл и «неизвестно». */
+@Composable
+private fun DeviceSignalRow(
+    title: String,
+    state: Boolean?,
+    enabled: Boolean,
+    onSet: (Boolean) -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(text = title, style = type.label, color = colors.ink)
+            Text(
+                text = when (state) {
+                    true -> "включено этим приложением"
+                    false -> "выключено этим приложением"
+                    null -> "состояние неизвестно"
+                },
+                style = type.footnote,
+                color = if (state == null) colors.muted else colors.ink2,
+            )
+        }
+        Segmented(
+            options = listOf("Выкл", "Вкл"),
+            selectedIndex = if (state == true) 1 else 0,
+            onSelect = { if (enabled) onSet(it == 1) },
+            enabled = { enabled },
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
 @Composable
 private fun DeviceSection(graph: AppGraph) {
     val colors = LocalAppColors.current
@@ -1350,6 +1445,7 @@ private fun DeviceSection(graph: AppGraph) {
 
             when (val state = connection) {
                 is ConnectionState.Connected -> {
+                    InfoRow("модель", state.info.model.displayName)
                     InfoRow("серийный номер", state.info.serialNumber)
                     InfoRow("прошивка", state.info.firmware.toString())
                     InfoRow("bluetooth", "подключено")

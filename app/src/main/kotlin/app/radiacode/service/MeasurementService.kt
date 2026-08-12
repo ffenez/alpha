@@ -493,6 +493,7 @@ class MeasurementService : Service() {
                     graph.serviceStatus.reconnectCount += 1
                 }
                 graph.serviceStatus.onConnectionState(state)
+                if (state !is ConnectionState.Connected) graph.deviceControlHub.onDisconnected()
                 onConnectionForSession(state)
                 updateNotification()
             }
@@ -531,6 +532,27 @@ class MeasurementService : Service() {
         deviceJobs += scope.launch {
             graph.spectrumHub.commands.collect { command ->
                 onSpectrumCommand(newDevice, command)
+            }
+        }
+        deviceJobs += scope.launch {
+            graph.deviceControlHub.commands.collect { command ->
+                // Состояние помечается применённым ТОЛЬКО после подтверждения
+                // прибором: иначе тумблер показывал бы желаемое, а не то, что
+                // в приборе.
+                val ok = try {
+                    when (command) {
+                        is DeviceControlHub.Command.Sound ->
+                            newDevice.setDeviceSoundOn(command.on)
+                        is DeviceControlHub.Command.Vibro ->
+                            newDevice.setDeviceVibroOn(command.on)
+                    }
+                    true
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    false
+                }
+                if (ok) graph.deviceControlHub.onApplied(command)
             }
         }
         deviceJobs += scope.launch {

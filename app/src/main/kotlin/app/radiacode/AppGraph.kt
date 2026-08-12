@@ -25,6 +25,7 @@ import app.radiacode.service.FastPollHub
 import app.radiacode.service.LocalBackgroundRecorder
 import app.radiacode.service.ServiceStatus
 import app.radiacode.service.SpectrogramStore
+import app.radiacode.service.DeviceControlHub
 import app.radiacode.service.SpectrumHub
 import app.radiacode.ui.logic.BackgroundContext
 import app.radiacode.ui.logic.BackgroundRecord
@@ -131,6 +132,9 @@ class AppGraph private constructor(context: Context) {
 
     /** Spectrum acquisition bridge: UI attaches, service polls and executes commands. */
     val spectrumHub: SpectrumHub = SpectrumHub()
+
+    /** Звук и вибрация САМОГО прибора — они работают и без телефона. */
+    val deviceControlHub: DeviceControlHub = DeviceControlHub()
 
     /** Поиск asks for a shorter DATA_BUF poll period while it is on screen. */
     val fastPollHub: FastPollHub = FastPollHub()
