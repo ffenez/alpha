@@ -29,6 +29,17 @@ enum class ProfileDeletionBlock {
      * So the user is told to deal with the children first, explicitly.
      */
     HAS_CHILDREN,
+
+    /**
+     * Профиль занимает РОЛЬ, в которую автоматика складывает решения контекста
+     * («В пути», «Без места»).
+     *
+     * Запрет обязателен именно потому, что приложение восстанавливает такой
+     * профиль при следующем запуске службы: разрешить удаление значило бы
+     * молча отменять действие человека. Переименовать и заархивировать его
+     * по-прежнему можно — роль от имени не зависит.
+     */
+    REQUIRED_ROLE,
 }
 
 /** Verdict of the pure profile-deletion guard. */
@@ -65,6 +76,12 @@ sealed interface ProfileDeletion {
                 )
             }
 
+            if (target.role == ProfileEntity.ROLE_TRANSIT ||
+                target.role == ProfileEntity.ROLE_NO_PLACE
+            ) {
+                return Blocked(ProfileDeletionBlock.REQUIRED_ROLE)
+            }
+
             val liveLeft = profiles.count { !it.archived && it.id != profileId }
             if (!target.archived && liveLeft == 0) {
                 return Blocked(ProfileDeletionBlock.LAST_LIVE_PROFILE)
@@ -82,6 +99,10 @@ sealed interface ProfileDeletion {
             ProfileDeletionBlock.HAS_CHILDREN ->
                 "сначала удалите вложенные профили: " +
                     blocked.children.joinToString(", ")
+            ProfileDeletionBlock.REQUIRED_ROLE ->
+                "в этот профиль автоматика складывает измерения, когда знакомого места " +
+                    "нет — удалить его нельзя, приложение создало бы его заново. " +
+                    "Профиль можно переименовать или заархивировать"
         }
 
         /** Confirmation text: says out loud that measurements survive. */

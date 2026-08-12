@@ -842,9 +842,6 @@ private fun MetricChartCard(
                 }
             }
 
-            for (line in ChartMetrics.footnotes(metric)) {
-                Text(text = line, style = type.footnote, color = colors.muted)
-            }
         }
     }
 }

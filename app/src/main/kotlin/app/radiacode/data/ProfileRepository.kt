@@ -52,19 +52,35 @@ class ProfileRepository(
     }
 
     /**
-     * First launch: create the two profiles the automation cannot work
-     * without («В пути», «Без места») plus «Дом» as the initial context.
-     * Idempotent — a user who deleted them is not nagged again, because the
-     * whole thing only runs while the table is empty.
+     * Профили, без которых автоматика не может дать честного ответа.
+     *
+     * «В пути» и «Без места» — не удобство, а МЕСТА ХРАНЕНИЯ для двух решений
+     * контекста. Полевой случай: человек ушёл из дома, машина контекста честно
+     * решила «В пути», профиля этой роли не оказалось — и измерения улицы
+     * оказались без места, а раньше и вовсе приписывались «Дому». Поэтому оба
+     * восстанавливаются, если их нет: проверка идёт по РОЛИ, а не по имени —
+     * профиль можно переименовать, и он останется тем же местом.
+     *
+     * «Дом» создаётся только на пустой таблице: это стартовое предположение о
+     * пользователе, а не часть механики, и человек вправе его удалить.
      */
     suspend fun ensureDefaultProfiles() {
-        if (profileDao.count() > 0L) return
-        var homeId: Long? = null
-        for (preset in ProfileTree.PRESETS.filter { it.name in FIRST_RUN_PRESETS }) {
-            val id = create(preset)
-            if (preset.name == DEFAULT_PROFILE_NAME) homeId = id
+        val firstRun = profileDao.count() == 0L
+        if (firstRun) {
+            val homeId = create(ProfileTree.PRESETS.first { it.name == DEFAULT_PROFILE_NAME })
+            settings.setActiveProfileId(homeId)
         }
-        homeId?.let { settings.setActiveProfileId(it) }
+        for (role in REQUIRED_ROLES) {
+            val existing = profileDao.byRole(role)
+            if (existing != null && !existing.archived) continue
+            if (existing != null) {
+                // Заархивированный профиль роли восстанавливается, а не
+                // дублируется: у него уже есть история и привязки.
+                profileDao.update(existing.copy(archived = false))
+                continue
+            }
+            ProfileTree.PRESETS.firstOrNull { it.role == role }?.let { create(it) }
+        }
     }
 
     suspend fun create(preset: ProfilePreset, parentId: Long? = null): Long = profileDao.insert(
@@ -187,6 +203,13 @@ class ProfileRepository(
 
     companion object {
         const val DEFAULT_PROFILE_NAME = "Дом"
-        private val FIRST_RUN_PRESETS = setOf(DEFAULT_PROFILE_NAME, "В пути", "Без места")
+        /**
+         * Роли, которые обязаны существовать: в них попадают измерения, когда
+         * контекст решил, что знакомого места нет.
+         */
+        private val REQUIRED_ROLES = listOf(
+            ProfileEntity.ROLE_TRANSIT,
+            ProfileEntity.ROLE_NO_PLACE,
+        )
     }
 }

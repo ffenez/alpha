@@ -13,11 +13,13 @@ class ProfileDeletionTest {
         name: String,
         parentId: Long? = null,
         archived: Boolean = false,
+        role: String = ProfileEntity.ROLE_USER,
     ) = ProfileEntity(
         id = id,
         name = name,
         parentId = parentId,
         archived = archived,
+        role = role,
         createdAt = id * 100,
     )
 
@@ -118,5 +120,29 @@ class ProfileDeletionTest {
         assertTrue(text.contains("«Тест»"), text)
         assertTrue(text.contains("останутся в журнале"), text)
         assertTrue(text.contains("не удаляются"), text)
+    }
+
+    @Test
+    fun `the roles the automation needs cannot be deleted, and the reason says why`() {
+        // Приложение восстанавливает эти профили при запуске службы, поэтому
+        // разрешить удаление значило бы молча отменять действие человека.
+        val home = profile(id = 1, name = "Дом")
+        val transit = profile(id = 2, name = "В пути", role = ProfileEntity.ROLE_TRANSIT)
+        val noPlace = profile(id = 3, name = "Без места", role = ProfileEntity.ROLE_NO_PLACE)
+        val profiles = listOf(home, transit, noPlace)
+
+        for (id in listOf(transit.id, noPlace.id)) {
+            val verdict = ProfileDeletion.evaluate(profiles, id)
+            assertTrue(verdict is ProfileDeletion.Blocked, "$verdict")
+            assertEquals(
+                ProfileDeletionBlock.REQUIRED_ROLE,
+                (verdict as ProfileDeletion.Blocked).reason,
+            )
+            val wording = ProfileDeletion.blockedWording(verdict)
+            assertTrue(wording.contains("создало бы его заново"), wording)
+            assertTrue(wording.contains("переименовать"), wording)
+        }
+        // Обычный профиль удаляется как прежде.
+        assertTrue(ProfileDeletion.evaluate(profiles, home.id) is ProfileDeletion.Allowed)
     }
 }

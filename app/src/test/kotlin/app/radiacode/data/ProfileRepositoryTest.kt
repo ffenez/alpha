@@ -10,6 +10,7 @@ import app.radiacode.ui.logic.ProfileDeletion
 import app.radiacode.ui.logic.ProfileDeletionBlock
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -277,5 +278,48 @@ class ProfileRepositoryTest {
 
         assertIs<ProfileDeletion.Allowed>(repo.deletionVerdict(2))
         assertIs<ProfileDeletion.Blocked>(repo.deletionVerdict(99))
+    }
+
+    @Test
+    fun `the roles the automation needs are restored when they are gone`() = runTest {
+        // Полевой случай: профиля «В пути» нет, человек уходит из дома — и
+        // решению контекста некуда лечь.
+        val dao = FakeProfileDao(listOf(ProfileEntity(id = 1, name = "Дом", createdAt = 1)))
+        val repo = repository(dao)
+
+        repo.ensureDefaultProfiles()
+
+        assertNotNull(dao.byRole(ProfileEntity.ROLE_TRANSIT))
+        assertNotNull(dao.byRole(ProfileEntity.ROLE_NO_PLACE))
+        // «Дом» не создаётся повторно: таблица была не пуста.
+        assertEquals(1, dao.profiles.count { it.name == "Дом" })
+        // И обучение фона у ролевых профилей выключено по смыслу: «в пути» —
+        // это ситуация, а не комната.
+        assertEquals(false, dao.byRole(ProfileEntity.ROLE_TRANSIT)?.baselineLearning)
+    }
+
+    @Test
+    fun `an archived role profile is revived, not duplicated`() = runTest {
+        val dao = FakeProfileDao(
+            listOf(
+                ProfileEntity(id = 1, name = "Дом", createdAt = 1),
+                ProfileEntity(
+                    id = 2,
+                    name = "В дороге",
+                    role = ProfileEntity.ROLE_TRANSIT,
+                    archived = true,
+                    createdAt = 2,
+                ),
+            ),
+        )
+        val repo = repository(dao)
+
+        repo.ensureDefaultProfiles()
+
+        // У него уже есть история и привязки — второй такой же был бы потерей.
+        assertEquals(1, dao.profiles.count { it.role == ProfileEntity.ROLE_TRANSIT })
+        assertEquals(false, dao.byRole(ProfileEntity.ROLE_TRANSIT)?.archived)
+        // Имя не трогаем: роль от имени не зависит.
+        assertEquals("В дороге", dao.byRole(ProfileEntity.ROLE_TRANSIT)?.name)
     }
 }
