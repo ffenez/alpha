@@ -33,7 +33,11 @@ object AlgorithmVersions {
     /** Permission-free network identity ([app.radiacode.context.NetworkIdentity]). */
     const val NETWORK_IDENTITY = 1
 
-    /** Peak finder: smoothed local maxima + side continuum + Poisson SNR. */
+    /**
+     * Peak finder: smoothed local maxima + side continuum + net-area
+     * significance + a width gate. v2 changed both the denominator and the
+     * acceptance rule, so the numbers it produces are not comparable to v1.
+     */
     const val PEAK_DETECTION = 2
 
     /** Multi-line isotope hints ([IsotopeMatcher]). */

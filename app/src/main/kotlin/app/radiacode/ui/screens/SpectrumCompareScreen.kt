@@ -531,8 +531,10 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                             if (index < verdicts.size - 1) AppDivider()
                         }
                         Text(
-                            text = "z — значимость суммарной разности диапазона в единицах σ; " +
-                                "|z| < 2 — шум, ≥ 4 — значимо",
+                            text = "z — разность скоростей диапазона, делённая на её " +
+                                "собственную неопределённость (σ разности, обе стороны " +
+                                "пуассоновские); |z| < 2 — неотличимо от шума, ≥ 4 — " +
+                                "устойчивое различие",
                             style = type.footnote,
                             color = colors.muted,
                         )

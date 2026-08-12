@@ -46,7 +46,7 @@ object SpectrumFormat {
     /** Peak-table net-counts cell: «1 240» (rounded, thousands spaced). */
     fun netCell(netCounts: Float): String = groupThousands(netCounts.roundToInt().toLong())
 
-    /** Peak-table SNR cell: «8,2σ». */
+    /** Ячейка значимости в таблице пиков: «8,2σ». */
     /**
      * Значимость нетто-площади в единицах её собственной σ. «σ» здесь имеет
      * определённый смысл (см. `PeakDetection`), поэтому и величина названа

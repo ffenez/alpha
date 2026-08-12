@@ -29,9 +29,14 @@ data class Peak(
  *     resolution ∝ 1/√E, ~8 % at 662 keV per the RadiaCode 110 spec sheet);
  *  3. the local continuum under the peak is the mean of two side windows
  *     (one peak-width away on each side); net = gross − continuum·width;
- *  4. significance is Poisson: SNR = net / √(continuum·width + 1); candidates
+ *  4. значимость = нетто / σ(нетто), где Var(net) = валовые импульсы +
+ *     width²·B̂/m (m — каналов в боковых полосах): учитывается и статистика
+ *     окна пика, и неопределённость ОЦЕНКИ континуума [IAEA]; кандидаты
  *     below [DEFAULT_MIN_SIGNIFICANCE] are noise and dropped;
- *  5. overlapping candidates within one FWHM merge, strongest SNR wins.
+ *  5. структура принимается за пик, только если её наблюдаемая FWHM лежит в
+ *     0,5–2,5 ожидаемой по модели разрешения: одноканальный выброс — не пик;
+ *  6. перекрывающиеся в пределах FWHM кандидаты сливаются, сильнейший по
+ *     значимости побеждает.
  *
  * Pure JVM, deterministic; tested on synthetic spectra.
  */

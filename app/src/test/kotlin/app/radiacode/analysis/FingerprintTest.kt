@@ -56,7 +56,8 @@ class FingerprintTest {
         val comparison = Fingerprint.compare(window(), reference())
         assertTrue(comparison.verdicts.all { it.state == FingerprintState.SAME }, "${comparison.verdicts}")
         assertTrue(!comparison.anyChanged)
-        assertEquals("Совпадает с эталоном этого места", Fingerprint.headline(comparison))
+        // Не «совпадает»: каждое измерение проверяло ОТЛИЧИЕ и не нашло его.
+        assertEquals("Отличий от эталона этого места не найдено", Fingerprint.headline(comparison))
     }
 
     /** Сценарий A: того же поля стало больше. */
@@ -75,7 +76,8 @@ class FingerprintTest {
         // Ярче — не значит другое: суммы в χ² сокращаются.
         assertEquals(FingerprintState.SAME, comparison.of(FingerprintDimension.SPECTRUM)?.state)
         assertEquals(
-            "Интенсивность отличается от эталона, энергетический характер — нет",
+            "Интенсивность отличается от эталона, у энергетического характера " +
+                "отличий не найдено",
             Fingerprint.headline(comparison),
         )
         // Жёсткость почти не двигается — ради этого она и нужна.
@@ -114,7 +116,7 @@ class FingerprintTest {
         assertEquals(FingerprintState.SAME, comparison.of(FingerprintDimension.DOSE)?.state)
         assertEquals(FingerprintState.CHANGED, comparison.of(FingerprintDimension.SPECTRUM)?.state)
         assertEquals(
-            "Интенсивность как в эталоне, а энергетический характер изменился",
+            "Изменился энергетический характер, у интенсивности отличий не найдено",
             Fingerprint.headline(comparison),
         )
     }
@@ -194,5 +196,23 @@ class FingerprintTest {
         assertTrue(Fingerprint.MATURITY_SECONDS >= 3 * 3600L)
         assertTrue(Fingerprint.MATURITY_SPECTRUM_COUNTS > 0)
         assertTrue(Fingerprint.MIN_WINDOW_SECONDS in 60L..3600L)
+    }
+
+    @Test
+    fun `an absent difference is never stated as equality`() {
+        // Системное правило (NIST): критерий проверяет ОТЛИЧИЕ, поэтому ни
+        // один вердикт не имеет права утверждать совпадение.
+        val forbidden = listOf("совпада", "как в эталоне", "такой же", "идентичн", "равен")
+        val texts = listOf(
+            Fingerprint.headline(Fingerprint.compare(window(), reference())),
+            Fingerprint.headline(
+                Fingerprint.compare(window(doseMedian = 0.4f, cpsMedian = 60f), reference()),
+            ),
+        )
+        for (text in texts) {
+            for (word in forbidden) {
+                assertTrue(!text.lowercase().contains(word), "«$word» in: $text")
+            }
+        }
     }
 }

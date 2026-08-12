@@ -242,7 +242,7 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
 }
 
 private fun stateLabel(state: FingerprintState): String = when (state) {
-    FingerprintState.SAME -> "как в эталоне"
+    FingerprintState.SAME -> "отличий не найдено"
     FingerprintState.CHANGED -> "отличается"
     FingerprintState.NOT_ENOUGH_DATA -> "мало данных"
     FingerprintState.NOT_EVALUATED -> "не оценивалось"

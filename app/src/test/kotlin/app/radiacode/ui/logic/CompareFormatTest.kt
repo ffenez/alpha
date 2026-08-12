@@ -8,8 +8,10 @@ class CompareFormatTest {
 
     @Test
     fun `verdicts stay cautious and human`() {
+        // Отсутствие выделенного различия — не утверждение о равенстве
+        // спектров: критерий проверял отличие, а не совпадение.
         assertEquals(
-            "в пределах шума",
+            "различие не выделено",
             CompareFormat.verdictLabel(SpectrumCompare.Verdict.NOISE),
         )
         assertEquals(
@@ -17,7 +19,7 @@ class CompareFormatTest {
             CompareFormat.verdictLabel(SpectrumCompare.Verdict.POSSIBLE_EXCESS),
         )
         assertEquals(
-            "значимое превышение",
+            "устойчивое превышение",
             CompareFormat.verdictLabel(SpectrumCompare.Verdict.EXCESS),
         )
         assertEquals(
@@ -25,7 +27,7 @@ class CompareFormatTest {
             CompareFormat.verdictLabel(SpectrumCompare.Verdict.POSSIBLE_DEFICIT),
         )
         assertEquals(
-            "значимое снижение",
+            "устойчивое снижение",
             CompareFormat.verdictLabel(SpectrumCompare.Verdict.DEFICIT),
         )
     }

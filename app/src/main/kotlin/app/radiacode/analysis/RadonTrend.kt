@@ -187,7 +187,7 @@ object RadonTrend {
      * Least-squares slope over the last [window] hourly points, classified
      * against the series scale: the projected change across the window must
      * exceed [RELATIVE_CHANGE] of the median (or of σ when the median is ~0)
-     * to count as a trend — Poisson jitter stays «стабильно».
+     * to count as a trend — Poisson jitter leaves the direction unresolved.
      */
     fun trend(hours: List<HourPoint>, window: Int = 6): Trend {
         val tail = hours.takeLast(window)

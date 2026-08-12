@@ -8,13 +8,21 @@ import kotlin.math.roundToInt
 /** Pure formatting for the spectrum comparator screen. JVM-tested. */
 object CompareFormat {
 
-    /** Cautious verdict wording — mirrors the isotope-hint ladder. */
+    /**
+     * Осторожные формулировки вердикта — та же лестница, что у подсказок о
+     * нуклидах.
+     *
+     * «В пределах шума» — не утверждение о равенстве спектров, а описание
+     * того, что критерий не выделил различия: |z| < 2. Слово «значимое»
+     * оставлено там, где значимость ОПРЕДЕЛЕНА (|z| ≥ 4) и число стоит рядом
+     * в той же строке таблицы.
+     */
     fun verdictLabel(verdict: SpectrumCompare.Verdict): String = when (verdict) {
-        SpectrumCompare.Verdict.NOISE -> "в пределах шума"
+        SpectrumCompare.Verdict.NOISE -> "различие не выделено"
         SpectrumCompare.Verdict.POSSIBLE_EXCESS -> "возможное превышение"
-        SpectrumCompare.Verdict.EXCESS -> "значимое превышение"
+        SpectrumCompare.Verdict.EXCESS -> "устойчивое превышение"
         SpectrumCompare.Verdict.POSSIBLE_DEFICIT -> "возможное снижение"
-        SpectrumCompare.Verdict.DEFICIT -> "значимое снижение"
+        SpectrumCompare.Verdict.DEFICIT -> "устойчивое снижение"
     }
 
     /** «300–700 кэВ». */

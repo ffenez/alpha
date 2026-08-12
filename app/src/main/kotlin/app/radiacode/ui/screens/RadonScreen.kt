@@ -204,7 +204,10 @@ private fun RadonContent(m: RadonModel) {
                 val (label, color) = when (m.trend) {
                     RadonTrend.Trend.RISING -> "↗ растёт" to colors.warn
                     RadonTrend.Trend.FALLING -> "↘ спадает" to colors.ok
-                    RadonTrend.Trend.FLAT -> "— стабильно" to colors.ink2
+                    // Правило сравнивает проекцию наклона с разбросом: оно
+                    // может НЕ найти направления, но не может доказать
+                    // постоянство. «Стабильно» утверждало бы второе.
+                    RadonTrend.Trend.FLAT -> "— направление не выделено" to colors.ink2
                     RadonTrend.Trend.UNKNOWN -> "тренд: мало данных" to colors.muted
                 }
                 Chip(text = label, color = color)

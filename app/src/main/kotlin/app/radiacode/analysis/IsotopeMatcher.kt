@@ -27,7 +27,7 @@ data class IsotopeHint(
  * max(2 % of the line energy, half the detector FWHM at that energy).
  *
  * Confidence (LOW/MEDIUM only):
- *  - MEDIUM needs a strong peak (SNR ≥ [MEDIUM_MIN_SIGNIFICANCE]), a tight energy fit
+ *  - MEDIUM needs a strong peak (значимость ≥ [MEDIUM_MIN_SIGNIFICANCE]), a tight energy fit
  *    (within max(1 %, FWHM/4)) and, for isotopes with several library lines
  *    (Co-60, Bi-214, Tl-208), at least two of their lines matched somewhere
  *    in the spectrum — a lone 1173 keV bump is not «Co-60, medium»;
