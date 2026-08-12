@@ -1,5 +1,11 @@
 package app.radiacode.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import app.radiacode.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -578,13 +584,21 @@ fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
         // ------------------------------------------- the spectral side question
         val invitation = SearchSpectrumHint.invitation(shape)
         val shapeNote = SearchSpectrumHint.note(shape)
-        if (shapeNote != null) {
+        AnimatedVisibility(
+            visible = shapeNote != null,
+            enter = expandVertically(Motion.normal()) + fadeIn(Motion.normal()),
+            exit = shrinkVertically(Motion.normal()) + fadeOut(Motion.fast()),
+        ) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     if (invitation != null) {
                         StatusRow(text = invitation, color = colors.warn)
                     }
-                    Text(text = shapeNote, style = type.footnote, color = colors.muted)
+                    Text(
+                        text = shapeNote.orEmpty(),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
                     if (invitation != null) {
                         AppButton(
                             text = "Открыть спектр",

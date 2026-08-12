@@ -4,6 +4,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import app.radiacode.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -308,7 +314,11 @@ fun HistoryScreen(
                 )
             }
 
-            if (selection.active) {
+            AnimatedVisibility(
+                visible = selection.active,
+                enter = expandVertically(Motion.normal()) + fadeIn(Motion.normal()),
+                exit = shrinkVertically(Motion.normal()) + fadeOut(Motion.fast()),
+            ) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                         AppButton(

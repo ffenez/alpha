@@ -8,7 +8,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.runtime.getValue
 import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.Motion
 import app.radiacode.ui.theme.LocalAppTypography
 
 /**
@@ -24,12 +27,15 @@ fun StatusRow(
     sub: String? = null,
 ) {
     val type = LocalAppTypography.current
+    // Статус меняется редко и означает многое — резкая смена цвета читается
+    // как мигание, а не как переход.
+    val tone by animateColorAsState(color, Motion.normal(), label = "statusTone")
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        StatusDot(color)
+        StatusDot(tone)
         Text(text = text, style = type.label, color = color)
         if (sub != null) {
             Text(

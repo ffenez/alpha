@@ -6,6 +6,12 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
+import app.radiacode.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -132,7 +138,16 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
             Chip(text = open?.title ?: "Настройки", color = colors.ink)
         }
 
-        when (open) {
+        AnimatedContent(
+            targetState = open,
+            transitionSpec = {
+                (fadeIn(Motion.normal()) + slideInHorizontally(Motion.normal()) { it / 12 })
+                    .togetherWith(fadeOut(Motion.fast()))
+            },
+            label = "settingsCategory",
+        ) { openCategory ->
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        when (openCategory) {
             null -> Card(modifier = Modifier.fillMaxWidth()) {
                 Column {
                     SettingsCategory.entries.forEachIndexed { index, entry ->
@@ -153,6 +168,8 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
             SettingsCategory.DEVICE -> DeviceSection(graph)
             SettingsCategory.DEBUG -> DebugSection(graph)
             SettingsCategory.ABOUT -> LicensesSection()
+        }
+        }
         }
     }
 }

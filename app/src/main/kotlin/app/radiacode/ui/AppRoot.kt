@@ -20,6 +20,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import app.radiacode.AppGraph
 import app.radiacode.service.MeasurementService
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import app.radiacode.ui.theme.Motion
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.NavBar
 import app.radiacode.ui.logic.NavConfig
@@ -52,6 +59,18 @@ private sealed interface RememberedDevice {
  * the first successful connect flips this switch automatically, because the
  * service persists the address into settings.
  */
+/** Что именно показано сейчас — ключ перехода между экранами. */
+private data class ScreenKey(
+    val settings: Boolean,
+    val fingerprint: Boolean,
+    val spectrogram: Boolean,
+    val radon: Boolean,
+    val experiments: Boolean,
+    val trackMapId: Long?,
+    val detailId: Long?,
+    val tab: AppTab,
+)
+
 @Composable
 fun AppRoot(graph: AppGraph) {
     val colors = LocalAppColors.current
@@ -149,30 +168,54 @@ private fun MainScaffold(graph: AppGraph) {
         ) {
             val detailId = sessionDetailId
             val trackMapId = trackMapSessionId
+            // Смена экрана — единственное место, где движение заметно само по
+            // себе: без него переход читается как подмена картинки. Данные
+            // внутри не анимируются никогда (см. ui/theme/Motion.kt).
+            AnimatedContent(
+                targetState = ScreenKey(
+                    settings = showSettings,
+                    fingerprint = showFingerprint,
+                    spectrogram = showSpectrogram,
+                    radon = showRadon,
+                    experiments = showExperiments,
+                    trackMapId = trackMapId,
+                    detailId = detailId,
+                    tab = tab,
+                ),
+                transitionSpec = {
+                    (
+                        fadeIn(Motion.screen()) +
+                            slideInVertically(Motion.screen()) { it / 24 }
+                        ) togetherWith fadeOut(tween(Motion.FAST_MILLIS))
+                },
+                label = "screen",
+            ) { key ->
+            // Экран выбирается по КЛЮЧУ перехода, а не по внешнему состоянию:
+            // иначе уходящий кадр перерисовался бы уже новым экраном.
             when {
-                showSettings -> SettingsScreen(graph, onBack = { showSettings = false })
-                showFingerprint -> FingerprintScreen(
+                key.settings -> SettingsScreen(graph, onBack = { showSettings = false })
+                key.fingerprint -> FingerprintScreen(
                     graph = graph,
                     onBack = { showFingerprint = false },
                 )
-                showSpectrogram -> SpectrogramScreen(graph, onBack = { showSpectrogram = false })
-                showRadon -> RadonScreen(graph, onBack = { showRadon = false })
-                showExperiments -> AbExperimentScreen(
+                key.spectrogram -> SpectrogramScreen(graph, onBack = { showSpectrogram = false })
+                key.radon -> RadonScreen(graph, onBack = { showRadon = false })
+                key.experiments -> AbExperimentScreen(
                     graph = graph,
                     onBack = { showExperiments = false },
                 )
-                trackMapId != null -> SessionTrackMapScreen(
+                key.trackMapId != null -> SessionTrackMapScreen(
                     graph = graph,
-                    sessionId = trackMapId,
+                    sessionId = key.trackMapId,
                     onBack = { trackMapSessionId = null },
                 )
-                detailId != null -> SessionDetailScreen(
+                key.detailId != null -> SessionDetailScreen(
                     graph = graph,
-                    sessionId = detailId,
+                    sessionId = key.detailId,
                     onBack = { sessionDetailId = null },
-                    onOpenTrack = { trackMapSessionId = detailId },
+                    onOpenTrack = { trackMapSessionId = key.detailId },
                 )
-                else -> when (tab) {
+                else -> when (key.tab) {
                     AppTab.HOME -> MonitorScreen(
                         graph = graph,
                         onOpenSettings = { showSettings = true },
@@ -212,6 +255,7 @@ private fun MainScaffold(graph: AppGraph) {
                         },
                     )
                 }
+            }
             }
         }
         NavBar(

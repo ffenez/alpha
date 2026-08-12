@@ -17,6 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.runtime.getValue
+import app.radiacode.ui.theme.Motion
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -40,13 +43,30 @@ fun Chip(
 ) {
     val colors = LocalAppColors.current
     val shape = RoundedCornerShape(Dimens.radiusChip)
+    // Выбор чипа — состояние интерфейса, а не данные: плавная смена цвета
+    // показывает, что одно превратилось в другое, вместо подмены картинки.
+    val background by animateColorAsState(
+        targetValue = if (selected) colors.surface2 else colors.surface,
+        animationSpec = Motion.fast(),
+        label = "chipBackground",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (selected) colors.muted else colors.line,
+        animationSpec = Motion.fast(),
+        label = "chipBorder",
+    )
+    val textColor by animateColorAsState(
+        targetValue = color,
+        animationSpec = Motion.fast(),
+        label = "chipText",
+    )
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = modifier
             .clip(shape)
-            .background(if (selected) colors.surface2 else colors.surface)
-            .border(Dimens.border, if (selected) colors.muted else colors.line, shape)
+            .background(background)
+            .border(Dimens.border, borderColor, shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 9.dp, vertical = 5.dp),
     ) {
@@ -54,7 +74,7 @@ fun Chip(
         Text(
             text = text,
             style = LocalAppTypography.current.axis,
-            color = color,
+            color = textColor,
             maxLines = 1,
         )
     }

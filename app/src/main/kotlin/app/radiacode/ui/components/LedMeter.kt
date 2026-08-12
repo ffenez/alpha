@@ -9,7 +9,10 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.getValue
 import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.Motion
 
 /**
  * Thin segmented intensity bar. Lights `level * segments` segments in data
@@ -23,8 +26,15 @@ fun LedMeter(
     segments: Int = 24,
     alarmFraction: Float = 0.75f,
 ) {
+    // Индикатор — состояние интерфейса, а не измерение: его заполнение может
+    // ехать плавно. Само число (CPS) при этом не анимируется нигде.
+    val animated by animateFloatAsState(
+        targetValue = level.coerceIn(0f, 1f),
+        animationSpec = Motion.normal(),
+        label = "ledLevel",
+    )
     val colors = LocalAppColors.current
-    val lit = (level.coerceIn(0f, 1f) * segments).toInt()
+    val lit = (animated * segments).toInt()
     Canvas(modifier = modifier.fillMaxWidth().height(6.dp)) {
         val gap = 3.dp.toPx()
         val radius = CornerRadius(2.dp.toPx())

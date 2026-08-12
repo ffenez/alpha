@@ -1,6 +1,11 @@
 package app.radiacode.ui.screens
 
 import android.content.res.Configuration
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -95,6 +100,7 @@ import app.radiacode.ui.logic.referenceWordingShort
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.WindowStats
 import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.Motion
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 import java.time.Instant
@@ -442,7 +448,11 @@ fun LiveChartScreen(
                     onClick = { histogramExpanded = !histogramExpanded },
                 )
             }
-            if (histogramExpanded) {
+            AnimatedVisibility(
+                visible = histogramExpanded,
+                enter = expandVertically(Motion.normal()) + fadeIn(Motion.normal()),
+                exit = shrinkVertically(Motion.normal()) + fadeOut(Motion.fast()),
+            ) {
                 DistributionStrip(
                     histogram = histogram,
                     labels = frame.histogramLabels,
@@ -480,7 +490,11 @@ fun LiveChartScreen(
             onToggle = { statsExpanded = !statsExpanded },
             metric = metric,
         )
-        if (statsExpanded) {
+        AnimatedVisibility(
+            visible = statsExpanded,
+            enter = expandVertically(Motion.normal()) + fadeIn(Motion.normal()),
+            exit = shrinkVertically(Motion.normal()) + fadeOut(Motion.fast()),
+        ) {
             QuantileDiagnosticPanel(graph = graph, snapshot = snapshot, unit = unit)
         }
         Row(
