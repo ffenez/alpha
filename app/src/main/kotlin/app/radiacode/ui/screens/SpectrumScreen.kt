@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
+import app.radiacode.device.DeviceModel
 import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.EnergyWindow
 import app.radiacode.analysis.IsotopeHint
@@ -567,6 +568,12 @@ private fun SpectrumContent(
     val calibration = remember(spectrum.a0, spectrum.a1, spectrum.a2) {
         EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2)
     }
+    // Разрешение — свойство КРИСТАЛЛА этого прибора: у 103G оно 7,4 %, у 103
+    // и 110 — 8,4 %. Ширина окна поиска пиков и допуск на совпадение линии
+    // пропорциональны ему.
+    val connection by graph.serviceStatus.connection.collectAsState()
+    val model = (connection as? ConnectionState.Connected)?.info?.model ?: DeviceModel.UNKNOWN
+    val resolution662 = model.peakResolution662
     val full = remember(calibration, spectrum.counts.size) {
         SpectrumDisplay.fullWindow(calibration, spectrum.counts.size)
     }
@@ -650,15 +657,20 @@ private fun SpectrumContent(
     val yTop = if (logScale) SpectrumDisplay.logTop(dataMax) else maxOf(dataMax * 1.15f, 10f)
 
     // --- cautious isotope analysis (always on raw counts, never display data) ---
-    val analysisReady = spectrum.durationSeconds >= IsotopeMatcher.MIN_ANALYSIS_SECONDS
+    val analysisReady = model.isSpectrometer &&
+        spectrum.durationSeconds >= IsotopeMatcher.MIN_ANALYSIS_SECONDS
     val peaks = remember(spectrum, calibration, analysisReady) {
         if (analysisReady) {
-            PeakDetection.detect(spectrum.counts, calibration).sortedBy { it.energyKeV }
+            PeakDetection.detect(
+                counts = spectrum.counts,
+                calibration = calibration,
+                resolution662 = resolution662,
+            ).sortedBy { it.energyKeV }
         } else {
             emptyList()
         }
     }
-    val hints = remember(peaks) { IsotopeMatcher.match(peaks) }
+    val hints = remember(peaks) { IsotopeMatcher.match(peaks, resolution662) }
     var highlightedIsotope by remember { mutableStateOf<String?>(null) }
     // Tapping a candidate row opens its offline reference card (спец §12).
     var infoIsotope by remember { mutableStateOf<String?>(null) }
@@ -790,6 +802,16 @@ private fun SpectrumContent(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when {
+                // У прибора без энергетического разрешения (органический
+                // пластик, RadiaCode Zero) пики и совпадения линий не имеют
+                // смысла: спектр там не разделяет энергии.
+                !model.isSpectrometer -> Text(
+                    text = "${model.displayName}: детектор без энергетического разрешения " +
+                        "(${model.crystal ?: "неизвестный сцинтиллятор"}) — поиск пиков и " +
+                        "совпадения с линиями нуклидов для него не считаются.",
+                    style = type.bodySmall,
+                    color = colors.muted,
+                )
                 !analysisReady -> Text(
                     text = "мало данных для анализа пиков — накопите хотя бы минуту",
                     style = type.bodySmall,

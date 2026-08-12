@@ -40,18 +40,28 @@ object IsotopeMatcher {
 
     const val MEDIUM_MIN_SIGNIFICANCE = 8f
 
-    fun toleranceKeV(lineEnergyKeV: Float): Float =
-        max(0.02f * lineEnergyKeV, 0.5f * PeakDetection.fwhmKeV(lineEnergyKeV))
+    fun toleranceKeV(
+        lineEnergyKeV: Float,
+        resolution662: Float = PeakDetection.RESOLUTION_662,
+    ): Float =
+        max(0.02f * lineEnergyKeV, 0.5f * PeakDetection.fwhmKeV(lineEnergyKeV, resolution662))
 
-    private fun tightToleranceKeV(lineEnergyKeV: Float): Float =
-        max(0.01f * lineEnergyKeV, 0.25f * PeakDetection.fwhmKeV(lineEnergyKeV))
+    private fun tightToleranceKeV(lineEnergyKeV: Float, resolution662: Float): Float =
+        max(0.01f * lineEnergyKeV, 0.25f * PeakDetection.fwhmKeV(lineEnergyKeV, resolution662))
 
-    fun match(peaks: List<Peak>): List<IsotopeHint> {
+    /**
+     * @param resolution662 разрешение ЭТОГО прибора: допуск на совпадение
+     * энергии пропорционален ширине линии, поэтому у 103G он уже, чем у 110.
+     */
+    fun match(
+        peaks: List<Peak>,
+        resolution662: Float = PeakDetection.RESOLUTION_662,
+    ): List<IsotopeHint> {
         // Which lines of each isotope found any peak (for multi-line support).
         val matchedLineCount = mutableMapOf<String, MutableSet<Float>>()
         for (peak in peaks) {
             for (line in GammaLineLibrary.LINES) {
-                if (abs(peak.energyKeV - line.energyKeV) <= toleranceKeV(line.energyKeV)) {
+                if (abs(peak.energyKeV - line.energyKeV) <= toleranceKeV(line.energyKeV, resolution662)) {
                     matchedLineCount.getOrPut(line.isotope) { mutableSetOf() } += line.energyKeV
                 }
             }
@@ -60,7 +70,7 @@ object IsotopeMatcher {
         val hints = mutableListOf<IsotopeHint>()
         for (peak in peaks) {
             val fitting = GammaLineLibrary.LINES
-                .filter { abs(peak.energyKeV - it.energyKeV) <= toleranceKeV(it.energyKeV) }
+                .filter { abs(peak.energyKeV - it.energyKeV) <= toleranceKeV(it.energyKeV, resolution662) }
                 .sortedBy { abs(peak.energyKeV - it.energyKeV) }
             val primary = fitting.firstOrNull() ?: continue
 
@@ -70,7 +80,7 @@ object IsotopeMatcher {
                 (matchedLineCount[primary.isotope]?.size ?: 0) >= 2
             val confidence = if (
                 peak.significance >= MEDIUM_MIN_SIGNIFICANCE &&
-                delta <= tightToleranceKeV(primary.energyKeV) &&
+                delta <= tightToleranceKeV(primary.energyKeV, resolution662) &&
                 supported
             ) {
                 HintConfidence.MEDIUM

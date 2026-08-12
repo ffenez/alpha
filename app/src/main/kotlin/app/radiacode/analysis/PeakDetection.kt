@@ -42,7 +42,12 @@ data class Peak(
  */
 object PeakDetection {
 
-    /** Relative FWHM at 662 keV (~8 % for the RC-110 CsI(Tl) crystal). */
+    /**
+     * Relative FWHM at 662 keV **по умолчанию** — 8,4 % (CsI(Tl) у RC-103 и
+     * RC-110). У 103G кристалл GAGG и разрешение 7,4 %, поэтому число
+     * передаётся снаружи: применять к чужому прибору чужое разрешение значит
+     * искать пики не той ширины.
+     */
     const val RESOLUTION_662 = 0.08f
 
     /** Poisson significance gate: 4σ over the local continuum. */
@@ -105,20 +110,26 @@ object PeakDetection {
         }
     }
 
-    fun fwhmKeV(energyKeV: Float): Float =
-        RESOLUTION_662 * sqrt(662f * max(energyKeV, 1f))
+    fun fwhmKeV(energyKeV: Float, resolution662: Float = RESOLUTION_662): Float =
+        resolution662 * sqrt(662f * max(energyKeV, 1f))
 
     /** Half the expected peak width in channels at [channel] (≥ 2). */
-    fun halfWidthChannels(calibration: EnergyCalibration, channel: Int): Int {
+    fun halfWidthChannels(
+        calibration: EnergyCalibration,
+        channel: Int,
+        resolution662: Float = RESOLUTION_662,
+    ): Int {
         val keVPerChannel = max(calibration.a1 + 2f * calibration.a2 * channel, 0.1f)
         val energy = calibration.energyAt(channel.toFloat())
-        return max(2, (fwhmKeV(energy) / 2f / keVPerChannel).roundToInt())
+        return max(2, (fwhmKeV(energy, resolution662) / 2f / keVPerChannel).roundToInt())
     }
 
     fun detect(
         counts: List<Int>,
         calibration: EnergyCalibration,
         minSignificance: Float = DEFAULT_MIN_SIGNIFICANCE,
+        /** Разрешение ЭТОГО прибора: у 103G оно лучше, чем у 103 и 110. */
+        resolution662: Float = RESOLUTION_662,
     ): List<Peak> {
         // Крайний канал — граница шкалы, а не точка спектра ([SpectrumEdge]):
         // сюда поиск пиков не заходит вовсе.
@@ -129,7 +140,7 @@ object PeakDetection {
         val candidates = mutableListOf<Peak>()
         for (i in 2 until n - 2) {
             if (calibration.energyAt(i.toFloat()) < MIN_ENERGY_KEV) continue
-            val half = halfWidthChannels(calibration, i)
+            val half = halfWidthChannels(calibration, i, resolution662)
             if (i - 3 * half < 0 || i + 3 * half >= n) continue
 
             var isMax = true

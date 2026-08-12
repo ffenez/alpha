@@ -6,7 +6,14 @@ data class DeviceInfo(
     val serialNumber: String,
     val firmware: FwVersion,
     val spectrumFormatVersion: Int,
-)
+) {
+    /**
+     * Модель прибора — по серийному номеру. Протокол у серии общий, поэтому
+     * подключение от модели не зависит; зависит ОБРАБОТКА (разрешение
+     * детектора, границы шкалы, наличие спектрометрии).
+     */
+    val model: DeviceModel get() = DeviceModel.fromSerial(serialNumber)
+}
 
 /** Connection lifecycle as observed by consumers (service, later UI). */
 sealed interface ConnectionState {

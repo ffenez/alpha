@@ -443,7 +443,10 @@ fun contextWording(context: MeasurementContext): String = when (context) {
 private fun ConnectionChip(connection: ConnectionState, serviceRunning: Boolean) {
     val colors = LocalAppColors.current
     val (dot, text) = when {
-        connection is ConnectionState.Connected -> colors.ok to "RC-110 · 1 Гц"
+        // Модель берётся у прибора, а не вписана в код: приложение работает
+        // со всей серией, и чужому прибору нельзя приписывать чужое имя.
+        connection is ConnectionState.Connected ->
+            colors.ok to "${connection.info.model.displayName} · 1 Гц"
         connection is ConnectionState.Connecting -> colors.warn to "подключение"
         connection is ConnectionState.Reconnecting -> colors.warn to "переподкл."
         !serviceRunning -> colors.muted to "служба выкл."

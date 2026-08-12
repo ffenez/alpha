@@ -16,6 +16,15 @@ import java.time.ZoneId
 class UnsupportedFirmwareException(version: FwVersion) :
     Exception("Unsupported firmware $version, need target >= ${MIN_FW_MAJOR}.${MIN_FW_MINOR}")
 
+/**
+ * Минимальная прошивка, на которой ПРОВЕРЕНА последовательность инициализации.
+ *
+ * Порог стоит не потому, что старая прошивка заведомо не работает, а потому,
+ * что на ней ничего не проверялось: набор виртуальных регистров и формат
+ * DATA_BUF менялись между версиями. Прибор серии с более старой прошивкой не
+ * «не поддерживается» — он не проверен, и приложение обязано сказать это
+ * именно так, а не молча отказать.
+ */
 internal const val MIN_FW_MAJOR = 4
 internal const val MIN_FW_MINOR = 8
 

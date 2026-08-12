@@ -40,7 +40,14 @@ object Spectrogram {
     /** Waterfall rows. 96 keeps CsI(Tl) FWHM ≳ one band across the range. */
     const val BAND_COUNT = 96
 
-    /** Below ~20 keV the RC-110 acquisition threshold dominates. */
+    /**
+     * Границы полос — ОБЩИЕ для всей серии, а не свойство подключённого
+     * прибора: у 103G порог 25 кэВ, у Zero 30 кэВ, и если бы сетка полос
+     * менялась вместе с прибором, срезы, снятые разными приборами, стало бы
+     * нельзя класть на одну картинку. Прибор с более высоким порогом просто
+     * оставляет нижние полосы пустыми — это честное «здесь нет отсчётов», а
+     * не искажение.
+     */
     const val MIN_KEV = 20f
     const val MAX_KEV = 3000f
 
