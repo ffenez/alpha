@@ -1912,10 +1912,10 @@ private fun VersionRow(expanded: Boolean, onToggle: () -> Unit) {
             ),
     ) {
         Column(Modifier.weight(1f)) {
-            // То же имя, что под иконкой: обе строки собраны из одного
-            // источника в сборке, поэтому разойтись не могут.
+            // Имя из сборки плюс версия из неё же: под иконкой версии нет,
+            // и это единственное место, где её ищут.
             Text(
-                text = stringResource(R.string.app_name),
+                text = "${stringResource(R.string.app_name)} ${ReleaseNotes.current}",
                 style = type.label,
                 color = colors.ink,
             )
