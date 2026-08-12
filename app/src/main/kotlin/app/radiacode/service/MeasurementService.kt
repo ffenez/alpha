@@ -485,6 +485,13 @@ class MeasurementService : Service() {
         }
         deviceJobs += scope.launch {
             newDevice.connectionState.collect { state ->
+                // Причина отказа едет вместе со статусом: она нужна только
+                // отладочному отчёту и только когда подключение не удалось.
+                graph.serviceStatus.lastConnectionFailure = newDevice.lastFailure
+                graph.serviceStatus.seqGapTotal = newDevice.seqGapTotal
+                if (state is ConnectionState.Reconnecting) {
+                    graph.serviceStatus.reconnectCount += 1
+                }
                 graph.serviceStatus.onConnectionState(state)
                 onConnectionForSession(state)
                 updateNotification()

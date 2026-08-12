@@ -72,6 +72,28 @@ class ServiceStatus {
         _trackRecording.value = recording
     }
 
+    /**
+     * Причина последнего неудавшегося подключения — только для отладочного
+     * отчёта. На экране её нет: человеку нужен статус, а не имя исключения.
+     */
+    @Volatile
+    var lastConnectionFailure: String? = null
+        internal set
+
+    /**
+     * Здоровье потока для отладочного отчёта: пропуски seq в DATA_BUF и число
+     * переподключений. Оба числа объясняют «показания идут рывками» на ЛЮБОМ
+     * приборе, включая свой, — на экране им места нет, а в отчёте они первое,
+     * что нужно посмотреть.
+     */
+    @Volatile
+    var seqGapTotal: Int = 0
+        internal set
+
+    @Volatile
+    var reconnectCount: Int = 0
+        internal set
+
     internal fun onConnectionState(state: ConnectionState) {
         _connection.value = state
     }

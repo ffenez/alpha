@@ -57,6 +57,17 @@ class RadiaCodeDevice(
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
+    /**
+     * Причина последнего неудавшегося подключения, одной строкой.
+     *
+     * Нужна ровно для одного: разобрать «не подключается» на приборе, которого
+     * у нас нет. Уходит в отладочный отчёт; сообщение исключения не содержит
+     * ни координат, ни измерений.
+     */
+    @Volatile
+    var lastFailure: String? = null
+        private set
+
     private val _realTimeData = MutableSharedFlow<RealTimeData>(replay = 1, extraBufferCapacity = 64)
     /** ~1 Hz measurement stream while connected; replays the latest value. */
     val realTimeData: SharedFlow<RealTimeData> = _realTimeData.asSharedFlow()
@@ -121,8 +132,12 @@ class RadiaCodeDevice(
                 runSession(link)
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
-                // Connection attempt or live session failed; fall through to backoff.
+            } catch (e: Exception) {
+                // Connection attempt or live session failed; fall through to
+                // backoff. Причина запоминается ОДНОЙ строкой: без неё
+                // «не подключается» на чужом приборе неразбираемо, а полный
+                // стек в лог писать некуда — логов в поле нет.
+                lastFailure = "${e::class.simpleName}: ${e.message.orEmpty()}".trim(':', ' ')
             } finally {
                 connection = null
                 link?.let { runCatching { it.close() } }

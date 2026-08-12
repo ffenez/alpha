@@ -128,6 +128,7 @@ class DeviceConnection private constructor(
                     serialNumber = serial,
                     firmware = version,
                     spectrumFormatVersion = config.specFormatVersion,
+                    configurationLines = config.diagnosticLines,
                 ),
                 baseTimeMillis = baseTimeMillis,
                 configurationText = config.text,

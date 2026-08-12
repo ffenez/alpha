@@ -19,6 +19,16 @@ class DebugReportTest {
         deviceModel = "Google Pixel 7",
         instrumentSerial = "RC-110-000123",
         instrumentFirmware = "4.8",
+        instrumentModel = "RadiaCode-110",
+        instrumentModelKnown = true,
+        spectrumFormatVersion = 1,
+        instrumentConfig = listOf("SpecFormatVersion=1"),
+        connectionFailure = null,
+        spectrumChannels = 1024,
+        spectrumCalibration = "a0=-10.0 a1=2.4 a2=3.0E-4",
+        spectrumSeconds = 3_600L,
+        seqGapTotal = 0,
+        reconnectCount = 0,
         serviceRunning = true,
         connection = "подключён",
         doseRateMicroSvH = 0.17f,
@@ -114,5 +124,37 @@ class DebugReportTest {
         assertTrue(text.contains("мощность дозы: — мкЗв/ч"), text)
         assertTrue(text.contains("серийный номер: —"), text)
         assertTrue(text.contains("условие тревоги выполняется с: нет"), text)
+    }
+
+    @Test
+    fun `the report carries what an unknown instrument needs explained`() {
+        // Разбор «не работает на другом приборе» невозможен без модели,
+        // формата спектра, калибровки и причины отказа связи.
+        val unknown = snapshot.copy(
+            instrumentSerial = "SN-777",
+            instrumentModel = "RadiaCode",
+            instrumentModelKnown = false,
+            spectrumFormatVersion = 2,
+            instrumentConfig = listOf("SpecFormatVersion=2", "HwVersion=3"),
+            connectionFailure = "UnsupportedFirmwareException: need target >= 4.8",
+            spectrumChannels = 512,
+        )
+        val text = DebugReport.build(unknown) { stamp(it) }
+        assertTrue(text.contains("модель: RadiaCode (не опознана — общий профиль)"), text)
+        assertTrue(text.contains("формат спектра: 2"), text)
+        assertTrue(text.contains("конфигурация: HwVersion=3"), text)
+        assertTrue(text.contains("последняя ошибка связи: UnsupportedFirmwareException"), text)
+        assertTrue(text.contains("каналов: 512"), text)
+        assertTrue(text.contains("калибровка: a0="), text)
+    }
+
+    @Test
+    fun `stream health is in the report for one's own instrument too`() {
+        // «Показания идут рывками» разбирается этими двумя числами — на своём
+        // приборе ровно так же, как на чужом.
+        val glitchy = snapshot.copy(seqGapTotal = 17, reconnectCount = 4)
+        val text = DebugReport.build(glitchy) { stamp(it) }
+        assertTrue(text.contains("пропусков seq в DATA_BUF: 17"), text)
+        assertTrue(text.contains("переподключений за сеанс: 4"), text)
     }
 }

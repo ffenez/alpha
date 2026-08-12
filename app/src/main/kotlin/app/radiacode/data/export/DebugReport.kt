@@ -10,6 +10,23 @@ data class DebugSnapshot(
     /** Прибор: серийник и прошивка; null = не подключён. */
     val instrumentSerial: String?,
     val instrumentFirmware: String?,
+    /** Модель, как её ОПОЗНАЛО приложение по серийнику. */
+    val instrumentModel: String?,
+    /** Опознана ли модель вообще: «нет» = работаем на общем профиле. */
+    val instrumentModelKnown: Boolean,
+    /** Версия формата спектра, объявленная прибором (`SpecFormatVersion`). */
+    val spectrumFormatVersion: Int?,
+    /** Ключи конфигурации прибора, важные для разбора совместимости. */
+    val instrumentConfig: List<String>,
+    /** Причина последнего неудавшегося подключения (класс и сообщение). */
+    val connectionFailure: String?,
+    /** Последний спектр: число каналов, калибровка, накопление. */
+    val spectrumChannels: Int?,
+    val spectrumCalibration: String?,
+    val spectrumSeconds: Long?,
+    /** Здоровье потока: пропуски seq в DATA_BUF и число переподключений. */
+    val seqGapTotal: Int,
+    val reconnectCount: Int,
     val serviceRunning: Boolean,
     val connection: String,
     /** Последнее показание: мощность дозы мкЗв/ч, счёт с⁻¹, возраст в секундах. */
@@ -65,8 +82,8 @@ object DebugReport {
 
     const val PRIVACY_NOTE =
         "В отчёте нет координат, треков, спектров и рядов измерений — только " +
-            "состояние приложения и настройки. Файл создаётся по вашей команде " +
-            "и никуда не отправляется."
+            "состояние приложения, параметры прибора и настройки. Файл создаётся " +
+            "по вашей команде и никуда не отправляется."
 
     fun fileName(nowMillis: Long, stamp: (Long) -> String): String =
         "radiacode-debug-${stamp(nowMillis)}.txt"
@@ -87,6 +104,23 @@ object DebugReport {
         appendLine("сервис измерения: ${if (snapshot.serviceRunning) "работает" else "остановлен"}")
         appendLine("серийный номер: ${snapshot.instrumentSerial ?: "—"}")
         appendLine("прошивка: ${snapshot.instrumentFirmware ?: "—"}")
+        appendLine(
+            "модель: ${snapshot.instrumentModel ?: "—"}" +
+                if (snapshot.instrumentModel != null && !snapshot.instrumentModelKnown) {
+                    " (не опознана — общий профиль)"
+                } else {
+                    ""
+                },
+        )
+        appendLine("формат спектра: ${snapshot.spectrumFormatVersion?.toString() ?: "—"}")
+        for (line in snapshot.instrumentConfig) appendLine("конфигурация: $line")
+        snapshot.connectionFailure?.let { appendLine("последняя ошибка связи: $it") }
+        appendLine()
+
+        appendLine("## Спектр")
+        appendLine("каналов: ${snapshot.spectrumChannels?.toString() ?: "—"}")
+        appendLine("калибровка: ${snapshot.spectrumCalibration ?: "—"}")
+        appendLine("накопление: ${snapshot.spectrumSeconds?.let { "$it с" } ?: "—"}")
         appendLine()
 
         appendLine("## Последнее показание")
@@ -114,6 +148,11 @@ object DebugReport {
         appendLine("условие тревоги выполняется с: ${since(snapshot.alarmConditionSinceMillis, snapshot.nowMillis, stamp)}")
         appendLine("выше обычного с: ${since(snapshot.aboveUsualSinceMillis, snapshot.nowMillis, stamp)}")
         appendLine("тревога подтверждена с: ${since(snapshot.alertSinceMillis, snapshot.nowMillis, stamp)}")
+        appendLine()
+
+        appendLine("## Поток")
+        appendLine("пропусков seq в DATA_BUF: ${snapshot.seqGapTotal}")
+        appendLine("переподключений за сеанс: ${snapshot.reconnectCount}")
         appendLine()
 
         appendLine("## Данные")

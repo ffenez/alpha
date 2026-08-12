@@ -61,6 +61,7 @@ import app.radiacode.data.ThemeSetting
 import app.radiacode.data.db.ProfileEntity
 import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.device.ConnectionState
+import app.radiacode.device.DeviceModel
 import app.radiacode.service.Notifications
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
@@ -387,6 +388,7 @@ private suspend fun buildDebugReport(
     )
     val connection = graph.serviceStatus.connection.value
     val connected = connection as? ConnectionState.Connected
+    val spectrum = graph.spectrumHub.state.value.spectrum
     val background = graph.searchBackground.first()
     val fingerprint = profile?.id?.let { graph.fingerprintRepository.entity(it) }
 
@@ -396,6 +398,18 @@ private suspend fun buildDebugReport(
         deviceModel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
         instrumentSerial = connected?.info?.serialNumber,
         instrumentFirmware = connected?.info?.firmware?.toString(),
+        instrumentModel = connected?.info?.model?.displayName,
+        instrumentModelKnown = connected?.info?.model?.let { it != DeviceModel.UNKNOWN } ?: false,
+        spectrumFormatVersion = connected?.info?.spectrumFormatVersion,
+        instrumentConfig = connected?.info?.configurationLines.orEmpty(),
+        connectionFailure = graph.serviceStatus.lastConnectionFailure,
+        spectrumChannels = spectrum?.counts?.size,
+        spectrumCalibration = spectrum?.let {
+            "a0=${it.a0} a1=${it.a1} a2=${it.a2}"
+        },
+        spectrumSeconds = spectrum?.durationSeconds,
+        seqGapTotal = graph.serviceStatus.seqGapTotal,
+        reconnectCount = graph.serviceStatus.reconnectCount,
         serviceRunning = graph.serviceStatus.serviceRunning.value,
         connection = when (connection) {
             is ConnectionState.Connected -> "подключён"
