@@ -212,6 +212,16 @@ fun DoseChart(
         val dismissCursor = rememberUpdatedState(onCursorDismiss)
         val resetScale = rememberUpdatedState(onResetScale)
         val transform = rememberUpdatedState(onTransform)
+        // Маркер экстремума — не украшение, а указание «здесь что-то было»:
+        // по нему должно открываться то же, что по любому месту графика.
+        // Порог попадания — палец, а не размер треугольника.
+        val markerHitPx = with(density) { 24.dp.toPx() }
+        val markerBandPx = padTop + markerHitPx
+        val markers = remember(spec.extremeMarkers, pixels, widthPx) {
+            spec.extremeMarkers.mapNotNull { marker ->
+                pixels.indexOfBucket(marker.bucketIndex)?.let { pixels.x[it] }
+            }
+        }
         Spacer(
             Modifier
                 .fillMaxSize()
@@ -226,7 +236,16 @@ fun DoseChart(
                 }
                 .pointerInput(widthPx) {
                     detectTapGestures(
-                        onTap = { if (active.value) dismissCursor.value() },
+                        onTap = { offset ->
+                            val marker = markers
+                                .filter { offset.y <= markerBandPx }
+                                .minByOrNull { kotlin.math.abs(it - offset.x) }
+                                ?.takeIf { kotlin.math.abs(it - offset.x) <= markerHitPx }
+                            when {
+                                marker != null -> setCursor.value(fractionOf(marker, widthPx))
+                                active.value -> dismissCursor.value()
+                            }
+                        },
                         onDoubleTap = { resetScale.value?.invoke() },
                     )
                 }

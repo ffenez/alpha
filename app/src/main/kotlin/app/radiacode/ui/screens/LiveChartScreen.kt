@@ -364,8 +364,10 @@ fun LiveChartScreen(
                 metricTitle = metric.title,
                 stats = frame?.stats,
                 paused = cursorActive,
+                follow = follow,
                 onBack = onBack,
                 onInfo = { infoOpen = true },
+                onJumpToNow = ::jumpToNow,
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
@@ -377,10 +379,8 @@ fun LiveChartScreen(
                 ControlChips(
                     periodIndex = periodIndex,
                     logScale = logScale,
-                    follow = follow,
                     onSelectPeriod = ::selectPeriod,
                     onToggleScale = { logScale = !logScale },
-                    onJumpToNow = ::jumpToNow,
                     availablePeriods = periodIndices,
                     periodExact = periodExact,
                     currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000),
@@ -406,8 +406,10 @@ fun LiveChartScreen(
             periodLabel = ChartWindows.PERIODS[periodIndex].first,
             metricTitle = metric.title,
             paused = cursorActive,
+            follow = follow,
             onBack = onBack,
             onInfo = { infoOpen = true },
+            onJumpToNow = ::jumpToNow,
             metric = metric,
         )
         chart(Modifier.weight(1f).fillMaxWidth())
@@ -498,10 +500,8 @@ fun LiveChartScreen(
             ControlChips(
                 periodIndex = periodIndex,
                 logScale = logScale,
-                follow = follow,
                 onSelectPeriod = ::selectPeriod,
                 onToggleScale = { logScale = !logScale },
-                onJumpToNow = ::jumpToNow,
                 availablePeriods = periodIndices,
                 periodExact = periodExact,
                 currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000),
@@ -665,8 +665,10 @@ private fun PortraitTopBar(
     periodLabel: String,
     metricTitle: String,
     paused: Boolean,
+    follow: Boolean,
     onBack: () -> Unit,
     onInfo: () -> Unit,
+    onJumpToNow: () -> Unit,
     metric: ChartMetric = ChartMetric.DOSE,
 ) {
     val colors = LocalAppColors.current
@@ -694,10 +696,28 @@ private fun PortraitTopBar(
                 )
                 StatusChipSlot(graph, unit, paused, metric)
             }
+            NowChip(follow, onJumpToNow)
             Chip(text = "i", color = colors.ink2, onClick = onInfo)
         }
         AppDivider()
     }
+}
+
+/**
+ * «⌖ сейчас» — состояние, а не только действие: подсвечен, когда график стоит
+ * у живого края и сам едет за ним. Отодвинули окно — подсветка гаснет, и
+ * нажатие возвращает к «сейчас». Раньше было наоборот: горело именно тогда,
+ * когда график НЕ следил за временем.
+ */
+@Composable
+private fun NowChip(follow: Boolean, onJumpToNow: () -> Unit) {
+    val colors = LocalAppColors.current
+    Chip(
+        text = "⌖ сейчас",
+        color = if (follow) colors.dataText else colors.ink2,
+        selected = follow,
+        onClick = onJumpToNow,
+    )
 }
 
 /** Value row plus the status chip, both driven by the same 1 Hz ticker. */
@@ -739,8 +759,10 @@ private fun BoxScope.LandscapeTopBar(
     metricTitle: String,
     stats: WindowStats?,
     paused: Boolean,
+    follow: Boolean,
     onBack: () -> Unit,
     onInfo: () -> Unit,
+    onJumpToNow: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -770,6 +792,7 @@ private fun BoxScope.LandscapeTopBar(
         }
         val freshness = liveReading(graph, unit, compact = true)
         FreshnessOrPause(freshness, paused)
+        NowChip(follow, onJumpToNow)
         Chip(text = "i", color = colors.ink2, onClick = onInfo)
     }
 }
@@ -789,10 +812,8 @@ private fun landscapeStatsLine(stats: WindowStats, unit: DoseUnitSetting): Strin
 private fun RowScope.ControlChips(
     periodIndex: Int,
     logScale: Boolean,
-    follow: Boolean,
     onSelectPeriod: (Int) -> Unit,
     onToggleScale: () -> Unit,
-    onJumpToNow: () -> Unit,
     availablePeriods: List<Int> = ChartWindows.PERIODS.indices.toList(),
     periodExact: Boolean = true,
     /** Фактическое окно словами — для свёрнутого чипа между ступенями. */
@@ -849,17 +870,14 @@ private fun RowScope.ControlChips(
         }
     }
     Spacer(Modifier.width(Dimens.space1))
+    // Правило на всю панель: подсвечен = названное состояние ВКЛЮЧЕНО.
+    // Название у чипа постоянное («лог»), иначе подсветка ничего не значила
+    // бы — надпись и так меняла бы смысл под ней.
     Chip(
-        text = if (logScale) "лог" else "лин",
+        text = "лог",
         color = if (logScale) colors.dataText else colors.ink2,
         selected = logScale,
         onClick = onToggleScale,
-    )
-    Chip(
-        text = "⌖ сейчас",
-        color = if (follow) colors.ink2 else colors.dataText,
-        selected = !follow,
-        onClick = onJumpToNow,
     )
 }
 
