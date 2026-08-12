@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
 class ReleaseNotesTest {
 
     private val text: List<String> = ReleaseNotes.shown
-        .flatMap { listOf(it.title, it.date) + it.lines } + ReleaseNotes.VERSIONING_NOTE
+        .flatMap { listOf(it.title, it.version) + it.lines }
 
     @Test
     fun `the screen shows exactly the promised number of updates`() {
@@ -21,11 +21,22 @@ class ReleaseNotesTest {
     }
 
     @Test
-    fun `dates are real dates in one format`() {
-        val date = Regex("""^\d{2}\.\d{2}\.\d{4}$""")
-        for (note in ReleaseNotes.shown) {
-            assertTrue(date.matches(note.date), note.date)
+    fun `versions are numbers, unique and ordered newest first`() {
+        val version = Regex("""^\d+\.\d+\.\d+$""")
+        val versions = ReleaseNotes.all.map { it.version }
+        for (v in versions) assertTrue(version.matches(v), v)
+        assertEquals(versions.distinct(), versions, "повторяющиеся номера версий")
+        val ordered = versions.sortedByDescending { v ->
+            v.split('.').map { it.toInt().toString().padStart(4, '0') }.joinToString(".")
         }
+        assertEquals(ordered, versions, "список должен идти от новой версии к старой")
+    }
+
+    @Test
+    fun `the newest note describes the build that is installed`() {
+        // Два источника одного факта обязаны совпадать: иначе список
+        // обновлений описывает не ту версию, что стоит на телефоне.
+        assertEquals(app.radiacode.BuildConfig.VERSION_NAME, ReleaseNotes.current)
     }
 
     @Test

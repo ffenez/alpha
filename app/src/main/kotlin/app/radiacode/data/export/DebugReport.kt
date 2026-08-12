@@ -89,7 +89,7 @@ object DebugReport {
         "radiacode-debug-${stamp(nowMillis)}.txt"
 
     fun build(snapshot: DebugSnapshot, stamp: (Long) -> String): String = buildString {
-        appendLine("# Отладочный отчёт alpha")
+        appendLine("# Отладочный отчёт Alpha")
         appendLine(PRIVACY_NOTE)
         appendLine()
 

@@ -1935,15 +1935,10 @@ private fun ReleaseNotesList() {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-        Text(
-            text = ReleaseNotes.VERSIONING_NOTE,
-            style = type.footnote,
-            color = colors.muted,
-        )
         for (note in ReleaseNotes.shown) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(text = note.date, style = type.axis, color = colors.ink2)
+                    Text(text = note.version, style = type.axis, color = colors.ink2)
                     Text(text = note.title, style = type.label, color = colors.ink)
                 }
                 for (line in note.lines) {

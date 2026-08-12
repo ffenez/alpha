@@ -65,7 +65,7 @@ object N42 {
         for (remark in remarks) {
             sb.append("  <Remark>").append(escape(remark)).append("</Remark>\n")
         }
-        sb.append("  <RadInstrumentDataCreatorName>app.radiacode alpha")
+        sb.append("  <RadInstrumentDataCreatorName>Alpha")
             .append("</RadInstrumentDataCreatorName>\n")
 
         // Instrument: manufacturer/model from the device identity, our app as
