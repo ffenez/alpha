@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -476,8 +477,13 @@ private fun HeroCard(
     val type = LocalAppTypography.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
-            // 1. Величина, ради которой открывают приложение.
-            Column {
+            // 1. Величина, ради которой открывают приложение. По центру: это
+            // единственный элемент экрана, который читают издалека и мельком —
+            // ему нужна ось симметрии, а не левый край текста.
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "Мощность дозы".uppercase(),
@@ -513,7 +519,18 @@ private fun HeroCard(
                 status is MonitorStatus.Fixed && status.above -> colors.warn
                 else -> colors.ok
             }
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+            // Сам вывод — и есть кнопка «почему»: вопрос задают, глядя именно
+            // на эту строку, и отдельная кнопка рядом с ней была лишним шагом
+            // между вопросом и ответом.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Dimens.radiusChip))
+                    .clickable(onClick = onWhy)
+                    .padding(vertical = Dimens.space1),
+                verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -523,6 +540,7 @@ private fun HeroCard(
                         text = statusHeadline(status),
                         style = type.label,
                         color = statusColor,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     // The verdict leans on a statistical model, not on a reading.
@@ -532,21 +550,43 @@ private fun HeroCard(
                         EvidenceTag(Evidence.STATISTICALLY_DETECTED)
                     }
                 }
+                // Эталон, по которому сделан вывод, стоит под ним ВСЕГДА: без
+                // диапазона и объёма истории «в обычном диапазоне» — это
+                // утверждение, которое нечем проверить.
                 statusDetail(status, unit)?.let { detail ->
-                    Text(text = detail, style = type.footnote, color = colors.ink2)
+                    Text(
+                        text = detail,
+                        style = type.footnote,
+                        color = colors.ink2,
+                        textAlign = TextAlign.Center,
+                    )
                 }
                 (baselineState as? BaselineState.Learning)?.let { learning ->
                     Text(
                         text = learningWording(learning),
                         style = type.footnote,
                         color = colors.muted,
+                        textAlign = TextAlign.Center,
                     )
                 }
-                // Learning is silent by nature, so the one case where it is NOT
-                // happening must be visible without opening «Почему?».
-                admissionNote(admission, frozen)?.let { note ->
-                    Text(text = note, style = type.footnote, color = colors.warn)
-                }
+                // Пополняется ли статистика прямо сейчас — вопрос, который
+                // человек задаёт, глядя на объём истории. Молчание означало
+                // «да», и это было незаметно; теперь ответ есть в обе стороны.
+                Text(
+                    text = admissionNote(admission, frozen) ?: ADMISSION_OK_NOTE,
+                    style = type.footnote,
+                    color = if (admission is Admission.Excluded || frozen) {
+                        colors.warn
+                    } else {
+                        colors.muted
+                    },
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = "почему такой вывод ›",
+                    style = type.footnote,
+                    color = colors.dataText,
+                )
             }
 
             // 3. Плитки: то, что дополняет главное число, а не спорит с ним.
@@ -596,24 +636,20 @@ private fun HeroCard(
                 }
             }
 
-            // 4. Два входа в объяснение — разные вопросы об одном месте:
-            // «почему такой вывод сейчас» и «чем это место отличается от себя
-            // прежнего». Это строка действий, а не хвост строки статуса.
-            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                AppButton(
-                    text = "Почему такой вывод?",
-                    onClick = onWhy,
-                    modifier = Modifier.weight(1.4f),
-                )
-                AppButton(
-                    text = "Отпечаток места",
-                    onClick = onFingerprint,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            // 4. Второй вопрос об этом же месте — «чем оно отличается от себя
+            // прежнего». Первый («почему такой вывод сейчас») открывается
+            // нажатием на сам вывод.
+            AppButton(
+                text = "Отпечаток места",
+                onClick = onFingerprint,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
+
+/** Что показано, когда статистика места пополняется как обычно. */
+private const val ADMISSION_OK_NOTE = "обычный фон пополняется"
 
 /** Одна плитка под главным числом. */
 private data class HeroTile(
@@ -635,6 +671,7 @@ private fun HeroTileBox(tile: HeroTile, modifier: Modifier = Modifier) {
             .background(colors.surface2)
             .padding(horizontal = Dimens.space2, vertical = Dimens.space2),
         verticalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
