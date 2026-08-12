@@ -2,6 +2,7 @@ package app.radiacode.ui.logic
 
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.Baseline
+import app.radiacode.baseline.BaselineExclusion
 import app.radiacode.baseline.BaselineState
 import app.radiacode.baseline.DeviationSnapshot
 import app.radiacode.baseline.alarmThresholds
@@ -73,7 +74,7 @@ class MonitorStatusTest {
         assertEquals("В обычном диапазоне этого профиля", statusHeadline(status))
         assertEquals("Обычный для этого места", statusHeadlineShort(status))
         assertEquals(
-            "P10–P90: 0,09–0,14 мкЗв/ч · baseline: 26 ч",
+            "P10–P90: 0,09–0,14 мкЗв/ч · наблюдений: 26 ч",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -188,6 +189,20 @@ class MonitorStatusTest {
             val detail = statusDetail(status, DoseUnitSetting.MICRO_SIEVERT)!!
             assertTrue(detail.contains("P10–P90"), detail)
             assertTrue(detail.contains("мкЗв/ч"), detail)
+        }
+    }
+
+    @Test
+    fun `the engine's internal name never reaches the screen`() {
+        // «baseline» — имя движка. У величины на экране есть человеческое
+        // название («обычный фон», «исторический диапазон профиля»), и
+        // техническое рядом с ним только мешает.
+        val texts = listOf(
+            statusHeadline(MonitorStatus.Usual(baseline)),
+            statusDetail(MonitorStatus.Usual(baseline), DoseUnitSetting.MICRO_SIEVERT).orEmpty(),
+        ) + BaselineExclusion.entries.map { it.label }
+        for (text in texts) {
+            assertTrue(!text.lowercase().contains("baseline"), text)
         }
     }
 }

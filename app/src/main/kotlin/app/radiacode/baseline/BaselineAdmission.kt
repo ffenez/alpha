@@ -27,7 +27,7 @@ enum class BaselineExclusion(val storageKey: String, val label: String) {
     STATISTICS_UNUSABLE("statistics_unusable", "измерение непригодно по статистике"),
 
     /** Condition 7: the user froze the baseline manually. */
-    MANUAL_FREEZE("manual_freeze", "baseline заморожен вручную"),
+    MANUAL_FREEZE("manual_freeze", "обычный фон заморожен вручную"),
     ;
 
     companion object {

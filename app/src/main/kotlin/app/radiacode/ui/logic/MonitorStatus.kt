@@ -143,7 +143,9 @@ fun statusDetail(status: MonitorStatus, unit: DoseUnitSetting): String? = when (
             "исторический диапазон профиля ещё не собран"
     is MonitorStatus.Usual ->
         "P10–P90: ${baselineRange(status.baseline, unit)} " +
-            "${DoseFormat.rateUnitLabel(unit)} · baseline: " +
+            // «baseline» — внутреннее имя движка; на экране у величины есть
+            // человеческое название, и смешивать их незачем.
+            "${DoseFormat.rateUnitLabel(unit)} · наблюдений: " +
             baselineCollectedShort(status.baseline)
     is MonitorStatus.AboveUsual ->
         "P10–P90 профиля: ${baselineRange(status.baseline, unit)} " +

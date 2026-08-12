@@ -71,6 +71,8 @@ import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.RadioMark
 import app.radiacode.ui.components.Segmented
+import app.radiacode.ui.components.StatCell
+import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.NavConfig
 import app.radiacode.ui.logic.ProfileTree
@@ -108,19 +110,39 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Категории настроек. One list, one screen each: the settings had grown into a
- * single scroll where «единицы» sat below four screens of profile management,
- * and finding anything meant remembering where it was.
+ * Разделы настроек, сгруппированные по тому, ЧЕМ они управляют.
+ *
+ * Плоский список смешивал три разные вещи: как измеряется (тревоги, профили),
+ * как ведёт себя приложение (вид, уведомления) и служебное. «Обычный фон» и
+ * вовсе стоял отдельным разделом уровня «Прибор», хотя это часть профилей:
+ * фон принадлежит МЕСТУ и настраивается там же, где место.
+ *
+ * «Отладка» ушла с первого уровня: пункт «отчёт о состоянии приложения в
+ * файл» рядом с «Прибором» выдаёт сборку разработчика. Она осталась
+ * findable — внутри «О приложении», — потому что отчёты нужны для разбора
+ * полевых случаев, и прятать её за семь нажатий значило бы их не получать.
  */
-private enum class SettingsCategory(val title: String, val subtitle: String) {
-    ALARMS("Тревоги", "порог, длительность, чувствительность"),
-    PROFILES("Профили", "места и их обычный фон, сети Wi-Fi"),
-    BASELINE("Обычный фон", "заморозка статистики и смена места"),
-    SOUND("Звук", "отклик Поиска, звук тревоги"),
-    VIEW("Вид", "тема, единицы, вкладки и блоки Главной"),
-    DEVICE("Прибор", "серийный номер, прошивка, батарея"),
-    DEBUG("Отладка", "отчёт о состоянии приложения в файл"),
-    ABOUT("О приложении", "версия и лицензии"),
+private enum class SettingsGroup(val title: String) {
+    MEASUREMENT("Измерение"),
+    APP("Приложение"),
+    OTHER("Другое"),
+}
+
+private enum class SettingsCategory(
+    val group: SettingsGroup,
+    val title: String,
+    val subtitle: String,
+) {
+    ALARMS(SettingsGroup.MEASUREMENT, "Тревоги", "пороги, длительность, чувствительность"),
+    PROFILES(
+        SettingsGroup.MEASUREMENT,
+        "Профили и фон",
+        "места, сети Wi-Fi, обучение обычного фона",
+    ),
+    SOUND(SettingsGroup.APP, "Уведомления и отклик", "звук Поиска, вибрация, тревога"),
+    VIEW(SettingsGroup.APP, "Вид", "тема, единицы, вкладки и блоки Главной"),
+    DEVICE(SettingsGroup.OTHER, "Прибор", "модель, серийный номер, прошивка"),
+    ABOUT(SettingsGroup.OTHER, "О приложении", "версия, обновления, лицензии, диагностика"),
 }
 
 /**
@@ -165,17 +187,34 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         ) { openCategory ->
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
         when (openCategory) {
-            null -> Card(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsCategory.entries.forEachIndexed { index, entry ->
-                        if (index > 0) AppDivider()
-                        CategoryRow(entry) { category = entry }
+            null -> Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+                for (group in SettingsGroup.entries) {
+                    val items = SettingsCategory.entries.filter { it.group == group }
+                    if (items.isEmpty()) continue
+                    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                        Text(
+                            text = group.title.uppercase(),
+                            style = LocalAppTypography.current.labelSmall,
+                            color = colors.ink2,
+                            modifier = Modifier.padding(start = Dimens.space1),
+                        )
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column {
+                                items.forEachIndexed { index, entry ->
+                                    if (index > 0) AppDivider()
+                                    CategoryRow(entry) { category = entry }
+                                }
+                            }
+                        }
                     }
                 }
             }
             SettingsCategory.ALARMS -> AlarmsSection(graph)
-            SettingsCategory.PROFILES -> ProfilesSection(graph)
-            SettingsCategory.BASELINE -> BaselineSection(graph)
+            // Фон принадлежит МЕСТУ: профили и обучение фона — один раздел.
+            SettingsCategory.PROFILES -> {
+                ProfilesSection(graph)
+                BaselineSection(graph)
+            }
             SettingsCategory.SOUND -> SoundSection(graph)
             SettingsCategory.VIEW -> {
                 ThemeSection(graph)
@@ -183,8 +222,10 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                 InterfaceSection(graph)
             }
             SettingsCategory.DEVICE -> DeviceSection(graph)
-            SettingsCategory.DEBUG -> DebugSection(graph)
-            SettingsCategory.ABOUT -> LicensesSection()
+            SettingsCategory.ABOUT -> {
+                LicensesSection()
+                DebugSection(graph)
+            }
         }
         }
         }
@@ -610,6 +651,14 @@ private fun AlarmsSection(graph: AppGraph) {
     val customL2 by graph.settings.customAlarmL2MicroSvH
         .collectAsState(initial = AppSettings.DEFAULT_CUSTOM_L2_MICRO_SV_H)
 
+    // Порог — это число, которое сравнивают с ДРУГИМИ числами: с тем, что
+    // прибор показывает сейчас, и с тем, что здесь обычно. Без них «0,30» —
+    // абстракция, и именно поэтому в поле «поставил 0,1» оказалось сюрпризом.
+    val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
+    val baselineState by graph.serviceStatus.baseline.collectAsState()
+    val activeBaseline = (baselineState as? BaselineState.Active)?.baseline
+    val currentDose = sample?.let { DoseUnits.rawToMicroSievertPerHour(it.doseRate) }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle("Тревоги")
@@ -620,6 +669,35 @@ private fun AlarmsSection(graph: AppGraph) {
                 style = type.bodySmall,
                 color = colors.ink2,
             )
+            StatGrid(
+                cells = listOf(
+                    StatCell(
+                        currentDose?.let { DoseFormat.rate(it, unit) } ?: "—",
+                        "сейчас",
+                    ),
+                    StatCell(
+                        activeBaseline?.let {
+                            DoseFormat.range(it.doseLowMicroSvH, it.doseHighMicroSvH, unit)
+                        } ?: "—",
+                        "обычно здесь",
+                    ),
+                    StatCell(
+                        DoseFormat.rate(
+                            alarmThresholds(sensitivity, customL1, customL2).l1MicroSvH,
+                            unit,
+                        ),
+                        "порог L1",
+                    ),
+                ),
+            )
+            if (activeBaseline == null) {
+                Text(
+                    text = "Обычный фон этого места ещё не собран — сравнивать порог пока " +
+                        "не с чем.",
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
 
             SensitivityOption(
                 title = "Обычная",
