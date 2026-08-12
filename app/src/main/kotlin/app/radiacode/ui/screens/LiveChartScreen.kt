@@ -19,12 +19,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
@@ -46,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
 import app.radiacode.analysis.quantiles.KllSketch
@@ -180,9 +183,8 @@ fun LiveChartScreen(
     var logScale by rememberSaveable { mutableStateOf(false) }
     var follow by rememberSaveable { mutableStateOf(true) }
     var cursorActive by rememberSaveable { mutableStateOf(false) }
-    var statsExpanded by rememberSaveable { mutableStateOf(false) }
-    var histogramExpanded by rememberSaveable { mutableStateOf(false) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
+    var detailsOpen by rememberSaveable { mutableStateOf(false) }
     // Crosshair position lives in its own State: the draw layer and the
     // readout card read it, so dragging never recomposes the screen.
     val cursorFraction = remember { mutableStateOf<Float?>(null) }
@@ -366,6 +368,7 @@ fun LiveChartScreen(
                 onBack = onBack,
                 onInfo = { infoOpen = true },
                 onJumpToNow = ::jumpToNow,
+                onOpenDetails = { detailsOpen = true },
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
@@ -384,6 +387,16 @@ fun LiveChartScreen(
                     currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000),
                 )
             }
+            ChartDetailsSheet(
+                open = detailsOpen,
+                graph = graph,
+                snapshot = snapshot,
+                frame = frame,
+                unit = unit,
+                metric = metric,
+                spanMillis = window.spanMillis,
+                onClose = { detailsOpen = false },
+            )
             ChartInfoSheet(
                 open = infoOpen,
                 metric = metric,
@@ -412,88 +425,24 @@ fun LiveChartScreen(
         )
         chart(Modifier.weight(1f).fillMaxWidth())
         AppDivider()
-        // §2: неполное окно называется словами, а не остаётся пустым полем.
-        coverageWording(frame?.stats, window.spanMillis)?.let { coverage ->
-            Text(
-                text = coverage,
-                style = type.footnote,
-                color = colors.muted,
-                modifier = Modifier.padding(
-                    horizontal = Dimens.space3,
-                    vertical = Dimens.space1,
-                ),
-            )
-        }
-        // §6: распределение — сворачиваемый блок, а не постоянная полоса.
-        val histogram = frame?.histogram
-        if (frame != null && histogram != null) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Dimens.space3),
-            ) {
-                Chip(
-                    text = if (histogramExpanded) "распределение ▴" else "распределение ▾",
-                    color = colors.ink2,
-                    onClick = { histogramExpanded = !histogramExpanded },
-                )
-            }
-            AnimatedVisibility(
-                visible = histogramExpanded,
-                enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
-                exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
-            ) {
-                DistributionStrip(
-                    histogram = histogram,
-                    labels = frame.histogramLabels,
-                )
-            }
-        } else {
-            Spacer(Modifier.fillMaxWidth().height(Dimens.space1))
-        }
-        val stats = frame?.stats
-        // CHART SPEC §13: the compact default is quantiles, n and the window;
-        // MIN/Q25/Q75/MAX/MAD/SD live one tap deeper so the main view is not
-        // a wall of numbers and SD never appears without its definition.
-        StatGrid(
-            cells = listOf(
-                StatCell(
-                    stats?.let { ChartMetrics.format(metric, it.p10, unit) } ?: "—",
-                    "P10",
-                ),
-                StatCell(
-                    stats?.let { ChartMetrics.format(metric, it.median, unit) } ?: "—",
-                    "медиана",
-                ),
-                StatCell(
-                    stats?.let { ChartMetrics.format(metric, it.p90, unit) } ?: "—",
-                    "P90",
-                ),
-                StatCell(stats?.let { HistoryFormat.count(it.sampleCount) } ?: "—", "n"),
-                StatCell(HistoryFormat.duration(window.spanMillis / 1000), "окно"),
-            ),
-        )
-        ExpandedStats(
-            stats = stats,
+        // Под графиком — ровно две строки: числа окна и управление. Всё
+        // остальное (распределение, расширенная статистика, покрытие окна,
+        // метод квантилей) открывается панелью поверх и не отнимает высоту у
+        // самих данных: полноэкранный режим — это режим ПРОСМОТРА ГРАФИКА, а
+        // не страница статистики с графиком наверху.
+        WindowStatsLine(
+            stats = frame?.stats,
             unit = unit,
-            expanded = statsExpanded,
-            onToggle = { statsExpanded = !statsExpanded },
             metric = metric,
+            spanMillis = window.spanMillis,
+            onOpenDetails = { detailsOpen = true },
         )
-        AnimatedVisibility(
-            visible = statsExpanded,
-            enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
-            exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
-        ) {
-            QuantileDiagnosticPanel(graph = graph, snapshot = snapshot, unit = unit)
-        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Dimens.space2, vertical = Dimens.space2),
+                .padding(horizontal = Dimens.space2, vertical = Dimens.space1),
         ) {
             ControlChips(
                 periodIndex = periodIndex,
@@ -505,8 +454,17 @@ fun LiveChartScreen(
                 currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000),
             )
         }
-        Spacer(Modifier.height(Dimens.space1))
         }
+        ChartDetailsSheet(
+            open = detailsOpen,
+            graph = graph,
+            snapshot = snapshot,
+            frame = frame,
+            unit = unit,
+            metric = metric,
+            spanMillis = window.spanMillis,
+            onClose = { detailsOpen = false },
+        )
         ChartInfoSheet(
             open = infoOpen,
             metric = metric,
@@ -515,6 +473,184 @@ fun LiveChartScreen(
             logScale = logScale,
             onClose = { infoOpen = false },
         )
+    }
+}
+
+/**
+ * Общая оболочка панелей поверх графика: затемнение, заголовок, крестик,
+ * «назад» и потолок высоты.
+ *
+ * Панель не двигает график и не может съесть весь экран: под ней всегда видна
+ * часть картинки, к которой она относится. Касание мимо панели закрывает её —
+ * тем же движением, каким человек возвращается к графику.
+ */
+@Composable
+private fun BoxScope.ChartSheet(
+    open: Boolean,
+    title: String,
+    onClose: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * SHEET_MAX_FRACTION).dp
+    BackHandler(enabled = open) { onClose() }
+    AnimatedVisibility(
+        visible = open,
+        enter = fadeIn(Motion.fast()),
+        exit = fadeOut(Motion.fast()),
+        modifier = Modifier.matchParentSize(),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(colors.bg.copy(alpha = 0.72f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClose,
+                ),
+        )
+    }
+    AnimatedVisibility(
+        visible = open,
+        enter = fadeIn(Motion.normal()) + expandVertically(Motion.springy()),
+        exit = fadeOut(Motion.fast()) + shrinkVertically(Motion.springy()),
+        modifier = Modifier.align(Alignment.BottomStart),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = maxSheetHeight)
+                .background(colors.surface)
+                // Панель лежит ПОВЕРХ графика, поэтому забирает касания себе:
+                // иначе прокрутка её содержимого двигала бы окно под ней.
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                )
+                .padding(vertical = Dimens.space2)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.space3),
+            ) {
+                Text(text = title.uppercase(), style = type.labelSmall, color = colors.ink2)
+                Spacer(Modifier.weight(1f))
+                Chip(text = "✕", color = colors.ink2, onClick = onClose)
+            }
+            content()
+        }
+    }
+}
+
+/** Панель никогда не занимает больше этой доли экрана — график остаётся виден. */
+private const val SHEET_MAX_FRACTION = 0.72f
+
+/**
+ * Числа окна одной строкой: квантили, честное n и длительность окна.
+ *
+ * Раньше здесь стояла сетка из пяти ячеек, под ней строка-переключатель
+ * «расширенная статистика», под ней ещё одна про распределение — три полосы
+ * интерфейса, которые вместе съедали у графика заметную часть высоты ради
+ * чисел, на которые смотрят вторыми. Теперь это одна строка, и она же —
+ * дверь: нажатие открывает панель со всем остальным.
+ */
+@Composable
+private fun WindowStatsLine(
+    stats: WindowStats?,
+    unit: DoseUnitSetting,
+    metric: ChartMetric,
+    spanMillis: Long,
+    onOpenDetails: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onOpenDetails,
+            )
+            .padding(horizontal = Dimens.space3, vertical = 9.dp),
+    ) {
+        val value = { v: Float -> ChartMetrics.format(metric, v, unit) }
+        Text(
+            text = if (stats == null) {
+                "окно ${HistoryFormat.duration(spanMillis / 1000)}"
+            } else {
+                "P10 ${value(stats.p10)} · медиана ${value(stats.median)} · " +
+                    "P90 ${value(stats.p90)} · n ${HistoryFormat.count(stats.sampleCount)} · " +
+                    HistoryFormat.duration(spanMillis / 1000)
+            },
+            style = type.axis,
+            color = colors.ink2,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(text = "подробнее ▴", style = type.footnote, color = colors.muted)
+    }
+}
+
+/**
+ * Панель «подробнее»: распределение, расширенная статистика, покрытие окна и
+ * метод квантилей — всё, что нужно по требованию и ничего, что нужно всегда.
+ *
+ * Панель лежит ПОВЕРХ графика и не двигает его: открыли, посмотрели, закрыли —
+ * картинка под ней осталась на месте.
+ */
+@Composable
+private fun BoxScope.ChartDetailsSheet(
+    open: Boolean,
+    graph: AppGraph,
+    snapshot: ChartSnapshot?,
+    frame: ChartFrame?,
+    unit: DoseUnitSetting,
+    metric: ChartMetric,
+    spanMillis: Long,
+    onClose: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    ChartSheet(
+        open = open,
+        title = "Окно ${HistoryFormat.duration(spanMillis / 1000)}",
+        onClose = onClose,
+    ) {
+        // §2 ТЗ: неполное окно называется словами, а не остаётся пустым полем.
+        coverageWording(frame?.stats, spanMillis)?.let { coverage ->
+            Text(
+                text = coverage,
+                style = type.footnote,
+                color = colors.muted,
+                modifier = Modifier.padding(horizontal = Dimens.space3),
+            )
+        }
+        val histogram = frame?.histogram
+        if (histogram != null) {
+            Text(
+                text = "Распределение",
+                style = type.label,
+                color = colors.ink,
+                modifier = Modifier.padding(horizontal = Dimens.space3),
+            )
+            DistributionStrip(histogram = histogram, labels = frame.histogramLabels)
+        }
+        Text(
+            text = "Статистика окна",
+            style = type.label,
+            color = colors.ink,
+            modifier = Modifier.padding(horizontal = Dimens.space3),
+        )
+        ExpandedStats(stats = frame?.stats, unit = unit, metric = metric)
+        QuantileDiagnosticPanel(graph = graph, snapshot = snapshot, unit = unit)
     }
 }
 
@@ -537,55 +673,26 @@ private fun BoxScope.ChartInfoSheet(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    BackHandler(enabled = open) { onClose() }
-    AnimatedVisibility(
-        visible = open,
-        enter = fadeIn(Motion.normal()) + expandVertically(Motion.springy()),
-        exit = fadeOut(Motion.fast()) + shrinkVertically(Motion.springy()),
-        modifier = Modifier.align(Alignment.BottomStart),
-    ) {
-        val sections = remember(metric, frame, baseline, logScale) {
-            ChartInfo.sections(
-                metric = metric,
-                hasBaselineBand = baseline != null && ChartMetrics.showsProfileBand(metric),
-                hasExtremeMarkers = frame?.spec?.extremeMarkers?.isNotEmpty() == true,
-                hasEpisodes = frame?.spec?.episodes?.isNotEmpty() == true,
-                method = frame?.stats?.method ?: QuantileMethod.EXACT_RAW,
-                logScale = logScale,
-                logDropped = frame?.logDropped ?: 0,
-            )
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(colors.bg)
-                // Панель лежит ПОВЕРХ графика, поэтому она обязана забирать
-                // касания себе: иначе прокрутка справки двигала бы окно
-                // графика под ней.
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {},
-                )
-                .padding(Dimens.space3)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(Dimens.space2),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Как читать этот график".uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                )
-                Spacer(Modifier.weight(1f))
-                Chip(text = "✕", color = colors.ink2, onClick = onClose)
-            }
-            for (section in sections) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(text = section.title, style = type.label, color = colors.ink)
-                    for (line in section.lines) {
-                        Text(text = line, style = type.bodySmall, color = colors.muted)
-                    }
+    val sections = remember(metric, frame, baseline, logScale) {
+        ChartInfo.sections(
+            metric = metric,
+            hasBaselineBand = baseline != null && ChartMetrics.showsProfileBand(metric),
+            hasExtremeMarkers = frame?.spec?.extremeMarkers?.isNotEmpty() == true,
+            hasEpisodes = frame?.spec?.episodes?.isNotEmpty() == true,
+            method = frame?.stats?.method ?: QuantileMethod.EXACT_RAW,
+            logScale = logScale,
+            logDropped = frame?.logDropped ?: 0,
+        )
+    }
+    ChartSheet(open = open, title = "Как читать этот график", onClose = onClose) {
+        for (section in sections) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.padding(horizontal = Dimens.space3),
+            ) {
+                Text(text = section.title, style = type.label, color = colors.ink)
+                for (line in section.lines) {
+                    Text(text = line, style = type.bodySmall, color = colors.muted)
                 }
             }
         }
@@ -603,6 +710,7 @@ private fun BoxScope.ChartInfoSheet(
 private fun liveReading(
     graph: AppGraph,
     unit: DoseUnitSetting,
+    showValue: Boolean = true,
     compact: Boolean = false,
     metric: ChartMetric = ChartMetric.DOSE,
 ): Freshness {
@@ -617,7 +725,7 @@ private fun liveReading(
         }
     }
     val freshness = Freshness.of(sample?.timestamp, nowMillis)
-    if (!compact) {
+    if (showValue) {
         // Живое значение — та же величина, что на графике: смотреть на дозу
         // над графиком счёта было бы двумя разными числами в одной шапке.
         val value = sample?.let { row ->
@@ -634,7 +742,7 @@ private fun liveReading(
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 text = value?.let { ChartMetrics.format(metric, it, unit) } ?: "—",
-                style = type.valueLarge,
+                style = if (compact) type.value else type.valueLarge,
                 color = if (value == null || freshness !is Freshness.Fresh) colors.muted
                 else colors.ink,
             )
@@ -672,28 +780,27 @@ private fun PortraitTopBar(
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Column {
+        // Одна строка вместо блока: в полноэкранном режиме высота — это данные,
+        // и шапка забирает у графика ровно столько, сколько нужно, чтобы
+        // сказать, что показано, чему оно сейчас равно и как отсюда выйти.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    start = Dimens.space3,
-                    end = Dimens.space3,
-                    top = Dimens.space2,
-                    bottom = Dimens.space2,
-                ),
+                .padding(horizontal = Dimens.space2, vertical = Dimens.space1),
         ) {
             Chip(text = "✕", color = colors.ink2, onClick = onBack)
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "$metricTitle · $periodLabel".uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                    maxLines = 1,
-                )
-                StatusChipSlot(graph, unit, paused, metric)
-            }
+            Text(
+                text = "$metricTitle · $periodLabel".uppercase(),
+                style = type.labelSmall,
+                color = colors.ink2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            val freshness = liveReading(graph, unit, compact = true, metric = metric)
+            FreshnessOrPause(freshness, paused)
             NowChip(follow, onJumpToNow)
             Chip(text = "i", color = colors.ink2, onClick = onInfo)
         }
@@ -716,22 +823,6 @@ private fun NowChip(follow: Boolean, onJumpToNow: () -> Unit) {
         selected = follow,
         onClick = onJumpToNow,
     )
-}
-
-/** Value row plus the status chip, both driven by the same 1 Hz ticker. */
-@Composable
-private fun StatusChipSlot(
-    graph: AppGraph,
-    unit: DoseUnitSetting,
-    paused: Boolean,
-    metric: ChartMetric = ChartMetric.DOSE,
-) {
-    val colors = LocalAppColors.current
-    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
-        val freshness = liveReading(graph, unit, metric = metric)
-        Spacer(Modifier.weight(1f))
-        FreshnessOrPause(freshness, paused)
-    }
 }
 
 @Composable
@@ -761,6 +852,7 @@ private fun BoxScope.LandscapeTopBar(
     onBack: () -> Unit,
     onInfo: () -> Unit,
     onJumpToNow: () -> Unit,
+    onOpenDetails: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -786,9 +878,14 @@ private fun BoxScope.LandscapeTopBar(
                 style = type.footnote,
                 color = colors.ink2,
                 maxLines = 1,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onOpenDetails,
+                ),
             )
         }
-        val freshness = liveReading(graph, unit, compact = true)
+        val freshness = liveReading(graph, unit, showValue = false)
         FreshnessOrPause(freshness, paused)
         NowChip(follow, onJumpToNow)
         Chip(text = "i", color = colors.ink2, onClick = onInfo)
@@ -888,29 +985,11 @@ private fun RowScope.ControlChips(
 private fun ExpandedStats(
     stats: WindowStats?,
     unit: DoseUnitSetting,
-    expanded: Boolean,
-    onToggle: () -> Unit,
     metric: ChartMetric = ChartMetric.DOSE,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val unitLabel = ChartMetrics.unitLabel(metric, unit)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onToggle)
-            .padding(horizontal = Dimens.space3, vertical = Dimens.space1),
-    ) {
-        Text(
-            text = "расширенная статистика",
-            style = type.footnote,
-            color = colors.ink2,
-        )
-        Spacer(Modifier.weight(1f))
-        Text(text = if (expanded) "▴" else "▾", style = type.footnote, color = colors.ink2)
-    }
-    if (!expanded) return
     StatGrid(
         cells = listOf(
             StatCell(stats?.let { DoseFormat.rate(it.min, unit) } ?: "—", "мин"),
