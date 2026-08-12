@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.radiacode.baseline.AlarmSensitivity
@@ -158,6 +159,21 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
 
     suspend fun setLanguage(language: AppLanguage) {
         dataStore.edit { it[LANGUAGE] = language.id }
+    }
+
+    /** Масштаб оси спектра: режим и степень (для степенного). */
+    val spectrumScaleId: Flow<String> =
+        dataStore.data.map { it[SPECTRUM_SCALE] ?: "log" }
+
+    val spectrumScaleRoot: Flow<Int> =
+        dataStore.data.map { it[SPECTRUM_SCALE_ROOT] ?: 2 }
+
+    suspend fun setSpectrumScale(id: String) {
+        dataStore.edit { it[SPECTRUM_SCALE] = id }
+    }
+
+    suspend fun setSpectrumScaleRoot(root: Int) {
+        dataStore.edit { it[SPECTRUM_SCALE_ROOT] = root }
     }
 
     val themeSetting: Flow<ThemeSetting> =
@@ -354,6 +370,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val WHY_EXPANDED = booleanPreferencesKey("why_calculations_expanded")
         private val THEME = stringPreferencesKey("theme")
         private val LANGUAGE = stringPreferencesKey("language")
+        private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
+        private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")
         private val CHART_SPANS = stringPreferencesKey("chart_spans")
 

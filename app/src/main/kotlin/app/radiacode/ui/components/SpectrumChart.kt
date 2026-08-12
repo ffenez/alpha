@@ -18,6 +18,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.radiacode.analysis.SpectrumDisplay
+import app.radiacode.ui.logic.SpectrumScale
 import java.util.Locale
 import kotlin.math.log10
 import kotlin.math.max
@@ -49,7 +50,8 @@ data class SpectrumChartSpec(
     val columns: List<Float>,
     /** Background overlay series in the same columns; null = no overlay. */
     val overlay: List<Float>? = null,
-    val logScale: Boolean = true,
+    /** Как высота столбца получается из числа импульсов. */
+    val scale: SpectrumScale = SpectrumScale.Log,
     /** Scale top: linear max or a power of ten for log (see [SpectrumDisplay.logTop]). */
     val yTop: Float,
     val peaks: List<SpectrumPeakMark> = emptyList(),
@@ -91,16 +93,10 @@ fun SpectrumChart(
     ) {
         if (spec.columns.isEmpty() || spec.yTop <= 0f) return@Canvas
 
-        // y-axis labels: log decades or linear quarters.
-        val yLabels: List<Pair<Float, String>> = if (spec.logScale) {
-            (0..SpectrumDisplay.decadeCount(spec.yTop)).map { decade ->
-                10f.pow(decade) to SpectrumDisplay.decadeLabel(decade)
-            }
-        } else {
-            (1..3).map { quarter ->
-                val value = spec.yTop * quarter / 4f
-                value to compactCount(value)
-            }
+        // Подписи оси задаёт сам масштаб: декады у логарифма, четверти у
+        // линейного, неравномерные значения у степенного.
+        val yLabels: List<Pair<Float, String>> = spec.scale.ticks(spec.yTop).map { value ->
+            value to compactCount(value)
         }
 
         val labelHeight = textMeasurer.measure("0", axisStyle).size.height
@@ -114,22 +110,24 @@ fun SpectrumChart(
         if (plotW <= 0 || plotH <= 0) return@Canvas
         val bottom = padT + plotH
 
-        val logMin = log10(LOG_FLOOR)
-        val logMax = log10(max(spec.yTop, 1f))
-        fun y(value: Float): Float {
-            val fraction = if (spec.logScale) {
-                (log10(max(value, LOG_FLOOR)) - logMin) / (logMax - logMin)
-            } else {
-                value / spec.yTop
-            }
-            return padT + (1f - fraction.coerceIn(0f, 1f)) * plotH
-        }
+        fun y(value: Float): Float =
+            padT + (1f - spec.scale.fraction(value, spec.yTop)) * plotH
 
         val n = spec.columns.size
         fun x(index: Int): Float =
             padL + if (n <= 1) 0f else index * plotW / (n - 1)
 
         val grid = colors.ink2.copy(alpha = 0.14f)
+
+        // 1a. Тонкая сетка внутри декады (только логарифм): без неё
+        // положение между 10 и 100 нечитаемо — 30 и 80 выглядят одинаково.
+        if (spec.scale is SpectrumScale.Log) {
+            val minor = colors.ink2.copy(alpha = 0.06f)
+            for (value in SpectrumScale.Log.minorTicks(spec.yTop)) {
+                val yy = y(value)
+                drawLine(minor, Offset(padL, yy), Offset(size.width - padR, yy), 1f)
+            }
+        }
 
         // 1. Horizontal gridlines + y labels.
         for ((value, label) in yLabels) {

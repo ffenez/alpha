@@ -48,6 +48,7 @@ import app.radiacode.ui.components.DiffChart
 import app.radiacode.ui.components.DiffChartSpec
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.SpectrumChart
+import app.radiacode.ui.logic.SpectrumScale
 import app.radiacode.ui.components.SpectrumChartSpec
 import app.radiacode.ui.logic.CompareFormat
 import app.radiacode.ui.logic.HistoryFormat
@@ -264,7 +265,7 @@ private fun IntervalSection(
                     SpectrumChart(
                         spec = SpectrumChartSpec(
                             columns = columns,
-                            logScale = logScale,
+                            scale = if (logScale) SpectrumScale.Log else SpectrumScale.Linear,
                             yTop = if (logScale) {
                                 SpectrumDisplay.logTop(dataMax)
                             } else {
@@ -440,7 +441,7 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                         spec = SpectrumChartSpec(
                             columns = columnsA,
                             overlay = columnsB,
-                            logScale = logScale,
+                            scale = if (logScale) SpectrumScale.Log else SpectrumScale.Linear,
                             yTop = if (logScale) {
                                 SpectrumDisplay.logTop(dataMax)
                             } else {

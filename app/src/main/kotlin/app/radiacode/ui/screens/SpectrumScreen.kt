@@ -68,6 +68,8 @@ import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Segmented
+import androidx.compose.material3.Slider
+import app.radiacode.ui.logic.SpectrumScale
 import app.radiacode.ui.components.SpectrumChart
 import app.radiacode.ui.components.SpectrumChartSpec
 import app.radiacode.ui.components.NuclideInfoDialog
@@ -529,6 +531,16 @@ private fun SpectrumInfoCard(calibrationLine: String, onClose: () -> Unit) {
                 color = colors.ink2,
             )
             Text(
+                text = "Масштаб оси импульсов: линейный передаёт отношение площадей, но " +
+                    "прижимает всё, кроме самого высокого, к нулю; логарифмический " +
+                    "показывает и одиночные отсчёты, и фотопик, но зрительно уравнивает " +
+                    "величины, различающиеся в разы; степенной 1/n — промежуточный (1/2 — " +
+                    "привычный корень). Все три — монотонные преобразования одного числа: " +
+                    "меняется распределение высоты, а не данные.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            Text(
                 text = "Щипок по графику — масштаб, перетаскивание — сдвиг. Сглаживание " +
                     "меняет только отображение: исходные данные не трогаются.",
                 style = type.bodySmall,
@@ -552,7 +564,13 @@ private fun SpectrumContent(
     val type = LocalAppTypography.current
     val hub = graph.spectrumHub
 
-    var logScale by rememberSaveable { mutableStateOf(true) }
+    // Масштаб оси — настройка ПРОСМОТРА, и она запоминается: человек выбирает
+    // её под задачу (искать пик, смотреть форму континуума), а не заново при
+    // каждом открытии.
+    val scaleId by graph.settings.spectrumScaleId.collectAsState(initial = SpectrumScale.Log.id)
+    val scaleRoot by graph.settings.spectrumScaleRoot.collectAsState(initial = 2)
+    val scale = remember(scaleId, scaleRoot) { SpectrumScale.of(scaleId, scaleRoot) }
+    val settingsScope = rememberCoroutineScope()
     var minusBackground by rememberSaveable { mutableStateOf(false) }
     var smoothing by rememberSaveable { mutableStateOf(false) }
     var window by remember { mutableStateOf<EnergyWindow?>(null) }
@@ -594,12 +612,53 @@ private fun SpectrumContent(
             modifier = Modifier.weight(1.7f),
         )
         Segmented(
-            options = listOf("Лог", "Лин"),
-            selectedIndex = if (logScale) 0 else 1,
-            onSelect = { logScale = it == 0 },
-            modifier = Modifier.weight(1f),
+            options = listOf("Лин", "Степень", "Лог"),
+            selectedIndex = when (scale) {
+                SpectrumScale.Linear -> 0
+                is SpectrumScale.Power -> 1
+                SpectrumScale.Log -> 2
+            },
+            onSelect = { index ->
+                settingsScope.launch {
+                    graph.settings.setSpectrumScale(
+                        when (index) {
+                            0 -> SpectrumScale.Linear.id
+                            1 -> SpectrumScale.Power(scaleRoot).id
+                            else -> SpectrumScale.Log.id
+                        },
+                    )
+                }
+            },
+            modifier = Modifier.weight(1.6f),
         )
         Chip(text = "i", color = colors.ink2, onClick = { infoOpen = true })
+    }
+    // Ползунок степени: 1/1 совпадает с линейным, 1/2 — привычный в
+    // гамма-спектрометрии корень, дальше вид приближается к логарифму, не
+    // становясь им. Показывается только в своём режиме.
+    if (scale is SpectrumScale.Power) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+            modifier = Modifier.padding(horizontal = Dimens.space1),
+        ) {
+            Text(
+                text = "степень 1/$scaleRoot",
+                style = type.footnote,
+                color = colors.ink2,
+            )
+            Slider(
+                value = scaleRoot.toFloat(),
+                onValueChange = { value ->
+                    settingsScope.launch {
+                        graph.settings.setSpectrumScaleRoot(value.roundToInt())
+                    }
+                },
+                valueRange = SpectrumScale.MIN_ROOT.toFloat()..SpectrumScale.MAX_ROOT.toFloat(),
+                steps = SpectrumScale.MAX_ROOT - SpectrumScale.MIN_ROOT - 1,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
     if (infoOpen) {
         SpectrumInfoCard(
@@ -654,7 +713,7 @@ private fun SpectrumContent(
         }
     }
     val dataMax = maxOf(columns.maxOrNull() ?: 0f, overlayColumns?.maxOrNull() ?: 0f)
-    val yTop = if (logScale) SpectrumDisplay.logTop(dataMax) else maxOf(dataMax * 1.15f, 10f)
+    val yTop = if (scale is SpectrumScale.Log) SpectrumDisplay.logTop(dataMax) else maxOf(dataMax * 1.15f, 10f)
 
     // --- cautious isotope analysis (always on raw counts, never display data) ---
     val analysisReady = model.isSpectrometer &&
@@ -701,7 +760,7 @@ private fun SpectrumContent(
                 spec = SpectrumChartSpec(
                     columns = columns,
                     overlay = overlayColumns,
-                    logScale = logScale,
+                    scale = scale,
                     yTop = yTop,
                     peaks = peakMarks,
                     energyTicks = SpectrumDisplay.energyTicks(visible),
