@@ -230,6 +230,16 @@ private fun ChartCard(detail: SessionDetail, unit: DoseUnitSetting) {
                         StatCell(HistoryFormat.count(detail.summary.stats.sampleCount), "n"),
                     ),
                 )
+                // Здесь линия — СРЕДНЕЕ интервала, а не медиана, как на
+                // полноэкранном графике: сводка сессии считается одним лёгким
+                // запросом по средним корзин. Разные статистики нельзя молча
+                // называть одним словом — на всплеске они расходятся.
+                Text(
+                    text = "линия — среднее по интервалу (на полноэкранном графике — " +
+                        "медиана); пропуски не соединяются",
+                    style = type.footnote,
+                    color = colors.muted,
+                )
             }
         }
     }

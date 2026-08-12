@@ -199,7 +199,16 @@ object Spectrogram {
         }
         val neededForWidth = if (maxColumns > 0) spanMillis / 1000.0 / maxColumns else 0.0
         val needed = maxOf(neededForStatistics, neededForWidth)
-        return DISPLAY_STEPS_SECONDS.firstOrNull { it >= needed } ?: DISPLAY_STEPS_SECONDS.last()
+        val fromLadder = DISPLAY_STEPS_SECONDS.firstOrNull { it >= needed }
+            ?: DISPLAY_STEPS_SECONDS.last()
+        // Шаг не может быть мельче самого длинного среза в окне. В фоне спектр
+        // опрашивается раз в 10 минут, и такой срез — это ОДНО измерение за
+        // десять минут: разложив его в пятиминутную ячейку, картинка нарисовала
+        // бы рядом пустую и соврала бы, что прибор молчал. Растягивать его на
+        // несколько ячеек тоже нельзя — это интерполяция, которой у нас нигде
+        // нет: внутри интервала распределение импульсов во времени неизвестно.
+        val coarsest = slices.maxOfOrNull { it.intervalSeconds } ?: 0L
+        return maxOf(fromLadder, coarsest)
     }
 
     /**

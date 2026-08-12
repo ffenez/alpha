@@ -229,4 +229,19 @@ class SpectrogramTest {
         val step = Spectrogram.displayStepSeconds(slices, 3_000_000L, maxColumns = 100)
         assertTrue(3_000_000L / 1000 / step <= 100, "колонок больше, чем помещается")
     }
+
+    @Test
+    fun `the step is never finer than the coarsest slice in the window`() {
+        // Фоновый опрос раз в 10 минут: срез покрывает 600 с, и картинка не
+        // имеет права рисовать рядом с ним пустые пятиминутные ячейки.
+        val bands = FloatArray(Spectrogram.BAND_COUNT).also { it[10] = 15_000f }
+        val background = (1..6).map {
+            SpectrogramSlice(it * 600_000L, 600, bands.copyOf(), cps = null, doseMicroSvH = null)
+        }
+        val step = Spectrogram.displayStepSeconds(background, 3_600_000L, maxColumns = 240)
+        assertTrue(step >= 600L, "шаг $step с мельче среза 600 с")
+
+        val grid = Spectrogram.grid(background, 0L, 3_600_000L, step * 1000L)
+        assertTrue(grid.count { it == null } <= 1, "появились ложные пропуски: $grid")
+    }
 }

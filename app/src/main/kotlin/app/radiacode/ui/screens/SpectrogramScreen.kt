@@ -61,6 +61,18 @@ private const val MAX_COLUMNS = 240
  */
 private const val MIN_WINDOW_MILLIS = 5L * 60_000L
 
+/**
+ * Честный ответ на «почему в фоне почти ничего»: спектр в фоне опрашивается
+ * раз в 10 минут — тем же опросом, который кормит радоновый индикатор. Чаще
+ * нельзя дёшево: запрос спектра идёт по тому же однозапросному каналу, что и
+ * секундные показания, и его учащение отнимает пропускную способность у самих
+ * измерений. Частая запись включается, когда экран открыт.
+ */
+private const val BACKGROUND_NOTE =
+    "В фоне спектр опрашивается раз в 10 минут — этим же опросом живёт радоновый " +
+        "индикатор. Пока открыт экран Спектра или Спектрограммы, запись идёт раз в 5 с. " +
+        "История спектрограммы хранится только в памяти приложения."
+
 private val HH_MM_SS = DateTimeFormatter.ofPattern("HH:mm:ss")
 
 /**
@@ -182,19 +194,21 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                         color = colors.ink2,
                     )
                     Text(
-                        text = "Спектрограмма пишется, пока прибор подключён и открыт " +
-                            "экран Спектра или Спектрограммы.",
+                        text = BACKGROUND_NOTE,
                         style = type.bodySmall,
                         color = colors.muted,
                     )
                 }
             }
             slices.isEmpty() -> Card(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "накапливаем первые интервалы… столбцы появятся через ~10 с",
-                    style = type.bodySmall,
-                    color = colors.muted,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    Text(
+                        text = "накапливаем первые интервалы… столбцы появятся через ~10 с",
+                        style = type.bodySmall,
+                        color = colors.muted,
+                    )
+                    Text(text = BACKGROUND_NOTE, style = type.footnote, color = colors.muted)
+                }
             }
             else -> {
                 Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
