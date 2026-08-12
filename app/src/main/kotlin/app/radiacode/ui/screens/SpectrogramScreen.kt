@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -153,14 +154,18 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     }
     val windowMillis = windowChoice ?: autoWindow
     val fromMillis = toMillis?.let { it - windowMillis }
-    val stepSeconds = remember(slices) {
+    // Ключ памяти обязан включать ОКНО: без него выбор новой ступени менял
+    // только ось, а шаг колонки и сами колонки оставались от прежнего окна —
+    // картинка перестраивалась лишь со следующим срезом, то есть до пяти
+    // секунд спустя, и это читалось как «ступень не работает».
+    val stepSeconds = remember(slices, windowMillis) {
         if (fromMillis == null || toMillis == null) {
             Spectrogram.DISPLAY_STEPS_SECONDS.first()
         } else {
             Spectrogram.displayStepSeconds(slices, toMillis - fromMillis, MAX_COLUMNS)
         }
     }
-    val columnsData = remember(slices, stepSeconds) {
+    val columnsData = remember(slices, windowMillis, stepSeconds) {
         if (fromMillis == null || toMillis == null) {
             emptyList()
         } else {
@@ -175,6 +180,9 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     val scaleTop = remember(columnsData, bandGroups) {
         Spectrogram.scaleTop(columnsData, bandGroups)
     }
+    // Курсор указывает на НОМЕР колонки; после смены окна номер означает
+    // другой момент времени, поэтому выбор снимается.
+    LaunchedEffect(windowMillis) { selectedIndex = null }
     val selected = selectedIndex?.let { columnsData.getOrNull(it) }
 
     Column(

@@ -825,8 +825,19 @@ private fun SpectrumContent(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
                 modifier = Modifier.padding(horizontal = Dimens.space1),
             ) {
+                // Сдвиг возможен только когда есть куда двигать: при полном
+                // диапазоне окно уже включает всю шкалу, и перетаскивание
+                // ничего не меняет. Это состояние называется словами — иначе
+                // жест выглядит сломанным.
+                val wholeRange = visible.widthKeV >= full.widthKeV - 1f
                 Text(
-                    text = "диапазон ${SpectrumFormat.windowLabel(visible)}",
+                    text = if (wholeRange) {
+                        "диапазон ${SpectrumFormat.windowLabel(visible)} · весь · " +
+                            "щипок увеличит"
+                    } else {
+                        "диапазон ${SpectrumFormat.windowLabel(visible)} · " +
+                            "перетаскивание сдвигает"
+                    },
                     style = type.footnote,
                     color = colors.ink2,
                     modifier = Modifier.weight(1f),

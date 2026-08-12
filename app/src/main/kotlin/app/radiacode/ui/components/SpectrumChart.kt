@@ -1,6 +1,7 @@
 package app.radiacode.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -82,12 +83,23 @@ fun SpectrumChart(
                 if (onGesture == null) {
                     Modifier
                 } else {
-                    Modifier.pointerInput(Unit) {
-                        detectTransformGestures { centroid, pan, zoom, _ ->
-                            val w = size.width.toFloat().coerceAtLeast(1f)
-                            onGesture(zoom, pan.x / w, (centroid.x / w).coerceIn(0f, 1f))
+                    // Экран прокручивается по вертикали, поэтому горизонтальный
+                    // сдвиг обязан забирать событие себе: иначе прокрутка
+                    // перехватывает палец и график «не двигается».
+                    Modifier
+                        .pointerInput(Unit) {
+                            detectTransformGestures(panZoomLock = true) { centroid, pan, zoom, _ ->
+                                val w = size.width.toFloat().coerceAtLeast(1f)
+                                onGesture(zoom, pan.x / w, (centroid.x / w).coerceIn(0f, 1f))
+                            }
                         }
-                    }
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures { change, dragAmount ->
+                                change.consume()
+                                val w = size.width.toFloat().coerceAtLeast(1f)
+                                onGesture(1f, dragAmount / w, 0.5f)
+                            }
+                        }
                 },
             ),
     ) {
