@@ -166,6 +166,84 @@ interface Strings {
     fun ratioToBackground(ratio: String, interval: String?): String
     fun confidenceInterval(level: Int, low: String, high: String): String
 
+
+    // --- первый запуск ---
+    val onboardingBrand: String
+    val onboardingConnectTitle: String
+    val onboardingConnectBody: String
+    val onboardingPermissions: String
+    val onboardingBluetoothDenied: String
+    val retry: String
+    val start: String
+    val onboardingBackgroundTitle: String
+    val onboardingBackgroundBody: String
+    val onboardingBatteryNote: String
+    val later: String
+    val allow: String
+    val onboardingScanTitle: String
+    val scanning: String
+    val onboardingScanBody: String
+    val onboardingScanFailed: String
+    val connecting2: String
+    val connect: String
+
+
+    // --- Спектр ---
+    val spectrumAccumulating: String
+    val spectrumContinuation: String
+    val spectrogramEntry: String
+    val radonEntry: String
+    val formatUnsupportedTitle: String
+    fun formatUnsupportedBody(version: Int): String
+    val spectrumReading: String
+    val noInstrumentLink: String
+    val spectrumAfterConnect: String
+    val exportFailedTitle: String
+    val exportFailedBody: String
+    val importAction: String
+    val exportXml: String
+    val exportN42: String
+    val exportFormatsNote: String
+    val savedToPrefix: String
+    val continuationTitle: String
+    val disable: String
+    val snapshotDeltaPrefix: String
+    fun sumImpossible(reason: String): String
+    val sumShown: String
+    val noLiveAccumulation: String
+    val continuationWarning: String
+    val spectrumInfoTitle: String
+    val spectrumInfoAxes: String
+    val spectrumInfoSignificance: String
+    val spectrumInfoCandidate: String
+    val spectrumInfoScales: String
+    val spectrumInfoGestures: String
+    val scaleLinear: String
+    val scalePower: String
+    val scaleLog: String
+    fun powerDegree(root: Int): String
+    val spectrumModeRaw: String
+    val spectrumModeMinusBackground: String
+    val smoothing: String
+    val energyRanges: String
+    val peakTableEnergy: String
+    val peakTableNet: String
+    val peakTableSignificance: String
+    val peakTableCandidate: String
+    val notEnoughForPeaks: String
+    val noPeaksFound: String
+    val peakTableCaveat: String
+    val recordBackground: String
+    val save: String
+    val reset: String
+    val resetSpectrumTitle: String
+    val resetSpectrumBody: String
+    val cancel: String
+    fun edgeCounts(counts: String): String
+    fun rangeWhole(range: String): String
+    fun rangeDraggable(range: String): String
+    val noSpectrumBackground: String
+
     // --- сигналы прибора ---
     val deviceSignals: String
     val deviceSignalsNote: String
@@ -212,6 +290,25 @@ fun Strings.allTexts(): List<String> = listOf(
     ratioToBackground("1,8", null), confidenceInterval(95, "1,5", "2,2"),
     deviceSignals, deviceSignalsNote, deviceSound, deviceVibro,
     stateUnknown, stateOnByApp, stateOffByApp, on, off,
+    onboardingBrand, onboardingConnectTitle, onboardingConnectBody, onboardingPermissions,
+    onboardingBluetoothDenied, retry, start, onboardingBackgroundTitle, onboardingBackgroundBody,
+    onboardingBatteryNote, later, allow, onboardingScanTitle, scanning, onboardingScanBody,
+    onboardingScanFailed, connecting2, connect,
+    spectrumAccumulating, spectrumContinuation, spectrogramEntry, radonEntry,
+    formatUnsupportedTitle, formatUnsupportedBody(2), spectrumReading, noInstrumentLink,
+    spectrumAfterConnect, exportFailedTitle, exportFailedBody, importAction, exportXml,
+    exportN42, exportFormatsNote, savedToPrefix, continuationTitle, disable,
+    snapshotDeltaPrefix, sumImpossible("—"), sumShown, noLiveAccumulation,
+    continuationWarning, spectrumInfoTitle, spectrumInfoAxes, spectrumInfoSignificance,
+    spectrumInfoCandidate, spectrumInfoScales, spectrumInfoGestures,
+    scaleLinear, scalePower, scaleLog, powerDegree(2), spectrumModeRaw,
+    spectrumModeMinusBackground, smoothing, energyRanges, peakTableEnergy, peakTableNet,
+    peakTableSignificance, peakTableCandidate, notEnoughForPeaks, noPeaksFound,
+    peakTableCaveat, recordBackground, save, reset, resetSpectrumTitle, resetSpectrumBody,
+    cancel, edgeCounts("8 421"), rangeWhole("20–3000"), rangeDraggable("100–1500"),
+    noSpectrumBackground,
+
+
 )
 
 val LocalStrings = staticCompositionLocalOf<Strings> { RuStrings }

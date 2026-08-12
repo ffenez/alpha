@@ -35,6 +35,7 @@ import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.logic.OnboardingPermissions
+import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -90,7 +91,7 @@ fun OnboardingScreen(graph: AppGraph) {
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Text(
-            text = "Радиакод",
+            text = LocalStrings.current.onboardingBrand,
             style = LocalAppTypography.current.title,
             color = LocalAppColors.current.ink,
         )
@@ -128,35 +129,30 @@ private fun hasAllPermissions(context: android.content.Context): Boolean =
 @Composable
 private fun IntroStep(denied: Boolean, onContinue: () -> Unit) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
-            Text("Подключение прибора", style = type.title, color = colors.ink)
+            Text(strings.onboardingConnectTitle, style = type.title, color = colors.ink)
             Text(
-                text = "Приложение подключается к дозиметру RadiaCode по Bluetooth " +
-                    "и непрерывно записывает уровень фона. Все измерения остаются " +
-                    "на этом телефоне.",
+                text = strings.onboardingConnectBody,
                 style = type.body,
                 color = colors.ink2,
             )
             Text(
-                text = "Понадобятся разрешения: Bluetooth — чтобы найти и подключить " +
-                    "прибор, уведомления — чтобы показывать измерение, пока " +
-                    "приложение свёрнуто.",
+                text = strings.onboardingPermissions,
                 style = type.bodySmall,
                 color = colors.muted,
             )
             if (denied) {
                 Text(
-                    text = "Без разрешения на Bluetooth прибор найти нельзя. " +
-                        "Если запрос больше не показывается — включите разрешение " +
-                        "в настройках Android для этого приложения.",
+                    text = strings.onboardingBluetoothDenied,
                     style = type.bodySmall,
                     color = colors.warn,
                 )
             }
             AppButton(
-                text = if (denied) "Повторить" else "Начать",
+                text = if (denied) strings.retry else strings.start,
                 onClick = onContinue,
                 primary = true,
                 modifier = Modifier.align(Alignment.End),
@@ -168,19 +164,18 @@ private fun IntroStep(denied: Boolean, onContinue: () -> Unit) {
 @Composable
 private fun BatteryStep(onAllow: () -> Unit, onSkip: () -> Unit) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
-            Text("Работа в фоне", style = type.title, color = colors.ink)
+            Text(strings.onboardingBackgroundTitle, style = type.title, color = colors.ink)
             Text(
-                text = "Чтобы запись фона не прерывалась ночью и при закрытом " +
-                    "экране, исключите приложение из оптимизации батареи. Иначе " +
-                    "Android со временем разорвёт связь с прибором.",
+                text = strings.onboardingBackgroundBody,
                 style = type.body,
                 color = colors.ink2,
             )
             Text(
-                text = "Это увеличит расход батареи — обычно незначительно.",
+                text = strings.onboardingBatteryNote,
                 style = type.bodySmall,
                 color = colors.muted,
             )
@@ -188,8 +183,8 @@ private fun BatteryStep(onAllow: () -> Unit, onSkip: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
                 modifier = Modifier.align(Alignment.End),
             ) {
-                AppButton(text = "Позже", onClick = onSkip)
-                AppButton(text = "Разрешить", onClick = onAllow, primary = true)
+                AppButton(text = strings.later, onClick = onSkip)
+                AppButton(text = strings.allow, onClick = onAllow, primary = true)
             }
         }
     }
@@ -199,6 +194,7 @@ private fun BatteryStep(onAllow: () -> Unit, onSkip: () -> Unit) {
 private fun ScanStep(graph: AppGraph) {
     val context = LocalContext.current
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
 
     val found = remember { mutableStateOf<Map<String, DiscoveredRadiaCode>>(emptyMap()) }
@@ -215,27 +211,24 @@ private fun ScanStep(graph: AppGraph) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
-            Text("Поиск прибора", style = type.title, color = colors.ink)
+            Text(strings.onboardingScanTitle, style = type.title, color = colors.ink)
 
             val devices = found.value.values.sortedByDescending { it.rssi }
             if (devices.isEmpty() && !scanError) {
                 Text(
-                    text = "ищем приборы рядом…",
+                    text = strings.scanning,
                     style = type.bodySmall,
                     color = colors.ink2,
                 )
                 Text(
-                    text = "Включите прибор и держите его рядом. Официальное " +
-                        "приложение RadiaCode должно быть закрыто: прибор " +
-                        "соединяется только с одним телефоном.",
+                    text = strings.onboardingScanBody,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
             }
             if (scanError) {
                 Text(
-                    text = "Поиск не запустился. Проверьте, что Bluetooth включён, " +
-                        "и откройте приложение заново.",
+                    text = strings.onboardingScanFailed,
                     style = type.body,
                     color = colors.warn,
                 )
@@ -267,6 +260,7 @@ private fun DeviceRow(
     onConnect: () -> Unit,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -289,12 +283,12 @@ private fun DeviceRow(
         }
         if (connecting) {
             Text(
-                text = "подключение…",
+                text = strings.connecting2,
                 style = type.label,
                 color = colors.dataText,
             )
         } else {
-            AppButton(text = "Подключить", onClick = onConnect, enabled = enabled)
+            AppButton(text = strings.connect, onClick = onConnect, enabled = enabled)
         }
     }
 }

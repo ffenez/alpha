@@ -135,6 +135,135 @@ object RuStrings : Strings {
     override fun confidenceInterval(level: Int, low: String, high: String) =
         " ($level % интервал $low–$high)"
 
+    override val onboardingBrand = "Alpha"
+    override val onboardingConnectTitle = "Подключение прибора"
+    override val onboardingConnectBody =
+        "Приложение подключается к дозиметру RadiaCode по Bluetooth и непрерывно " +
+            "записывает уровень фона. Все измерения остаются на этом телефоне."
+    override val onboardingPermissions =
+        "Понадобятся разрешения: Bluetooth — чтобы найти и подключить прибор, " +
+            "уведомления — чтобы показывать измерение, пока приложение свёрнуто."
+    override val onboardingBluetoothDenied =
+        "Без разрешения на Bluetooth прибор найти нельзя. Если запрос больше не " +
+            "показывается — включите разрешение в настройках Android для этого приложения."
+    override val retry = "Повторить"
+    override val start = "Начать"
+    override val onboardingBackgroundTitle = "Работа в фоне"
+    override val onboardingBackgroundBody =
+        "Чтобы запись фона не прерывалась ночью и при закрытом экране, исключите " +
+            "приложение из оптимизации батареи. Иначе Android со временем разорвёт " +
+            "связь с прибором."
+    override val onboardingBatteryNote = "Это увеличит расход батареи — обычно незначительно."
+    override val later = "Позже"
+    override val allow = "Разрешить"
+    override val onboardingScanTitle = "Поиск прибора"
+    override val scanning = "ищем приборы рядом…"
+    override val onboardingScanBody =
+        "Включите прибор и держите его рядом. Официальное приложение RadiaCode должно " +
+            "быть закрыто: прибор соединяется только с одним телефоном."
+    override val onboardingScanFailed =
+        "Поиск не запустился. Проверьте, что Bluetooth включён, и откройте приложение заново."
+    override val connecting2 = "подключение…"
+    override val connect = "Подключить"
+
+    override val spectrumAccumulating = "текущее накопление"
+    override val spectrumContinuation = "продолжение: "
+    override val spectrogramEntry = "Спектрограмма ▸"
+    override val radonEntry = "Радон ▸"
+    override val formatUnsupportedTitle = "Формат не поддержан"
+
+    override fun formatUnsupportedBody(version: Int) =
+        "Прибор передаёт спектр в формате версии $version, который это приложение пока " +
+            "не умеет читать. Остальные экраны работают как обычно."
+
+    override val spectrumReading = "читаем спектр с прибора…"
+    override val noInstrumentLink = "нет соединения с прибором"
+    override val spectrumAfterConnect =
+        "Спектр появится после подключения — статус соединения виден на Главной."
+    override val exportFailedTitle = "Экспорт не удался"
+    override val exportFailedBody = "Файл не записался — попробуйте другую папку."
+    override val importAction = "Импорт"
+    override val exportXml = "Экспорт XML"
+    override val exportN42 = "Экспорт N42"
+    override val exportFormatsNote =
+        "XML — формат приложения RadiaCode · N42 — стандарт программ анализа · " +
+            "импортированный снимок появится в Истории"
+    override val savedToPrefix = " · файл сохранён в "
+    override val continuationTitle = "Продолжение накопления"
+    override val disable = "отключить"
+    override val snapshotDeltaPrefix = " · Δt снимка "
+
+    override fun sumImpossible(reason: String) =
+        "сумма невозможна: $reason — показано текущее накопление"
+
+    override val sumShown =
+        "показана сумма снимка и текущего накопления (каналы складываются, Δt " +
+            "суммируется); «Сохранить» сохранит сумму"
+    override val noLiveAccumulation = "живого накопления пока нет — показан сохранённый снимок"
+    override val continuationWarning =
+        "Прибор копит спектр независимо от приложения. Если снимок сделан из текущего " +
+            "накопления без сброса, импульсы посчитаются дважды — сначала сбросьте спектр."
+    override val spectrumInfoTitle = "Как читать спектр"
+    override val spectrumInfoAxes =
+        "По горизонтали энергия в кэВ, по вертикали импульсы в канале за всё накопление. " +
+            "В одну колонку экрана попадает несколько каналов, и берётся их максимум: " +
+            "узкий пик не теряется при отдалении, но линия континуума проходит по верхней " +
+            "огибающей."
+    override val spectrumInfoSignificance =
+        "Значимость пика — это его нетто-площадь, делённая на собственную стандартную " +
+            "неопределённость: в неё входит и статистика окна пика, и неопределённость " +
+            "оценки континуума под ним. Структура принимается за пик, только если её " +
+            "ширина согласуется с разрешением детектора."
+    override val spectrumInfoCandidate =
+        "Кандидат нуклида — это совпадение энергии, а не обнаружение: надёжная " +
+            "идентификация требует накопленной статистики и, как правило, нескольких " +
+            "линий одного нуклида."
+    override val spectrumInfoScales =
+        "Масштаб оси импульсов: линейный передаёт отношение площадей, но прижимает всё, " +
+            "кроме самого высокого, к нулю; логарифмический показывает и одиночные " +
+            "отсчёты, и фотопик, но зрительно уравнивает величины, различающиеся в разы; " +
+            "степенной 1/n — промежуточный (1/2 — привычный корень). Все три — монотонные " +
+            "преобразования одного числа: меняется распределение высоты, а не данные."
+    override val spectrumInfoGestures =
+        "Щипок по графику — масштаб, перетаскивание — сдвиг. Сглаживание меняет только " +
+            "отображение: исходные данные не трогаются."
+    override val scaleLinear = "Лин"
+    override val scalePower = "Степень"
+    override val scaleLog = "Лог"
+
+    override fun powerDegree(root: Int) = "степень 1/$root"
+
+    override val spectrumModeRaw = "Спектр"
+    override val spectrumModeMinusBackground = "− фон"
+    override val smoothing = "сглаж."
+    override val energyRanges = "энергетические диапазоны"
+    override val peakTableEnergy = "E, кэВ"
+    override val peakTableNet = "нетто"
+    override val peakTableSignificance = "значимость"
+    override val peakTableCandidate = "кандидат"
+    override val notEnoughForPeaks = "мало данных для анализа пиков — накопите хотя бы минуту"
+    override val noPeaksFound = "выраженных пиков над континуумом не найдено"
+    override val peakTableCaveat =
+        "возможное совпадение ≠ обнаружение · нужно подтверждение: копите дольше · " +
+            "нажмите строку — справка о нуклиде"
+    override val recordBackground = "Записать фон"
+    override val save = "Сохранить"
+    override val reset = "Сброс"
+    override val resetSpectrumTitle = "Сбросить спектр?"
+    override val resetSpectrumBody =
+        "Накопление начнётся заново — на приборе спектр тоже очистится. Сохранённые " +
+            "снимки останутся в Истории."
+    override val cancel = "Отмена"
+
+    override fun edgeCounts(counts: String) = "у верхней границы шкалы: $counts имп."
+
+    override fun rangeWhole(range: String) = "диапазон $range · весь · щипок увеличит"
+
+    override fun rangeDraggable(range: String) = "диапазон $range · перетаскивание сдвигает"
+
+    override val noSpectrumBackground =
+        "фон не записан — запишите спектр обычной обстановки, появятся наложение и «минус фон»"
+
     override val deviceSignals = "Сигналы прибора"
     override val deviceSignalsNote =
         "Звук и вибрация самого прибора. Они работают, даже когда телефон отключён " +

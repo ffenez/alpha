@@ -79,6 +79,7 @@ import app.radiacode.ui.components.SpectrumPeakMark
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.Evidence
 import app.radiacode.ui.logic.SpectrumFormat
+import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -108,6 +109,7 @@ fun SpectrumScreen(
     onStopContinuation: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val hub = graph.spectrumHub
     val scope = rememberCoroutineScope()
@@ -151,7 +153,7 @@ fun SpectrumScreen(
                             liveSpectrum.a1,
                             liveSpectrum.a2,
                         ),
-                        name = "текущее накопление",
+                        name = strings.spectrumAccumulating,
                     ),
                 ),
             )
@@ -182,7 +184,7 @@ fun SpectrumScreen(
                         mergedSpectrum,
                         accumulated = false,
                         origin = SpectrumSnapshotEntity.ORIGIN_USER,
-                        label = "продолжение: " + SpectrumExport.title(contEntity),
+                        label = strings.spectrumContinuation + SpectrumExport.title(contEntity),
                     )
                     graph.measurementRepository.recordSpectrumSaved(
                         now,
@@ -226,12 +228,12 @@ fun SpectrumScreen(
                 onClick = onOpenExperiments,
             )
             Chip(
-                text = "Спектрограмма ▸",
+                text = strings.spectrogramEntry,
                 color = colors.dataText,
                 onClick = onOpenSpectrogram,
             )
             Chip(
-                text = "Радон ▸",
+                text = strings.radonEntry,
                 color = colors.dataText,
                 onClick = onOpenRadon,
             )
@@ -250,11 +252,9 @@ fun SpectrumScreen(
         when {
             unsupported != null -> Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text("Формат не поддержан", style = type.title, color = colors.ink)
+                    Text(strings.formatUnsupportedTitle, style = type.title, color = colors.ink)
                     Text(
-                        text = "Прибор передаёт спектр в формате версии $unsupported, " +
-                            "который это приложение пока не умеет читать. Остальные " +
-                            "экраны работают как обычно.",
+                        text = strings.formatUnsupportedBody(unsupported),
                         style = type.body,
                         color = colors.ink2,
                     )
@@ -266,19 +266,18 @@ fun SpectrumScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     if (connected) {
                         Text(
-                            text = "читаем спектр с прибора…",
+                            text = strings.spectrumReading,
                             style = type.bodySmall,
                             color = colors.ink2,
                         )
                     } else {
                         Text(
-                            text = "нет соединения с прибором",
+                            text = strings.noInstrumentLink,
                             style = type.bodySmall,
                             color = colors.ink2,
                         )
                         Text(
-                            text = "Спектр появится после подключения — статус соединения " +
-                                "виден на Главной.",
+                            text = strings.spectrumAfterConnect,
                             style = type.bodySmall,
                             color = colors.muted,
                         )
@@ -308,6 +307,7 @@ private fun FileActionsSection(
     serialNumber: String?,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -324,8 +324,8 @@ private fun FileActionsSection(
             savedAtMillis = System.currentTimeMillis()
         } else {
             notice = SpectrumFileNotice(
-                title = "Экспорт не удался",
-                lines = listOf("Файл не записался — попробуйте другую папку."),
+                title = strings.exportFailedTitle,
+                lines = listOf(strings.exportFailedBody),
                 isError = true,
             )
         }
@@ -359,12 +359,12 @@ private fun FileActionsSection(
 
     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
         AppButton(
-            text = "Импорт",
+            text = strings.importAction,
             onClick = { importLauncher.launch(arrayOf("*/*")) },
             modifier = Modifier.weight(1f),
         )
         AppButton(
-            text = "Экспорт XML",
+            text = strings.exportXml,
             onClick = {
                 if (spectrum == null) return@AppButton
                 val now = System.currentTimeMillis()
@@ -383,7 +383,7 @@ private fun FileActionsSection(
             modifier = Modifier.weight(1f),
         )
         AppButton(
-            text = "Экспорт N42",
+            text = strings.exportN42,
             onClick = {
                 if (spectrum == null) return@AppButton
                 val now = System.currentTimeMillis()
@@ -408,9 +408,8 @@ private fun FileActionsSection(
     }
     Text(
         text = buildString {
-            append("XML — формат приложения RadiaCode · N42 — стандарт программ анализа · ")
-            append("импортированный снимок появится в Истории")
-            savedAtMillis?.let { append(" · файл сохранён в ").append(timeOfDay(it)) }
+            append(strings.exportFormatsNote)
+            savedAtMillis?.let { append(strings.savedToPrefix).append(timeOfDay(it)) }
         },
         style = type.footnote,
         color = colors.muted,
@@ -434,46 +433,44 @@ private fun ContinuationBanner(
     onStop: () -> Unit,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Продолжение накопления",
+                    text = strings.continuationTitle,
                     style = type.label,
                     color = colors.ink,
                     modifier = Modifier.weight(1f),
                 )
-                Chip(text = "отключить", color = colors.ink2, onClick = onStop)
+                Chip(text = strings.disable, color = colors.ink2, onClick = onStop)
             }
             Text(
                 text = SpectrumExport.title(entity) +
-                    " · Δt снимка " + SpectrumFormat.accumulationClock(entity.durationSeconds),
+                    strings.snapshotDeltaPrefix + SpectrumFormat.accumulationClock(entity.durationSeconds),
                 style = type.valueSmall,
                 color = colors.ink2,
             )
             when {
                 invalidReason != null -> Text(
-                    text = "сумма невозможна: $invalidReason — показано текущее накопление",
+                    text = strings.sumImpossible(invalidReason),
                     style = type.footnote,
                     color = colors.warn,
                 )
                 merging -> Text(
-                    text = "показана сумма снимка и текущего накопления (каналы " +
-                        "складываются, Δt суммируется); «Сохранить» сохранит сумму",
+                    text = strings.sumShown,
                     style = type.footnote,
                     color = colors.muted,
                 )
                 else -> Text(
-                    text = "живого накопления пока нет — показан сохранённый снимок",
+                    text = strings.noLiveAccumulation,
                     style = type.footnote,
                     color = colors.muted,
                 )
             }
             Text(
-                text = "Прибор копит спектр независимо от приложения. Если снимок " +
-                    "сделан из текущего накопления без сброса, импульсы посчитаются " +
-                    "дважды — сначала сбросьте спектр.",
+                text = strings.continuationWarning,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -492,12 +489,13 @@ private fun ContinuationBanner(
 @Composable
 private fun SpectrumInfoCard(calibrationLine: String, onClose: () -> Unit) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Как читать спектр".uppercase(),
+                    text = strings.spectrumInfoTitle.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
@@ -505,10 +503,7 @@ private fun SpectrumInfoCard(calibrationLine: String, onClose: () -> Unit) {
                 Chip(text = "✕", color = colors.ink2, onClick = onClose)
             }
             Text(
-                text = "По горизонтали энергия в кэВ, по вертикали импульсы в канале за всё " +
-                    "накопление. В одну колонку экрана попадает несколько каналов, и " +
-                    "берётся их максимум: узкий пик не теряется при отдалении, но линия " +
-                    "континуума проходит по верхней огибающей.",
+                text = strings.spectrumInfoAxes,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
@@ -518,33 +513,22 @@ private fun SpectrumInfoCard(calibrationLine: String, onClose: () -> Unit) {
                 color = colors.ink2,
             )
             Text(
-                text = "Значимость пика — это его нетто-площадь, делённая на собственную " +
-                    "стандартную неопределённость: в неё входит и статистика окна пика, и " +
-                    "неопределённость оценки континуума под ним. Структура принимается за " +
-                    "пик, только если её ширина согласуется с разрешением детектора.",
+                text = strings.spectrumInfoSignificance,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
             Text(
-                text = "Кандидат нуклида — это совпадение энергии, а не обнаружение: " +
-                    "надёжная идентификация требует накопленной статистики и, как правило, " +
-                    "нескольких линий одного нуклида.",
+                text = strings.spectrumInfoCandidate,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
             Text(
-                text = "Масштаб оси импульсов: линейный передаёт отношение площадей, но " +
-                    "прижимает всё, кроме самого высокого, к нулю; логарифмический " +
-                    "показывает и одиночные отсчёты, и фотопик, но зрительно уравнивает " +
-                    "величины, различающиеся в разы; степенной 1/n — промежуточный (1/2 — " +
-                    "привычный корень). Все три — монотонные преобразования одного числа: " +
-                    "меняется распределение высоты, а не данные.",
+                text = strings.spectrumInfoScales,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
             Text(
-                text = "Щипок по графику — масштаб, перетаскивание — сдвиг. Сглаживание " +
-                    "меняет только отображение: исходные данные не трогаются.",
+                text = strings.spectrumInfoGestures,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
@@ -563,6 +547,7 @@ private fun SpectrumContent(
     onSaveOverride: (() -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val hub = graph.spectrumHub
 
@@ -607,14 +592,14 @@ private fun SpectrumContent(
         // «Накопл. | −фон» не говорило, ЧТО вычитается: теперь режим назван
         // целиком, спектр и спектр минус записанный фон.
         Segmented(
-            options = listOf("Спектр", "− фон"),
+            options = listOf(strings.spectrumModeRaw, strings.spectrumModeMinusBackground),
             selectedIndex = if (subtractOn) 1 else 0,
             onSelect = { minusBackground = it == 1 },
             enabled = { it == 0 || background != null },
             modifier = Modifier.weight(1.7f),
         )
         Segmented(
-            options = listOf("Лин", "Степень", "Лог"),
+            options = listOf(strings.scaleLinear, strings.scalePower, strings.scaleLog),
             selectedIndex = when (scale) {
                 SpectrumScale.Linear -> 0
                 is SpectrumScale.Power -> 1
@@ -645,7 +630,7 @@ private fun SpectrumContent(
             modifier = Modifier.padding(horizontal = Dimens.space1),
         ) {
             Text(
-                text = "степень 1/$scaleRoot",
+                text = strings.powerDegree(scaleRoot),
                 style = type.footnote,
                 color = colors.ink2,
             )
@@ -806,10 +791,11 @@ private fun SpectrumContent(
             val edgeCounts = SpectrumEdge.edgeCounts(spectrum.counts)
             if (edgeCounts > 0) {
                 Text(
-                    text = "у верхней границы шкалы: " +
+                    text = strings.edgeCounts(
                         HistoryFormat.count(
                             edgeCounts.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
-                        ) + " имп.",
+                        ),
+                    ),
                     style = type.footnote,
                     color = colors.muted,
                     modifier = Modifier.padding(horizontal = Dimens.space1),
@@ -827,18 +813,16 @@ private fun SpectrumContent(
                 val wholeRange = visible.widthKeV >= full.widthKeV - 1f
                 Text(
                     text = if (wholeRange) {
-                        "диапазон ${SpectrumFormat.windowLabel(visible)} · весь · " +
-                            "щипок увеличит"
+                        strings.rangeWhole(SpectrumFormat.windowLabel(visible))
                     } else {
-                        "диапазон ${SpectrumFormat.windowLabel(visible)} · " +
-                            "перетаскивание сдвигает"
+                        strings.rangeDraggable(SpectrumFormat.windowLabel(visible))
                     },
                     style = type.footnote,
                     color = colors.ink2,
                     modifier = Modifier.weight(1f),
                 )
                 Chip(
-                    text = "сглаж.",
+                    text = strings.smoothing,
                     color = if (smoothing) colors.dataText else colors.ink2,
                     // Подсветка выбранного — то же правило, что у чипов
                     // графика: обведён = названное состояние включено.
@@ -883,12 +867,12 @@ private fun SpectrumContent(
                     color = colors.muted,
                 )
                 !analysisReady -> Text(
-                    text = "мало данных для анализа пиков — накопите хотя бы минуту",
+                    text = strings.notEnoughForPeaks,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
                 peaks.isEmpty() -> Text(
-                    text = "выраженных пиков над континуумом не найдено",
+                    text = strings.noPeaksFound,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
@@ -908,8 +892,7 @@ private fun SpectrumContent(
                 }
             }
             Text(
-                text = "возможное совпадение ≠ обнаружение · нужно подтверждение: " +
-                    "копите дольше · нажмите строку — справка о нуклиде",
+                text = strings.peakTableCaveat,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -946,17 +929,17 @@ private fun SpectrumContent(
     // --- actions ---
     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
         AppButton(
-            text = "Записать фон",
+            text = strings.recordBackground,
             onClick = { hub.request(SpectrumHub.Command.RECORD_BACKGROUND) },
             modifier = Modifier.weight(1f),
         )
         AppButton(
-            text = "Сохранить",
+            text = strings.save,
             onClick = onSaveOverride ?: { hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
             modifier = Modifier.weight(1f),
         )
         AppButton(
-            text = "Сброс",
+            text = strings.reset,
             onClick = { confirmReset = true },
             enabled = connected,
             modifier = Modifier.weight(1f),
@@ -971,8 +954,7 @@ private fun SpectrumContent(
                 " · накопление " + HistoryFormat.duration(background.durationSeconds) +
                 if (subtractOn) " · показана разница, не меньше нуля" else ""
         } else {
-            "фон не записан — запишите спектр обычной обстановки, появятся " +
-                "наложение и «минус фон»"
+            strings.noSpectrumBackground
         },
         style = type.footnote,
         color = colors.muted,
@@ -991,22 +973,21 @@ private fun SpectrumContent(
         Dialog(onDismissRequest = { confirmReset = false }) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text("Сбросить спектр?", style = type.title, color = colors.ink)
+                    Text(strings.resetSpectrumTitle, style = type.title, color = colors.ink)
                     Text(
-                        text = "Накопление начнётся заново — на приборе спектр " +
-                            "тоже очистится. Сохранённые снимки останутся в Истории.",
+                        text = strings.resetSpectrumBody,
                         style = type.body,
                         color = colors.ink2,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                         AppButton(
-                            text = "Сброс",
+                            text = strings.reset,
                             onClick = {
                                 confirmReset = false
                                 hub.request(SpectrumHub.Command.RESET)
                             },
                         )
-                        AppButton(text = "Отмена", onClick = { confirmReset = false })
+                        AppButton(text = strings.cancel, onClick = { confirmReset = false })
                     }
                 }
             }
@@ -1038,17 +1019,18 @@ private fun PeakTable(
     onSelect: (String?) -> Unit,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
 
     Column {
         Row(Modifier.fillMaxWidth().padding(bottom = 5.dp)) {
-            TableHeader("E, кэВ", 0.9f)
-            TableHeader("нетто", 0.9f)
-            TableHeader("значимость", 0.9f)
+            TableHeader(strings.peakTableEnergy, 0.9f)
+            TableHeader(strings.peakTableNet, 0.9f)
+            TableHeader(strings.peakTableSignificance, 0.9f)
             // Спец §2: колонка кандидата — интерпретация, а не измерение;
             // соседние колонки этого уровня не наследуют.
             Row(Modifier.weight(1.6f), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "кандидат", style = type.labelSmall, color = colors.ink2)
+                Text(text = strings.peakTableCandidate, style = type.labelSmall, color = colors.ink2)
                 EvidenceTag(Evidence.INTERPRETATION, Modifier.padding(start = 5.dp))
             }
         }

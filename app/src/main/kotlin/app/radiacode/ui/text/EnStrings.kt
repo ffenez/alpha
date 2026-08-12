@@ -143,6 +143,140 @@ object EnStrings : Strings {
     override fun confidenceInterval(level: Int, low: String, high: String) =
         " ($level % interval $low–$high)"
 
+    override val onboardingBrand = "Alpha"
+    override val onboardingConnectTitle = "Connecting the instrument"
+    override val onboardingConnectBody =
+        "The app connects to a RadiaCode dosimeter over Bluetooth and records the " +
+            "background level continuously. Every measurement stays on this phone."
+    override val onboardingPermissions =
+        "Two permissions are needed: Bluetooth, to find and connect the instrument, and " +
+            "notifications, to show the measurement while the app is in the background."
+    override val onboardingBluetoothDenied =
+        "Without the Bluetooth permission the instrument cannot be found. If the request " +
+            "no longer appears, grant the permission in the Android settings for this app."
+    override val retry = "Retry"
+    override val start = "Start"
+    override val onboardingBackgroundTitle = "Running in the background"
+    override val onboardingBackgroundBody =
+        "So that recording is not interrupted overnight or with the screen off, exclude " +
+            "the app from battery optimisation. Otherwise Android will eventually drop the " +
+            "connection to the instrument."
+    override val onboardingBatteryNote =
+        "This increases battery use — usually by a small amount."
+    override val later = "Later"
+    override val allow = "Allow"
+    override val onboardingScanTitle = "Looking for the instrument"
+    override val scanning = "searching nearby…"
+    override val onboardingScanBody =
+        "Switch the instrument on and keep it close. The official RadiaCode app must be " +
+            "closed: the instrument pairs with one phone at a time."
+    override val onboardingScanFailed =
+        "The scan did not start. Check that Bluetooth is on and open the app again."
+    override val connecting2 = "connecting…"
+    override val connect = "Connect"
+
+    override val spectrumAccumulating = "current accumulation"
+    override val spectrumContinuation = "continuing: "
+    override val spectrogramEntry = "Spectrogram ▸"
+    override val radonEntry = "Radon ▸"
+    override val formatUnsupportedTitle = "Format not supported"
+
+    override fun formatUnsupportedBody(version: Int) =
+        "The instrument sends its spectrum in format version $version, which this app " +
+            "cannot read yet. The other screens work as usual."
+
+    override val spectrumReading = "reading the spectrum from the instrument…"
+    override val noInstrumentLink = "no link to the instrument"
+    override val spectrumAfterConnect =
+        "The spectrum appears once connected — the link status is shown on Monitor."
+    override val exportFailedTitle = "Export failed"
+    override val exportFailedBody = "The file was not written — try another folder."
+    override val importAction = "Import"
+    override val exportXml = "Export XML"
+    override val exportN42 = "Export N42"
+    override val exportFormatsNote =
+        "XML is the RadiaCode app's format · N42 is the standard of analysis software · " +
+            "an imported snapshot appears in History"
+    override val savedToPrefix = " · file saved to "
+    override val continuationTitle = "Continuing accumulation"
+    override val disable = "turn off"
+    override val snapshotDeltaPrefix = " · snapshot Δt "
+
+    override fun sumImpossible(reason: String) =
+        "the sum is impossible: $reason — the current accumulation is shown"
+
+    override val sumShown =
+        "showing the snapshot plus the current accumulation (channels add up, Δt adds " +
+            "up); «Save» will store the sum"
+    override val noLiveAccumulation =
+        "no live accumulation yet — the saved snapshot is shown"
+    override val continuationWarning =
+        "The instrument accumulates its spectrum independently of the app. If the snapshot " +
+            "was taken from the current accumulation without a reset, counts are counted " +
+            "twice — reset the spectrum first."
+    override val spectrumInfoTitle = "How to read this spectrum"
+    override val spectrumInfoAxes =
+        "Energy in keV runs horizontally; counts per channel over the whole accumulation " +
+            "run vertically. One screen column holds several channels and takes their " +
+            "maximum: a narrow peak survives zooming out, but the continuum line rides the " +
+            "upper envelope."
+    override val spectrumInfoSignificance =
+        "A peak's significance is its net area divided by the net area's own standard " +
+            "uncertainty, which includes both the statistics of the peak window and the " +
+            "uncertainty of the continuum estimated under it. A structure counts as a peak " +
+            "only if its width agrees with the detector's resolution."
+    override val spectrumInfoCandidate =
+        "A nuclide candidate is an energy match, not a detection: reliable identification " +
+            "needs accumulated statistics and, as a rule, several lines of the same nuclide."
+    override val spectrumInfoScales =
+        "The counts axis: linear preserves the ratio of areas but crushes everything but " +
+            "the tallest towards zero; logarithmic shows single counts next to a photopeak " +
+            "but visually equalises quantities that differ severalfold; the power scale 1/n " +
+            "sits between them (1/2 is the familiar square root). All three are monotone " +
+            "transforms of the same number: the distribution of height changes, the data " +
+            "does not."
+    override val spectrumInfoGestures =
+        "Pinch to scale, drag to pan. Smoothing changes the display only: the underlying " +
+            "data is untouched."
+    override val scaleLinear = "Lin"
+    override val scalePower = "Power"
+    override val scaleLog = "Log"
+
+    override fun powerDegree(root: Int) = "power 1/$root"
+
+    override val spectrumModeRaw = "Spectrum"
+    override val spectrumModeMinusBackground = "− background"
+    override val smoothing = "smooth"
+    override val energyRanges = "energy ranges"
+    override val peakTableEnergy = "E, keV"
+    override val peakTableNet = "net"
+    override val peakTableSignificance = "significance"
+    override val peakTableCandidate = "candidate"
+    override val notEnoughForPeaks =
+        "too little data for peak analysis — accumulate at least a minute"
+    override val noPeaksFound = "no pronounced peaks above the continuum were found"
+    override val peakTableCaveat =
+        "a possible match ≠ a detection · confirmation is needed: accumulate longer · " +
+            "tap a row for the nuclide reference"
+    override val recordBackground = "Record background"
+    override val save = "Save"
+    override val reset = "Reset"
+    override val resetSpectrumTitle = "Reset the spectrum?"
+    override val resetSpectrumBody =
+        "Accumulation starts over — the instrument clears its spectrum too. Saved " +
+            "snapshots stay in History."
+    override val cancel = "Cancel"
+
+    override fun edgeCounts(counts: String) = "at the top edge of the scale: $counts counts"
+
+    override fun rangeWhole(range: String) = "range $range · whole · pinch to zoom in"
+
+    override fun rangeDraggable(range: String) = "range $range · drag to pan"
+
+    override val noSpectrumBackground =
+        "no background recorded — record a spectrum of ordinary surroundings and the " +
+            "overlay and «minus background» will appear"
+
     override val deviceSignals = "Instrument signals"
     override val deviceSignalsNote =
         "The instrument's own sound and vibration. They work even with the phone " +
