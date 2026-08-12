@@ -35,6 +35,7 @@ import app.radiacode.device.ConnectionState
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.StatCell
+import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.components.WaterfallChart
 import app.radiacode.ui.components.WaterfallSpec
@@ -108,6 +109,7 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     val slices = if (paused) frozen ?: liveSlices else liveSlices
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    var infoOpen by rememberSaveable { mutableStateOf(false) }
 
     // Режим «форма» — нормировка внутри колонки. По умолчанию выключен: он
     // показывает состав, но уравнивает слабый спектр с сильным.
@@ -142,7 +144,14 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
             Spectrogram.grid(slices, fromMillis, toMillis, stepSeconds * 1000L)
         }
     }
-    val scaleTop = remember(columnsData) { Spectrogram.scaleTop(columnsData) }
+    // Энергетические полосы объединяются, пока в них не наберётся статистика:
+    // почти пустые полосы дают случайные светлые и тёмные строчки, а глаз
+    // читает их как спектральную структуру. Нарезка одна на всё окно, иначе
+    // она прыгала бы от столбца к столбцу.
+    val bandGroups = remember(columnsData) { Spectrogram.bandGroups(columnsData) }
+    val scaleTop = remember(columnsData, bandGroups) {
+        Spectrogram.scaleTop(columnsData, bandGroups)
+    }
     val selected = selectedIndex?.let { columnsData.getOrNull(it) }
 
     Column(
@@ -156,6 +165,7 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
             AppButton(text = "← Назад", onClick = onBack)
             Spacer(Modifier.weight(1f))
             Chip(text = "Спектрограмма", color = colors.ink)
+            Chip(text = "i", color = colors.ink2, onClick = { infoOpen = true })
         }
 
         Row(
@@ -218,6 +228,7 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                                 columns = columnsData,
                                 scaleTop = scaleTop,
                                 shapeMode = shapeMode,
+                                bandGroups = bandGroups,
                                 selectedIndex = selectedIndex,
                                 timeLabels = TimeAxis.labels(
                                     fromMillis ?: 0L,
@@ -229,6 +240,15 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                                 selectedIndex = if (selectedIndex == index) null else index
                             },
                         )
+                        // Режим — это РЕЖИМ, а не действие: два физически
+                        // разных вопроса к одним данным, «сколько» и «какого
+                        // состава».
+                        Segmented(
+                            options = listOf("Интенсивность", "Форма"),
+                            selectedIndex = if (shapeMode) 1 else 0,
+                            onSelect = { shapeMode = it == 1 },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = Dimens.space1),
@@ -239,8 +259,21 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                                 color = colors.muted,
                             )
                             Spacer(Modifier.weight(1f))
-                            LegendRamp()
+                            LegendRamp(shapeMode)
                         }
+                        Text(
+                            text = if (shapeMode) {
+                                "цвет — относительная доля событий в этом спектре. Каждый " +
+                                    "столбец нормирован отдельно: сравнивается форма " +
+                                    "спектра, а не интенсивность."
+                            } else {
+                                "цвет — имп/с в энергетической полосе, общая шкала окна " +
+                                    "до ${Uncertainty.num1(scaleTop)} имп/с."
+                            },
+                            style = type.footnote,
+                            color = colors.muted,
+                            modifier = Modifier.padding(horizontal = Dimens.space1),
+                        )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
@@ -264,45 +297,21 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                                 color = colors.muted,
                             )
                         }
-                        // Сколько окна реально занято записью — тот же вопрос,
-                        // что «данных: 47 мин из 6 ч» на графике дозы.
-                        val measuredSeconds = slices.sumOf { it.intervalSeconds }
-                        val windowSeconds = ((toMillis ?: 0L) - (fromMillis ?: 0L)) / 1000L
-                        if (windowSeconds > 0 && measuredSeconds < windowSeconds * 95 / 100) {
-                            Text(
-                                text = "записи ${SpectrumFormat.accumulationClock(measuredSeconds)}" +
-                                    " из ${SpectrumFormat.accumulationClock(windowSeconds)} окна — " +
-                                    "остальное время прибор не писал",
-                                style = type.footnote,
-                                color = colors.muted,
-                                modifier = Modifier.padding(horizontal = Dimens.space1),
-                            )
-                        }
-                        Text(
-                            text = "шаг ${SpectrumFormat.accumulationClock(stepSeconds)} · " +
-                                stepReason(slices, stepSeconds) +
-                                " · пустая колонка — прибор молчал · полоса внизу — мощность " +
-                                "дозы, та же ось времени · тап — курсор момента",
-                            style = type.footnote,
-                            color = colors.muted,
-                            modifier = Modifier.padding(horizontal = Dimens.space1),
-                        )
                     }
                 }
 
                 SelectedMomentCard(selected, unit)
 
-                StatGrid(
-                    cells = listOf(
-                        StatCell("${slices.size}", "интервалов"),
-                        StatCell(
-                            SpectrumFormat.accumulationClock(slices.sumOf { it.intervalSeconds }),
-                            "охвачено",
-                        ),
-                        StatCell("${stepSeconds} с", "шаг колонки"),
-                        StatCell("≈2 ч", "в памяти"),
-                    ),
-                )
+                if (infoOpen) {
+                    InfoCard(
+                        slices = slices,
+                        stepSeconds = stepSeconds,
+                        bandGroups = bandGroups,
+                        fromMillis = fromMillis,
+                        toMillis = toMillis,
+                        onClose = { infoOpen = false },
+                    )
+                }
                 if (!connected) {
                     Text(
                         text = "нет соединения — показана записанная история",
@@ -381,15 +390,99 @@ private fun SelectedMomentCard(selected: SpectrogramColumn?, unit: DoseUnitSetti
     }
 }
 
+/**
+ * «Как это устроено» — под кнопкой «i», а не полосой мелкого текста под
+ * картинкой: параметры агрегации нужны один раз, а высоту отнимали всегда.
+ */
 @Composable
-private fun LegendRamp() {
+private fun InfoCard(
+    slices: List<SpectrogramSlice>,
+    stepSeconds: Long,
+    bandGroups: List<IntRange>,
+    fromMillis: Long?,
+    toMillis: Long?,
+    onClose: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val measuredSeconds = slices.sumOf { it.intervalSeconds }
+    val windowSeconds = ((toMillis ?: 0L) - (fromMillis ?: 0L)) / 1000L
+    val bandsPerGroup = if (bandGroups.isEmpty()) {
+        1
+    } else {
+        Spectrogram.BAND_COUNT / bandGroups.size
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Как построена картинка".uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                )
+                Spacer(Modifier.weight(1f))
+                Chip(text = "✕", color = colors.ink2, onClick = onClose)
+            }
+            StatGrid(
+                cells = listOf(
+                    StatCell("${slices.size}", "интервалов"),
+                    StatCell(SpectrumFormat.accumulationClock(measuredSeconds), "записи"),
+                    StatCell("$stepSeconds с", "шаг колонки"),
+                    StatCell("${bandGroups.size}", "полос"),
+                ),
+            )
+            if (windowSeconds > 0 && measuredSeconds < windowSeconds * 95 / 100) {
+                Text(
+                    text = "записи ${SpectrumFormat.accumulationClock(measuredSeconds)} из " +
+                        "${SpectrumFormat.accumulationClock(windowSeconds)} окна — остальное " +
+                        "время прибор не писал, такие колонки пустые",
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
+            Text(
+                text = "Шаг колонки подобран по статистике: " + stepReason(slices, stepSeconds) +
+                    ". Прибор опрашивается раз в 5 с, колонка складывает несколько опросов — " +
+                    "импульсы суммируются, ничего не додумывается.",
+                style = type.footnote,
+                color = colors.muted,
+            )
+            if (bandsPerGroup > 1) {
+                Text(
+                    text = "Энергетические полосы объединены по $bandsPerGroup: при " +
+                        "${Spectrogram.BAND_COUNT} полосах на них приходилось меньше " +
+                        "${Spectrogram.MIN_BAND_COUNTS.toInt()} импульсов, и случайные " +
+                        "светлые строчки читались бы как спектральные линии. Исходные " +
+                        "каналы не меняются.",
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
+            Text(text = BACKGROUND_NOTE, style = type.footnote, color = colors.muted)
+            Text(
+                text = "Тап по столбцу — доза и счёт того момента.",
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LegendRamp(shapeMode: Boolean) {
     val type = LocalAppTypography.current
     val colors = LocalAppColors.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Text(text = "меньше", style = type.axis, color = colors.muted)
+        // «Меньше/больше» в режиме формы означало бы «меньше излучения», а
+        // это доля внутри столбца: концы шкалы обязаны называть свою величину.
+        Text(
+            text = if (shapeMode) "мало" else "меньше",
+            style = type.axis,
+            color = colors.muted,
+        )
         waterfallLegendColors().forEach { color ->
             Box(
                 Modifier
@@ -397,7 +490,11 @@ private fun LegendRamp() {
                     .background(color, RoundedCornerShape(2.dp)),
             )
         }
-        Text(text = "больше", style = type.axis, color = colors.muted)
+        Text(
+            text = if (shapeMode) "вся доля" else "больше",
+            style = type.axis,
+            color = colors.muted,
+        )
     }
 }
 

@@ -110,7 +110,7 @@ class SpectrogramTest {
         // светилась так же, как сильная.
         val weak = column(rate = 1f)
         val strong = column(rate = 100f)
-        val top = Spectrogram.scaleTop(listOf(weak, strong))
+        val top = Spectrogram.scaleTop(listOf(weak, strong), listOf(10..10))
         assertTrue(
             Spectrogram.intensity(weak.rate(10), top) <
                 Spectrogram.intensity(strong.rate(10), top),
@@ -243,5 +243,39 @@ class SpectrogramTest {
 
         val grid = Spectrogram.grid(background, 0L, 3_600_000L, step * 1000L)
         assertTrue(grid.count { it == null } <= 1, "появились ложные пропуски: $grid")
+    }
+
+    @Test
+    fun `energy bands merge until they carry statistics, once for the whole window`() {
+        // 96 полос по одному импульсу на колонку: случайные светлые строчки
+        // читаются как спектральные линии, поэтому полосы объединяются.
+        val thin = (1..10).map {
+            val bands = FloatArray(Spectrogram.BAND_COUNT) { 1f }
+            SpectrogramColumn(0L, 5_000L, bands, seconds = 5L, cps = null, doseMicroSvH = null)
+        }
+        val groups = Spectrogram.bandGroups(thin)
+        assertTrue(groups.size < Spectrogram.BAND_COUNT, "полосы не объединились: ${groups.size}")
+        // Нарезка покрывает весь диапазон без дыр и пересечений.
+        assertEquals(0, groups.first().first)
+        assertEquals(Spectrogram.BAND_COUNT - 1, groups.last().last)
+        for ((a, b) in groups.zipWithNext()) assertEquals(a.last + 1, b.first)
+
+        // Статистики вдоволь — дробить дальше незачем, полосы остаются свои.
+        val rich = (1..10).map {
+            val bands = FloatArray(Spectrogram.BAND_COUNT) { 100f }
+            SpectrogramColumn(0L, 5_000L, bands, seconds = 5L, cps = null, doseMicroSvH = null)
+        }
+        assertEquals(Spectrogram.BAND_COUNT, Spectrogram.bandGroups(rich).size)
+    }
+
+    @Test
+    fun `a wide group is not brighter than a narrow one at the same spectrum`() {
+        val bands = FloatArray(Spectrogram.BAND_COUNT) { 10f }
+        val column = SpectrogramColumn(
+            0L, 10_000L, bands, seconds = 10L, cps = null, doseMicroSvH = null,
+        )
+        // Средняя скорость на полосу, а не сумма: иначе широкая группа
+        // светилась бы ярче при том же спектре.
+        assertEquals(column.groupRate(0..0), column.groupRate(0..7), 1e-6f)
     }
 }

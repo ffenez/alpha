@@ -61,6 +61,11 @@ data class WaterfallSpec(
     val scaleTop: Float = 0f,
     /** Режим «форма»: нормировка внутри колонки вместо общей шкалы. */
     val shapeMode: Boolean = false,
+    /**
+     * Группы энергетических полос отображения: полосы объединяются, пока в них
+     * не наберётся статистика. Пусто = каждая полоса сама по себе.
+     */
+    val bandGroups: List<IntRange> = emptyList(),
     /** Cursor column index; null = no cursor. */
     val selectedIndex: Int? = null,
     /** Fraction of plot width → time label. */
@@ -100,11 +105,19 @@ fun WaterfallChart(
     // The waterfall as a bands×columns bitmap, scaled up with nearest-neighbor
     // sampling at draw time — thousands of cells without per-frame rects.
     val gapArgb = colors.chartBeyondData.toArgb()
-    val bitmap: ImageBitmap? = remember(spec.columns, spec.scaleTop, spec.shapeMode, rampLut, surfaceArgb) {
+    val bitmap: ImageBitmap? = remember(
+        spec.columns,
+        spec.scaleTop,
+        spec.shapeMode,
+        spec.bandGroups,
+        rampLut,
+        surfaceArgb,
+    ) {
         if (spec.columns.isEmpty()) return@remember null
         val w = spec.columns.size
         val h = Spectrogram.BAND_COUNT
         val pixels = IntArray(w * h)
+        val groups = spec.bandGroups.ifEmpty { (0 until h).map { it..it } }
         for (x in 0 until w) {
             val column = spec.columns[x]
             if (column == null) {
@@ -112,20 +125,29 @@ fun WaterfallChart(
                 for (band in 0 until h) pixels[(h - 1 - band) * w + x] = gapArgb
                 continue
             }
+            // Значение считается по ГРУППЕ полос (адаптивная энергетическая
+            // нарезка), и все строки группы красятся одинаково: это честная
+            // запись «на таком энергетическом разрешении столько-то».
             var columnMax = 0f
-            for (v in column.bandCounts) if (v > columnMax) columnMax = v
-            for (band in 0 until h) {
+            for (group in groups) {
+                val v = column.groupCounts(group)
+                if (v > columnMax) columnMax = v
+            }
+            for (group in groups) {
                 val t = if (spec.shapeMode || spec.scaleTop <= 0f) {
-                    Spectrogram.shapeIntensity(column.bandCounts[band], columnMax)
+                    Spectrogram.shapeIntensity(column.groupCounts(group), columnMax)
                 } else {
-                    Spectrogram.intensity(column.rate(band), spec.scaleTop)
+                    Spectrogram.intensity(column.groupRate(group), spec.scaleTop)
                 }
-                // Row 0 of the bitmap is the top = highest energy band.
-                val y = h - 1 - band
-                pixels[y * w + x] = if (t <= 0f) {
+                val argb = if (t <= 0f) {
                     surfaceArgb
                 } else {
                     rampLut[(t * 255f).toInt().coerceIn(0, 255)]
+                }
+                for (band in group) {
+                    if (band !in 0 until h) continue
+                    // Row 0 of the bitmap is the top = highest energy band.
+                    pixels[(h - 1 - band) * w + x] = argb
                 }
             }
         }

@@ -136,12 +136,12 @@ object Spectrogram {
      * источника) прижала бы весь остальной фон к нулю; и не среднее — оно
      * пересветило бы половину картинки.
      */
-    fun scaleTop(columns: List<SpectrogramColumn?>): Float {
+    fun scaleTop(columns: List<SpectrogramColumn?>, groups: List<IntRange>): Float {
         val rates = ArrayList<Float>()
         for (column in columns) {
             if (column == null) continue
-            for (band in 0 until BAND_COUNT) {
-                val r = column.rate(band)
+            for (group in groups) {
+                val r = column.groupRate(group)
                 if (r > 0f) rates.add(r)
             }
         }
@@ -156,6 +156,60 @@ object Spectrogram {
 
     /** Квантиль верха шкалы — **инженерный параметр отображения**. */
     const val SCALE_TOP_QUANTILE = 0.98f
+
+    /**
+     * Минимум импульсов в одной энергетической полосе колонки, ниже которого
+     * полосы объединяются.
+     *
+     * **Инженерный параметр отображения.** При 10 импульсах относительная
+     * флуктуация ≈1/√10 ≈ 32 %, при одном — 100 %: почти пустые полосы дают
+     * случайные светлые и тёмные строчки, которые глаз читает как спектральную
+     * структуру. Особенно выше ~600 кэВ, где событий мало. Тот же порог, что у
+     * χ²-сравнения формы ([ShapeChange.MIN_BIN_COUNTS]) — там он нужен, чтобы
+     * тест был тестом, здесь — чтобы картинка была картинкой.
+     */
+    const val MIN_BAND_COUNTS = 10f
+
+    /**
+     * Группы энергетических полос для ОТОБРАЖЕНИЯ: соседние полосы
+     * объединяются, пока на колонку не наберётся [MIN_BAND_COUNTS] импульсов.
+     *
+     * Считается ОДИН раз по суммарному спектру всего окна, а не по каждой
+     * колонке: иначе вертикальная нарезка прыгала бы от столбца к столбцу и
+     * сравнивать соседние моменты стало бы нельзя. Исходные каналы и полосы не
+     * трогаются — объединение живёт только в отрисовке.
+     */
+    fun bandGroups(columns: List<SpectrogramColumn?>): List<IntRange> {
+        val present = columns.count { it != null }.coerceAtLeast(1)
+        val totals = DoubleArray(BAND_COUNT)
+        for (column in columns) {
+            if (column == null) continue
+            for (b in 0 until BAND_COUNT) totals[b] += column.bandCounts[b].toDouble()
+        }
+        val need = MIN_BAND_COUNTS.toDouble() * present
+        val groups = mutableListOf<IntRange>()
+        var start = 0
+        var sum = 0.0
+        for (band in 0 until BAND_COUNT) {
+            sum += totals[band]
+            if (sum >= need) {
+                groups += start..band
+                start = band + 1
+                sum = 0.0
+            }
+        }
+        if (start <= BAND_COUNT - 1) {
+            // Хвост не набрал порога: он присоединяется к последней группе,
+            // иначе у верхнего края осталась бы самая шумная полоса.
+            if (groups.isEmpty()) {
+                groups += 0..(BAND_COUNT - 1)
+            } else {
+                val last = groups.removeAt(groups.size - 1)
+                groups += last.first..(BAND_COUNT - 1)
+            }
+        }
+        return groups
+    }
 
     /**
      * Лестница шагов ОТОБРАЖЕНИЯ. Запись всегда идёт по 5 с; шаг влияет
@@ -296,6 +350,26 @@ class SpectrogramColumn(
     /** Импульсы в секунду в полосе — то, что красится. */
     fun rate(band: Int): Float =
         if (seconds > 0L) bandCounts[band] / seconds else 0f
+
+    /**
+     * Средняя скорость на полосу внутри группы полос. Именно СРЕДНЯЯ, а не
+     * сумма: группы бывают разной ширины, и сумма красила бы широкую группу
+     * ярче узкой при одинаковом спектре.
+     */
+    fun groupRate(group: IntRange): Float {
+        if (seconds <= 0L) return 0f
+        var sum = 0f
+        for (b in group) sum += bandCounts.getOrElse(b) { 0f }
+        val width = (group.last - group.first + 1).coerceAtLeast(1)
+        return sum / seconds / width
+    }
+
+    /** Сумма импульсов группы — для режима «форма». */
+    fun groupCounts(group: IntRange): Float {
+        var sum = 0f
+        for (b in group) sum += bandCounts.getOrElse(b) { 0f }
+        return sum / (group.last - group.first + 1).coerceAtLeast(1)
+    }
 
     /** Доля шага, реально покрытая измерениями, 0..1. */
     fun coverage(stepSeconds: Long): Float =
