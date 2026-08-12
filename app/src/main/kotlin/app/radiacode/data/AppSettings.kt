@@ -15,6 +15,7 @@ import app.radiacode.baseline.AlarmThresholds
 import app.radiacode.baseline.alarmThresholds
 import app.radiacode.context.ContextConfig
 import app.radiacode.ui.text.AppLanguage
+import app.radiacode.ui.theme.AppSkin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -174,6 +175,13 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
 
     suspend fun setSpectrumScaleRoot(root: Int) {
         dataStore.edit { it[SPECTRUM_SCALE_ROOT] = root }
+    }
+
+    /** Вариант дизайн-языка: научный терминал или 8-bit. */
+    val skin: Flow<AppSkin> = dataStore.data.map { AppSkin.of(it[SKIN]) }
+
+    suspend fun setSkin(skin: AppSkin) {
+        dataStore.edit { it[SKIN] = skin.id }
     }
 
     val themeSetting: Flow<ThemeSetting> =
@@ -367,6 +375,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val WHY_EXPANDED = booleanPreferencesKey("why_calculations_expanded")
         private val THEME = stringPreferencesKey("theme")
         private val LANGUAGE = stringPreferencesKey("language")
+        private val SKIN = stringPreferencesKey("skin")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")

@@ -39,7 +39,7 @@ object RuStrings : Strings {
     override val settingsNotifications = "Уведомления и отклик"
     override val settingsNotificationsSub = "звук Поиска, вибрация, тревога"
     override val settingsView = "Вид"
-    override val settingsViewSub = "язык, тема, единицы, вкладки и блоки Главной"
+    override val settingsViewSub = "язык, оформление, тема, единицы, блоки Главной"
     override val settingsDevice = "Прибор"
     override val settingsDeviceSub = "модель, прошивка, звук и вибрация прибора"
     override val settingsAbout = "О приложении"

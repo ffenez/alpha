@@ -32,6 +32,7 @@ import androidx.compose.ui.window.Dialog
 import app.radiacode.data.db.ProfileEntity
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 
@@ -166,13 +167,13 @@ fun CheckMark(selected: Boolean, modifier: Modifier = Modifier) {
         modifier = modifier
             .size(18.dp)
             .border(
-                width = Dimens.border,
+                width = LocalAppMetrics.current.border,
                 color = if (selected) colors.data else colors.line,
-                shape = RoundedCornerShape(Dimens.radiusChip),
+                shape = RoundedCornerShape(LocalAppMetrics.current.radiusChip),
             )
             .background(
                 color = if (selected) colors.data else Color.Transparent,
-                shape = RoundedCornerShape(Dimens.radiusChip),
+                shape = RoundedCornerShape(LocalAppMetrics.current.radiusChip),
             ),
         contentAlignment = Alignment.Center,
     ) {
@@ -200,7 +201,7 @@ fun RadioMark(selected: Boolean, modifier: Modifier = Modifier) {
         modifier = modifier
             .size(14.dp)
             .border(
-                width = Dimens.border,
+                width = LocalAppMetrics.current.border,
                 color = if (selected) colors.data else colors.line,
                 shape = CircleShape,
             ),

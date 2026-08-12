@@ -81,6 +81,7 @@ import app.radiacode.ui.map.TrackMapView
 import app.radiacode.ui.map.anyLocationProviderEnabled
 import app.radiacode.ui.map.rememberMyPosition
 import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.DoseRampColors
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -744,7 +745,7 @@ private fun LegendBar(minLabel: String, maxLabel: String, caption: String? = nul
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = Modifier
-            .clip(RoundedCornerShape(Dimens.radiusChip))
+            .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
             .background(colors.surface)
             .padding(horizontal = 9.dp, vertical = 5.dp),
     ) {

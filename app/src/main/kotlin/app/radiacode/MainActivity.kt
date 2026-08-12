@@ -14,6 +14,7 @@ import app.radiacode.ui.text.AppLanguage
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.stringsFor
 import app.radiacode.ui.AppRoot
+import app.radiacode.ui.theme.AppSkin
 import app.radiacode.ui.theme.AppTheme
 
 /** Single activity; all screens are Compose under [AppRoot]. */
@@ -25,6 +26,7 @@ class MainActivity : ComponentActivity() {
             val graph = AppGraph.get(this)
             val theme by graph.settings.themeSetting.collectAsState(initial = ThemeSetting.SYSTEM)
             val language by graph.settings.language.collectAsState(initial = AppLanguage.SYSTEM)
+            val skin by graph.settings.skin.collectAsState(initial = AppSkin.TERMINAL)
             // Язык телефона читается один раз здесь: ниже по дереву его берут
             // из каталога, а не из системы, поэтому переключатель в настройках
             // работает мгновенно и без пересоздания активности.
@@ -35,6 +37,7 @@ class MainActivity : ComponentActivity() {
                     ThemeSetting.DARK -> true
                     ThemeSetting.LIGHT -> false
                 },
+                skin = skin,
             ) {
                 CompositionLocalProvider(
                     LocalStrings provides stringsFor(AppLanguage.resolve(language, systemTag)),

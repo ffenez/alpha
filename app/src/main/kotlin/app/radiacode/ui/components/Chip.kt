@@ -21,6 +21,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.runtime.getValue
 import app.radiacode.ui.theme.Motion
 import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 
@@ -42,7 +43,7 @@ fun Chip(
     onClick: (() -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
-    val shape = RoundedCornerShape(Dimens.radiusChip)
+    val shape = RoundedCornerShape(LocalAppMetrics.current.radiusChip)
     // Выбор чипа — состояние интерфейса, а не данные: плавная смена цвета
     // показывает, что одно превратилось в другое, вместо подмены картинки.
     val background by animateColorAsState(
@@ -66,7 +67,7 @@ fun Chip(
         modifier = modifier
             .clip(shape)
             .background(background)
-            .border(Dimens.border, borderColor, shape)
+            .border(LocalAppMetrics.current.border, borderColor, shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 9.dp, vertical = 5.dp),
     ) {

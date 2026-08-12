@@ -83,6 +83,7 @@ import app.radiacode.ui.logic.statusDetail
 import app.radiacode.ui.logic.statusHeadline
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 import java.time.LocalDate
@@ -548,7 +549,7 @@ private fun HeroCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(Dimens.radiusChip))
+                    .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
                     .clickable(onClick = onWhy)
                     .padding(vertical = Dimens.space1),
                 verticalArrangement = Arrangement.spacedBy(Dimens.space1),
@@ -682,7 +683,7 @@ private fun HeroTileBox(tile: HeroTile, modifier: Modifier = Modifier) {
     val type = LocalAppTypography.current
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(Dimens.radiusChip))
+            .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
             .background(colors.surface2)
             .padding(horizontal = Dimens.space2, vertical = Dimens.space2),
         verticalArrangement = Arrangement.spacedBy(2.dp),

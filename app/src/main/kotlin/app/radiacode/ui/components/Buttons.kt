@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 
@@ -32,7 +33,7 @@ fun AppButton(
     primary: Boolean = false,
 ) {
     val colors = LocalAppColors.current
-    val shape = RoundedCornerShape(Dimens.radiusButton)
+    val shape = RoundedCornerShape(LocalAppMetrics.current.radiusButton)
 
     val background: Color
     val borderColor: Color
@@ -60,7 +61,7 @@ fun AppButton(
             .defaultMinSize(minHeight = Dimens.touchTarget)
             .clip(shape)
             .background(background)
-            .border(Dimens.border, borderColor, shape)
+            .border(LocalAppMetrics.current.border, borderColor, shape)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = Dimens.space3, vertical = Dimens.space2),
         contentAlignment = Alignment.Center,
@@ -92,14 +93,14 @@ fun Segmented(
     val type = LocalAppTypography.current
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(Dimens.radiusChip))
+            .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
             .background(colors.surface2)
             .padding(3.dp),
     ) {
         options.forEachIndexed { index, option ->
             val selected = index == selectedIndex
             val isEnabled = enabled(index)
-            val shape = RoundedCornerShape(Dimens.radiusSegment)
+            val shape = RoundedCornerShape(LocalAppMetrics.current.radiusSegment)
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -108,7 +109,7 @@ fun Segmented(
                         if (selected) {
                             Modifier
                                 .background(colors.surface)
-                                .border(Dimens.border, colors.line, shape)
+                                .border(LocalAppMetrics.current.border, colors.line, shape)
                         } else {
                             Modifier
                         },

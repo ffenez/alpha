@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppColors
 
 /**
@@ -28,12 +29,12 @@ fun Card(
     background: Color = LocalAppColors.current.surface,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(Dimens.radiusCard)
+    val shape = RoundedCornerShape(LocalAppMetrics.current.radiusCard)
     Box(
         modifier = modifier
             .clip(shape)
             .background(background)
-            .border(Dimens.border, LocalAppColors.current.line, shape)
+            .border(LocalAppMetrics.current.border, LocalAppColors.current.line, shape)
             .padding(contentPadding),
         content = content,
     )
@@ -45,7 +46,7 @@ fun AppDivider(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(Dimens.border)
+            .height(LocalAppMetrics.current.border)
             .background(LocalAppColors.current.line),
     )
 }

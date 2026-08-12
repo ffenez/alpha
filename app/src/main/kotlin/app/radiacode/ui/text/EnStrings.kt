@@ -47,7 +47,7 @@ object EnStrings : Strings {
     override val settingsNotifications = "Notifications and feedback"
     override val settingsNotificationsSub = "search sound, vibration, alarm"
     override val settingsView = "Appearance"
-    override val settingsViewSub = "language, theme, units, tabs and Monitor blocks"
+    override val settingsViewSub = "language, skin, theme, units, Monitor blocks"
     override val settingsDevice = "Instrument"
     override val settingsDeviceSub = "model, firmware, instrument sound and vibration"
     override val settingsAbout = "About"

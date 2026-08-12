@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.KeyboardType
 import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 
@@ -48,14 +49,14 @@ fun AppTextField(
         },
         modifier = modifier,
         decorationBox = { innerTextField ->
-            val shape = RoundedCornerShape(Dimens.radiusButton)
+            val shape = RoundedCornerShape(LocalAppMetrics.current.radiusButton)
             Box(
                 modifier = Modifier
                     .defaultMinSize(minHeight = Dimens.touchTarget)
                     .fillMaxWidth()
                     .clip(shape)
                     .background(colors.surface2)
-                    .border(Dimens.border, colors.line, shape)
+                    .border(LocalAppMetrics.current.border, colors.line, shape)
                     .padding(horizontal = Dimens.space3, vertical = Dimens.space2),
                 contentAlignment = Alignment.CenterStart,
             ) {

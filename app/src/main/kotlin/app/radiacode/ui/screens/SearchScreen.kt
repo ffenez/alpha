@@ -79,6 +79,7 @@ import app.radiacode.ui.logic.backgroundBand
 import app.radiacode.ui.logic.ledLevel
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
+import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 import java.time.Instant
@@ -494,7 +495,7 @@ fun SearchScreen(
                     verticalArrangement = Arrangement.spacedBy(Dimens.space1),
                     modifier = Modifier
                         .padding(top = Dimens.space2)
-                        .clip(RoundedCornerShape(Dimens.radiusChip))
+                        .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,

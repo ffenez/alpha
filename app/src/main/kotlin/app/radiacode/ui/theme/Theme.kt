@@ -17,9 +17,16 @@ import androidx.compose.runtime.CompositionLocalProvider
 @Composable
 fun AppTheme(
     dark: Boolean = isSystemInDarkTheme(),
+    /** Вариант дизайн-языка; меняет только токены, не поведение. */
+    skin: AppSkin = AppSkin.TERMINAL,
     content: @Composable () -> Unit,
 ) {
-    val colors = if (dark) DarkColors else LightColors
+    val colors = when {
+        skin == AppSkin.EIGHT_BIT && dark -> EightBitDarkColors
+        skin == AppSkin.EIGHT_BIT -> EightBitLightColors
+        dark -> DarkColors
+        else -> LightColors
+    }
     val materialScheme = if (dark) {
         darkColorScheme(
             primary = colors.data,
@@ -43,7 +50,14 @@ fun AppTheme(
     }
     CompositionLocalProvider(
         LocalAppColors provides colors,
-        LocalAppTypography provides AppTypography(),
+        LocalAppTypography provides when (skin) {
+            AppSkin.TERMINAL -> AppTypography()
+            AppSkin.EIGHT_BIT -> eightBitTypography()
+        },
+        LocalAppMetrics provides when (skin) {
+            AppSkin.TERMINAL -> TerminalMetrics
+            AppSkin.EIGHT_BIT -> EightBitMetrics
+        },
     ) {
         MaterialTheme(colorScheme = materialScheme, content = content)
     }

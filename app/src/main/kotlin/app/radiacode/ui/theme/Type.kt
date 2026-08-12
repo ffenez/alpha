@@ -44,7 +44,15 @@ val PlexMono = FontFamily(
     Font(R.font.ibm_plex_mono_semibold, weight = FontWeight.SemiBold),
 )
 
-private const val TABULAR_FIGURES = "tnum"
+/**
+ * Цифры одинаковой ширины (`tnum`) — и **перечёркнутый ноль** (`zero`).
+ *
+ * Ноль и буква O в моноширинном шрифте на приборном экране различаются плохо,
+ * особенно боком и на солнце: «0,10» и «O,1O» на секунду читаются одинаково.
+ * IBM Plex Mono несёт перечёркнутый ноль стилевым набором, и для показаний
+ * прибора он включён везде, где стоят числа.
+ */
+private const val TABULAR_FIGURES = "tnum, zero"
 
 @Immutable
 data class AppTypography(
@@ -53,8 +61,10 @@ data class AppTypography(
         fontFamily = PlexMono,
         fontWeight = FontWeight.SemiBold,
         fontSize = 44.sp,
-        lineHeight = 46.sp,
-        letterSpacing = (-0.02).em,
+        lineHeight = 48.sp,
+        // Отрицательный трекинг сжимал главное число: цифры слипались как раз
+        // там, где их читают быстрее всего. Нулевой — цифры стоят свободно.
+        letterSpacing = 0.sp,
         fontFeatureSettings = TABULAR_FIGURES,
     ),
     /** Secondary large readings (24sp mono 600, tabular). */
@@ -150,5 +160,36 @@ data class AppTypography(
         lineHeight = 17.5.sp,
     ),
 )
+
+/**
+ * Типографика 8-bit: моноширинный шрифт везде, включая прозу, и разрядка —
+ * так текст выглядит набранным на консольном экране.
+ *
+ * Заголовки и подписи становятся моно НАМЕРЕННО, вопреки правилу «сане —
+ * текст, моно — данные»: правило служит читаемости научного терминала, а
+ * здесь выбран другой вид, и человек выбрал его сам.
+ */
+fun eightBitTypography(): AppTypography {
+    val base = AppTypography()
+    fun TextStyle.pixelated(tracking: Float = 0.04f): TextStyle = copy(
+        fontFamily = PlexMono,
+        letterSpacing = tracking.em,
+    )
+    return base.copy(
+        valueHero = base.valueHero.pixelated(0.02f),
+        valueLarge = base.valueLarge.pixelated(0.02f),
+        value = base.value.pixelated(0.02f),
+        valueSmall = base.valueSmall.pixelated(),
+        footnote = base.footnote.pixelated(),
+        footnoteMono = base.footnoteMono.pixelated(),
+        axis = base.axis.pixelated(0.06f),
+        title = base.title.pixelated(0.06f),
+        label = base.label.pixelated(0.06f),
+        labelSmall = base.labelSmall.pixelated(0.1f),
+        overline = base.overline.pixelated(0.1f),
+        body = base.body.pixelated(),
+        bodySmall = base.bodySmall.pixelated(),
+    )
+}
 
 val LocalAppTypography = staticCompositionLocalOf { AppTypography() }

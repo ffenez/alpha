@@ -90,6 +90,7 @@ import app.radiacode.ui.logic.learningWording
 import app.radiacode.ui.text.AppLanguage
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.Strings
+import app.radiacode.ui.theme.AppSkin
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -243,6 +244,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
             SettingsCategory.SOUND -> SoundSection(graph)
             SettingsCategory.VIEW -> {
                 LanguageSection(graph)
+                SkinSection(graph)
                 ThemeSection(graph)
                 UnitsSection(graph)
                 InterfaceSection(graph)
@@ -678,6 +680,43 @@ private fun LanguageSection(graph: AppGraph) {
 private const val TRANSLATION_NOTE =
     "Перевод выполняется по разделам: непереведённые части пока показываются " +
         "по-русски. · Translation is in progress: untranslated parts are shown in Russian."
+
+/**
+ * Вариант оформления.
+ *
+ * Отдельно от светлой/тёмной темы: та отвечает на вопрос «сколько вокруг
+ * света», а этот — «как это выглядит». 8-bit существует и в светлом, и в
+ * тёмном варианте, и меняет только токены — цвета, шрифт и радиусы, — не
+ * трогая ни формулировки, ни расчёты.
+ */
+@Composable
+private fun SkinSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val scope = rememberCoroutineScope()
+    val current by graph.settings.skin.collectAsState(initial = AppSkin.TERMINAL)
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle("Оформление")
+            Segmented(
+                options = AppSkin.entries.map { it.title },
+                selectedIndex = AppSkin.entries.indexOf(current),
+                onSelect = { index ->
+                    scope.launch { graph.settings.setSkin(AppSkin.entries[index]) }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = "Оформление меняет цвета, шрифт и форму рамок — и только их: " +
+                    "показания, формулировки и расчёты от него не зависят. Светлая и " +
+                    "тёмная тема работают в обоих вариантах.",
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+    }
+}
 
 @Composable
 private fun ThemeSection(graph: AppGraph) {
