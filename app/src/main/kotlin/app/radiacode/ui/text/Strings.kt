@@ -351,6 +351,126 @@ interface Strings {
     fun spectralCompared(detail: String): String
     val spectralComparison: String
 
+
+    // --- настройки: разделы ---
+    val searchFeedbackTitle: String
+    val feedbackOnScreenOnly: String
+    val feedbackClicks: String
+    val feedbackTone: String
+    val feedbackVibro: String
+    val energyTone: String
+    val energyToneNote: String
+    val alarmTitle: String
+    val archiveSaved: String
+    val archiveFailed: String
+    val debugTitle: String
+    val stateReport: String
+    val debugBundleNote: String
+    val whatIsWrong: String
+    val whatIsWrongHint: String
+    val saveDebugArchive: String
+    val notConnected: String
+    fun excludedBecause(reason: String): String
+    val measurementsCounted: String
+    val no: String
+    val notRecorded: String
+    fun createdAt(stamp: String): String
+    val notCreated: String
+    val translationNote: String
+    val skinTitle: String
+    val skinNote: String
+    val themeTitle: String
+    val themeNote: String
+    val alarmsIntro: String
+    val nowLabel: String
+    val usuallyHere: String
+    val thresholdL1: String
+    val noBandToCompare: String
+    val sensitivityNormal: String
+    val sensitivityHigh: String
+    val sensitivityCustom: String
+    val sensitivityCustomNote: String
+    val alarmSoundElsewhere: String
+    val alarmSoundTitle: String
+    val alarmSoundNote: String
+    fun level1WithUnit(unit: String): String
+    fun level2WithUnit(unit: String): String
+    val saveLevels: String
+    val enterNumbers: String
+    val level1MustBePositive: String
+    val level2BelowLevel1: String
+    val levelsNote: String
+    val profilesTitle: String
+    val profilesIntro: String
+    val profileNameHint: String
+    val add: String
+    val ownProfile: String
+    val presets: String
+    val active: String
+    val archived: String
+    val hiddenFromPicker: String
+    val saveName: String
+    val icon: String
+    val autoByWifi: String
+    val learnBackground: String
+    val wifiNote: String
+    val unbind: String
+    val notOnWifi: String
+    val networkAlreadyBound: String
+    val bindCurrentNetwork: String
+    val nestInProfile: String
+    val standalone: String
+    val unarchive: String
+    val archiveAction: String
+    val deleteProfile: String
+    val deleteProfileQuestion: String
+    val usualBackgroundTitle: String
+    val usualBackgroundIntro: String
+    val freezeLearning: String
+    val graceNote: String
+    val instrumentTitle: String
+    val modelLabel: String
+    val serialNumber: String
+    val firmware: String
+    val bluetoothConnected: String
+    val bluetoothConnecting: String
+    fun bluetoothReconnecting(attempt: Int): String
+    val bluetoothNoLink: String
+    val serviceStopped: String
+    val instrumentBattery: String
+    val temperature: String
+    val stream: String
+    val streamActive: String
+    val unitsTitle: String
+    val unitMicroSv: String
+    val unitMicroSvNote: String
+    val unitMicroR: String
+    val unitMicroRNote: String
+    val unitsNote: String
+    val interfaceTitle: String
+    val tabsNote: String
+    val alwaysVisible: String
+    val atLeastOneTab: String
+    val monitorBlocksNote: String
+    val blockTrend: String
+    val blockDoseToday: String
+    val blockCountChart: String
+    val blockHardnessChart: String
+    val blockStats: String
+    val resetInterface: String
+    val visible: String
+    val hidden: String
+    val onShort: String
+    val offShort: String
+    val licencesUnreadable: String
+    val licencesTitle: String
+    val licencesBody: String
+    val hideLicences: String
+    val showLicences: String
+    val reading: String
+    val recentUpdates: String
+    val whatChanged: String
+
     // --- сигналы прибора ---
     val deviceSignals: String
     val deviceSignalsNote: String
@@ -434,6 +554,46 @@ fun Strings.allTexts(): List<String> = listOf(
     exclusionAfterEvent, fromEndOfDeviation, criteriaNote, notEvaluated,
     notEnoughStatistics, noChangeDetected, changeDetected, spectralNoReference,
     spectralTooLittle("—"), spectralCompared("—"), spectralComparison,
+    searchFeedbackTitle, feedbackOnScreenOnly, feedbackClicks,
+    feedbackTone, feedbackVibro, energyTone,
+    energyToneNote, alarmTitle, archiveSaved,
+    archiveFailed, debugTitle, stateReport,
+    debugBundleNote, whatIsWrong, whatIsWrongHint,
+    saveDebugArchive, notConnected, measurementsCounted,
+    no, notRecorded, notCreated,
+    translationNote, skinTitle, skinNote,
+    themeTitle, themeNote, alarmsIntro,
+    nowLabel, usuallyHere, thresholdL1,
+    noBandToCompare, sensitivityNormal, sensitivityHigh,
+    sensitivityCustom, sensitivityCustomNote, alarmSoundElsewhere,
+    alarmSoundTitle, alarmSoundNote, saveLevels,
+    enterNumbers, level1MustBePositive, level2BelowLevel1,
+    levelsNote, profilesTitle, profilesIntro,
+    profileNameHint, add, ownProfile,
+    presets, active, archived,
+    hiddenFromPicker, saveName, icon,
+    autoByWifi, learnBackground, wifiNote,
+    unbind, notOnWifi, networkAlreadyBound,
+    bindCurrentNetwork, nestInProfile, standalone,
+    unarchive, archiveAction, deleteProfile,
+    deleteProfileQuestion, usualBackgroundTitle, usualBackgroundIntro,
+    freezeLearning, graceNote, instrumentTitle,
+    modelLabel, serialNumber, firmware,
+    bluetoothConnected, bluetoothConnecting, bluetoothNoLink,
+    serviceStopped, instrumentBattery, temperature,
+    stream, streamActive, unitsTitle,
+    unitMicroSv, unitMicroSvNote, unitMicroR,
+    unitMicroRNote, unitsNote, interfaceTitle,
+    tabsNote, alwaysVisible, atLeastOneTab,
+    monitorBlocksNote, blockTrend, blockDoseToday,
+    blockCountChart, blockHardnessChart, blockStats,
+    resetInterface, visible, hidden,
+    onShort, offShort, licencesUnreadable,
+    licencesTitle, licencesBody, hideLicences,
+    showLicences, reading, recentUpdates,
+    whatChanged, excludedBecause("x"), createdAt("x"),
+    level1WithUnit("x"), level2WithUnit("x"), bluetoothReconnecting(1),
+
 
 
 

@@ -432,6 +432,175 @@ object EnStrings : Strings {
 
     override val spectralComparison = "Spectral comparison"
 
+    override val searchFeedbackTitle = "Search feedback"
+    override val feedbackOnScreenOnly = "the signal is shown on the Search screen only"
+    override val feedbackClicks = "a click for every registered count"
+    override val feedbackTone = "a continuous tone: higher means further from the background"
+    override val feedbackVibro =
+        "the same without sound: faster pulses mean further from the background"
+    override val energyTone = "pitch by energy"
+    override val energyToneNote = "click pitch follows the mean gamma energy"
+    override val alarmTitle = "Alarm"
+    override val archiveSaved = "archive saved"
+    override val archiveFailed = "the archive was not written — try another folder"
+    override val debugTitle = "Diagnostics"
+    override val stateReport = "State report"
+    override val debugBundleNote =
+        "One archive with everything a diagnosis needs: the state of the app and the " +
+            "instrument, the accumulated spectrum and the recorded background, and your " +
+            "description of the problem."
+    override val whatIsWrong = "What is wrong"
+    override val whatIsWrongHint = "for example: it connects, but the spectrum is empty"
+    override val saveDebugArchive = "Save the diagnostics archive"
+    override val notConnected = "not connected"
+
+    override fun excludedBecause(reason: String) = "excluded: $reason"
+
+    override val measurementsCounted = "measurements are counted"
+    override val no = "no"
+    override val notRecorded = "not recorded"
+
+    override fun createdAt(stamp: String) = "created $stamp"
+
+    override val notCreated = "not created"
+    override val translationNote =
+        "Translation is in progress: untranslated parts are shown in Russian. · Перевод " +
+            "выполняется по разделам: непереведённые части пока показываются по-русски."
+    override val skinTitle = "Skin"
+    override val skinNote =
+        "A skin changes colours, type and the shape of borders — and nothing else: " +
+            "readings, wording and calculations do not depend on it. Light and dark work " +
+            "in both skins."
+    override val themeTitle = "Theme"
+    override val themeNote =
+        "Dark is the primary theme: charts and figures read well at dusk. Light is for " +
+            "bright sunlight."
+    override val alarmsIntro =
+        "An alarm is not triggered by a single spike: the level has to cross a threshold — " +
+            "in absolute value or relative to this place's usual background — and hold " +
+            "there for the stated time."
+    override val nowLabel = "now"
+    override val usuallyHere = "usually here"
+    override val thresholdL1 = "L1 threshold"
+    override val noBandToCompare =
+        "This place's usual background is not collected yet — there is nothing to compare " +
+            "the threshold with."
+    // Не «Normal»: русское «Обычная» тоже избегает слова «норма» — уровень
+    // чувствительности не должен читаться как утверждение об уровне излучения.
+    override val sensitivityNormal = "Standard"
+    override val sensitivityHigh = "High"
+    override val sensitivityCustom = "Custom"
+    override val sensitivityCustomNote = "dose-rate levels are set by hand"
+    override val alarmSoundElsewhere =
+        "The alarm's melody and vibration live in «Notifications and feedback»."
+    override val alarmSoundTitle = "Alarm sound and vibration"
+    override val alarmSoundNote =
+        "the melody and vibration are set in the Android settings of the «Alarm» channel"
+
+    override fun level1WithUnit(unit: String) = "level 1, $unit"
+
+    override fun level2WithUnit(unit: String) = "level 2, $unit"
+
+    override val saveLevels = "Save the levels"
+    override val enterNumbers = "Enter numbers, for example 0.30"
+    override val level1MustBePositive = "Level 1 must be greater than zero"
+    override val level2BelowLevel1 = "Level 2 cannot be below level 1"
+    override val levelsNote =
+        "Level 1 is the alarm line on the charts and the deviation threshold; level 2 is " +
+            "a large excess."
+    override val profilesTitle = "Places"
+    override val profilesIntro =
+        "A place is a setting with its own usual background: home, office, a cottage. The " +
+            "app can switch to it by itself when the phone joins a known Wi-Fi network. " +
+            "Deleting a place leaves its measurements in the journal."
+    override val profileNameHint = "name of the place"
+    override val add = "Add"
+    override val ownProfile = "+ Custom place"
+    override val presets = "Presets:"
+    override val active = "active"
+    override val archived = "archived"
+    override val hiddenFromPicker = "hidden from the picker"
+    override val saveName = "Save the name"
+    override val icon = "Icon"
+    override val autoByWifi = "Switch on automatically by Wi-Fi"
+    override val learnBackground = "Learn the usual background"
+    override val wifiNote =
+        "Wi-Fi networks. A network is recognised by the router's address, not by its " +
+            "name: no location permission is needed for that."
+    override val unbind = "unbind"
+    override val notOnWifi = "the phone is not on Wi-Fi right now"
+    override val networkAlreadyBound = "the current network is already bound to this place"
+    override val bindCurrentNetwork = "Bind the current network"
+    override val nestInProfile = "Nest inside a place"
+    override val standalone = "standalone"
+    override val unarchive = "Restore from the archive"
+    override val archiveAction = "Archive"
+    override val deleteProfile = "Delete the place"
+    override val deleteProfileQuestion = "Delete this place?"
+    override val usualBackgroundTitle = "Usual background"
+    override val usualBackgroundIntro =
+        "A place's usual background is fed only by admissible measurements. Left out are: " +
+            "Search and experiments, a broken stream, half an hour after a deviation, and " +
+            "any time the place is not confirmed. The measurements themselves are always " +
+            "recorded."
+    override val freezeLearning = "Freeze learning"
+    override val graceNote =
+        "How long to wait before deciding the phone has left a known network. Throughout " +
+            "that time the place stays as it was, but the background is not fed."
+    override val instrumentTitle = "Instrument"
+    override val modelLabel = "model"
+    override val serialNumber = "serial number"
+    override val firmware = "firmware"
+    override val bluetoothConnected = "connected"
+    override val bluetoothConnecting = "connecting…"
+
+    override fun bluetoothReconnecting(attempt: Int) = "reconnecting, attempt $attempt"
+
+    override val bluetoothNoLink = "no link"
+    override val serviceStopped = "service stopped"
+    override val instrumentBattery = "instrument battery"
+    override val temperature = "temperature"
+    override val stream = "stream"
+    override val streamActive = "running · 1 Hz"
+    override val unitsTitle = "Units"
+    override val unitMicroSv = "µSv/h"
+    override val unitMicroSvNote = "microsieverts per hour — the SI unit"
+    override val unitMicroR = "µR/h"
+    override val unitMicroRNote = "microroentgens per hour · 1 µSv/h = 100 µR/h"
+    override val unitsNote =
+        "The conversion is for display only: measurements are stored in the instrument's " +
+            "own units without loss of precision."
+    override val interfaceTitle = "Interface"
+    override val tabsNote =
+        "Tabs of the menu: order and visibility. Settings stay reachable through the λ " +
+            "icon on Monitor."
+    override val alwaysVisible = "always visible"
+    override val atLeastOneTab = "Besides Monitor, at least one tab has to remain."
+    override val monitorBlocksNote =
+        "Blocks of the Monitor screen. The value, the status and the dose-rate chart " +
+            "always stay; the rest is your choice."
+    override val blockTrend = "Trend/h"
+    override val blockDoseToday = "Dose today"
+    override val blockCountChart = "Count-rate chart"
+    override val blockHardnessChart = "Hardness chart"
+    override val blockStats = "Statistics under the chart (min/median/max/SD/n)"
+    override val resetInterface = "Restore the default menu and blocks"
+    override val visible = "visible"
+    override val hidden = "hidden"
+    override val onShort = "on"
+    override val offShort = "off"
+    override val licencesUnreadable = "The licence files could not be read."
+    override val licencesTitle = "Licences"
+    override val licencesBody =
+        "The RadiaCode protocol is a port of the cdump/radiacode library (MIT). BLE — " +
+            "Kable (Apache-2.0). The map — osmdroid (Apache-2.0), map data © " +
+            "OpenStreetMap contributors (ODbL). Fonts IBM Plex Sans and IBM Plex Mono (OFL)."
+    override val hideLicences = "Hide the licence texts"
+    override val showLicences = "Show the licence texts"
+    override val reading = "reading…"
+    override val recentUpdates = "recent updates"
+    override val whatChanged = "what changed"
+
     override val deviceSignals = "Instrument signals"
     override val deviceSignalsNote =
         "The instrument's own sound and vibration. They work even with the phone " +

@@ -416,6 +416,168 @@ object RuStrings : Strings {
 
     override val spectralComparison = "Спектральное сравнение"
 
+    override val searchFeedbackTitle = "Отклик в Поиске"
+    override val feedbackOnScreenOnly = "сигнал виден только на экране Поиска"
+    override val feedbackClicks = "щелчок на каждый зарегистрированный импульс"
+    override val feedbackTone = "непрерывный тон: выше — дальше от записанного фона"
+    override val feedbackVibro = "то же без звука: чаще пульс — дальше от записанного фона"
+    override val energyTone = "тон по энергии"
+    override val energyToneNote = "высота щелчка по средней энергии гамма-квантов"
+    override val alarmTitle = "Тревога"
+    override val archiveSaved = "архив сохранён"
+    override val archiveFailed = "архив не записался — попробуйте другую папку"
+    override val debugTitle = "Отладка"
+    override val stateReport = "Отчёт о состоянии"
+    override val debugBundleNote =
+        "Один архив со всем, что нужно для разбора: состояние приложения и прибора, " +
+            "накопленный спектр и записанный фон, ваше описание проблемы."
+    override val whatIsWrong = "Что не работает"
+    override val whatIsWrongHint = "например: подключается, но спектр пустой"
+    override val saveDebugArchive = "Сохранить архив отладки"
+    override val notConnected = "не подключён"
+
+    override fun excludedBecause(reason: String) = "исключено: $reason"
+
+    override val measurementsCounted = "измерения учитываются"
+    override val no = "нет"
+    override val notRecorded = "не записан"
+
+    override fun createdAt(stamp: String) = "создан $stamp"
+
+    override val notCreated = "не создан"
+    override val translationNote =
+        "Перевод выполняется по разделам: непереведённые части пока показываются " +
+            "по-русски. · Translation is in progress: untranslated parts are shown in Russian."
+    override val skinTitle = "Оформление"
+    override val skinNote =
+        "Оформление меняет цвета, шрифт и форму рамок — и только их: показания, " +
+            "формулировки и расчёты от него не зависят. Светлая и тёмная тема работают " +
+            "в обоих вариантах."
+    override val themeTitle = "Тема"
+    override val themeNote =
+        "Тёмная тема — основная: на ней графики и цифры читаются в сумерках. Светлая " +
+            "пригодится на солнце."
+    override val alarmsIntro =
+        "Тревога срабатывает не от одиночного скачка: уровень должен превысить порог — " +
+            "по абсолютной величине или относительно обычного фона места — и продержаться " +
+            "указанное время."
+    override val nowLabel = "сейчас"
+    override val usuallyHere = "обычно здесь"
+    override val thresholdL1 = "порог L1"
+    override val noBandToCompare =
+        "Обычный фон этого места ещё не собран — сравнивать порог пока не с чем."
+    override val sensitivityNormal = "Обычная"
+    override val sensitivityHigh = "Высокая"
+    override val sensitivityCustom = "Своя"
+    override val sensitivityCustomNote = "уровни мощности дозы задаются вручную"
+    override val alarmSoundElsewhere = "Мелодия и вибрация тревоги — в разделе «Звук»."
+    override val alarmSoundTitle = "Звук и вибрация тревоги"
+    override val alarmSoundNote =
+        "мелодия и вибрация настраиваются в системных настройках уведомления «Тревога»"
+
+    override fun level1WithUnit(unit: String) = "уровень 1, $unit"
+
+    override fun level2WithUnit(unit: String) = "уровень 2, $unit"
+
+    override val saveLevels = "Сохранить уровни"
+    override val enterNumbers = "Введите числа, например 0,30"
+    override val level1MustBePositive = "Уровень 1 должен быть больше нуля"
+    override val level2BelowLevel1 = "Уровень 2 не может быть ниже уровня 1"
+    override val levelsNote =
+        "Уровень 1 — линия тревоги на графиках и порог отклонения; уровень 2 — сильное " +
+            "превышение."
+    override val profilesTitle = "Профили"
+    override val profilesIntro =
+        "Профиль — обстановка со своим обычным фоном: дом, офис, дача. Приложение может " +
+            "включать его само, когда телефон в знакомой сети Wi-Fi. При удалении профиля " +
+            "измерения остаются в журнале."
+    override val profileNameHint = "название профиля"
+    override val add = "Добавить"
+    override val ownProfile = "+ Свой профиль"
+    override val presets = "Готовые:"
+    override val active = "активен"
+    override val archived = "в архиве"
+    override val hiddenFromPicker = "профиль скрыт из выбора"
+    override val saveName = "Сохранить имя"
+    override val icon = "Значок"
+    override val autoByWifi = "Включать автоматически по Wi-Fi"
+    override val learnBackground = "Учить обычный фон"
+    override val wifiNote =
+        "Сети Wi-Fi. Сеть узнаётся по адресу роутера, а не по имени: разрешение на " +
+            "геолокацию для этого не нужно."
+    override val unbind = "отвязать"
+    override val notOnWifi = "телефон сейчас не в сети Wi-Fi"
+    override val networkAlreadyBound = "текущая сеть уже привязана к этому профилю"
+    override val bindCurrentNetwork = "Привязать текущую сеть"
+    override val nestInProfile = "Вложить в профиль"
+    override val standalone = "самостоятельный"
+    override val unarchive = "Вернуть из архива"
+    override val archiveAction = "В архив"
+    override val deleteProfile = "Удалить профиль"
+    override val deleteProfileQuestion = "Удалить профиль?"
+    override val usualBackgroundTitle = "Обычный фон"
+    override val usualBackgroundIntro =
+        "Обычный фон профиля пополняется только из пригодных измерений. Не учитываются: " +
+            "Поиск и опыты, обрыв потока, полчаса после отклонения и время, пока место не " +
+            "подтверждено. Сами измерения записываются всегда."
+    override val freezeLearning = "Заморозить обучение"
+    override val graceNote =
+        "Сколько ждать, прежде чем считать, что телефон покинул знакомую сеть. Всё это " +
+            "время профиль остаётся прежним, но фон не пополняется."
+    override val instrumentTitle = "Прибор"
+    override val modelLabel = "модель"
+    override val serialNumber = "серийный номер"
+    override val firmware = "прошивка"
+    override val bluetoothConnected = "подключено"
+    override val bluetoothConnecting = "подключение…"
+
+    override fun bluetoothReconnecting(attempt: Int) = "переподключение, попытка $attempt"
+
+    override val bluetoothNoLink = "нет соединения"
+    override val serviceStopped = "служба остановлена"
+    override val instrumentBattery = "батарея прибора"
+    override val temperature = "температура"
+    override val stream = "поток"
+    override val streamActive = "активен · 1 Гц"
+    override val unitsTitle = "Единицы"
+    override val unitMicroSv = "мкЗв/ч"
+    override val unitMicroSvNote = "микрозиверты в час — единица СИ"
+    override val unitMicroR = "мкР/ч"
+    override val unitMicroRNote = "микрорентгены в час · 1 мкЗв/ч = 100 мкР/ч"
+    override val unitsNote =
+        "Пересчёт только для отображения: измерения хранятся в исходных единицах прибора " +
+            "без потери точности."
+    override val interfaceTitle = "Интерфейс"
+    override val tabsNote =
+        "Вкладки меню: порядок и видимость. Настройки остаются доступны через значок λ " +
+            "на Главной."
+    override val alwaysVisible = "всегда видна"
+    override val atLeastOneTab = "Кроме Главной должна остаться хотя бы одна вкладка."
+    override val monitorBlocksNote =
+        "Блоки Главной. Число, статус и график мощности дозы остаются всегда; " +
+            "остальное — по вашему выбору."
+    override val blockTrend = "Тренд/ч"
+    override val blockDoseToday = "Доза сегодня"
+    override val blockCountChart = "График скорости счёта"
+    override val blockHardnessChart = "График жёсткости"
+    override val blockStats = "Статистика под графиком (мин/медиана/макс/SD/n)"
+    override val resetInterface = "Вернуть меню и блоки по умолчанию"
+    override val visible = "видна"
+    override val hidden = "скрыта"
+    override val onShort = "вкл"
+    override val offShort = "выкл"
+    override val licencesUnreadable = "Не удалось прочитать файлы лицензий."
+    override val licencesTitle = "Лицензии"
+    override val licencesBody =
+        "Протокол RadiaCode — порт библиотеки cdump/radiacode (MIT). BLE — Kable " +
+            "(Apache-2.0). Карта — osmdroid (Apache-2.0), данные карты © участники " +
+            "OpenStreetMap (ODbL). Шрифты IBM Plex Sans и IBM Plex Mono (OFL)."
+    override val hideLicences = "Скрыть тексты лицензий"
+    override val showLicences = "Показать тексты лицензий"
+    override val reading = "читаю…"
+    override val recentUpdates = "последние обновления"
+    override val whatChanged = "что изменилось"
+
     override val deviceSignals = "Сигналы прибора"
     override val deviceSignalsNote =
         "Звук и вибрация самого прибора. Они работают, даже когда телефон отключён " +

@@ -266,8 +266,8 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
 @Composable
 private fun CategoryRow(category: SettingsCategory, onClick: () -> Unit) {
     val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
     val strings = LocalStrings.current
+    val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
@@ -298,6 +298,7 @@ private fun CategoryRow(category: SettingsCategory, onClick: () -> Unit) {
 @Composable
 private fun SoundSection(graph: AppGraph) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
     val modeId by graph.settings.searchFeedbackMode.collectAsState(initial = null)
@@ -306,7 +307,7 @@ private fun SoundSection(graph: AppGraph) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Отклик в Поиске")
+            SectionTitle(strings.searchFeedbackTitle)
             Segmented(
                 options = SearchFeedbackMode.entries.map { it.label },
                 selectedIndex = SearchFeedbackMode.entries.indexOf(mode),
@@ -321,13 +322,13 @@ private fun SoundSection(graph: AppGraph) {
             )
             Text(
                 text = when (mode) {
-                    SearchFeedbackMode.OFF -> "сигнал виден только на экране Поиска"
+                    SearchFeedbackMode.OFF -> strings.feedbackOnScreenOnly
                     SearchFeedbackMode.CLICKS ->
-                        "щелчок на каждый зарегистрированный импульс"
+                        strings.feedbackClicks
                     SearchFeedbackMode.TONE ->
-                        "непрерывный тон: выше — дальше от записанного фона"
+                        strings.feedbackTone
                     SearchFeedbackMode.VIBRO ->
-                        "то же без звука: чаще пульс — дальше от записанного фона"
+                        strings.feedbackVibro
                 },
                 style = type.bodySmall,
                 color = colors.ink2,
@@ -338,7 +339,7 @@ private fun SoundSection(graph: AppGraph) {
                     horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
                 ) {
                     Chip(
-                        text = "тон по энергии",
+                        text = strings.energyTone,
                         color = if (energyTone) colors.dataText else colors.muted,
                         dot = if (energyTone) colors.data else null,
                         onClick = {
@@ -348,14 +349,14 @@ private fun SoundSection(graph: AppGraph) {
                         },
                     )
                     Text(
-                        text = "высота щелчка по средней энергии гамма-квантов",
+                        text = strings.energyToneNote,
                         style = type.footnote,
                         color = colors.muted,
                     )
                 }
             }
             AppDivider()
-            SectionTitle("Тревога")
+            SectionTitle(strings.alarmTitle)
             AlarmSoundRow()
         }
     }
@@ -371,6 +372,7 @@ private fun SoundSection(graph: AppGraph) {
 @Composable
 private fun DebugSection(graph: AppGraph) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -389,9 +391,9 @@ private fun DebugSection(graph: AppGraph) {
         if (uri != null && content != null) {
             scope.launch {
                 notice = if (writeBytesToUri(context, uri, content)) {
-                    "архив сохранён"
+                    strings.archiveSaved
                 } else {
-                    "архив не записался — попробуйте другую папку"
+                    strings.archiveFailed
                 }
             }
         }
@@ -399,13 +401,12 @@ private fun DebugSection(graph: AppGraph) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Отладка")
-            BlockToggleRow("Отчёт о состоянии", enabled) {
+            SectionTitle(strings.debugTitle)
+            BlockToggleRow(strings.stateReport, enabled) {
                 scope.launch { graph.settings.setDebugReportEnabled(it) }
             }
             Text(
-                text = "Один архив со всем, что нужно для разбора: состояние приложения и " +
-                    "прибора, накопленный спектр и записанный фон, ваше описание проблемы.",
+                text = strings.debugBundleNote,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
@@ -415,15 +416,15 @@ private fun DebugSection(graph: AppGraph) {
                 color = colors.muted,
             )
             if (enabled) {
-                Text(text = "Что не работает", style = type.label, color = colors.ink)
+                Text(text = strings.whatIsWrong, style = type.label, color = colors.ink)
                 AppTextField(
                     value = problem,
                     onValueChange = { problem = it },
-                    placeholder = "например: подключается, но спектр пустой",
+                    placeholder = strings.whatIsWrongHint,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 AppButton(
-                    text = "Сохранить архив отладки",
+                    text = strings.saveDebugArchive,
                     onClick = {
                         scope.launch {
                             val now = System.currentTimeMillis()
@@ -615,7 +616,7 @@ private suspend fun buildDebugReport(
             graph.settings.searchFeedbackMode.first(),
         )?.label ?: "нет",
         searchBackgroundWording = background
-            ?.let { "${it.cps} с⁻¹ · ${it.window.samples} показаний" }
+            ?.let { "${it.cps} с⁻¹ · ${it.window.samples}" }
             ?: "не записан",
         fingerprintWording = fingerprint
             ?.let { "создан ${REPORT_STAMP.format(Instant.ofEpochMilli(it.createdAt).atZone(ZoneId.systemDefault()))}" }
@@ -641,8 +642,8 @@ private val REPORT_STAMP = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
 @Composable
 private fun LanguageSection(graph: AppGraph) {
     val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
     val strings = LocalStrings.current
+    val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
     val current by graph.settings.language.collectAsState(initial = AppLanguage.SYSTEM)
 
@@ -660,7 +661,7 @@ private fun LanguageSection(graph: AppGraph) {
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                text = TRANSLATION_NOTE,
+                text = strings.translationNote,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -668,18 +669,6 @@ private fun LanguageSection(graph: AppGraph) {
     }
 }
 
-/**
- * Честная оговорка о состоянии перевода.
- *
- * Каталог строк построен, но перенесены в него пока не все экраны: приложение
- * писалось по-русски, и в нём около двух тысяч формулировок, каждая из
- * которых несёт правило («не оценивалось» ≠ «не обнаружено»). Перевод идёт
- * разделами; сказать об этом прямо честнее, чем показать наполовину
- * переведённый экран как законченный.
- */
-private const val TRANSLATION_NOTE =
-    "Перевод выполняется по разделам: непереведённые части пока показываются " +
-        "по-русски. · Translation is in progress: untranslated parts are shown in Russian."
 
 /**
  * Вариант оформления.
@@ -692,13 +681,14 @@ private const val TRANSLATION_NOTE =
 @Composable
 private fun SkinSection(graph: AppGraph) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
     val current by graph.settings.skin.collectAsState(initial = AppSkin.TERMINAL)
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Оформление")
+            SectionTitle(strings.skinTitle)
             Segmented(
                 options = AppSkin.entries.map { it.title },
                 selectedIndex = AppSkin.entries.indexOf(current),
@@ -708,9 +698,7 @@ private fun SkinSection(graph: AppGraph) {
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                text = "Оформление меняет цвета, шрифт и форму рамок — и только их: " +
-                    "показания, формулировки и расчёты от него не зависят. Светлая и " +
-                    "тёмная тема работают в обоих вариантах.",
+                text = strings.skinNote,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -721,13 +709,14 @@ private fun SkinSection(graph: AppGraph) {
 @Composable
 private fun ThemeSection(graph: AppGraph) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
     val theme by graph.settings.themeSetting.collectAsState(initial = ThemeSetting.SYSTEM)
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Тема")
+            SectionTitle(strings.themeTitle)
             Segmented(
                 options = ThemeSetting.entries.map { it.label },
                 selectedIndex = ThemeSetting.entries.indexOf(theme),
@@ -737,8 +726,7 @@ private fun ThemeSection(graph: AppGraph) {
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                text = "Тёмная тема — основная: на ней графики и цифры читаются в " +
-                    "сумерках. Светлая пригодится на солнце.",
+                text = strings.themeNote,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
@@ -760,6 +748,7 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun AlarmsSection(graph: AppGraph) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
     val sensitivity by graph.settings.alarmSensitivity
@@ -782,9 +771,7 @@ private fun AlarmsSection(graph: AppGraph) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle("Тревоги")
             Text(
-                text = "Тревога срабатывает не от одиночного скачка: уровень должен " +
-                    "превысить порог — по абсолютной величине или относительно " +
-                    "обычного фона места — и продержаться указанное время.",
+                text = strings.alarmsIntro,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
@@ -792,34 +779,33 @@ private fun AlarmsSection(graph: AppGraph) {
                 cells = listOf(
                     StatCell(
                         currentDose?.let { DoseFormat.rate(it, unit) } ?: "—",
-                        "сейчас",
+                        strings.nowLabel,
                     ),
                     StatCell(
                         activeBaseline?.let {
                             DoseFormat.range(it.doseLowMicroSvH, it.doseHighMicroSvH, unit)
                         } ?: "—",
-                        "обычно здесь",
+                        strings.usuallyHere,
                     ),
                     StatCell(
                         DoseFormat.rate(
                             alarmThresholds(sensitivity, customL1, customL2).l1MicroSvH,
                             unit,
                         ),
-                        "порог L1",
+                        strings.thresholdL1,
                     ),
                 ),
             )
             if (activeBaseline == null) {
                 Text(
-                    text = "Обычный фон этого места ещё не собран — сравнивать порог пока " +
-                        "не с чем.",
+                    text = strings.noBandToCompare,
                     style = type.footnote,
                     color = colors.muted,
                 )
             }
 
             SensitivityOption(
-                title = "Обычная",
+                title = strings.sensitivityNormal,
                 selected = sensitivity == AlarmSensitivity.NORMAL,
                 description = presetDescription(
                     alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f),
@@ -830,7 +816,7 @@ private fun AlarmsSection(graph: AppGraph) {
                 },
             )
             SensitivityOption(
-                title = "Высокая",
+                title = strings.sensitivityHigh,
                 selected = sensitivity == AlarmSensitivity.HIGH,
                 description = presetDescription(
                     alarmThresholds(AlarmSensitivity.HIGH, 0f, 0f),
@@ -841,9 +827,9 @@ private fun AlarmsSection(graph: AppGraph) {
                 },
             )
             SensitivityOption(
-                title = "Своя",
+                title = strings.sensitivityCustom,
                 selected = sensitivity == AlarmSensitivity.CUSTOM,
-                description = "уровни мощности дозы задаются вручную",
+                description = strings.sensitivityCustomNote,
                 onSelect = {
                     scope.launch { graph.settings.setAlarmSensitivity(AlarmSensitivity.CUSTOM) }
                 },
@@ -853,7 +839,7 @@ private fun AlarmsSection(graph: AppGraph) {
                 CustomLevels(graph, unit, customL1, customL2)
             }
             Text(
-                text = "Мелодия и вибрация тревоги — в разделе «Звук».",
+                text = strings.alarmSoundElsewhere,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -865,6 +851,7 @@ private fun AlarmsSection(graph: AppGraph) {
 @Composable
 private fun AlarmSoundRow() {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val context = LocalContext.current
     Row(
@@ -890,10 +877,9 @@ private fun AlarmSoundRow() {
             ),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(text = "Звук и вибрация тревоги", style = type.label, color = colors.ink)
+            Text(text = strings.alarmSoundTitle, style = type.label, color = colors.ink)
             Text(
-                text = "мелодия и вибрация настраиваются в системных настройках " +
-                    "уведомления «Тревога»",
+                text = strings.alarmSoundNote,
                 style = type.bodySmall,
                 color = colors.muted,
             )
@@ -910,6 +896,7 @@ private fun SensitivityOption(
     onSelect: () -> Unit,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -951,6 +938,7 @@ private fun CustomLevels(
     storedL2MicroSvH: Float,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
 
@@ -964,18 +952,18 @@ private fun CustomLevels(
     var error by remember { mutableStateOf<String?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-        LevelField("уровень 1, ${DoseFormat.rateUnitLabel(unit)}", l1Text) { l1Text = it }
-        LevelField("уровень 2, ${DoseFormat.rateUnitLabel(unit)}", l2Text) { l2Text = it }
+        LevelField(strings.level1WithUnit(DoseFormat.rateUnitLabel(unit)), l1Text) { l1Text = it }
+        LevelField(strings.level2WithUnit(DoseFormat.rateUnitLabel(unit)), l2Text) { l2Text = it }
         error?.let { Text(text = it, style = type.bodySmall, color = colors.warn) }
         AppButton(
-            text = "Сохранить уровни",
+            text = strings.saveLevels,
             onClick = {
                 val l1 = parseLevelToMicroSv(l1Text, unit)
                 val l2 = parseLevelToMicroSv(l2Text, unit)
                 when {
-                    l1 == null || l2 == null -> error = "Введите числа, например 0,30"
-                    l1 <= 0f -> error = "Уровень 1 должен быть больше нуля"
-                    l2 < l1 -> error = "Уровень 2 не может быть ниже уровня 1"
+                    l1 == null || l2 == null -> error = strings.enterNumbers
+                    l1 <= 0f -> error = strings.level1MustBePositive
+                    l2 < l1 -> error = strings.level2BelowLevel1
                     else -> {
                         error = null
                         scope.launch { graph.settings.setCustomAlarmLevels(l1, l2) }
@@ -984,8 +972,7 @@ private fun CustomLevels(
             },
         )
         Text(
-            text = "Уровень 1 — линия тревоги на графиках и порог отклонения; " +
-                "уровень 2 — сильное превышение.",
+            text = strings.levelsNote,
             style = type.bodySmall,
             color = colors.muted,
         )
@@ -995,6 +982,7 @@ private fun CustomLevels(
 @Composable
 private fun LevelField(label: String, value: String, onChange: (String) -> Unit) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
         Text(text = label, style = type.bodySmall, color = colors.ink2)
@@ -1023,6 +1011,7 @@ private val PROFILE_ICONS = listOf("⌂", "▣", "⌾", "◈", "→", "○", "�
 @Composable
 private fun ProfilesSection(graph: AppGraph) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
     val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
@@ -1044,11 +1033,9 @@ private fun ProfilesSection(graph: AppGraph) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Профили")
+            SectionTitle(strings.profilesTitle)
             Text(
-                text = "Профиль — обстановка со своим обычным фоном: дом, офис, дача. " +
-                    "Приложение может включать его само, когда телефон в знакомой сети " +
-                    "Wi-Fi. При удалении профиля измерения остаются в журнале.",
+                text = strings.profilesIntro,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
@@ -1080,11 +1067,11 @@ private fun ProfilesSection(graph: AppGraph) {
                 AppTextField(
                     value = newName,
                     onValueChange = { newName = it },
-                    placeholder = "название профиля",
+                    placeholder = strings.profileNameHint,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     AppButton(
-                        text = "Добавить",
+                        text = strings.add,
                         primary = true,
                         enabled = newName.isNotBlank(),
                         onClick = {
@@ -1093,17 +1080,17 @@ private fun ProfilesSection(graph: AppGraph) {
                             adding = false
                         },
                     )
-                    AppButton(text = "Отмена", onClick = { adding = false })
+                    AppButton(text = strings.cancel, onClick = { adding = false })
                 }
             } else {
-                AppButton(text = "+ Свой профиль", onClick = { adding = true })
+                AppButton(text = strings.ownProfile, onClick = { adding = true })
             }
 
             val missing = ProfileTree.PRESETS.filter { preset ->
                 profiles.none { it.name.equals(preset.name, ignoreCase = true) }
             }
             if (missing.isNotEmpty()) {
-                Text(text = "Готовые:", style = type.footnote, color = colors.muted)
+                Text(text = strings.presets, style = type.footnote, color = colors.muted)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     missing.forEach { preset ->
                         Chip(
@@ -1155,6 +1142,7 @@ private fun ProfileSettingsRow(
     onCollapse: () -> Unit,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     var renameText by remember(profile.name, expanded) { mutableStateOf(profile.name) }
@@ -1194,11 +1182,11 @@ private fun ProfileSettingsRow(
                         style = type.label,
                         color = if (profile.archived) colors.muted else colors.ink,
                     )
-                    if (active) Chip(text = "активен", color = colors.ok)
-                    if (profile.archived) Chip(text = "в архиве", color = colors.muted)
+                    if (active) Chip(text = strings.active, color = colors.ok)
+                    if (profile.archived) Chip(text = strings.archived, color = colors.muted)
                 }
                 Text(
-                    text = if (profile.archived) "профиль скрыт из выбора" else baselineLine,
+                    text = if (profile.archived) strings.hiddenFromPicker else baselineLine,
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -1215,7 +1203,7 @@ private fun ProfileSettingsRow(
         AppTextField(value = renameText, onValueChange = { renameText = it })
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             AppButton(
-                text = "Сохранить имя",
+                text = strings.saveName,
                 enabled = renameText.isNotBlank() && renameText.trim() != profile.name,
                 onClick = {
                     scope.launch { graph.profileRepository.rename(profile.id, renameText.trim()) }
@@ -1224,7 +1212,7 @@ private fun ProfileSettingsRow(
             )
         }
 
-        Text(text = "Значок", style = type.footnote, color = colors.muted)
+        Text(text = strings.icon, style = type.footnote, color = colors.muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             PROFILE_ICONS.forEach { icon ->
                 Chip(
@@ -1235,17 +1223,16 @@ private fun ProfileSettingsRow(
             }
         }
 
-        BlockToggleRow("Включать автоматически по Wi-Fi", profile.autoActivate) { on ->
+        BlockToggleRow(strings.autoByWifi, profile.autoActivate) { on ->
             scope.launch { graph.profileRepository.setAutoActivate(profile.id, on) }
         }
-        BlockToggleRow("Учить обычный фон", profile.baselineLearning) { on ->
+        BlockToggleRow(strings.learnBackground, profile.baselineLearning) { on ->
             scope.launch { graph.profileRepository.setBaselineLearning(profile.id, on) }
         }
 
         // --- Wi-Fi ---
         Text(
-            text = "Сети Wi-Fi. Сеть узнаётся по адресу роутера, а не по имени: " +
-                "разрешение на геолокацию для этого не нужно.",
+            text = strings.wifiNote,
             style = type.footnote,
             color = colors.muted,
         )
@@ -1261,7 +1248,7 @@ private fun ProfileSettingsRow(
                     modifier = Modifier.weight(1f),
                 )
                 Chip(
-                    text = "отвязать",
+                    text = strings.unbind,
                     color = colors.ink2,
                     onClick = { scope.launch { graph.profileRepository.unbindNetwork(bound.id) } },
                 )
@@ -1269,17 +1256,17 @@ private fun ProfileSettingsRow(
         }
         when {
             currentNetworkHash == null -> Text(
-                text = "телефон сейчас не в сети Wi-Fi",
+                text = strings.notOnWifi,
                 style = type.footnote,
                 color = colors.muted,
             )
             boundNetworks.any { it.networkHash == currentNetworkHash } -> Text(
-                text = "текущая сеть уже привязана к этому профилю",
+                text = strings.networkAlreadyBound,
                 style = type.footnote,
                 color = colors.muted,
             )
             else -> AppButton(
-                text = "Привязать текущую сеть",
+                text = strings.bindCurrentNetwork,
                 onClick = {
                     scope.launch {
                         graph.profileRepository.bindNetwork(
@@ -1296,10 +1283,10 @@ private fun ProfileSettingsRow(
         val parents = ProfileTree.parentCandidates(allProfiles, profile.id)
             .filter { it.id != profile.id }
         if (parents.isNotEmpty() || profile.parentId != null) {
-            Text(text = "Вложить в профиль", style = type.footnote, color = colors.muted)
+            Text(text = strings.nestInProfile, style = type.footnote, color = colors.muted)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Chip(
-                    text = "самостоятельный",
+                    text = strings.standalone,
                     color = if (profile.parentId == null) colors.dataText else colors.ink2,
                     onClick = { scope.launch { graph.profileRepository.setParent(profile.id, null) } },
                 )
@@ -1320,14 +1307,14 @@ private fun ProfileSettingsRow(
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             if (profile.archived) {
                 AppButton(
-                    text = "Вернуть из архива",
+                    text = strings.unarchive,
                     onClick = {
                         scope.launch { graph.profileRepository.setArchived(profile.id, false) }
                     },
                 )
             } else {
                 AppButton(
-                    text = "В архив",
+                    text = strings.archiveAction,
                     enabled = ProfileTree.canArchive(allProfiles, profile.id),
                     onClick = {
                         scope.launch { graph.profileRepository.setArchived(profile.id, true) }
@@ -1336,7 +1323,7 @@ private fun ProfileSettingsRow(
                 )
             }
             AppButton(
-                text = "Удалить профиль",
+                text = strings.deleteProfile,
                 enabled = deletion is ProfileDeletion.Allowed,
                 onClick = { confirmingDelete = true },
             )
@@ -1374,19 +1361,20 @@ private fun ConfirmDeleteProfileDialog(
     onDismiss: () -> Unit,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = "Удалить профиль?", style = type.title, color = colors.ink)
+                Text(text = strings.deleteProfileQuestion, style = type.title, color = colors.ink)
                 Text(
                     text = ProfileDeletion.confirmWording(profileName),
                     style = type.bodySmall,
                     color = colors.ink2,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    AppButton(text = "Удалить", onClick = onConfirm)
-                    AppButton(text = "Отмена", onClick = onDismiss)
+                    AppButton(text = strings.delete, onClick = onConfirm)
+                    AppButton(text = strings.cancel, onClick = onDismiss)
                 }
             }
         }
@@ -1403,6 +1391,7 @@ private fun ConfirmDeleteProfileDialog(
 @Composable
 private fun BaselineSection(graph: AppGraph) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
     val frozen by graph.settings.baselineFrozen.collectAsState(initial = false)
@@ -1411,22 +1400,18 @@ private fun BaselineSection(graph: AppGraph) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Обычный фон")
+            SectionTitle(strings.usualBackgroundTitle)
             Text(
-                text = "Обычный фон профиля пополняется только из пригодных измерений. " +
-                    "Не учитываются: Поиск и опыты, обрыв потока, полчаса после " +
-                    "отклонения и время, пока место не подтверждено. Сами измерения " +
-                    "записываются всегда.",
+                text = strings.usualBackgroundIntro,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
-            BlockToggleRow("Заморозить обучение", frozen) { on ->
+            BlockToggleRow(strings.freezeLearning, frozen) { on ->
                 scope.launch { graph.settings.setBaselineFrozen(on) }
             }
             AppDivider()
             Text(
-                text = "Сколько ждать, прежде чем считать, что телефон покинул знакомую " +
-                    "сеть. Всё это время профиль остаётся прежним, но фон не пополняется.",
+                text = strings.graceNote,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
@@ -1459,8 +1444,8 @@ private fun BaselineSection(graph: AppGraph) {
 @Composable
 private fun DeviceSignalsSection(graph: AppGraph) {
     val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
     val strings = LocalStrings.current
+    val type = LocalAppTypography.current
     val connection by graph.serviceStatus.connection.collectAsState()
     val applied by graph.deviceControlHub.applied.collectAsState()
     val connected = connection is ConnectionState.Connected
@@ -1508,8 +1493,8 @@ private fun DeviceSignalRow(
     onSet: (Boolean) -> Unit,
 ) {
     val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
     val strings = LocalStrings.current
+    val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
@@ -1540,6 +1525,7 @@ private fun DeviceSignalRow(
 @Composable
 private fun DeviceSection(graph: AppGraph) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val connection by graph.serviceStatus.connection.collectAsState()
     val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
@@ -1557,30 +1543,30 @@ private fun DeviceSection(graph: AppGraph) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Прибор")
+            SectionTitle(strings.instrumentTitle)
 
             when (val state = connection) {
                 is ConnectionState.Connected -> {
-                    InfoRow("модель", state.info.model.displayName)
-                    InfoRow("серийный номер", state.info.serialNumber)
-                    InfoRow("прошивка", state.info.firmware.toString())
-                    InfoRow("bluetooth", "подключено")
+                    InfoRow(strings.modelLabel, state.info.model.displayName)
+                    InfoRow(strings.serialNumber, state.info.serialNumber)
+                    InfoRow(strings.firmware, state.info.firmware.toString())
+                    InfoRow("bluetooth", strings.bluetoothConnected)
                 }
-                is ConnectionState.Connecting -> InfoRow("bluetooth", "подключение…")
+                is ConnectionState.Connecting -> InfoRow("bluetooth", strings.bluetoothConnecting)
                 is ConnectionState.Reconnecting ->
-                    InfoRow("bluetooth", "переподключение, попытка ${state.attempt}")
+                    InfoRow("bluetooth", strings.bluetoothReconnecting(state.attempt))
                 ConnectionState.Disconnected ->
-                    InfoRow("bluetooth", if (serviceRunning) "нет соединения" else "служба остановлена")
+                    InfoRow("bluetooth", if (serviceRunning) strings.bluetoothNoLink else strings.serviceStopped)
             }
 
             rareData?.let { rare ->
-                InfoRow("батарея прибора", "${rare.batteryPercent.toInt()} %")
-                InfoRow("температура", "${rare.temperature.toInt()} °C")
+                InfoRow(strings.instrumentBattery, "${rare.batteryPercent.toInt()} %")
+                InfoRow(strings.temperature, "${rare.temperature.toInt()} °C")
             }
 
             when (freshness) {
-                Freshness.NoData -> InfoRow("поток", "данных ещё нет")
-                is Freshness.Fresh -> InfoRow("поток", "активен · 1 Гц")
+                Freshness.NoData -> InfoRow(strings.stream, strings.noData)
+                is Freshness.Fresh -> InfoRow(strings.stream, strings.streamActive)
                 is Freshness.Stale -> Text(
                     text = freshnessLabel(freshness),
                     style = type.value,
@@ -1594,6 +1580,7 @@ private fun DeviceSection(graph: AppGraph) {
 @Composable
 private fun InfoRow(label: String, value: String) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Row(modifier = Modifier.fillMaxWidth()) {
         Text(text = label, style = type.bodySmall, color = colors.muted)
@@ -1607,32 +1594,32 @@ private fun InfoRow(label: String, value: String) {
 @Composable
 private fun UnitsSection(graph: AppGraph) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Единицы")
+            SectionTitle(strings.unitsTitle)
             UnitOption(
-                title = "мкЗв/ч",
-                subtitle = "микрозиверты в час — единица СИ",
+                title = strings.unitMicroSv,
+                subtitle = strings.unitMicroSvNote,
                 selected = unit == DoseUnitSetting.MICRO_SIEVERT,
                 onSelect = {
                     scope.launch { graph.settings.setDoseUnit(DoseUnitSetting.MICRO_SIEVERT) }
                 },
             )
             UnitOption(
-                title = "мкР/ч",
-                subtitle = "микрорентгены в час · 1 мкЗв/ч = 100 мкР/ч",
+                title = strings.unitMicroR,
+                subtitle = strings.unitMicroRNote,
                 selected = unit == DoseUnitSetting.MICRO_ROENTGEN,
                 onSelect = {
                     scope.launch { graph.settings.setDoseUnit(DoseUnitSetting.MICRO_ROENTGEN) }
                 },
             )
             Text(
-                text = "Пересчёт только для отображения: измерения хранятся в исходных " +
-                    "единицах прибора без потери точности.",
+                text = strings.unitsNote,
                 style = type.bodySmall,
                 color = colors.muted,
             )
@@ -1648,6 +1635,7 @@ private fun UnitOption(
     onSelect: () -> Unit,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1683,6 +1671,7 @@ private fun UnitOption(
 @Composable
 private fun InterfaceSection(graph: AppGraph) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
     val navRaw by graph.settings.navTabsRaw.collectAsState(initial = null)
@@ -1697,11 +1686,10 @@ private fun InterfaceSection(graph: AppGraph) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Интерфейс")
+            SectionTitle(strings.interfaceTitle)
 
             Text(
-                text = "Вкладки меню: порядок и видимость. Настройки остаются " +
-                    "доступны через шестерёнку на Главной.",
+                text = strings.tabsNote,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
@@ -1713,7 +1701,7 @@ private fun InterfaceSection(graph: AppGraph) {
             ) {
                 Text(text = AppTab.HOME.title(LocalStrings.current), style = type.label, color = colors.ink)
                 Spacer(Modifier.weight(1f))
-                Text(text = "всегда видна", style = type.bodySmall, color = colors.muted)
+                Text(text = strings.alwaysVisible, style = type.bodySmall, color = colors.muted)
             }
             entries.forEachIndexed { index, entry ->
                 NavTabRow(
@@ -1729,7 +1717,7 @@ private fun InterfaceSection(graph: AppGraph) {
             }
             if (guardNote) {
                 Text(
-                    text = "Кроме Главной должна остаться хотя бы одна вкладка.",
+                    text = strings.atLeastOneTab,
                     style = type.bodySmall,
                     color = colors.warn,
                 )
@@ -1737,30 +1725,29 @@ private fun InterfaceSection(graph: AppGraph) {
 
             AppDivider()
             Text(
-                text = "Блоки Главной. Число, статус и график мощности дозы остаются " +
-                    "всегда; остальное — по вашему выбору.",
+                text = strings.monitorBlocksNote,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
-            BlockToggleRow("Тренд/ч", blocks.trend) {
+            BlockToggleRow(strings.blockTrend, blocks.trend) {
                 scope.launch { graph.settings.setMonitorBlocks(blocks.copy(trend = it)) }
             }
-            BlockToggleRow("Доза сегодня", blocks.doseToday) {
+            BlockToggleRow(strings.blockDoseToday, blocks.doseToday) {
                 scope.launch { graph.settings.setMonitorBlocks(blocks.copy(doseToday = it)) }
             }
-            BlockToggleRow("График скорости счёта", blocks.countRateChart) {
+            BlockToggleRow(strings.blockCountChart, blocks.countRateChart) {
                 scope.launch { graph.settings.setMonitorBlocks(blocks.copy(countRateChart = it)) }
             }
-            BlockToggleRow("График жёсткости", blocks.hardnessChart) {
+            BlockToggleRow(strings.blockHardnessChart, blocks.hardnessChart) {
                 scope.launch { graph.settings.setMonitorBlocks(blocks.copy(hardnessChart = it)) }
             }
-            BlockToggleRow("Статистика под графиком (мин/медиана/макс/SD/n)", blocks.stats) {
+            BlockToggleRow(strings.blockStats, blocks.stats) {
                 scope.launch { graph.settings.setMonitorBlocks(blocks.copy(stats = it)) }
             }
 
             AppDivider()
             AppButton(
-                text = "Вернуть меню и блоки по умолчанию",
+                text = strings.resetInterface,
                 onClick = {
                     guardNote = false
                     scope.launch { graph.settings.resetInterfaceCustomization() }
@@ -1779,6 +1766,7 @@ private fun NavTabRow(
     onToggle: () -> Unit,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1796,7 +1784,7 @@ private fun NavTabRow(
         ArrowButton(text = "↑", enabled = canMoveUp) { onMove(-1) }
         ArrowButton(text = "↓", enabled = canMoveDown) { onMove(1) }
         Text(
-            text = if (entry.visible) "видна" else "скрыта",
+            text = if (entry.visible) strings.visible else strings.hidden,
             style = type.value,
             color = if (entry.visible) colors.ink else colors.muted,
             modifier = Modifier
@@ -1815,6 +1803,7 @@ private fun NavTabRow(
 @Composable
 private fun ArrowButton(text: String, enabled: Boolean, onClick: () -> Unit) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Text(
         text = text,
@@ -1836,6 +1825,7 @@ private fun ArrowButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 @Composable
 private fun BlockToggleRow(title: String, enabled: Boolean, onChange: (Boolean) -> Unit) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1856,7 +1846,7 @@ private fun BlockToggleRow(title: String, enabled: Boolean, onChange: (Boolean) 
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = if (enabled) "вкл" else "выкл",
+            text = if (enabled) strings.onShort else strings.offShort,
             style = type.value,
             color = if (enabled) colors.ink else colors.muted,
         )
@@ -1876,6 +1866,7 @@ private fun BlockToggleRow(title: String, enabled: Boolean, onChange: (Boolean) 
 @Composable
 private fun LicensesSection() {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val context = LocalContext.current
     var licensesText by remember { mutableStateOf<String?>(null) }
@@ -1888,13 +1879,13 @@ private fun LicensesSection() {
                 LICENSE_ASSETS.joinToString("\n\n" + "─".repeat(24) + "\n\n") { path ->
                     context.assets.open(path).bufferedReader().use { it.readText() }
                 }
-            }.getOrElse { "Не удалось прочитать файлы лицензий." }
+            }.getOrElse { strings.licencesUnreadable }
         }
     }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("О приложении")
+            SectionTitle(strings.settingsAbout)
             VersionRow(showNotes) { showNotes = !showNotes }
             AnimatedVisibility(
                 visible = showNotes,
@@ -1903,22 +1894,19 @@ private fun LicensesSection() {
             ) {
                 ReleaseNotesList()
             }
-            SectionTitle("Лицензии")
+            SectionTitle(strings.licencesTitle)
             Text(
-                text = "Протокол RadiaCode — порт библиотеки cdump/radiacode (MIT). " +
-                    "BLE — Kable (Apache-2.0). Карта — osmdroid (Apache-2.0), " +
-                    "данные карты © участники OpenStreetMap (ODbL). Шрифты IBM Plex Sans " +
-                    "и IBM Plex Mono (OFL).",
+                text = strings.licencesBody,
                 style = type.bodySmall,
                 color = colors.muted,
             )
             AppButton(
-                text = if (showLicenses) "Скрыть тексты лицензий" else "Показать тексты лицензий",
+                text = if (showLicenses) strings.hideLicences else strings.showLicences,
                 onClick = { showLicenses = !showLicenses },
             )
             if (showLicenses) {
                 Text(
-                    text = licensesText ?: "читаю…",
+                    text = licensesText ?: strings.reading,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
@@ -1937,6 +1925,7 @@ private fun LicensesSection() {
 @Composable
 private fun VersionRow(expanded: Boolean, onToggle: () -> Unit) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1959,7 +1948,7 @@ private fun VersionRow(expanded: Boolean, onToggle: () -> Unit) {
                 color = colors.ink,
             )
             Text(
-                text = if (expanded) "последние обновления" else "что изменилось",
+                text = if (expanded) strings.recentUpdates else strings.whatChanged,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -1972,6 +1961,7 @@ private fun VersionRow(expanded: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun ReleaseNotesList() {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
         for (note in ReleaseNotes.shown) {
