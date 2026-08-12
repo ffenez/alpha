@@ -13,6 +13,7 @@ import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
 import app.radiacode.baseline.alarmThresholds
 import app.radiacode.context.ContextConfig
+import app.radiacode.ui.text.AppLanguage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -151,6 +152,14 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
      * Дизайн-язык тёмный по природе, но выбор — за человеком, который держит
      * прибор на солнце.
      */
+    /** Язык интерфейса; `system` = язык телефона. */
+    val language: Flow<AppLanguage> =
+        dataStore.data.map { AppLanguage.of(it[LANGUAGE]) }
+
+    suspend fun setLanguage(language: AppLanguage) {
+        dataStore.edit { it[LANGUAGE] = language.id }
+    }
+
     val themeSetting: Flow<ThemeSetting> =
         dataStore.data.map { ThemeSetting.of(it[THEME]) }
 
@@ -344,6 +353,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")
         private val WHY_EXPANDED = booleanPreferencesKey("why_calculations_expanded")
         private val THEME = stringPreferencesKey("theme")
+        private val LANGUAGE = stringPreferencesKey("language")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")
         private val CHART_SPANS = stringPreferencesKey("chart_spans")
 

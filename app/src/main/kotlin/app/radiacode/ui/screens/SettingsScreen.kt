@@ -85,6 +85,9 @@ import app.radiacode.ui.logic.ReleaseNotes
 import app.radiacode.ui.logic.freshnessLabel
 import app.radiacode.ui.logic.heldWording
 import app.radiacode.ui.logic.learningWording
+import app.radiacode.ui.text.AppLanguage
+import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.Strings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -123,27 +126,45 @@ import kotlinx.coroutines.launch
  * findable — внутри «О приложении», — потому что отчёты нужны для разбора
  * полевых случаев, и прятать её за семь нажатий значило бы их не получать.
  */
-private enum class SettingsGroup(val title: String) {
-    MEASUREMENT("Измерение"),
-    APP("Приложение"),
-    OTHER("Другое"),
+private enum class SettingsGroup {
+    MEASUREMENT,
+    APP,
+    OTHER,
+    ;
+
+    fun title(strings: Strings): String = when (this) {
+        MEASUREMENT -> strings.groupMeasurement
+        APP -> strings.groupApp
+        OTHER -> strings.groupOther
+    }
 }
 
-private enum class SettingsCategory(
-    val group: SettingsGroup,
-    val title: String,
-    val subtitle: String,
-) {
-    ALARMS(SettingsGroup.MEASUREMENT, "Тревоги", "пороги, длительность, чувствительность"),
-    PROFILES(
-        SettingsGroup.MEASUREMENT,
-        "Профили и фон",
-        "места, сети Wi-Fi, обучение обычного фона",
-    ),
-    SOUND(SettingsGroup.APP, "Уведомления и отклик", "звук Поиска, вибрация, тревога"),
-    VIEW(SettingsGroup.APP, "Вид", "тема, единицы, вкладки и блоки Главной"),
-    DEVICE(SettingsGroup.OTHER, "Прибор", "модель, прошивка, звук и вибрация прибора"),
-    ABOUT(SettingsGroup.OTHER, "О приложении", "версия, обновления, лицензии, диагностика"),
+private enum class SettingsCategory(val group: SettingsGroup) {
+    ALARMS(SettingsGroup.MEASUREMENT),
+    PROFILES(SettingsGroup.MEASUREMENT),
+    SOUND(SettingsGroup.APP),
+    VIEW(SettingsGroup.APP),
+    DEVICE(SettingsGroup.OTHER),
+    ABOUT(SettingsGroup.OTHER),
+    ;
+
+    fun title(s: Strings): String = when (this) {
+        ALARMS -> s.settingsAlarms
+        PROFILES -> s.settingsProfiles
+        SOUND -> s.settingsNotifications
+        VIEW -> s.settingsView
+        DEVICE -> s.settingsDevice
+        ABOUT -> s.settingsAbout
+    }
+
+    fun subtitle(s: Strings): String = when (this) {
+        ALARMS -> s.settingsAlarmsSub
+        PROFILES -> s.settingsProfilesSub
+        SOUND -> s.settingsNotificationsSub
+        VIEW -> s.settingsViewSub
+        DEVICE -> s.settingsDeviceSub
+        ABOUT -> s.settingsAboutSub
+    }
 }
 
 /**
@@ -154,6 +175,7 @@ private enum class SettingsCategory(
 @Composable
 fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     var category by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
 
     // Системная «назад» (в том числе жест от края) обязана значить ровно то же,
@@ -171,11 +193,11 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         val open = category
         Row(verticalAlignment = Alignment.CenterVertically) {
             AppButton(
-                text = "← Назад",
+                text = "← ${strings.back}",
                 onClick = { if (open == null) onBack() else category = null },
             )
             Spacer(Modifier.weight(1f))
-            Chip(text = open?.title ?: "Настройки", color = colors.ink)
+            Chip(text = open?.title(strings) ?: strings.settings, color = colors.ink)
         }
 
         AnimatedContent(
@@ -194,7 +216,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                     if (items.isEmpty()) continue
                     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
                         Text(
-                            text = group.title.uppercase(),
+                            text = group.title(strings).uppercase(),
                             style = LocalAppTypography.current.labelSmall,
                             color = colors.ink2,
                             modifier = Modifier.padding(start = Dimens.space1),
@@ -218,6 +240,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
             }
             SettingsCategory.SOUND -> SoundSection(graph)
             SettingsCategory.VIEW -> {
+                LanguageSection(graph)
                 ThemeSection(graph)
                 UnitsSection(graph)
                 InterfaceSection(graph)
@@ -240,6 +263,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
 private fun CategoryRow(category: SettingsCategory, onClick: () -> Unit) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
@@ -253,8 +277,8 @@ private fun CategoryRow(category: SettingsCategory, onClick: () -> Unit) {
             ),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(text = category.title, style = type.label, color = colors.ink)
-            Text(text = category.subtitle, style = type.footnote, color = colors.muted)
+            Text(text = category.title(strings), style = type.label, color = colors.ink)
+            Text(text = category.subtitle(strings), style = type.footnote, color = colors.muted)
         }
         Text(text = "›", style = type.title, color = colors.ink2)
     }
@@ -602,6 +626,56 @@ private val FILE_STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm")
 private val REPORT_STAMP = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
 
 // --- Вид: тема ---
+
+/**
+ * Язык интерфейса.
+ *
+ * Переключается мгновенно, без пересоздания активности: язык — это выбор
+ * каталога строк, а не системная локаль процесса. Список открытый — добавить
+ * язык значит добавить каталог.
+ */
+@Composable
+private fun LanguageSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val scope = rememberCoroutineScope()
+    val current by graph.settings.language.collectAsState(initial = AppLanguage.SYSTEM)
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle(strings.languageTitle)
+            Segmented(
+                options = AppLanguage.entries.map {
+                    if (it == AppLanguage.SYSTEM) strings.languageSystem else it.nativeName
+                },
+                selectedIndex = AppLanguage.entries.indexOf(current),
+                onSelect = { index ->
+                    scope.launch { graph.settings.setLanguage(AppLanguage.entries[index]) }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = TRANSLATION_NOTE,
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+    }
+}
+
+/**
+ * Честная оговорка о состоянии перевода.
+ *
+ * Каталог строк построен, но перенесены в него пока не все экраны: приложение
+ * писалось по-русски, и в нём около двух тысяч формулировок, каждая из
+ * которых несёт правило («не оценивалось» ≠ «не обнаружено»). Перевод идёт
+ * разделами; сказать об этом прямо честнее, чем показать наполовину
+ * переведённый экран как законченный.
+ */
+private const val TRANSLATION_NOTE =
+    "Перевод выполняется по разделам: непереведённые части пока показываются " +
+        "по-русски. · Translation is in progress: untranslated parts are shown in Russian."
 
 @Composable
 private fun ThemeSection(graph: AppGraph) {
@@ -1345,27 +1419,27 @@ private fun BaselineSection(graph: AppGraph) {
 private fun DeviceSignalsSection(graph: AppGraph) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
     val connection by graph.serviceStatus.connection.collectAsState()
     val applied by graph.deviceControlHub.applied.collectAsState()
     val connected = connection is ConnectionState.Connected
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Сигналы прибора")
+            SectionTitle(strings.deviceSignals)
             Text(
-                text = "Звук и вибрация самого прибора. Они работают, даже когда телефон " +
-                    "отключён или приложение закрыто, и не связаны с откликом Поиска.",
+                text = strings.deviceSignalsNote,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
             DeviceSignalRow(
-                title = "Звук прибора",
+                title = strings.deviceSound,
                 state = applied.sound,
                 enabled = connected,
                 onSet = { graph.deviceControlHub.request(DeviceControlHub.Command.Sound(it)) },
             )
             DeviceSignalRow(
-                title = "Вибрация прибора",
+                title = strings.deviceVibro,
                 state = applied.vibro,
                 enabled = connected,
                 onSet = { graph.deviceControlHub.request(DeviceControlHub.Command.Vibro(it)) },
@@ -1394,6 +1468,7 @@ private fun DeviceSignalRow(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
@@ -1403,16 +1478,16 @@ private fun DeviceSignalRow(
             Text(text = title, style = type.label, color = colors.ink)
             Text(
                 text = when (state) {
-                    true -> "включено этим приложением"
-                    false -> "выключено этим приложением"
-                    null -> "состояние неизвестно"
+                    true -> strings.stateOnByApp
+                    false -> strings.stateOffByApp
+                    null -> strings.stateUnknown
                 },
                 style = type.footnote,
                 color = if (state == null) colors.muted else colors.ink2,
             )
         }
         Segmented(
-            options = listOf("Выкл", "Вкл"),
+            options = listOf(strings.off, strings.on),
             selectedIndex = if (state == true) 1 else 0,
             onSelect = { if (enabled) onSet(it == 1) },
             enabled = { enabled },
@@ -1595,7 +1670,7 @@ private fun InterfaceSection(graph: AppGraph) {
                     .fillMaxWidth()
                     .defaultMinSize(minHeight = Dimens.touchTarget),
             ) {
-                Text(text = AppTab.HOME.title, style = type.label, color = colors.ink)
+                Text(text = AppTab.HOME.title(LocalStrings.current), style = type.label, color = colors.ink)
                 Spacer(Modifier.weight(1f))
                 Text(text = "всегда видна", style = type.bodySmall, color = colors.muted)
             }
@@ -1675,7 +1750,7 @@ private fun NavTabRow(
             .defaultMinSize(minHeight = Dimens.touchTarget),
     ) {
         Text(
-            text = entry.tab.title,
+            text = entry.tab.title(LocalStrings.current),
             style = type.label,
             color = if (entry.visible) colors.ink else colors.muted,
             modifier = Modifier.weight(1f),

@@ -22,17 +22,29 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.Strings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 
 /** The five data screens (SPEC navigation: Home/Search/Spectrum/Map/History). */
-enum class AppTab(val title: String) {
-    HOME("Главная"),
-    SEARCH("Поиск"),
-    SPECTRUM("Спектр"),
-    MAP("Карта"),
-    HISTORY("История"),
+enum class AppTab {
+    HOME,
+    SEARCH,
+    SPECTRUM,
+    MAP,
+    HISTORY,
+    ;
+
+    /** Название вкладки на языке интерфейса. */
+    fun title(strings: Strings): String = when (this) {
+        HOME -> strings.tabHome
+        SEARCH -> strings.tabSearch
+        SPECTRUM -> strings.tabSpectrum
+        MAP -> strings.tabMap
+        HISTORY -> strings.tabHistory
+    }
 }
 
 private val AppTab.icon: ImageVector
@@ -84,7 +96,7 @@ fun NavBar(
                         modifier = Modifier.size(20.dp),
                     )
                     Text(
-                        text = tab.title,
+                        text = tab.title(LocalStrings.current),
                         style = LocalAppTypography.current.label.copy(fontSize = 10.sp),
                         color = tint,
                         maxLines = 1,
