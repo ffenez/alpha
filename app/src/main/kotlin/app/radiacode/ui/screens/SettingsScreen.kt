@@ -88,6 +88,11 @@ import app.radiacode.ui.theme.LocalAppTypography
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import app.radiacode.baseline.Admission
+import app.radiacode.data.export.DebugBundle
+import app.radiacode.data.export.RcResultData
+import app.radiacode.data.export.RcSpectrum
+import app.radiacode.data.export.RcXml
+import app.radiacode.data.export.SpectrumExport
 import app.radiacode.data.export.DebugReport
 import app.radiacode.data.export.DebugSnapshot
 import app.radiacode.device.DoseUnits
@@ -297,20 +302,23 @@ private fun DebugSection(graph: AppGraph) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val enabled by graph.settings.debugReportEnabled.collectAsState(initial = false)
-    var pending by remember { mutableStateOf<String?>(null) }
+    var pending by remember { mutableStateOf<ByteArray?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
+    // Одна строка от человека стоит десяти строк догадок по цифрам: что он
+    // делал и что ожидал увидеть, из отчёта не восстанавливается.
+    var problem by rememberSaveable { mutableStateOf("") }
 
     val saveLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain"),
+        ActivityResultContracts.CreateDocument("application/zip"),
     ) { uri ->
         val content = pending
         pending = null
         if (uri != null && content != null) {
             scope.launch {
-                notice = if (writeTextToUri(context, uri, content)) {
-                    "отчёт сохранён"
+                notice = if (writeBytesToUri(context, uri, content)) {
+                    "архив сохранён"
                 } else {
-                    "отчёт не записался — попробуйте другую папку"
+                    "архив не записался — попробуйте другую папку"
                 }
             }
         }
@@ -323,26 +331,32 @@ private fun DebugSection(graph: AppGraph) {
                 scope.launch { graph.settings.setDebugReportEnabled(it) }
             }
             Text(
-                text = "Текстовый файл с тем, что приложение видит прямо сейчас: показание " +
-                    "прибора, статус на экране, параметры тревоги и её отсчёт, объёмы " +
-                    "данных, версии алгоритмов.",
+                text = "Один архив со всем, что нужно для разбора: состояние приложения и " +
+                    "прибора, накопленный спектр и записанный фон, ваше описание проблемы.",
                 style = type.bodySmall,
                 color = colors.ink2,
             )
             Text(
-                text = DebugReport.PRIVACY_NOTE,
+                text = DebugBundle.PRIVACY_NOTE,
                 style = type.footnote,
                 color = colors.muted,
             )
             if (enabled) {
+                Text(text = "Что не работает", style = type.label, color = colors.ink)
+                AppTextField(
+                    value = problem,
+                    onValueChange = { problem = it },
+                    placeholder = "например: подключается, но спектр пустой",
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 AppButton(
-                    text = "Сохранить отчёт в файл",
+                    text = "Сохранить архив отладки",
                     onClick = {
                         scope.launch {
-                            val report = buildDebugReport(graph, context)
-                            pending = report
+                            val now = System.currentTimeMillis()
+                            pending = buildDebugBundle(graph, context, problem, now)
                             saveLauncher.launch(
-                                DebugReport.fileName(System.currentTimeMillis()) { millis ->
+                                DebugBundle.fileName(now) { millis ->
                                     FILE_STAMP.format(
                                         Instant.ofEpochMilli(millis)
                                             .atZone(ZoneId.systemDefault()),
@@ -367,6 +381,81 @@ private fun DebugSection(graph: AppGraph) {
  * функциями, что рисуют экран: отчёт, в котором формулировки пересобраны
  * заново, отвечал бы на другой вопрос.
  */
+/**
+ * Архив отладки: опись, отчёт о состоянии, описание проблемы словами человека
+ * и спектры в их собственном формате.
+ *
+ * Одна кнопка вместо трёх просьб: разбирать случай по половине данных нельзя,
+ * а собрать их вручную человек в поле не обязан.
+ */
+private suspend fun buildDebugBundle(
+    graph: AppGraph,
+    context: android.content.Context,
+    problem: String,
+    nowMillis: Long,
+): ByteArray {
+    val report = buildDebugReport(graph, context)
+    val serial = (graph.serviceStatus.connection.value as? ConnectionState.Connected)
+        ?.info?.serialNumber
+    val model = SpectrumExport.modelFromSerial(serial)
+    val entries = mutableListOf<DebugBundle.Entry>()
+
+    if (problem.isNotBlank()) {
+        entries += DebugBundle.Entry("problem.txt", problem.trim())
+    }
+    entries += DebugBundle.Entry("report.txt", report)
+
+    // Спектр в формате RC-XML, а не вклеенный в текст: так он остаётся файлом,
+    // который открывается другими программами и сравнивается с эталонами.
+    graph.spectrumHub.state.value.spectrum?.let { live ->
+        entries += DebugBundle.Entry(
+            name = "spectrum.xml",
+            content = RcXml.write(
+                RcResultData(
+                    deviceModel = model,
+                    sampleName = "debug",
+                    sampleNote = null,
+                    startMillis = nowMillis - live.durationSeconds * 1000L,
+                    endMillis = nowMillis,
+                    spectrum = RcSpectrum(
+                        name = "spectrum",
+                        serialNumber = serial,
+                        a0 = live.a0,
+                        a1 = live.a1,
+                        a2 = live.a2,
+                        measurementSeconds = live.durationSeconds,
+                        counts = live.counts,
+                    ),
+                    background = null,
+                ),
+            ),
+        )
+    }
+    graph.measurementRepository.backgroundReference().first()?.let { entity ->
+        entries += DebugBundle.Entry(
+            name = "background.xml",
+            content = RcXml.write(
+                RcResultData(
+                    deviceModel = model,
+                    sampleName = "background",
+                    sampleNote = null,
+                    startMillis = entity.timestamp - entity.durationSeconds * 1000L,
+                    endMillis = entity.timestamp,
+                    spectrum = SpectrumExport.toRcSpectrum(entity, serial, "background"),
+                    background = null,
+                ),
+            ),
+        )
+    }
+
+    val stamp = FILE_STAMP.format(Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault()))
+    val manifest = DebugBundle.Entry(
+        name = "README.txt",
+        content = DebugBundle.manifest(entries, appVersionName(context) ?: "—", stamp),
+    )
+    return DebugBundle.zip(listOf(manifest) + entries)
+}
+
 private suspend fun buildDebugReport(
     graph: AppGraph,
     context: android.content.Context,

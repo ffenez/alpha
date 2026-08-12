@@ -68,6 +68,21 @@ internal fun appVersionName(context: Context): String? = runCatching {
 /** Import size guard: honest refusal instead of an OOM on a wrong file. */
 private const val MAX_IMPORT_BYTES = 20 * 1024 * 1024
 
+/** Двоичная запись в выбранный файл — для архива отладки. */
+internal suspend fun writeBytesToUri(context: Context, uri: Uri, bytes: ByteArray): Boolean =
+    withContext(Dispatchers.IO) {
+        try {
+            context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
+                stream.write(bytes)
+                true
+            } ?: false
+        } catch (_: IOException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
+    }
+
 internal suspend fun writeTextToUri(context: Context, uri: Uri, text: String): Boolean =
     withContext(Dispatchers.IO) {
         try {
