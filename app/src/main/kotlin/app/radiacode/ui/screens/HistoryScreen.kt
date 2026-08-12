@@ -79,6 +79,7 @@ import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.HistorySelection
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.SpectrumFormat
+import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -133,6 +134,7 @@ fun HistoryScreen(
     onContinueSpectrum: (Long) -> Unit = {},
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
@@ -211,11 +213,11 @@ fun HistoryScreen(
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Chip(text = "История", color = colors.ink)
+            Chip(text = strings.tabHistory, color = colors.ink)
             Spacer(Modifier.weight(1f))
             if (selection.active) {
                 Chip(
-                    text = "Отмена",
+                    text = strings.cancel,
                     color = colors.ink2,
                     onClick = { selection = selection.cancel() },
                 )
@@ -224,7 +226,7 @@ fun HistoryScreen(
                 // do something with them.
                 model?.let {
                     Chip(
-                        text = "${it.totalSessions} сессий",
+                        text = strings.sessionsCount(it.totalSessions),
                         color = colors.ink2,
                         onClick = { selection = selection.start() },
                     )
@@ -245,7 +247,7 @@ fun HistoryScreen(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
             ) {
                 Chip(
-                    text = if (allSelected) "Снять всё" else "Выбрать всё",
+                    text = if (allSelected) strings.clearAll else strings.selectAll,
                     color = if (allSelected) colors.dataText else colors.ink2,
                     selected = allSelected,
                     onClick = {
@@ -256,7 +258,7 @@ fun HistoryScreen(
                     text = if (selection.isEmpty) {
                         HistoryDeletion.emptyHint()
                     } else {
-                        "выбрано: ${selection.count}"
+                        strings.selectedCount(selection.count)
                     },
                     style = type.footnote,
                     color = colors.muted,
@@ -267,7 +269,7 @@ fun HistoryScreen(
         val m = model
         if (m == null) {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "читаю журнал…", style = type.bodySmall, color = colors.muted)
+                Text(text = strings.readingJournal, style = type.bodySmall, color = colors.muted)
             }
         } else {
             AccumulatedDoseCard(m, unit)
@@ -286,13 +288,12 @@ fun HistoryScreen(
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                         Text(
-                            text = "сессий пока нет",
+                            text = strings.noSessionsYet,
                             style = type.bodySmall,
                             color = colors.ink2,
                         )
                         Text(
-                            text = "Сессия — непрерывный период измерения: она начинается " +
-                                "при подключении прибора и закрывается при отключении.",
+                            text = strings.sessionExplained,
                             style = type.bodySmall,
                             color = colors.muted,
                         )
@@ -334,7 +335,7 @@ fun HistoryScreen(
 
             if (m.totalSessions > m.items.count { it is HistoryItem.Session }) {
                 AppButton(
-                    text = "Показать ещё",
+                    text = strings.showMore,
                     onClick = { pages += 1 },
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                 )
@@ -362,7 +363,7 @@ fun HistoryScreen(
                             modifier = Modifier.weight(1f),
                         )
                         AppButton(
-                            text = "Отмена",
+                            text = strings.cancel,
                             onClick = { selection = selection.cancel() },
                             modifier = Modifier.weight(1f),
                         )
@@ -376,17 +377,18 @@ fun HistoryScreen(
 @Composable
 private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Накопленная доза".uppercase(),
+                    text = strings.accumulatedDose.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
                 Spacer(Modifier.weight(1f))
-                Text(text = "расчёт", style = type.footnote, color = colors.muted)
+                Text(text = strings.calculatedTag, style = type.footnote, color = colors.muted)
             }
             val dailyMax = model.dailyDose.maxOfOrNull { it.microSv } ?: 0f
             if (dailyMax > 0f) {
@@ -406,8 +408,7 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                 )
                 if (model.dailyDose.any { it.microSv > 0f && !it.full }) {
                     Text(
-                        text = "полые столбцы — день измерен не полностью: доза накоплена " +
-                            "только за время записи, а не за сутки",
+                        text = strings.partialDayNote,
                         style = type.footnote,
                         color = colors.muted,
                     )
@@ -417,15 +418,14 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                 cells = listOf(
                     StatCell(
                         DoseFormat.dose(model.doseTodayMicroSv, unit),
-                        "сегодня, ${DoseFormat.doseUnitLabel(unit)}",
+                        strings.todayWithUnit(DoseFormat.doseUnitLabel(unit)),
                     ),
-                    StatCell(DoseFormat.dose(model.dose7dMicroSv, unit), "7 дней"),
-                    StatCell(DoseFormat.dose(model.dose30dMicroSv, unit), "30 дней"),
+                    StatCell(DoseFormat.dose(model.dose7dMicroSv, unit), strings.days7),
+                    StatCell(DoseFormat.dose(model.dose30dMicroSv, unit), strings.days30),
                 ),
             )
             Text(
-                text = "Сумма мощности дозы по секундам измерения — не путать " +
-                    "с текущей мощностью дозы.",
+                text = strings.accumulatedDoseNote,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -444,6 +444,7 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
 @Composable
 private fun DoseProjectionBlock(model: HistoryModel, unit: DoseUnitSetting) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     var windowIndex by rememberSaveable { mutableIntStateOf(1) }
 
@@ -457,14 +458,14 @@ private fun DoseProjectionBlock(model: HistoryModel, unit: DoseUnitSetting) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Проекция дозы".uppercase(),
+                text = strings.doseProjection.uppercase(),
                 style = type.labelSmall,
                 color = colors.ink2,
             )
             EvidenceTag(Evidence.CALCULATED, Modifier.padding(start = 6.dp))
             Spacer(Modifier.weight(1f))
             Segmented(
-                options = listOf("7 дней", "30 дней"),
+                options = listOf(strings.days7, strings.days30),
                 selectedIndex = windowIndex,
                 onSelect = { windowIndex = it },
                 modifier = Modifier.weight(1.1f),
@@ -514,6 +515,7 @@ private fun SessionRow(
     selected: Boolean = false,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
     val endedAt = summary.endedAt
@@ -541,13 +543,13 @@ private fun SessionRow(
                 Spacer(Modifier.size(Dimens.space2))
             }
             Text(
-                text = summary.profileName ?: "Без профиля",
+                text = summary.profileName ?: strings.noProfile,
                 style = type.label,
                 color = if (selectionActive && endedAt == null) colors.muted else colors.ink,
             )
             if (endedAt == null) {
                 Text(
-                    text = if (selectionActive) "· идёт, нельзя удалить" else "· идёт",
+                    text = if (selectionActive) strings.runningCannotDelete else strings.running,
                     style = type.label,
                     color = if (selectionActive) colors.muted else colors.ok,
                     modifier = Modifier.padding(start = 6.dp),
@@ -568,14 +570,14 @@ private fun SessionRow(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space3),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                DataItem("ср", DoseFormat.rate(stats.avgDoseRate, unit))
-                DataItem("макс", DoseFormat.rate(stats.maxDoseRate ?: 0f, unit))
-                DataItem("доза", DoseFormat.doseWithUnit(summary.doseMicroSv, unit))
+                DataItem(strings.avg, DoseFormat.rate(stats.avgDoseRate, unit))
+                DataItem(strings.max, DoseFormat.rate(stats.maxDoseRate ?: 0f, unit))
+                DataItem(strings.dose, DoseFormat.doseWithUnit(summary.doseMicroSv, unit))
                 DataItem("n", HistoryFormat.count(stats.sampleCount))
                 val badges = listOfNotNull(
-                    "трек".takeIf { summary.hasTrack },
-                    "спектр".takeIf { summary.hasSpectrum },
-                    "полёт".takeIf { summary.hasFlight },
+                    strings.track.takeIf { summary.hasTrack },
+                    strings.spectrum.takeIf { summary.hasSpectrum },
+                    strings.flight.takeIf { summary.hasFlight },
                 )
                 if (badges.isNotEmpty()) {
                     Text(
@@ -587,7 +589,7 @@ private fun SessionRow(
             }
         } else {
             Text(
-                text = "измерений в этой сессии не записано",
+                text = strings.noSamplesInSession,
                 style = type.valueSmall,
                 color = colors.muted,
             )
@@ -604,7 +606,7 @@ private fun SessionRow(
                 color = if (summary.admission.included) colors.muted else colors.ink2,
                 modifier = Modifier.weight(1f),
             )
-            Chip(text = "профиль…", color = colors.ink2, onClick = onReassign)
+            Chip(text = strings.profileEllipsis, color = colors.ink2, onClick = onReassign)
         }
     }
 }
@@ -622,14 +624,16 @@ private fun SessionProfileDialog(
     onDismiss: () -> Unit,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = "Профиль сессии", style = type.title, color = colors.ink)
+                Text(text = strings.sessionProfileTitle, style = type.title, color = colors.ink)
                 Text(
-                    text = "Сессия от ${HistoryFormat.dayTime(session.startedAt, System.currentTimeMillis())}. " +
-                        "Измерения перейдут в статистику выбранного профиля.",
+                    text = strings.sessionProfileBody(
+                        HistoryFormat.dayTime(session.startedAt, System.currentTimeMillis()),
+                    ),
                     style = type.bodySmall,
                     color = colors.muted,
                 )
@@ -667,9 +671,9 @@ private fun SessionProfileDialog(
                         ),
                 ) {
                     RadioMark(session.profileId == null)
-                    Text(text = "Без профиля", style = type.label, color = colors.ink)
+                    Text(text = strings.noProfile, style = type.label, color = colors.ink)
                 }
-                AppButton(text = "Отмена", onClick = onDismiss, modifier = Modifier.fillMaxWidth())
+                AppButton(text = strings.cancel, onClick = onDismiss, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -678,6 +682,7 @@ private fun SessionProfileDialog(
 @Composable
 private fun DataItem(label: String, value: String, valueColor: Color? = null) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(text = label, style = type.valueSmall, color = colors.ink2)
@@ -695,11 +700,12 @@ private fun DataItem(label: String, value: String, valueColor: Color? = null) {
 @Composable
 private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
     val kind = when (event.source) {
-        EventEntity.SOURCE_DEVIATION -> "Отклонение"
-        else -> "Точка превышения"
+        EventEntity.SOURCE_DEVIATION -> strings.deviation
+        else -> strings.excursionPoint
     }
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
@@ -727,7 +733,7 @@ private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
             }
             // param1 of a deviation stores the baseline typical high, nSv/h.
             if (event.source == EventEntity.SOURCE_DEVIATION && event.param1 > 0) {
-                DataItem("обычно", DoseFormat.rate(event.param1 / 1000f, unit))
+                DataItem(strings.usually, DoseFormat.rate(event.param1 / 1000f, unit))
             }
         }
     }
@@ -756,6 +762,7 @@ private fun SavedSpectraCard(
     onToggle: (Long) -> Unit = {},
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -777,11 +784,11 @@ private fun SavedSpectraCard(
         if (uri != null && content != null) {
             scope.launch {
                 if (writeTextToUri(context, uri, content)) {
-                    exportedNote = "файл сохранён"
+                    exportedNote = strings.fileSaved
                 } else {
                     notice = SpectrumFileNotice(
-                        title = "Экспорт не удался",
-                        lines = listOf("Файл не записался — попробуйте другую папку."),
+                        title = strings.exportFailedTitle,
+                        lines = listOf(strings.exportFailedBody),
                         isError = true,
                     )
                 }
@@ -803,14 +810,14 @@ private fun SavedSpectraCard(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
             ) {
                 Text(
-                    text = "Спектры".uppercase(),
+                    text = strings.spectraTitle.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                     modifier = Modifier.weight(1f),
                 )
                 if (spectra.size >= 2 && !mergeMode && !selectionActive) {
                     Chip(
-                        text = if (compareMode) "отмена" else "сравнить",
+                        text = if (compareMode) strings.cancel.lowercase() else strings.compare,
                         color = if (compareMode) colors.ink2 else colors.dataText,
                         onClick = {
                             compareMode = !compareMode
@@ -820,7 +827,7 @@ private fun SavedSpectraCard(
                 }
                 if (spectra.size >= 2 && !compareMode && !selectionActive) {
                     Chip(
-                        text = if (mergeMode) "отмена" else "объединить",
+                        text = if (mergeMode) strings.cancel.lowercase() else strings.merge,
                         color = if (mergeMode) colors.ink2 else colors.dataText,
                         onClick = {
                             mergeMode = !mergeMode
@@ -831,11 +838,10 @@ private fun SavedSpectraCard(
             }
             Text(
                 text = when {
-                    selectionActive -> "отметьте снимки, которые нужно удалить"
-                    compareMode -> "выберите два снимка — откроется сравнение"
-                    mergeMode -> "отметьте два и более снимков — каналы сложатся, " +
-                        "время накопления просуммируется"
-                    else -> "снимок открывает экспорт, сравнение и продолжение"
+                    selectionActive -> strings.markForDeletion
+                    compareMode -> strings.pickTwoToCompare
+                    mergeMode -> strings.pickTwoOrMoreToMerge
+                    else -> strings.snapshotOpensActions
                 },
                 style = type.footnote,
                 color = colors.muted,
@@ -879,7 +885,7 @@ private fun SavedSpectraCard(
             }
             if (mergeMode && !selectionActive) {
                 AppButton(
-                    text = "Объединить (${mergeIds.size})",
+                    text = strings.mergeAction(mergeIds.size),
                     enabled = mergeIds.size >= 2,
                     onClick = {
                         val chosen = spectra.filter { it.id in mergeIds }
@@ -888,11 +894,10 @@ private fun SavedSpectraCard(
                                 is MergeResult.Saved -> {
                                     mergeMode = false
                                     mergeIds = emptySet()
-                                    exportedNote = "объединённый снимок «${saved.label}» " +
-                                        "сохранён — он появился в списке"
+                                    exportedNote = strings.mergedSaved(saved.label.orEmpty())
                                 }
                                 is MergeResult.Refused -> notice = SpectrumFileNotice(
-                                    title = "Объединить нельзя",
+                                    title = strings.mergeImpossible,
                                     lines = listOf(saved.reason),
                                     isError = true,
                                 )
@@ -924,7 +929,7 @@ private fun SavedSpectraCard(
                         color = colors.ink2,
                     )
                     AppButton(
-                        text = "Экспорт XML",
+                        text = strings.exportXml,
                         onClick = {
                             pendingExport = RcXml.write(
                                 SpectrumExport.toResultData(
@@ -942,7 +947,7 @@ private fun SavedSpectraCard(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     AppButton(
-                        text = "Экспорт N42",
+                        text = strings.exportN42,
                         onClick = {
                             pendingExport = N42.write(
                                 foreground = SpectrumExport.toN42Measurement(
@@ -963,7 +968,7 @@ private fun SavedSpectraCard(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     AppButton(
-                        text = "Сравнить с другим…",
+                        text = strings.compareWithAnother,
                         onClick = {
                             compareMode = true
                             firstPickId = entity.id
@@ -973,7 +978,7 @@ private fun SavedSpectraCard(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     AppButton(
-                        text = "Продолжить накопление",
+                        text = strings.continueAccumulation,
                         onClick = {
                             actionsFor = null
                             onContinue(entity.id)
@@ -981,13 +986,12 @@ private fun SavedSpectraCard(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
-                        text = "снимок сложится с текущим накоплением на экране " +
-                            "Спектр — прибор при этом копит независимо",
+                        text = strings.continueAccumulationNote,
                         style = type.footnote,
                         color = colors.muted,
                     )
                     AppButton(
-                        text = "Закрыть",
+                        text = strings.close,
                         onClick = { actionsFor = null },
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -1010,6 +1014,7 @@ private fun SavedSpectrumRow(
     check: Boolean? = null,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
 
@@ -1052,8 +1057,8 @@ private fun SavedSpectrumRow(
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space3)) {
             DataItem("Δt", SpectrumFormat.accumulationClock(entity.durationSeconds))
             val badges = listOfNotNull(
-                "импорт".takeIf { entity.origin == SpectrumSnapshotEntity.ORIGIN_IMPORT },
-                "фон".takeIf { entity.isBackgroundReference },
+                strings.importedTag.takeIf { entity.origin == SpectrumSnapshotEntity.ORIGIN_IMPORT },
+                strings.backgroundTag.takeIf { entity.isBackgroundReference },
             )
             if (badges.isNotEmpty()) {
                 Text(
@@ -1093,7 +1098,10 @@ private suspend fun mergeSnapshots(
     return when (val outcome = SpectrumMerge.merge(inputs)) {
         is SpectrumMerge.Outcome.Invalid -> MergeResult.Refused(outcome.reason)
         is SpectrumMerge.Outcome.Ok -> {
-            val label = "merge · ${chosen.size} ${snapshotsPlural(chosen.size)}"
+            // Метка ХРАНИТСЯ в базе, поэтому она не зависит от языка
+            // интерфейса: иначе снимок, объединённый по-русски, так и остался
+            // бы русским после переключения языка.
+            val label = "merge · ${chosen.size}"
             graph.measurementRepository.saveSpectrum(
                 Spectrum(
                     durationSeconds = outcome.durationSeconds,
@@ -1121,16 +1129,6 @@ private suspend fun mergeSnapshots(
     }
 }
 
-private fun snapshotsPlural(count: Int): String {
-    val mod10 = count % 10
-    val mod100 = count % 100
-    return when {
-        mod100 in 11..14 -> "снимков"
-        mod10 == 1 -> "снимок"
-        mod10 in 2..4 -> "снимка"
-        else -> "снимков"
-    }
-}
 
 private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryModel {
     val now = System.currentTimeMillis()
@@ -1196,6 +1194,7 @@ private fun DeleteConfirmDialog(
     onDismiss: () -> Unit,
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -1213,12 +1212,12 @@ private fun DeleteConfirmDialog(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     AppButton(
-                        text = "Удалить",
+                        text = strings.delete,
                         onClick = onConfirm,
                         modifier = Modifier.weight(1f),
                     )
                     AppButton(
-                        text = "Отмена",
+                        text = strings.cancel,
                         onClick = onDismiss,
                         primary = true,
                         modifier = Modifier.weight(1f),

@@ -277,6 +277,77 @@ object EnStrings : Strings {
         "no background recorded — record a spectrum of ordinary surroundings and the " +
             "overlay and «minus background» will appear"
 
+    override fun sessionsCount(total: Long) = "$total sessions"
+
+    override val selectAll = "Select all"
+    override val clearAll = "Clear all"
+
+    override fun selectedCount(count: Int) = "selected: $count"
+
+    override val readingJournal = "reading the journal…"
+    override val noSessionsYet = "no sessions yet"
+    override val sessionExplained =
+        "A session is an uninterrupted period of measurement: it opens when the " +
+            "instrument connects and closes when it disconnects."
+    override val showMore = "Show more"
+    override val accumulatedDose = "Accumulated dose"
+    override val calculatedTag = "calc."
+    override val partialDayNote =
+        "hollow bars — the day was measured only in part: the dose accumulated over the " +
+            "recording time, not over the whole day"
+
+    override fun todayWithUnit(unit: String) = "today, $unit"
+
+    override val days7 = "7 days"
+    override val days30 = "30 days"
+    override val accumulatedDoseNote =
+        "The dose rate summed over the seconds actually measured — not to be confused " +
+            "with the current dose rate."
+    override val doseProjection = "Dose projection"
+    override val noProfile = "No place"
+    override val runningCannotDelete = "· running, cannot be deleted"
+    override val running = "· running"
+    override val avg = "avg"
+    override val max = "max"
+    override val dose = "dose"
+    override val track = "track"
+    override val spectrum = "spectrum"
+    override val flight = "flight"
+    override val noSamplesInSession = "no measurements were recorded in this session"
+    override val profileEllipsis = "place…"
+    override val sessionProfileTitle = "Place of the session"
+
+    override fun sessionProfileBody(started: String) =
+        "Session from $started. Its measurements move into the statistics of the chosen place."
+
+    override val deviation = "Deviation"
+    override val excursionPoint = "Excursion point"
+    override val usually = "usually"
+    override val fileSaved = "file saved"
+    override val spectraTitle = "Spectra"
+    override val compare = "compare"
+    override val merge = "merge"
+    override val markForDeletion = "tick the snapshots to delete"
+    override val pickTwoToCompare = "pick two snapshots — the comparison opens"
+    override val pickTwoOrMoreToMerge =
+        "tick two or more snapshots — channels add up and accumulation times are summed"
+    override val snapshotOpensActions = "a snapshot opens export, comparison and continuation"
+
+    override fun mergeAction(count: Int) = "Merge ($count)"
+
+    override fun mergedSaved(label: String) =
+        "the merged snapshot «$label» is saved — it appeared in the list"
+
+    override val mergeImpossible = "Cannot be merged"
+    override val compareWithAnother = "Compare with another…"
+    override val continueAccumulation = "Continue accumulating"
+    override val continueAccumulationNote =
+        "the snapshot adds to the live accumulation on the Spectrum screen — the " +
+            "instrument keeps accumulating independently"
+    override val importedTag = "import"
+    override val backgroundTag = "background"
+    override val delete = "Delete"
+
     override val deviceSignals = "Instrument signals"
     override val deviceSignalsNote =
         "The instrument's own sound and vibration. They work even with the phone " +

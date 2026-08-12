@@ -244,6 +244,58 @@ interface Strings {
     fun rangeDraggable(range: String): String
     val noSpectrumBackground: String
 
+
+    // --- История ---
+    fun sessionsCount(total: Long): String
+    val selectAll: String
+    val clearAll: String
+    fun selectedCount(count: Int): String
+    val readingJournal: String
+    val noSessionsYet: String
+    val sessionExplained: String
+    val showMore: String
+    val accumulatedDose: String
+    val calculatedTag: String
+    val partialDayNote: String
+    fun todayWithUnit(unit: String): String
+    val days7: String
+    val days30: String
+    val accumulatedDoseNote: String
+    val doseProjection: String
+    val noProfile: String
+    val runningCannotDelete: String
+    val running: String
+    val avg: String
+    val max: String
+    val dose: String
+    val track: String
+    val spectrum: String
+    val flight: String
+    val noSamplesInSession: String
+    val profileEllipsis: String
+    val sessionProfileTitle: String
+    fun sessionProfileBody(started: String): String
+    val deviation: String
+    val excursionPoint: String
+    val usually: String
+    val fileSaved: String
+    val spectraTitle: String
+    val compare: String
+    val merge: String
+    val markForDeletion: String
+    val pickTwoToCompare: String
+    val pickTwoOrMoreToMerge: String
+    val snapshotOpensActions: String
+    fun mergeAction(count: Int): String
+    fun mergedSaved(label: String): String
+    val mergeImpossible: String
+    val compareWithAnother: String
+    val continueAccumulation: String
+    val continueAccumulationNote: String
+    val importedTag: String
+    val backgroundTag: String
+    val delete: String
+
     // --- сигналы прибора ---
     val deviceSignals: String
     val deviceSignalsNote: String
@@ -307,6 +359,16 @@ fun Strings.allTexts(): List<String> = listOf(
     peakTableCaveat, recordBackground, save, reset, resetSpectrumTitle, resetSpectrumBody,
     cancel, edgeCounts("8 421"), rangeWhole("20–3000"), rangeDraggable("100–1500"),
     noSpectrumBackground,
+    sessionsCount(12), selectAll, clearAll, selectedCount(3), readingJournal, noSessionsYet,
+    sessionExplained, showMore, accumulatedDose, calculatedTag, partialDayNote,
+    todayWithUnit("мкЗв"), days7, days30, accumulatedDoseNote, doseProjection, noProfile,
+    runningCannotDelete, running, avg, max, dose, track, spectrum, flight,
+    noSamplesInSession, profileEllipsis, sessionProfileTitle, sessionProfileBody("12:00"),
+    deviation, excursionPoint, usually, fileSaved, spectraTitle, compare, merge,
+    markForDeletion, pickTwoToCompare, pickTwoOrMoreToMerge, snapshotOpensActions,
+    mergeAction(2), mergedSaved("x"), mergeImpossible, compareWithAnother,
+    continueAccumulation, continueAccumulationNote, importedTag, backgroundTag, delete,
+
 
 
 )

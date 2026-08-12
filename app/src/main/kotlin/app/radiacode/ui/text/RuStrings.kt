@@ -264,6 +264,76 @@ object RuStrings : Strings {
     override val noSpectrumBackground =
         "фон не записан — запишите спектр обычной обстановки, появятся наложение и «минус фон»"
 
+    override fun sessionsCount(total: Long) = "$total сессий"
+
+    override val selectAll = "Выбрать всё"
+    override val clearAll = "Снять всё"
+
+    override fun selectedCount(count: Int) = "выбрано: $count"
+
+    override val readingJournal = "читаю журнал…"
+    override val noSessionsYet = "сессий пока нет"
+    override val sessionExplained =
+        "Сессия — непрерывный период измерения: она начинается при подключении прибора " +
+            "и закрывается при отключении."
+    override val showMore = "Показать ещё"
+    override val accumulatedDose = "Накопленная доза"
+    override val calculatedTag = "расчёт"
+    override val partialDayNote =
+        "полые столбцы — день измерен не полностью: доза накоплена только за время " +
+            "записи, а не за сутки"
+
+    override fun todayWithUnit(unit: String) = "сегодня, $unit"
+
+    override val days7 = "7 дней"
+    override val days30 = "30 дней"
+    override val accumulatedDoseNote =
+        "Сумма мощности дозы по секундам измерения — не путать с текущей мощностью дозы."
+    override val doseProjection = "Проекция дозы"
+    override val noProfile = "Без профиля"
+    override val runningCannotDelete = "· идёт, нельзя удалить"
+    override val running = "· идёт"
+    override val avg = "ср"
+    override val max = "макс"
+    override val dose = "доза"
+    override val track = "трек"
+    override val spectrum = "спектр"
+    override val flight = "полёт"
+    override val noSamplesInSession = "измерений в этой сессии не записано"
+    override val profileEllipsis = "профиль…"
+    override val sessionProfileTitle = "Профиль сессии"
+
+    override fun sessionProfileBody(started: String) =
+        "Сессия от $started. Измерения перейдут в статистику выбранного профиля."
+
+    override val deviation = "Отклонение"
+    override val excursionPoint = "Точка превышения"
+    override val usually = "обычно"
+    override val fileSaved = "файл сохранён"
+    override val spectraTitle = "Спектры"
+    override val compare = "сравнить"
+    override val merge = "объединить"
+    override val markForDeletion = "отметьте снимки, которые нужно удалить"
+    override val pickTwoToCompare = "выберите два снимка — откроется сравнение"
+    override val pickTwoOrMoreToMerge =
+        "отметьте два и более снимков — каналы сложатся, время накопления просуммируется"
+    override val snapshotOpensActions = "снимок открывает экспорт, сравнение и продолжение"
+
+    override fun mergeAction(count: Int) = "Объединить ($count)"
+
+    override fun mergedSaved(label: String) =
+        "объединённый снимок «$label» сохранён — он появился в списке"
+
+    override val mergeImpossible = "Объединить нельзя"
+    override val compareWithAnother = "Сравнить с другим…"
+    override val continueAccumulation = "Продолжить накопление"
+    override val continueAccumulationNote =
+        "снимок сложится с текущим накоплением на экране Спектр — прибор при этом копит " +
+            "независимо"
+    override val importedTag = "импорт"
+    override val backgroundTag = "фон"
+    override val delete = "Удалить"
+
     override val deviceSignals = "Сигналы прибора"
     override val deviceSignalsNote =
         "Звук и вибрация самого прибора. Они работают, даже когда телефон отключён " +
