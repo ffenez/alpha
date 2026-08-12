@@ -120,4 +120,33 @@ class ChartCoverageTest {
     fun `no stats at all means no claim about coverage`() {
         assertNull(coverageWording(null, 3600_000L))
     }
+
+    // --- окно, с которого величина открывается -----------------------------
+
+    @Test
+    fun `the card and the fullscreen chart start from the same window`() {
+        val now = 1_700_000_000_000L
+        val saved = mapOf(ChartMetric.DOSE.id to 2L * 3_600_000L)
+        val window = ChartMetrics.startWindow(ChartMetric.DOSE, saved, now)
+        assertEquals(2L * 3_600_000L, window.spanMillis)
+        assertEquals(now, window.toMillis)
+    }
+
+    @Test
+    fun `a saved window longer than the metric can show honestly is cut to its limit`() {
+        val now = 1_700_000_000_000L
+        val saved = mapOf(ChartMetric.COUNT_RATE.id to 30L * 24 * 3_600_000L)
+        val window = ChartMetrics.startWindow(ChartMetric.COUNT_RATE, saved, now)
+        assertEquals(ChartMetrics.maxSpanMillis(ChartMetric.COUNT_RATE), window.spanMillis)
+    }
+
+    @Test
+    fun `without a saved choice every metric opens at the same default step`() {
+        val now = 1_700_000_000_000L
+        val default = ChartWindows.PERIODS[ChartWindows.DEFAULT_PERIOD_INDEX].second
+        for (metric in ChartMetric.entries) {
+            val span = ChartMetrics.startWindow(metric, emptyMap(), now).spanMillis
+            assertEquals(minOf(default, ChartMetrics.maxSpanMillis(metric)), span, metric.name)
+        }
+    }
 }

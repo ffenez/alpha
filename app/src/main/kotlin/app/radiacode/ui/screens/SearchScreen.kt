@@ -586,8 +586,8 @@ fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
         val shapeNote = SearchSpectrumHint.note(shape)
         AnimatedVisibility(
             visible = shapeNote != null,
-            enter = expandVertically(Motion.normal()) + fadeIn(Motion.normal()),
-            exit = shrinkVertically(Motion.normal()) + fadeOut(Motion.fast()),
+            enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
+            exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
         ) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {

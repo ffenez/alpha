@@ -3,6 +3,9 @@ package app.radiacode.ui.theme
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.unit.IntSize
 
@@ -31,13 +34,16 @@ import androidx.compose.ui.unit.IntSize
 object Motion {
 
     /** Мгновенная реакция на касание: цвет чипа, нажатие кнопки. */
-    const val FAST_MILLIS = 120
+    const val FAST_MILLIS = 150
 
     /** Обычный переход: раскрытие блока, смена статуса, скролл ленты. */
-    const val NORMAL_MILLIS = 220
+    const val NORMAL_MILLIS = 280
 
-    /** Смена экрана — единственное место, где движение заметно само по себе. */
-    const val SCREEN_MILLIS = 300
+    /** Смена экрана: уходящее гаснет быстро, приходящее приезжает мягко. */
+    const val SCREEN_MILLIS = 360
+
+    /** Часть перехода экрана, за которую уходящий кадр успевает исчезнуть. */
+    const val SCREEN_EXIT_MILLIS = 110
 
     /**
      * Стандартная кривая: быстрый старт, мягкое торможение. Материаловская
@@ -56,8 +62,32 @@ object Motion {
 
     fun <T> normal(): FiniteAnimationSpec<T> = tween(NORMAL_MILLIS, easing = Standard)
 
-    fun <T> screen(): FiniteAnimationSpec<T> = tween(SCREEN_MILLIS, easing = Standard)
+    fun <T> screen(): FiniteAnimationSpec<T> = tween(SCREEN_MILLIS, easing = Enter)
 
     /** Спек для [androidx.compose.animation.animateContentSize]. */
-    fun contentSize(): FiniteAnimationSpec<IntSize> = tween(NORMAL_MILLIS, easing = Standard)
+    fun contentSize(): FiniteAnimationSpec<IntSize> = spring(
+        dampingRatio = DAMPING,
+        stiffness = Spring.StiffnessMediumLow,
+        visibilityThreshold = IntSize.VisibilityThreshold,
+    )
+
+    /**
+     * Пружина для величин, которые «доезжают»: заполнение индикатора,
+     * положение курсора, размер раскрывшегося блока.
+     *
+     * Пружина, а не кривая с фиксированной длительностью, потому что она
+     * подхватывает движение с текущей скорости: быстрые повторные изменения
+     * не начинают анимацию заново с нуля, а перенаправляют уже идущую — это и
+     * читается как «плавно», в отличие от серии дёрганых перезапусков.
+     */
+    fun <T> springy(): FiniteAnimationSpec<T> = spring(
+        dampingRatio = DAMPING,
+        stiffness = Spring.StiffnessMediumLow,
+    )
+
+    /**
+     * Затухание почти без отскока: прибор — не игрушка, и пружина здесь нужна
+     * ради подхвата скорости, а не ради пружинистости.
+     */
+    const val DAMPING = 0.9f
 }

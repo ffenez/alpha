@@ -23,7 +23,7 @@ import app.radiacode.service.MeasurementService
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import app.radiacode.ui.theme.Motion
@@ -182,11 +182,14 @@ private fun MainScaffold(graph: AppGraph) {
                     detailId = detailId,
                     tab = tab,
                 ),
+                // Fade through: уходящее гаснет быстро и первым, приходящее
+                // проявляется и подрастает с 96 % — переход читается как смена
+                // содержания, а не как сдвиг холста.
                 transitionSpec = {
                     (
                         fadeIn(Motion.screen()) +
-                            slideInVertically(Motion.screen()) { it / 24 }
-                        ) togetherWith fadeOut(tween(Motion.FAST_MILLIS))
+                            scaleIn(Motion.screen(), initialScale = 0.96f)
+                        ) togetherWith fadeOut(tween(Motion.SCREEN_EXIT_MILLIS))
                 },
                 label = "screen",
             ) { key ->

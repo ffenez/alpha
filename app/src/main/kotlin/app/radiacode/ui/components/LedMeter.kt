@@ -30,7 +30,7 @@ fun LedMeter(
     // ехать плавно. Само число (CPS) при этом не анимируется нигде.
     val animated by animateFloatAsState(
         targetValue = level.coerceIn(0f, 1f),
-        animationSpec = Motion.normal(),
+        animationSpec = Motion.springy(),
         label = "ledLevel",
     )
     val colors = LocalAppColors.current

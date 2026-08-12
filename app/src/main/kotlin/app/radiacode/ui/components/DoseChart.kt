@@ -134,6 +134,13 @@ fun DoseChart(
     /** Double tap: back to the chosen window at the live edge (spec §10). */
     onResetScale: (() -> Unit)? = null,
     onTransform: ((panFraction: Float, zoomFactor: Float, focusFraction: Float) -> Unit)? = null,
+    /**
+     * Жесты. На Главной график — миниатюра: он показывает ту же картинку, но
+     * принадлежит карточке, и единственное действие над ним — открыть его во
+     * весь экран. Обработчики там не просто бесполезны, а вредны: они
+     * перехватывают касание у карточки.
+     */
+    interactive: Boolean = true,
 ) {
     val appColors = LocalAppColors.current
     val axisStyle = LocalAppTypography.current.axis
@@ -199,6 +206,7 @@ fun DoseChart(
         //  - crosshair down → the drag scrubs it, a tap dismisses it;
         //  - crosshair up   → the drag pans, a pinch zooms, a long press puts
         //    the crosshair down and keeps scrubbing in the same gesture.
+        if (!interactive) return@BoxWithConstraints
         val active = rememberUpdatedState(cursorActive)
         val setCursor = rememberUpdatedState(onCursorFraction)
         val dismissCursor = rememberUpdatedState(onCursorDismiss)

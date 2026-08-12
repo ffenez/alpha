@@ -316,8 +316,8 @@ fun HistoryScreen(
 
             AnimatedVisibility(
                 visible = selection.active,
-                enter = expandVertically(Motion.normal()) + fadeIn(Motion.normal()),
-                exit = shrinkVertically(Motion.normal()) + fadeOut(Motion.fast()),
+                enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
+                exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
             ) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {

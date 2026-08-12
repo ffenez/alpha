@@ -9,7 +9,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import app.radiacode.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
@@ -141,8 +142,8 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         AnimatedContent(
             targetState = open,
             transitionSpec = {
-                (fadeIn(Motion.normal()) + slideInHorizontally(Motion.normal()) { it / 12 })
-                    .togetherWith(fadeOut(Motion.fast()))
+                (fadeIn(Motion.screen()) + scaleIn(Motion.screen(), initialScale = 0.97f))
+                    .togetherWith(fadeOut(tween(Motion.SCREEN_EXIT_MILLIS)))
             },
             label = "settingsCategory",
         ) { openCategory ->

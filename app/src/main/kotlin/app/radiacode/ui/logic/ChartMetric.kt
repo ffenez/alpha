@@ -99,6 +99,26 @@ object ChartMetrics {
                 "средним корзины. " + Hardness.EXPLANATION
     }
 
+    /**
+     * Окно, с которого величина открывается, — общее для карточки Главной и
+     * для полноэкранного графика.
+     *
+     * Человек однажды выбрал окно на полноэкранном; карточка обязана
+     * показывать ровно его, иначе тап по карточке не увеличивает картинку, а
+     * подменяет её другой.
+     */
+    fun startWindow(
+        metric: ChartMetric,
+        savedSpans: Map<String, Long>,
+        nowMillis: Long,
+    ): ChartWindow {
+        val periods = periodIndices(metric)
+        val default = periods.lastOrNull { it <= ChartWindows.DEFAULT_PERIOD_INDEX } ?: 0
+        val span = (savedSpans[metric.id] ?: ChartWindows.PERIODS[default].second)
+            .coerceAtMost(maxSpanMillis(metric))
+        return ChartWindows.latest(span, nowMillis)
+    }
+
     private fun label(spanMillis: Long): String =
         ChartWindows.PERIODS.lastOrNull { it.second <= spanMillis }?.first ?: "6ч"
 }

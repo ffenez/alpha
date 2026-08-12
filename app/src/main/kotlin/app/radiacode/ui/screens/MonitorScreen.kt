@@ -37,10 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
 import app.radiacode.analysis.Hardness
-import app.radiacode.analysis.HardnessValue
 import app.radiacode.baseline.Admission
 import app.radiacode.baseline.AlarmSensitivity
-import app.radiacode.baseline.AlarmThresholds
 import app.radiacode.baseline.Baseline
 import app.radiacode.baseline.BaselineState
 import app.radiacode.baseline.alarmThresholds
@@ -61,8 +59,6 @@ import app.radiacode.ui.components.ProfilePickerDialog
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.components.StatusDot
-import app.radiacode.ui.components.TrendChart
-import app.radiacode.ui.components.TrendChartSpec
 import app.radiacode.ui.components.WhySheet
 import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.ChartMetric
@@ -75,7 +71,6 @@ import app.radiacode.ui.logic.MonitorStatus
 import app.radiacode.ui.logic.BaselineSnapshot
 import app.radiacode.ui.logic.ProfileShift
 import app.radiacode.ui.logic.ProfileTree
-import app.radiacode.ui.logic.TimeAxis
 import app.radiacode.ui.logic.TrendFit
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.WhyInput
@@ -87,39 +82,33 @@ import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 import java.time.LocalDate
 import java.time.ZoneId
-import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import app.radiacode.ui.components.DoseChart
+import app.radiacode.ui.logic.ChartMetrics
+import app.radiacode.ui.logic.ChartSnapshot
+import app.radiacode.ui.logic.ChartWindow
+import app.radiacode.ui.logic.ChartWindows
+import app.radiacode.ui.logic.TrendPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
-private const val CHART_COLUMNS = 48
-private const val CHART_WINDOW_MILLIS = 60L * 60_000L
-private const val CHART_BUCKET_MILLIS = CHART_WINDOW_MILLIS / CHART_COLUMNS
+/**
+ * Как часто перечитываются графики Главной. Прибор пишет раз в секунду, но
+ * колонка карточки покрывает минуты — чаще обновлять нечего, а каждый лишний
+ * проход это запрос в базу.
+ */
 private const val CHART_REFRESH_MILLIS = 15_000L
 
-/** Hour-chart snapshot loaded off the 1 Hz path; values in µSv/h. */
+/**
+ * Загруженный кадр одной величины: окно и снимок ровно те же, что у
+ * полноэкранного графика, поэтому тап по карточке увеличивает картинку, а не
+ * заменяет её другой.
+ */
 @Immutable
-private data class HourChart(
-    val columns: List<Float?>,
-    /** Alias of [columns] for readers that also take [cpsColumns]. */
-    val stats: ChartMapping.Stats?,
-    /** Raw 1 Hz samples inside the window (the honest n of the statgrid). */
-    val sampleCount: Int,
-    val fromMillis: Long,
-    val toMillis: Long,
-    val doseTodayMicroSv: Double,
-    /** Same buckets, count rate — drawn only when the block is on. */
-    val cpsColumns: List<Float?> = emptyList(),
-) {
-    val doseColumns: List<Float?> get() = columns
-}
-
-/** Жёсткость за час: the same buckets, read as dose per count. */
-@Immutable
-private data class HardnessChart(
-    val columns: List<Float?>,
-    val current: HardnessValue?,
-    val fromMillis: Long,
-    val toMillis: Long,
+private data class LoadedChart(
+    val window: ChartWindow,
+    val snapshot: ChartSnapshot,
 )
 
 /**
@@ -164,18 +153,31 @@ fun MonitorScreen(
     }
     val freshness = Freshness.of(sample?.timestamp, nowMillis)
 
-    var hourChart by remember { mutableStateOf<HourChart?>(null) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            hourChart = loadHourChart(graph)
-            delay(CHART_REFRESH_MILLIS)
+    // Графики Главной читаются тем же путём, что и полноэкранный (ADR 004):
+    // одно окно, один снимок, один кадр. Величины, блоки которых выключены,
+    // не читаются вовсе.
+    val savedSpans by graph.settings.chartSpans.collectAsState(initial = emptyMap())
+    val chartMetrics = remember(blocks.countRateChart, blocks.hardnessChart) {
+        buildList {
+            add(ChartMetric.DOSE)
+            if (blocks.countRateChart) add(ChartMetric.COUNT_RATE)
+            if (blocks.hardnessChart) add(ChartMetric.HARDNESS)
         }
     }
-
-    // Жёсткость is dose per count: the hour chart already holds both, so the
-    // block costs a mapping and no query at all.
-    val hardnessChart = remember(hourChart, blocks.hardnessChart) {
-        if (blocks.hardnessChart) hardnessOf(hourChart) else null
+    var charts by remember { mutableStateOf<Map<ChartMetric, LoadedChart>>(emptyMap()) }
+    var doseTodayMicroSv by remember { mutableStateOf<Double?>(null) }
+    LaunchedEffect(chartMetrics, savedSpans) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            charts = withContext(Dispatchers.IO) {
+                chartMetrics.associateWith { metric ->
+                    val window = ChartMetrics.startWindow(metric, savedSpans, now)
+                    LoadedChart(window, loadSnapshot(graph, window, metric))
+                }
+            }
+            doseTodayMicroSv = withContext(Dispatchers.IO) { loadDoseToday(graph) }
+            delay(CHART_REFRESH_MILLIS)
+        }
     }
 
     var showProfilePicker by remember { mutableStateOf(false) }
@@ -252,10 +254,12 @@ fun MonitorScreen(
             doseMicroSvH = doseMicroSvH,
             errPercent = sample?.doseRateErr,
             cps = sample?.countRate,
-            trendMicroSvHPerHour = hourChart?.let {
-                TrendFit.slopePerHour(it.columns, CHART_BUCKET_MILLIS)
+            trendMicroSvHPerHour = charts[ChartMetric.DOSE]?.let { loaded ->
+                TrendFit.slopePerHour(
+                    loaded.snapshot.buckets.map { TrendPoint(it.midMillis, it.median) },
+                )
             },
-            doseTodayMicroSv = hourChart?.doseTodayMicroSv,
+            doseTodayMicroSv = doseTodayMicroSv,
             status = status,
             baselineState = baselineState,
             unit = unit,
@@ -267,28 +271,35 @@ fun MonitorScreen(
             onFingerprint = onOpenFingerprint,
         )
 
-        HourChartCard(
-            chart = hourChart,
-            baseline = (baselineState as? BaselineState.Active)?.baseline,
-            thresholds = thresholds,
-            unit = unit,
-            alert = status is MonitorStatus.Alert,
-            onOpen = onOpenChart,
-            showStats = blocks.stats,
-        )
-
-        if (blocks.countRateChart) {
-            CountRateChartCard(
-                chart = hourChart,
+        val baseline = (baselineState as? BaselineState.Active)?.baseline
+        val alert = status is MonitorStatus.Alert
+        for (metric in chartMetrics) {
+            val loaded = charts[metric]
+            val frame = remember(loaded, unit, thresholds, baseline, alert) {
+                loaded?.let {
+                    buildFrame(
+                        snapshot = it.snapshot,
+                        window = it.window,
+                        unit = unit,
+                        logScale = false,
+                        thresholds = thresholds,
+                        baseline = baseline,
+                        endpointAlert = alert && metric == ChartMetric.DOSE,
+                        metric = metric,
+                        xLabelCount = 3,
+                    )
+                }
+            }
+            MetricChartCard(
+                metric = metric,
+                frame = frame,
+                windowLabel = loaded?.let { windowLabel(metric, it.window) },
+                hasBaselineBand = baseline != null,
+                unit = unit,
                 showStats = blocks.stats,
-                onOpen = { onOpenMetricChart(ChartMetric.COUNT_RATE) },
-            )
-        }
-
-        if (blocks.hardnessChart) {
-            HardnessChartCard(
-                chart = hardnessChart,
-                onOpen = { onOpenMetricChart(ChartMetric.HARDNESS) },
+                onOpen = {
+                    if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
+                },
             )
         }
 
@@ -418,11 +429,12 @@ private fun ConnectionChip(connection: ConnectionState, serviceRunning: Boolean)
 @Composable
 private fun FreshnessChip(freshness: Freshness) {
     val colors = LocalAppColors.current
+    // Пока поток идёт, подписи нет вовсе: чип говорит об ОТСТАВАНИИ данных.
+    val label = freshnessChipLabel(freshness) ?: return
     when (freshness) {
-        Freshness.NoData -> Chip(text = freshnessChipLabel(freshness), color = colors.muted)
-        is Freshness.Fresh -> Chip(text = freshnessChipLabel(freshness))
-        is Freshness.Stale ->
-            Chip(text = freshnessChipLabel(freshness), color = colors.warn)
+        Freshness.NoData -> Chip(text = label, color = colors.muted)
+        is Freshness.Fresh -> Chip(text = label, color = colors.warn)
+        is Freshness.Stale -> Chip(text = label, color = colors.warn)
     }
 }
 
@@ -604,18 +616,30 @@ private fun KvRow(
     }
 }
 
+/**
+ * Карточка величины на Главной — миниатюра полноэкранного графика.
+ *
+ * Это буквально тот же кадр: те же корзины, медиана и квантильные конверты,
+ * тот же фон с пропусками и границей истории, то же окно и те же правила
+ * честности. Раньше здесь жил свой усреднённый ряд по своим корзинам, и тап
+ * по карточке ПОДМЕНЯЛ картинку другой — человеку приходилось заново искать
+ * на большом графике то, что он увидел на маленьком. Различие осталось одно:
+ * миниатюрой нельзя управлять, её единственное действие — открыть во весь
+ * экран.
+ */
 @Composable
-private fun HourChartCard(
-    chart: HourChart?,
-    baseline: Baseline?,
-    thresholds: AlarmThresholds,
+private fun MetricChartCard(
+    metric: ChartMetric,
+    frame: ChartFrame?,
+    windowLabel: String?,
+    hasBaselineBand: Boolean,
     unit: DoseUnitSetting,
-    alert: Boolean,
-    onOpen: () -> Unit = {},
-    showStats: Boolean = true,
+    showStats: Boolean,
+    onOpen: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val cursor = remember { mutableStateOf<Float?>(null) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -628,17 +652,29 @@ private fun HourChartCard(
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    text = "Мощность дозы · час".uppercase(),
+                    text = metric.title.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
+                if (windowLabel != null) {
+                    Text(text = windowLabel, style = type.footnote, color = colors.muted)
+                }
+                if (metric == ChartMetric.HARDNESS) {
+                    EvidenceTag(Evidence.CALCULATED)
+                }
                 Spacer(Modifier.weight(1f))
-                if (baseline != null) {
+                if (metric == ChartMetric.DOSE && hasBaselineBand) {
                     Text(
                         text = "полоса — P10–P90 профиля",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                } else {
+                    Text(
+                        text = ChartMetrics.unitLabel(metric, unit),
                         style = type.footnote,
                         color = colors.muted,
                     )
@@ -647,44 +683,68 @@ private fun HourChartCard(
                 Text(text = "⤢", style = type.label, color = colors.ink2)
             }
 
-            val stats = chart?.stats
-            if (chart == null || stats == null) {
+            if (frame == null || frame.spec.buckets.isEmpty()) {
                 Text(
                     text = "накапливаем измерения…",
                     style = type.bodySmall,
                     color = colors.muted,
                 )
             } else {
-                val alarmLevel = thresholds.l1MicroSvH
-                val yMax = ChartMapping.yMax(
-                    maxOf(stats.max, baseline?.doseHighMicroSvH ?: 0f),
-                    alarmLevel,
+                DoseChart(
+                    spec = frame.spec,
+                    cursorFraction = cursor,
+                    interactive = false,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(if (metric == ChartMetric.DOSE) 168.dp else 132.dp),
                 )
-                TrendChart(
-                    spec = TrendChartSpec(
-                        columns = chart.columns,
-                        yMax = yMax,
-                        alarmLevel = alarmLevel,
-                        alarmLabel = "L1 ${DoseFormat.rate(alarmLevel, unit)}",
-                        band = baseline?.let { it.doseLowMicroSvH..it.doseHighMicroSvH },
-                        yTicks = ChartMapping.yTicks(yMax).map { it to DoseFormat.rate(it, unit) },
-                        xLabels = TimeAxis.labels(chart.fromMillis, chart.toMillis),
-                        endpointAlert = alert,
-                    ),
-                )
-                if (showStats) {
+                val stats = frame.stats
+                if (showStats && stats != null) {
                     StatGrid(
                         cells = listOf(
-                            StatCell(DoseFormat.rate(stats.min, unit), "мин"),
-                            StatCell(DoseFormat.rate(stats.median, unit), "медиана"),
-                            StatCell(DoseFormat.rate(stats.max, unit), "макс"),
-                            StatCell(DoseFormat.rate(stats.sigma, unit), "SD, ${DoseFormat.rateUnitLabel(unit)}"),
-                            StatCell(HistoryFormat.count(chart.sampleCount), "n"),
+                            StatCell(ChartMetrics.format(metric, stats.min, unit), "мин"),
+                            StatCell(ChartMetrics.format(metric, stats.median, unit), "медиана"),
+                            StatCell(ChartMetrics.format(metric, stats.max, unit), "макс"),
+                            StatCell(
+                                ChartMetrics.format(metric, stats.sd, unit),
+                                "SD, ${ChartMetrics.unitLabel(metric, unit)}",
+                            ),
+                            StatCell(HistoryFormat.count(stats.sampleCount), "n"),
                         ),
                     )
                 }
             }
+
+            for (line in metricFootnotes(metric)) {
+                Text(text = line, style = type.footnote, color = colors.muted)
+            }
         }
+    }
+}
+
+/** Постоянные оговорки под величиной — те же слова, что и на полном экране. */
+private fun metricFootnotes(metric: ChartMetric): List<String> = when (metric) {
+    ChartMetric.DOSE -> emptyList()
+    ChartMetric.COUNT_RATE -> listOf(
+        "CPS — счёт событий детектора, не мера опасности: одно и то же число даёт и " +
+            "слабый близкий источник, и сильный далёкий.",
+    )
+    ChartMetric.HARDNESS -> listOf(Hardness.EXPLANATION, Hardness.PURPOSE)
+}
+
+/**
+ * Подпись окна карточки: ступень лестницы, если окно ей равно, иначе
+ * фактическая длительность — то же правило, что у свёрнутого чипа периодов.
+ */
+private fun windowLabel(metric: ChartMetric, window: ChartWindow): String {
+    val index = ChartWindows.nearestPeriodIndex(
+        window.spanMillis,
+        ChartMetrics.periodIndices(metric),
+    )
+    return if (ChartWindows.matchesPeriod(window.spanMillis, index)) {
+        ChartWindows.PERIODS[index].first
+    } else {
+        HistoryFormat.duration(window.spanMillis / 1000)
     }
 }
 
@@ -717,236 +777,19 @@ private fun BatteryBanner() {
     }
 }
 
-private suspend fun loadHourChart(graph: AppGraph): HourChart {
+/**
+ * Доза за сегодня — единственное, что осталось отдельным запросом: она
+ * считается от начала суток, а не по окну графика, и минутных корзин для неё
+ * достаточно.
+ */
+private suspend fun loadDoseToday(graph: AppGraph): Double {
     val now = System.currentTimeMillis()
-    val from = ChartMapping.alignedFrom(now, CHART_WINDOW_MILLIS, CHART_BUCKET_MILLIS)
-    val buckets = graph.measurementRepository.downsampledSamples(
-        from = from,
-        to = now,
-        bucketMillis = CHART_BUCKET_MILLIS,
-    )
-    val columns = ChartMapping.toColumns(
-        buckets = buckets,
-        alignedFromMillis = from,
-        bucketMillis = CHART_BUCKET_MILLIS,
-        columnCount = CHART_COLUMNS,
-    ) { DoseUnits.rawToMicroSievertPerHour(it.avgDoseRate) }
-    // The same buckets, read as count rate: the optional CPS chart costs one
-    // more mapping, not one more query.
-    val cpsColumns = ChartMapping.toColumns(
-        buckets = buckets,
-        alignedFromMillis = from,
-        bucketMillis = CHART_BUCKET_MILLIS,
-        columnCount = CHART_COLUMNS,
-    ) { it.avgCountRate }
-
     val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault())
         .toInstant().toEpochMilli()
-    val todayBuckets = graph.measurementRepository.downsampledSamples(
+    val buckets = graph.measurementRepository.downsampledSamples(
         from = startOfDay,
         to = now,
         bucketMillis = 60_000L,
     )
-
-    return HourChart(
-        columns = columns,
-        stats = ChartMapping.stats(columns),
-        sampleCount = buckets.sumOf { it.sampleCount },
-        fromMillis = from,
-        toMillis = now,
-        doseTodayMicroSv = ChartMapping.integrateDoseMicroSv(todayBuckets),
-        cpsColumns = cpsColumns,
-    )
-}
-
-/**
- * Жёсткость за час — из тех же корзин, что и два других графика.
- *
- * The vendor defines the coefficient as dose per count, so it needs no spectra
- * at all: both rates are already in every bucket. That also makes it available
- * for the whole history instead of only where accumulated snapshots exist.
- */
-private fun hardnessOf(chart: HourChart?): HardnessChart? {
-    if (chart == null) return null
-    val columns = chart.doseColumns.indices.map { i ->
-        val dose = chart.doseColumns.getOrNull(i)
-        val cps = chart.cpsColumns.getOrNull(i)
-        if (dose == null || cps == null) {
-            null
-        } else {
-            Hardness.of(
-                doseRateMicroSvH = dose.toDouble(),
-                countRate = cps.toDouble(),
-                seconds = CHART_BUCKET_MILLIS / 1000.0,
-            )?.value?.toFloat()
-        }
-    }
-    return HardnessChart(
-        columns = columns,
-        current = columns.lastOrNull { it != null }?.let { last ->
-            Hardness.of(
-                doseRateMicroSvH = chart.doseColumns.lastOrNull { it != null }?.toDouble() ?: 0.0,
-                countRate = chart.cpsColumns.lastOrNull { it != null }?.toDouble() ?: 0.0,
-                seconds = CHART_BUCKET_MILLIS / 1000.0,
-            )
-        },
-        fromMillis = chart.fromMillis,
-        toMillis = chart.toMillis,
-    )
-}
-
-
-/**
- * Отдельный график скорости счёта (Настройки → Вид → блоки Главной).
- *
- * Off by default and never above the dose chart: CPS is a **detection**
- * signal — it reacts faster than dose and is what a search leans on — but it
- * is not the quantity that describes the radiation situation, and the screen
- * must not let it look like one.
- */
-@Composable
-private fun CountRateChartCard(
-    chart: HourChart?,
-    showStats: Boolean,
-    onOpen: () -> Unit = {},
-) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onOpen,
-            ),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Скорость счёта · час".uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(text = "с⁻¹", style = type.footnote, color = colors.muted)
-                Text(text = "⤢", style = type.label, color = colors.ink2)
-            }
-            val columns = chart?.cpsColumns.orEmpty()
-            val stats = ChartMapping.stats(columns)
-            if (chart == null || stats == null) {
-                Text(
-                    text = "накапливаем измерения…",
-                    style = type.bodySmall,
-                    color = colors.muted,
-                )
-            } else {
-                val yMax = ChartMapping.yMax(stats.max, 0f)
-                TrendChart(
-                    spec = TrendChartSpec(
-                        columns = columns,
-                        yMax = yMax,
-                        yTicks = ChartMapping.yTicks(yMax).map { it to Uncertainty.num1(it) },
-                        xLabels = TimeAxis.labels(chart.fromMillis, chart.toMillis),
-                    ),
-                )
-                if (showStats) {
-                    StatGrid(
-                        cells = listOf(
-                            StatCell(Uncertainty.num1(stats.min), "мин"),
-                            StatCell(Uncertainty.num1(stats.median), "медиана"),
-                            StatCell(Uncertainty.num1(stats.max), "макс"),
-                            StatCell(Uncertainty.num1(stats.sigma), "SD, с⁻¹"),
-                        ),
-                    )
-                }
-            }
-            Text(
-                text = "CPS — счёт событий детектора, не мера опасности: одно и то же " +
-                    "число даёт и слабый близкий источник, и сильный далёкий.",
-                style = type.footnote,
-                color = colors.muted,
-            )
-        }
-    }
-}
-
-/**
- * График жёсткости (Настройки → Вид → блоки Главной).
- *
- * The product spec keeps this off Главная by default and demands the sentence
- * under it; both are honoured — but the choice is the user's, so the block can
- * be turned on. Hourly points, because that is the cadence at which the app
- * accumulates spectra in the background.
- */
-@Composable
-private fun HardnessChartCard(chart: HardnessChart?, onOpen: () -> Unit = {}) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onOpen,
-            ),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Жёсткость · час".uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                )
-                EvidenceTag(Evidence.CALCULATED, Modifier.padding(start = 6.dp))
-                Spacer(Modifier.weight(1f))
-                chart?.current?.let {
-                    Text(
-                        text = Hardness.format(it.value),
-                        style = type.value,
-                        color = colors.ink,
-                    )
-                }
-                Text(
-                    text = "⤢",
-                    style = type.label,
-                    color = colors.ink2,
-                    modifier = Modifier.padding(start = 6.dp),
-                )
-            }
-            val columns = chart?.columns.orEmpty()
-            if (chart == null || columns.all { it == null }) {
-                Text(
-                    text = "накапливаем измерения…",
-                    style = type.bodySmall,
-                    color = colors.muted,
-                )
-            } else {
-                val yMax = ChartMapping.yMax(
-                    columns.filterNotNull().maxOrNull() ?: 1f,
-                    0f,
-                )
-                TrendChart(
-                    spec = TrendChartSpec(
-                        columns = columns,
-                        yMax = yMax,
-                        yTicks = ChartMapping.yTicks(yMax)
-                            .map { it to Hardness.format(it.toDouble()) },
-                        xLabels = TimeAxis.labels(chart.fromMillis, chart.toMillis),
-                    ),
-                )
-            }
-            Text(
-                text = Hardness.EXPLANATION,
-                style = type.footnote,
-                color = colors.muted,
-            )
-            Text(
-                text = Hardness.PURPOSE,
-                style = type.footnote,
-                color = colors.muted,
-            )
-        }
-    }
+    return ChartMapping.integrateDoseMicroSv(buckets)
 }

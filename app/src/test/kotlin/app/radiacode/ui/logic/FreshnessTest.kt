@@ -32,7 +32,7 @@ class FreshnessTest {
     @Test
     fun `labels are honest about the stream state`() {
         assertEquals("данных ещё нет", freshnessLabel(Freshness.NoData))
-        assertEquals("обновлено только что", freshnessLabel(Freshness.Fresh(1)))
+        assertEquals("поток идёт", freshnessLabel(Freshness.Fresh(1)))
         assertEquals("обновлено 7 с назад", freshnessLabel(Freshness.Fresh(7)))
         assertEquals("поток прерван 34 с назад", freshnessLabel(Freshness.Stale(34)))
     }
@@ -42,9 +42,11 @@ class FreshnessTest {
      * читается никак. Возраст интересен только когда он заметен.
      */
     @Test
-    fun `the chip says «только что» instead of a bare zero`() {
-        assertEquals("только что", freshnessChipLabel(Freshness.Fresh(0)))
-        assertEquals("только что", freshnessChipLabel(Freshness.Fresh(FRESH_NOW_SECONDS)))
+    fun `the chip is silent while the stream is running`() {
+        // Ни «0 с», ни слов о том, что и так видно по живому значению: чип
+        // появляется только когда данные начали отставать.
+        assertEquals(null, freshnessChipLabel(Freshness.Fresh(0)))
+        assertEquals(null, freshnessChipLabel(Freshness.Fresh(FRESH_NOW_SECONDS)))
         assertEquals("5 с назад", freshnessChipLabel(Freshness.Fresh(5)))
         assertEquals("прервано 30 с назад", freshnessChipLabel(Freshness.Stale(30)))
         assertEquals("нет данных", freshnessChipLabel(Freshness.NoData))
