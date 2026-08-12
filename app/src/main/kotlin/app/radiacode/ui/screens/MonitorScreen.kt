@@ -125,7 +125,6 @@ private data class LoadedChart(
 @Composable
 fun MonitorScreen(
     graph: AppGraph,
-    onOpenFingerprint: () -> Unit = {},
     onOpenMetricChart: (ChartMetric) -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenChart: () -> Unit = {},
@@ -274,7 +273,6 @@ fun MonitorScreen(
             admission = admission,
             frozen = frozen,
             onWhy = { showWhy = true },
-            onFingerprint = onOpenFingerprint,
         )
 
         val baseline = (baselineState as? BaselineState.Active)?.baseline
@@ -471,7 +469,6 @@ private fun HeroCard(
     admission: Admission = Admission.Admitted,
     frozen: Boolean = false,
     onWhy: () -> Unit = {},
-    onFingerprint: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -636,14 +633,6 @@ private fun HeroCard(
                 }
             }
 
-            // 4. Второй вопрос об этом же месте — «чем оно отличается от себя
-            // прежнего». Первый («почему такой вывод сейчас») открывается
-            // нажатием на сам вывод.
-            AppButton(
-                text = "Отпечаток места",
-                onClick = onFingerprint,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
     }
 }

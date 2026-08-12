@@ -110,13 +110,28 @@ object SearchVerdict {
         return (((current - background) / background) * 100.0).roundToInt()
     }
 
-    /** «↑ сигнал растёт» — the hot-and-cold half, deliberately not a verdict. */
+    /**
+     * «↑ счёт растёт» — половина «горячо-холодно», сознательно не вердикт.
+     *
+     * Голое «ровно» на экране не читалось: непонятно, что именно ровно и за
+     * какое время это сказано. Все три подписи называют ВЕЛИЧИНУ (счёт) и
+     * относятся к последним [SearchDirectionFit.WINDOW_MILLIS] — окно
+     * названо рядом, в подписи под чипом.
+     */
     fun directionLabel(direction: SearchDirection): String? = when (direction) {
         SearchDirection.UNKNOWN -> null
-        SearchDirection.STEADY -> "→ ровно"
-        SearchDirection.RISING -> "↑ сигнал растёт"
-        SearchDirection.FALLING -> "↓ сигнал снижается"
+        SearchDirection.STEADY -> "→ счёт не меняется"
+        SearchDirection.RISING -> "↑ счёт растёт"
+        SearchDirection.FALLING -> "↓ счёт снижается"
     }
+
+    /** За какое время сделан вывод о направлении — подпись под чипом. */
+    fun directionNote(direction: SearchDirection, windowMillis: Long): String? =
+        if (direction == SearchDirection.UNKNOWN) {
+            null
+        } else {
+            "по последним ${windowMillis / 1000} с"
+        }
 
     /** Line about short excursions that never reached the confirmation time. */
     fun spikeLine(spikes: List<SpikeMarker>): String? {

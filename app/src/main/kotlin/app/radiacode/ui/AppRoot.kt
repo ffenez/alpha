@@ -230,7 +230,6 @@ private fun MainScaffold(graph: AppGraph) {
                             chartMetricId = metric.id
                             showLiveChart = true
                         },
-                        onOpenFingerprint = { showFingerprint = true },
                     )
                     AppTab.SEARCH -> SearchScreen(
                         graph = graph,
@@ -239,6 +238,10 @@ private fun MainScaffold(graph: AppGraph) {
                         // user to the spectrum. Nothing is carried across —
                         // the spectrum tab shows its own live accumulation.
                         onOpenSpectrum = { tab = AppTab.SPECTRUM },
+                        // «Отпечаток места» спрашивает то же, что и Поиск, но
+                        // про место целиком, а не про сейчас — поэтому вход
+                        // живёт здесь, а не на Главной.
+                        onOpenFingerprint = { showFingerprint = true },
                     )
                     AppTab.SPECTRUM -> SpectrumScreen(
                         graph = graph,

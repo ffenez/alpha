@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import app.radiacode.ui.theme.Motion
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -60,6 +64,7 @@ import app.radiacode.ui.logic.FeedbackState
 import app.radiacode.ui.logic.LocalBackground
 import app.radiacode.ui.logic.LocalBackgroundMachine
 import app.radiacode.ui.logic.SearchBaseline
+import app.radiacode.ui.logic.SearchDirectionFit
 import app.radiacode.ui.logic.SearchEngine
 import app.radiacode.ui.logic.SearchFeedbackMode
 import app.radiacode.ui.logic.SearchLevel
@@ -102,7 +107,11 @@ private const val TICK_MILLIS = 500L
  * Dose, spectra and long-term statistics deliberately stay off this screen.
  */
 @Composable
-fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
+fun SearchScreen(
+    graph: AppGraph,
+    onOpenSpectrum: () -> Unit = {},
+    onOpenFingerprint: () -> Unit = {},
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
@@ -476,31 +485,56 @@ fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
                     }
                 }
 
-                StatusRow(
-                    text = SearchVerdict.headline(level, search.direction, record != null),
-                    color = levelColor,
-                    modifier = Modifier.padding(top = Dimens.space2),
-                )
-                Text(
-                    text = SearchVerdict.explanation(level, search.comparison),
-                    style = type.footnote,
-                    color = colors.muted,
-                    textAlign = TextAlign.Center,
-                )
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = Dimens.space2),
+                // Сам вывод открывает разбор: вопрос «почему так решено»
+                // задают, глядя именно на эту строку.
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+                    modifier = Modifier
+                        .padding(top = Dimens.space2)
+                        .clip(RoundedCornerShape(Dimens.radiusChip))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { whyOpen = true },
+                        )
+                        .padding(vertical = Dimens.space1, horizontal = Dimens.space2),
                 ) {
-                    SearchVerdict.directionLabel(search.direction)?.let {
-                        Chip(text = it, color = colors.ink2)
-                    }
-                    Chip(
-                        text = "Почему?",
-                        color = colors.dataText,
-                        onClick = { whyOpen = true },
+                    StatusRow(
+                        text = SearchVerdict.headline(level, search.direction, record != null),
+                        color = levelColor,
                     )
+                    Text(
+                        text = SearchVerdict.explanation(level, search.comparison),
+                        style = type.footnote,
+                        color = colors.muted,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "почему такой вывод ›",
+                        style = type.footnote,
+                        color = colors.dataText,
+                    )
+                }
+
+                SearchVerdict.directionLabel(search.direction)?.let { label ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(top = Dimens.space2),
+                    ) {
+                        Chip(text = label, color = colors.ink2)
+                        SearchVerdict.directionNote(
+                            search.direction,
+                            SearchDirectionFit.WINDOW_MILLIS,
+                        )?.let {
+                            Text(
+                                text = it,
+                                style = type.footnote,
+                                color = colors.muted,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                    }
                 }
 
                 LedMeter(
@@ -719,6 +753,15 @@ fun SearchScreen(graph: AppGraph, onOpenSpectrum: () -> Unit = {}) {
                 }
             }
         }
+
+        // Отпечаток места живёт здесь, а не на Главной: это тот же вопрос,
+        // с которым открывают Поиск — «здесь не так, как обычно?» — только
+        // заданный не про сейчас, а про место целиком.
+        AppButton(
+            text = "Отпечаток места",
+            onClick = onOpenFingerprint,
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         Text(
             text = "CPS реагирует быстрее дозы — ведите прибор вдоль поверхности. " +

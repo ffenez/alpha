@@ -199,10 +199,10 @@ object TrendFit {
     fun unavailableNote(availability: TrendAvailability): String? = when (availability) {
         is TrendAvailability.Ready -> null
         is TrendAvailability.TooFewBins ->
-            "интервалов ${availability.present} из $MIN_PRESENT_BINS"
+            "нужно $MIN_PRESENT_BINS интервалов · есть ${availability.present}"
         is TrendAvailability.TooShort ->
-            "измерений ${HistoryFormat.duration(availability.spanMillis / 1000)} " +
-                "из ${HistoryFormat.duration(MIN_SPAN_MILLIS / 1000)}"
+            "нужно ${HistoryFormat.duration(MIN_SPAN_MILLIS / 1000)} измерений · есть " +
+                HistoryFormat.duration(availability.spanMillis / 1000)
     }
 
     /**
