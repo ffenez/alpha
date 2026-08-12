@@ -331,15 +331,6 @@ fun MonitorScreen(
             )
         }
 
-        if (blocks.cpsHint) {
-            Text(
-                text = "CPS — счёт событий детектора, не мера опасности",
-                style = LocalAppTypography.current.footnote,
-                color = colors.muted,
-                modifier = Modifier.padding(horizontal = Dimens.space1),
-            )
-        }
-
         BatteryBanner()
     }
 
@@ -445,17 +436,23 @@ fun contextWording(context: MeasurementContext): String = when (context) {
 private fun ConnectionChip(connection: ConnectionState, serviceRunning: Boolean) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
-    val (dot, text) = when {
+    val (dot, text: String?) = when {
         // Модель берётся у прибора, а не вписана в код: приложение работает
         // со всей серией, и чужому прибору нельзя приписывать чужое имя.
-        connection is ConnectionState.Connected ->
-            colors.ok to "${connection.info.model.displayName} · 1 Гц"
+        // Подключён — достаточно зелёной точки: модель и частота опроса не
+        // меняются во время работы, и повторять их на главном экране незачем.
+        // Они есть в Настройках → Прибор.
+        connection is ConnectionState.Connected -> colors.ok to null
         connection is ConnectionState.Connecting -> colors.warn to strings.connecting
         connection is ConnectionState.Reconnecting -> colors.warn to strings.reconnecting
         !serviceRunning -> colors.muted to strings.serviceOff
         else -> colors.muted to strings.noLink
     }
-    Chip(text = text, dot = dot)
+    if (text == null) {
+        StatusDot(dot)
+    } else {
+        Chip(text = text, dot = dot)
+    }
 }
 
 @Composable
@@ -820,22 +817,14 @@ private fun MetricChartCard(
                         .height(if (metric == ChartMetric.DOSE) 168.dp else 132.dp),
                 )
                 val stats = frame.stats
-                // Оговорки окна — те же, что на полноэкранном: сколько окна
-                // реально покрыто измерениями и каким путём получены квантили.
-                // Карточка показывает ТЕ ЖЕ числа, значит обязана нести и их
-                // условия — иначе месячное окно с двумя часами данных выглядит
-                // как месяц измерений.
+                // Покрытие окна остаётся: месячное окно с двумя часами данных
+                // иначе выглядит как месяц измерений. А метод квантилей —
+                // подробность о РАСЧЁТЕ, и её место на полноэкранном графике,
+                // где эти числа изучают, а не на карточке-миниатюре.
                 if (spanMillis != null) {
                     coverageWording(stats, spanMillis)?.let {
                         Text(text = it, style = type.footnote, color = colors.muted)
                     }
-                }
-                if (stats != null && !stats.quantilesExact) {
-                    Text(
-                        text = "квантили — приближение по почасовым выжимкам распределения",
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
                 }
                 if (showStats && stats != null) {
                     StatGrid(

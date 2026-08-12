@@ -326,7 +326,6 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             trend = prefs[MONITOR_SHOW_TREND] ?: true,
             doseToday = prefs[MONITOR_SHOW_DOSE_TODAY] ?: true,
             stats = prefs[MONITOR_SHOW_STATS] ?: true,
-            cpsHint = prefs[MONITOR_SHOW_CPS_HINT] ?: true,
             countRateChart = prefs[MONITOR_SHOW_CPS_CHART] ?: false,
             hardnessChart = prefs[MONITOR_SHOW_HARDNESS_CHART] ?: false,
         )
@@ -337,7 +336,6 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             it[MONITOR_SHOW_TREND] = blocks.trend
             it[MONITOR_SHOW_DOSE_TODAY] = blocks.doseToday
             it[MONITOR_SHOW_STATS] = blocks.stats
-            it[MONITOR_SHOW_CPS_HINT] = blocks.cpsHint
             it[MONITOR_SHOW_CPS_CHART] = blocks.countRateChart
             it[MONITOR_SHOW_HARDNESS_CHART] = blocks.hardnessChart
         }
@@ -350,7 +348,6 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             it.remove(MONITOR_SHOW_TREND)
             it.remove(MONITOR_SHOW_DOSE_TODAY)
             it.remove(MONITOR_SHOW_STATS)
-            it.remove(MONITOR_SHOW_CPS_HINT)
         }
     }
 
@@ -402,7 +399,6 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val MONITOR_SHOW_TREND = booleanPreferencesKey("monitor_show_trend")
         private val MONITOR_SHOW_DOSE_TODAY = booleanPreferencesKey("monitor_show_dose_today")
         private val MONITOR_SHOW_STATS = booleanPreferencesKey("monitor_show_stats")
-        private val MONITOR_SHOW_CPS_HINT = booleanPreferencesKey("monitor_show_cps_hint")
         private val MONITOR_SHOW_CPS_CHART = booleanPreferencesKey("monitor_show_cps_chart")
         private val MONITOR_SHOW_HARDNESS_CHART =
             booleanPreferencesKey("monitor_show_hardness_chart")
@@ -415,7 +411,6 @@ data class MonitorBlocks(
     val trend: Boolean = true,
     val doseToday: Boolean = true,
     val stats: Boolean = true,
-    val cpsHint: Boolean = true,
     /**
      * Отдельный график скорости счёта. Off by default: the product spec keeps
      * Главная to one chart, and CPS is a detection signal rather than the

@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -55,6 +56,8 @@ data class TrendChartSpec(
     val xLabels: List<Pair<Float, String>> = emptyList(),
     /** Paint the endpoint dot in the alarm color (confirmed alert only). */
     val endpointAlert: Boolean = false,
+    /** Подпись последней точки у правого края; null — не показывать. */
+    val endpointLabel: String? = null,
 )
 
 private const val SMOOTH_RADIUS = 4
@@ -208,21 +211,47 @@ fun TrendChart(
         val smoothed = smoothColumns(spec.columns)
         drawSmoothedPath(smoothed, colors.data, ::x, ::y)
 
-        // 7. Endpoint dot with a surface ring.
+        // 7. Endpoint dot with a surface ring, and its value beside it.
         val lastIndex = smoothed.indexOfLast { it != null }
         if (lastIndex >= 0) {
             val center = Offset(x(lastIndex), y(smoothed[lastIndex]!!))
-            drawCircle(
-                color = if (spec.endpointAlert) colors.crit else colors.data,
-                radius = 4.dp.toPx(),
-                center = center,
-            )
+            val endpointColor = if (spec.endpointAlert) colors.crit else colors.data
+            drawCircle(color = endpointColor, radius = 4.dp.toPx(), center = center)
             drawCircle(
                 color = colors.surface,
                 radius = 4.dp.toPx(),
                 center = center,
                 style = Stroke(width = 2.dp.toPx()),
             )
+            // Последнее значение читается без курсора: ради него график и
+            // открывают. Плашка непрозрачна, иначе подпись поверх линии
+            // читается как часть данных.
+            spec.endpointLabel?.takeIf { it.isNotBlank() }?.let { label ->
+                val measured = textMeasurer.measure(label, axisStyle)
+                val pad = 3.dp.toPx()
+                val boxW = measured.size.width + pad * 2
+                val boxH = measured.size.height + pad
+                val left = (center.x + 6.dp.toPx()).coerceAtMost(size.width - boxW)
+                val top = (center.y - boxH / 2f).coerceIn(0f, size.height - boxH)
+                drawRoundRect(
+                    color = colors.surface,
+                    topLeft = Offset(left, top),
+                    size = Size(boxW, boxH),
+                    cornerRadius = CornerRadius(3.dp.toPx()),
+                )
+                drawRoundRect(
+                    color = endpointColor,
+                    topLeft = Offset(left, top),
+                    size = Size(boxW, boxH),
+                    cornerRadius = CornerRadius(3.dp.toPx()),
+                    style = Stroke(width = 1.dp.toPx()),
+                )
+                drawText(
+                    textLayoutResult = measured,
+                    color = endpointColor,
+                    topLeft = Offset(left + pad, top + pad / 2f),
+                )
+            }
         }
     }
 }

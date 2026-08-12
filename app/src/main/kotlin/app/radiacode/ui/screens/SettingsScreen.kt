@@ -1716,9 +1716,6 @@ private fun InterfaceSection(graph: AppGraph) {
             BlockToggleRow("Статистика под графиком (мин/медиана/макс/SD/n)", blocks.stats) {
                 scope.launch { graph.settings.setMonitorBlocks(blocks.copy(stats = it)) }
             }
-            BlockToggleRow("Подсказка о CPS", blocks.cpsHint) {
-                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(cpsHint = it)) }
-            }
 
             AppDivider()
             AppButton(

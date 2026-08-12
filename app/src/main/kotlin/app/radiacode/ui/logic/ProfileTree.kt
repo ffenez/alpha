@@ -97,10 +97,22 @@ object ProfileTree {
         profiles: List<ProfileEntity>,
         contextProfileId: Long?,
         storedProfileId: Long?,
+        /**
+         * Принял ли контекст решение о месте. `true` означает «решение есть»,
+         * даже если оно = «места нет».
+         */
+        contextDecided: Boolean = false,
     ): ProfileEntity? {
         val active = profiles.filter { !it.archived }
-        return profiles.firstOrNull { it.id == contextProfileId && !it.archived }
-            ?: active.firstOrNull { it.id == storedProfileId }
+        profiles.firstOrNull { it.id == contextProfileId && !it.archived }?.let { return it }
+        // Полевая ошибка: человек ушёл из дома, Wi-Fi пропал, контекст честно
+        // перешёл в «В пути» — но профиля этой роли не оказалось, и запасной
+        // вариант возвращал ПОСЛЕДНИЙ профиль. Приложение уверенно писало
+        // «Дом» посреди улицы и кормило его статистику чужими измерениями.
+        // Решение «места нет» — это ОТВЕТ, и подменять его прежним местом
+        // нельзя: лучше писать вообще без профиля.
+        if (contextDecided) return null
+        return active.firstOrNull { it.id == storedProfileId }
             ?: visible(active).firstOrNull()
     }
 

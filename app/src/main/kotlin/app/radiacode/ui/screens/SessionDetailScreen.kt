@@ -219,6 +219,8 @@ private fun ChartCard(detail: SessionDetail, unit: DoseUnitSetting) {
                         yMax = yMax,
                         yTicks = ChartMapping.yTicks(yMax).map { it to DoseFormat.rate(it, unit) },
                         xLabels = TimeAxis.labels(detail.fromMillis, detail.toMillis),
+                        endpointLabel = detail.columns.lastOrNull { it != null }
+                            ?.let { DoseFormat.rate(it, unit) },
                     ),
                 )
                 StatGrid(
@@ -281,6 +283,8 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting) {
                             it to HistoryFormat.count(it.toInt())
                         },
                         xLabels = TimeAxis.labels(detail.fromMillis, detail.toMillis),
+                        endpointLabel = columns.lastOrNull { it != null }
+                            ?.let { HistoryFormat.count(it.toInt()) },
                     ),
                     height = 80.dp,
                 )

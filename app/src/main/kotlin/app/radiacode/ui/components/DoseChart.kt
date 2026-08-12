@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -94,6 +95,14 @@ data class DoseChartSpec(
      */
     val rawSamples: List<ValueAggregate> = emptyList(),
     val endpointAlert: Boolean = false,
+    /**
+     * Подпись последнего значения у правого края («0,16»).
+     *
+     * Последняя точка — то, ради чего график открывают чаще всего, и её
+     * значение не должно требовать курсора. Единица не повторяется: она уже
+     * стоит в углу поля.
+     */
+    val endpointLabel: String? = null,
 )
 
 /**
@@ -195,7 +204,7 @@ fun DoseChart(
         }
 
         StaticChartLayer(spec, widthPx, heightPx, padTop, plotHeight, textMeasurer, axisStyle, palette)
-        SeriesLayer(spec, pixels, widthPx, padTop, plotHeight, palette)
+        SeriesLayer(spec, pixels, widthPx, padTop, plotHeight, palette, textMeasurer, axisStyle)
         CursorLayer(pixels, cursorFraction, widthPx, padTop, plotHeight, palette)
 
         // Gestures. The handlers are keyed only on the plot width, so a state
@@ -599,6 +608,8 @@ private fun SeriesLayer(
     plotTop: Float,
     plotHeight: Float,
     colors: ChartPalette,
+    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    axisStyle: androidx.compose.ui.text.TextStyle,
 ) {
     Spacer(
         Modifier
@@ -625,6 +636,13 @@ private fun SeriesLayer(
                 val ringStroke = Stroke(width = 2.dp.toPx())
                 val markers = extremeMarks(spec, pixels, plotTop, 6.dp.toPx())
                 val markerStroke = Stroke(width = 1.2.dp.toPx())
+                // Подпись последней точки: измеряется здесь, чтобы рисование
+                // ничего не считало.
+                val endpointText = spec.endpointLabel
+                    ?.takeIf { it.isNotBlank() && endpoint != null }
+                    ?.let { textMeasurer.measure(it, axisStyle) }
+                val labelPadding = 3.dp.toPx()
+                val labelRadius = CornerRadius(3.dp.toPx())
 
                 onDrawBehind {
                     drawPath(outer, outerColor)
@@ -650,6 +668,35 @@ private fun SeriesLayer(
                     endpoint?.let {
                         drawCircle(endpointColor, endpointRadius, it)
                         drawCircle(colors.bg, endpointRadius, it, style = ringStroke)
+                    }
+                    // Значение последней точки — плашкой у правого края, на
+                    // высоте самой точки. Плашка непрозрачна: подпись поверх
+                    // конверта иначе читается как часть данных.
+                    if (endpointText != null && endpoint != null) {
+                        val boxW = endpointText.size.width + labelPadding * 2
+                        val boxH = endpointText.size.height + labelPadding
+                        val left = (endpoint.x + endpointRadius + labelPadding)
+                            .coerceAtMost(widthPx - boxW)
+                        val top = (endpoint.y - boxH / 2f)
+                            .coerceIn(plotTop, plotTop + plotHeight - boxH)
+                        drawRoundRect(
+                            color = colors.bg,
+                            topLeft = Offset(left, top),
+                            size = Size(boxW, boxH),
+                            cornerRadius = labelRadius,
+                        )
+                        drawRoundRect(
+                            color = endpointColor,
+                            topLeft = Offset(left, top),
+                            size = Size(boxW, boxH),
+                            cornerRadius = labelRadius,
+                            style = Stroke(width = 1.dp.toPx()),
+                        )
+                        drawText(
+                            textLayoutResult = endpointText,
+                            color = endpointColor,
+                            topLeft = Offset(left + labelPadding, top + labelPadding / 2f),
+                        )
                     }
                 }
             },

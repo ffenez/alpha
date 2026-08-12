@@ -161,4 +161,40 @@ class ProfileTreeTest {
             ProfileTree.PRESETS.filter { it.role != ProfileEntity.ROLE_USER }.map { it.role },
         )
     }
+
+    @Test
+    fun `leaving home does not silently keep recording into home`() {
+        // Полевой случай: Wi-Fi пропал, контекст решил «В пути», но профиля
+        // этой роли нет. Приложение показывало «Дом» посреди улицы и кормило
+        // его статистику чужими измерениями.
+        val home = profile(id = 1, name = "Дом")
+        val profiles = listOf(home)
+        val resolved = ProfileTree.resolveActive(
+            profiles = profiles,
+            contextProfileId = null,
+            storedProfileId = home.id,
+            contextDecided = true,
+        )
+        assertNull(resolved, "решение «места нет» подменено прежним местом")
+
+        // А пока контекст решения не принял (ручной выбор, старт службы),
+        // прежний профиль — правильный ответ.
+        assertEquals(
+            home.id,
+            ProfileTree.resolveActive(profiles, null, home.id, contextDecided = false)?.id,
+        )
+    }
+
+    @Test
+    fun `a decided context still uses the profile of its role when it exists`() {
+        val home = profile(id = 1, name = "Дом")
+        val transit = profile(id = 2, name = "В пути")
+        val resolved = ProfileTree.resolveActive(
+            profiles = listOf(home, transit),
+            contextProfileId = transit.id,
+            storedProfileId = home.id,
+            contextDecided = true,
+        )
+        assertEquals(transit.id, resolved?.id)
+    }
 }

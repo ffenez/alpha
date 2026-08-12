@@ -173,6 +173,10 @@ internal fun buildFrame(
             timeBands = ChartBackground.bands(window.fromMillis, window.toMillis),
             rawSamples = rawDots,
             endpointAlert = endpointAlert,
+            // Значение последней точки — то, ради чего график открывают чаще
+            // всего; курсор ради него ставить не нужно.
+            endpointLabel = visible.lastOrNull { it.sampleCount > 0 }
+                ?.let { ChartMetrics.format(metric, it.median, unit) },
         ),
         // The long path computes the window statistics once per read (merging
         // sketches is far too expensive for a gesture frame); the exact path

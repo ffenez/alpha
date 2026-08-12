@@ -150,7 +150,14 @@ class ContextController(
                 it.role == ProfileEntity.ROLE_NO_PLACE && !it.archived
             }?.id,
         )
-        hub.publish(state, ProfileTree.resolveActive(profiles, resolved, storedProfileId)?.id)
+        // Контекст уже решил, где мы: «В пути» и «Без места» — такие же
+        // решения, как «Дом». Если профиля этой роли нет, измерения пишутся
+        // без профиля, а не приписываются прежнему месту.
+        val decided = state !is MeasurementContext.Manual
+        hub.publish(
+            state,
+            ProfileTree.resolveActive(profiles, resolved, storedProfileId, decided)?.id,
+        )
     }
 
     companion object {
