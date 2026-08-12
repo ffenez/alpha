@@ -65,7 +65,12 @@ data class SearchChartSpec(
 fun SearchRateChart(
     spec: SearchChartSpec,
     modifier: Modifier = Modifier,
-    height: Dp = 150.dp,
+    /**
+     * За 60 с линия почти горизонтальна, и половина карточки уходила в
+     * пустоту: главное здесь — полоса ожидаемых колебаний вокруг фона, а не
+     * высота графика.
+     */
+    height: Dp = 110.dp,
 ) {
     val colors = LocalAppColors.current
     val axisStyle = LocalAppTypography.current.axis

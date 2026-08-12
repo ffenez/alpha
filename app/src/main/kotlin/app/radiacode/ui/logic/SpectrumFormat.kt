@@ -47,8 +47,13 @@ object SpectrumFormat {
     fun netCell(netCounts: Float): String = groupThousands(netCounts.roundToInt().toLong())
 
     /** Peak-table SNR cell: «8,2σ». */
-    fun snrCell(snr: Float): String =
-        String.format(Locale.US, "%.1f", snr).replace('.', ',') + "σ"
+    /**
+     * Значимость нетто-площади в единицах её собственной σ. «σ» здесь имеет
+     * определённый смысл (см. `PeakDetection`), поэтому и величина названа
+     * значимостью, а не «SNR»: signal-to-noise не говорит, что в знаменателе.
+     */
+    fun significanceCell(significance: Float): String =
+        String.format(Locale.US, "%.1f", significance).replace('.', ',') + "σ"
 
     /**
      * Peak-table candidate cell, cautious per SPEC — never «обнаружен»:

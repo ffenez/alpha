@@ -3,6 +3,7 @@ package app.radiacode.ui.logic
 import app.radiacode.data.DoseUnitSetting
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class UnitsTest {
 
@@ -63,5 +64,17 @@ class UnitsTest {
             "131 490 мкР",
             DoseFormat.doseCoarseWithUnit(1314.9, DoseUnitSetting.MICRO_ROENTGEN),
         )
+    }
+
+    @Test
+    fun `the projection basis prints enough digits to reproduce the projection`() {
+        // Ровно тот случай из поля: средняя 0,1553 печаталась как «0,16», и
+        // 0,16 × 8766 давало 1 400 вместо показанных 1 360.
+        val mean = 0.15525
+        val text = DoseFormat.rateBasisWithUnit(mean, DoseUnitSetting.MICRO_SIEVERT)
+        assertEquals("0,155 мкЗв/ч", text)
+        val shown = text.substringBefore(' ').replace(',', '.').toDouble()
+        val projected = shown * 8766.0
+        assertTrue(kotlin.math.abs(projected - mean * 8766.0) < 10.0, "$projected")
     }
 }

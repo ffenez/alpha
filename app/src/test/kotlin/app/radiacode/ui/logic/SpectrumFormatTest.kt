@@ -27,7 +27,7 @@ class SpectrumFormatTest {
         assertEquals("661,9", SpectrumFormat.energyCell(661.94f))
         assertEquals("1 240", SpectrumFormat.netCell(1240.3f))
         assertEquals("890", SpectrumFormat.netCell(890.0f))
-        assertEquals("8,2σ", SpectrumFormat.snrCell(8.24f))
+        assertEquals("8,2σ", SpectrumFormat.significanceCell(8.24f))
     }
 
     @Test
@@ -75,7 +75,7 @@ class SpectrumFormatTest {
         isotope = isotope,
         chain = null,
         natural = natural,
-        peak = Peak(channel = 100, energyKeV = 661.9f, netCounts = 890f, snr = 5.1f),
+        peak = Peak(channel = 100, energyKeV = 661.9f, netCounts = 890f, significance = 5.1f),
         lineEnergyKeV = 661.7f,
         confidence = confidence,
         alternatives = emptyList(),

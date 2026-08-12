@@ -34,7 +34,7 @@ object AlgorithmVersions {
     const val NETWORK_IDENTITY = 1
 
     /** Peak finder: smoothed local maxima + side continuum + Poisson SNR. */
-    const val PEAK_DETECTION = 1
+    const val PEAK_DETECTION = 2
 
     /** Multi-line isotope hints ([IsotopeMatcher]). */
     const val ISOTOPE_MATCH = 1

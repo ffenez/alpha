@@ -98,4 +98,38 @@ class PeakDetectionTest {
     fun `fwhm model matches the 8 percent spec point at 662 keV`() {
         assertTrue(abs(PeakDetection.fwhmKeV(662f) - 0.08f * 662f) < 0.5f)
     }
+
+    @Test
+    fun `a one-channel spike is not a peak, however significant it is`() {
+        // Ровно тот случай, ради которого добавлена проверка ширины: узкий
+        // выброс имеет огромную значимость, но фотопик такой ширины
+        // невозможен — разрешение детектора задаёт конечную FWHM.
+        val counts = MutableList(1024) { continuum(it) }
+        val channel = CALIBRATION.channelAt(900f).toInt()
+        counts[channel] = counts[channel] + 20_000.0
+        val peaks = PeakDetection.detect(counts.map { it.toInt() }, CALIBRATION)
+        assertTrue(
+            peaks.none { abs(it.energyKeV - 900f) < 30f },
+            "одноканальный выброс принят за пик: $peaks",
+        )
+    }
+
+    @Test
+    fun `significance carries the uncertainty of the background estimate too`() {
+        // Значимость = нетто/σ(нетто); σ² включает и статистику окна пика, и
+        // неопределённость оценки континуума, поэтому она СТРОГО меньше
+        // прежнего net/√(B·width).
+        val counts = MutableList(1024) { continuum(it) }
+        counts.addPeak(662f, amplitude = 3_000.0)
+        val peak = PeakDetection.detect(counts.map { it.toInt() }, CALIBRATION)
+            .minByOrNull { abs(it.energyKeV - 662f) }
+        assertTrue(peak != null, "пик 662 кэВ не найден")
+        val net = peak!!.netCounts
+        val optimistic = net / sqrt(net.toDouble()).toFloat()
+        assertTrue(
+            peak.significance < optimistic,
+            "значимость ${peak.significance} не может быть выше оптимистичной $optimistic",
+        )
+        assertTrue(peak.significance > 4f, "настоящий пик обязан остаться значимым")
+    }
 }

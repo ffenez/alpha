@@ -204,9 +204,11 @@ object SearchBaseline {
     /** One line naming why a re-measurement is being proposed. */
     fun proposal(check: BackgroundCheck, record: BackgroundRecord?): String? = when (check) {
         BackgroundCheck.USABLE -> null
+        // Приложение не знает, что человек делал эти полчаса, и не должно
+        // сочинять за него сценарий: оно называет факт и условие сравнения.
         BackgroundCheck.AGED ->
-            "Фон записан больше получаса назад — за это время можно было сменить " +
-                "комнату или здание. Перезамерьте, если вы не там же."
+            "Фон записан больше получаса назад. Сравнение верно, только если " +
+                "условия измерения не изменились."
         BackgroundCheck.PROFILE_CHANGED ->
             "Фон записан в другом профиле" +
                 (record?.profileName?.let { " («$it»)" } ?: "") +

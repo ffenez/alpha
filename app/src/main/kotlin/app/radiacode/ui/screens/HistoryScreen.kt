@@ -460,13 +460,12 @@ private fun DoseProjectionBlock(model: HistoryModel, unit: DoseUnitSetting) {
             )
             Text(
                 text = HistoryFormat.doseProjectionBasis(
-                    DoseFormat.rateWithUnit(
-                        projection.meanRateMicroSvPerHour.toFloat(),
-                        unit,
-                    ),
+                    // Та же точность, из которой посчитана проекция: иначе
+                    // видимые числа её не воспроизводят.
+                    DoseFormat.rateBasisWithUnit(projection.meanRateMicroSvPerHour, unit),
                     projection.measuredSeconds,
                 ),
-                style = type.footnote,
+                style = type.bodySmall,
                 color = colors.ink2,
             )
         }

@@ -27,7 +27,7 @@ data class IsotopeHint(
  * max(2 % of the line energy, half the detector FWHM at that energy).
  *
  * Confidence (LOW/MEDIUM only):
- *  - MEDIUM needs a strong peak (SNR ≥ [MEDIUM_MIN_SNR]), a tight energy fit
+ *  - MEDIUM needs a strong peak (SNR ≥ [MEDIUM_MIN_SIGNIFICANCE]), a tight energy fit
  *    (within max(1 %, FWHM/4)) and, for isotopes with several library lines
  *    (Co-60, Bi-214, Tl-208), at least two of their lines matched somewhere
  *    in the spectrum — a lone 1173 keV bump is not «Co-60, medium»;
@@ -38,7 +38,7 @@ object IsotopeMatcher {
     /** Analysis below this accumulation is noise-reading (screen gates on it). */
     const val MIN_ANALYSIS_SECONDS = 60L
 
-    const val MEDIUM_MIN_SNR = 8f
+    const val MEDIUM_MIN_SIGNIFICANCE = 8f
 
     fun toleranceKeV(lineEnergyKeV: Float): Float =
         max(0.02f * lineEnergyKeV, 0.5f * PeakDetection.fwhmKeV(lineEnergyKeV))
@@ -69,7 +69,7 @@ object IsotopeMatcher {
             val supported = !multiLine ||
                 (matchedLineCount[primary.isotope]?.size ?: 0) >= 2
             val confidence = if (
-                peak.snr >= MEDIUM_MIN_SNR &&
+                peak.significance >= MEDIUM_MIN_SIGNIFICANCE &&
                 delta <= tightToleranceKeV(primary.energyKeV) &&
                 supported
             ) {
@@ -93,7 +93,7 @@ object IsotopeMatcher {
         // strongest peak first.
         return hints
             .groupBy { it.isotope }
-            .map { (_, group) -> group.maxBy { it.peak.snr } }
-            .sortedByDescending { it.peak.snr }
+            .map { (_, group) -> group.maxBy { it.peak.significance } }
+            .sortedByDescending { it.peak.significance }
     }
 }

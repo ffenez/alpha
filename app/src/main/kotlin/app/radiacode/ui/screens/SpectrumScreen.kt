@@ -84,7 +84,7 @@ private const val COLUMN_COUNT = 240
  * Спектр (SPEC «Spectrum», expert screen): накопление since the last reset,
  * counts/keV line chart with lin/log scale and energy-window zoom, background
  * overlay «минус фон», display-only smoothing, and the peak table
- * (E | нетто | SNR | кандидат) with cautious isotope wording.
+ * (E | нетто | значимость | кандидат) with cautious isotope wording.
  */
 @Composable
 fun SpectrumScreen(
@@ -713,7 +713,7 @@ private fun SpectrumContent(
         }
     }
 
-    // --- peak table (E | нетто | SNR | кандидат) ---
+    // --- peak table (E | нетто | значимость | кандидат) ---
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when {
@@ -872,7 +872,7 @@ private fun PeakTable(
         Row(Modifier.fillMaxWidth().padding(bottom = 5.dp)) {
             TableHeader("E, кэВ", 0.9f)
             TableHeader("нетто", 0.9f)
-            TableHeader("SNR", 0.7f)
+            TableHeader("значимость", 0.9f)
             // Спец §2: колонка кандидата — интерпретация, а не измерение;
             // соседние колонки этого уровня не наследуют.
             Row(Modifier.weight(1.6f), verticalAlignment = Alignment.CenterVertically) {
@@ -893,7 +893,7 @@ private fun PeakTable(
             ) {
                 TableCell(SpectrumFormat.energyCell(peak.energyKeV), 0.9f, colors.ink)
                 TableCell(SpectrumFormat.netCell(peak.netCounts), 0.9f, colors.ink)
-                TableCell(SpectrumFormat.snrCell(peak.snr), 0.7f, colors.ink)
+                TableCell(SpectrumFormat.significanceCell(peak.significance), 0.9f, colors.ink)
                 val candidate = hint?.let { SpectrumFormat.candidateCell(it) } ?: "—"
                 Text(
                     text = (if (isHighlighted) "▸ " else "") + candidate,

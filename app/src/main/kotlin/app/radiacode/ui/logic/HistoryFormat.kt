@@ -72,9 +72,15 @@ object HistoryFormat {
         "если средняя измеренная внешняя фотонная мощность дозы останется такой же — " +
             "за год ≈ $doseWithUnit"
 
-    /** «средняя измеренная мощность 0,13 мкЗв/ч за 26 ч измерений». */
+    /**
+     * «по 26 ч измерений · средняя 0,155 мкЗв/ч» — сначала ОБЪЁМ наблюдений.
+     *
+     * Проекция на год из суток наблюдений — это прежде всего утверждение об
+     * объёме данных, и он должен стоять рядом с числом, а не строкой ниже
+     * мелким шрифтом.
+     */
     fun doseProjectionBasis(rateWithUnit: String, measuredSeconds: Long): String =
-        "средняя измеренная мощность $rateWithUnit за ${duration(measuredSeconds)} измерений"
+        "по ${duration(measuredSeconds)} измерений · средняя $rateWithUnit"
 
     /** What the projection deliberately does not include (spec §6, §23). */
     const val DOSE_PROJECTION_CAVEAT =

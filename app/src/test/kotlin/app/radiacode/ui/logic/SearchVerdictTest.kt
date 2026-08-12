@@ -34,7 +34,16 @@ class SearchVerdictTest {
     private fun comparison(rate: Double, seconds: Int = 3) =
         RateComparison.compare(window(rate, seconds), background)
 
-    private val forbidden = listOf("норма", "нормальн", "безопас", "опасн", "допустим")
+    // Слова, а не подстроки: «нормальное приближение» и «нормальное
+    // распределение» — статистические термины, а запрещено утверждение о
+    // норме и безопасности (та же поправка, что в WhyReportTest).
+    private val forbidden = listOf(
+        Regex("""\bбезопасн\w*\b"""),
+        Regex("""\bопасн\w*\b"""),
+        Regex("""\bдопустим\w*\b"""),
+        Regex("""\bнормальн\w*\b(?! (распределени|приближени))"""),
+        Regex("""\bнорма\b"""),
+    )
 
     @Test
     fun `no wording on this screen may speak about safety`() {
@@ -61,7 +70,7 @@ class SearchVerdictTest {
         for (text in texts) {
             val lower = text.lowercase()
             for (word in forbidden) {
-                assertTrue(!lower.contains(word), "«$word» in: $text")
+                assertTrue(!word.containsMatchIn(lower), "«$word» in: $text")
             }
         }
     }
@@ -78,13 +87,16 @@ class SearchVerdictTest {
     }
 
     @Test
-    fun `the background level is named as recorded, never as a property of the place`() {
+    fun `no excess found is never stated as equality with the background`() {
         val text = SearchVerdict.headline(
             SearchLevel.BACKGROUND,
             SearchDirection.STEADY,
             hasBackground = true,
         )
-        assertEquals("На уровне записанного фона", text)
+        // Непринятие различия не доказывает равенство: экран говорит о том,
+        // что проверено, а не о том, что «уровень такой же».
+        assertEquals("Превышение над фоном не обнаружено", text)
+        assertTrue(!text.contains("На уровне"), text)
     }
 
     @Test

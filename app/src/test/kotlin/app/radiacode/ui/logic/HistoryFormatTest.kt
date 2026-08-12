@@ -93,10 +93,10 @@ class HistoryFormatTest {
     }
 
     @Test
-    fun `dose projection basis names the mean rate and the measured time`() {
+    fun `dose projection basis puts the observation time first`() {
         assertEquals(
-            "средняя измеренная мощность 0,13 мкЗв/ч за 26 ч измерений",
-            HistoryFormat.doseProjectionBasis("0,13 мкЗв/ч", 26 * 3600L),
+            "по 26 ч измерений · средняя 0,130 мкЗв/ч",
+            HistoryFormat.doseProjectionBasis("0,130 мкЗв/ч", 26 * 3600L),
         )
     }
 

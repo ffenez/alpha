@@ -763,16 +763,6 @@ fun SearchScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Text(
-            text = "CPS реагирует быстрее дозы — ведите прибор вдоль поверхности. " +
-                "Пока открыт этот экран, показания забираются чаще: они приходят " +
-                "с меньшей задержкой, но сам прибор измеряет раз в секунду.",
-            style = type.footnote,
-            color = colors.muted,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
         // «Тон по энергии» is a research toggle on top of the *clicks*: it
         // steers their pitch, so it only appears in that mode.
         if (mode == SearchFeedbackMode.CLICKS) {

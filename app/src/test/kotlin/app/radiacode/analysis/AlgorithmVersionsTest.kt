@@ -26,7 +26,9 @@ class AlgorithmVersionsTest {
         assertEquals(2, AlgorithmVersions.BASELINE)
         assertEquals(1, AlgorithmVersions.BASELINE_ADMISSION)
         assertEquals(1, AlgorithmVersions.NETWORK_IDENTITY)
-        assertEquals(1, AlgorithmVersions.PEAK_DETECTION)
+        // v2: значимость считается по σ нетто-площади (было net/√(B·width)),
+        // и добавлена проверка ширины структуры — числа изменились осознанно.
+        assertEquals(2, AlgorithmVersions.PEAK_DETECTION)
         assertEquals(1, AlgorithmVersions.ISOTOPE_MATCH)
         assertEquals(1, AlgorithmVersions.SPECTRUM_COMPARE)
         assertEquals(1, AlgorithmVersions.SPECTRUM_MERGE)

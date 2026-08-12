@@ -77,22 +77,52 @@ object DoseFormat {
         return sb.toString()
     }
 
+    /**
+     * Средняя мощность, из которой посчитана проекция, — с точностью, при
+     * которой проекция ВОСПРОИЗВОДИТСЯ.
+     *
+     * Обычный формат печатал 0,16 мкЗв/ч, а проекция считалась из 0,1553:
+     * человек, перепроверив на калькуляторе, получал 1 400 вместо 1 360 и был
+     * прав. Три знака после запятой возвращают согласованность.
+     */
+    fun rateBasisWithUnit(microSvH: Double, unit: DoseUnitSetting): String {
+        val value = when (unit) {
+            DoseUnitSetting.MICRO_SIEVERT -> microSvH
+            DoseUnitSetting.MICRO_ROENTGEN -> microSvH * MICRO_R_PER_MICRO_SV
+        }
+        val digits = when (unit) {
+            DoseUnitSetting.MICRO_SIEVERT -> 3
+            DoseUnitSetting.MICRO_ROENTGEN -> 1
+        }
+        val text = String.format(Locale.US, "%.${digits}f", value).replace('.', ',')
+        return "$text ${rateUnitLabel(unit)}"
+    }
+
     /** «0,09–0,14» — the baseline typical band, values in the display unit. */
     fun range(lowMicroSvH: Float, highMicroSvH: Float, unit: DoseUnitSetting): String =
         "${rate(lowMicroSvH, unit)}–${rate(highMicroSvH, unit)}"
 
     /**
-     * µSv/h keeps two decimals (0,12); µR/h values are 100× larger, so one
-     * decimal below 100 (12,4) and whole numbers above (124). Decimal comma —
-     * the app's copy is Russian (design-language.md).
+     * Точность следует за величиной, а не за единицей.
+     *
+     * Фиксированные два знака теряли измерение: короткая сессия со средней
+     * 0,003 мкЗв/ч печаталась как «0,00», то есть интерфейс показывал ноль там,
+     * где прибор что-то измерил. Мелкие значения получают столько знаков,
+     * сколько нужно, чтобы остаться числом; крупные — не больше, чем несут.
      */
     private fun format(value: Float, unit: DoseUnitSetting): String = when (unit) {
-        DoseUnitSetting.MICRO_SIEVERT -> String.format(Locale.US, "%.2f", value)
-        DoseUnitSetting.MICRO_ROENTGEN ->
-            if (value >= 100f) {
-                String.format(Locale.US, "%.0f", value)
-            } else {
-                String.format(Locale.US, "%.1f", value)
-            }
+        DoseUnitSetting.MICRO_SIEVERT -> when {
+            value <= 0f -> "0.00"
+            value < 0.001f -> String.format(Locale.US, "%.4f", value)
+            value < 0.01f -> String.format(Locale.US, "%.3f", value)
+            else -> String.format(Locale.US, "%.2f", value)
+        }
+        DoseUnitSetting.MICRO_ROENTGEN -> when {
+            value >= 100f -> String.format(Locale.US, "%.0f", value)
+            value >= 1f -> String.format(Locale.US, "%.1f", value)
+            value <= 0f -> "0.0"
+            value < 0.1f -> String.format(Locale.US, "%.3f", value)
+            else -> String.format(Locale.US, "%.2f", value)
+        }
     }.replace('.', ',')
 }
