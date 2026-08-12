@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.radiacode.analysis.Spectrogram
+import app.radiacode.analysis.SpectrogramColumn
 import app.radiacode.ui.theme.DoseRampColors
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -47,8 +48,19 @@ import app.radiacode.ui.theme.LocalAppTypography
  */
 @Immutable
 data class WaterfallSpec(
-    /** Band counts per rendered column, oldest → newest. */
-    val columns: List<FloatArray>,
+    /**
+     * Колонки сетки времени, старые → новые; `null` = в этой ячейке измерений
+     * не было. Пропуск обязан быть виден: пустая колонка и колонка с нулевым
+     * счётом — разные факты.
+     */
+    val columns: List<SpectrogramColumn?>,
+    /**
+     * Верх общей цветовой шкалы, имп/с на полосу. Ноль или режим [shapeMode]
+     * переключают яркость на нормировку внутри колонки.
+     */
+    val scaleTop: Float = 0f,
+    /** Режим «форма»: нормировка внутри колонки вместо общей шкалы. */
+    val shapeMode: Boolean = false,
     /** Cursor column index; null = no cursor. */
     val selectedIndex: Int? = null,
     /** Fraction of plot width → time label. */
@@ -87,17 +99,27 @@ fun WaterfallChart(
 
     // The waterfall as a bands×columns bitmap, scaled up with nearest-neighbor
     // sampling at draw time — thousands of cells without per-frame rects.
-    val bitmap: ImageBitmap? = remember(spec.columns, rampLut, surfaceArgb) {
+    val gapArgb = colors.chartBeyondData.toArgb()
+    val bitmap: ImageBitmap? = remember(spec.columns, spec.scaleTop, spec.shapeMode, rampLut, surfaceArgb) {
         if (spec.columns.isEmpty()) return@remember null
         val w = spec.columns.size
         val h = Spectrogram.BAND_COUNT
         val pixels = IntArray(w * h)
         for (x in 0 until w) {
-            val bands = spec.columns[x]
+            val column = spec.columns[x]
+            if (column == null) {
+                // Пропуск потока: своя плоскость, а не «нулевая интенсивность».
+                for (band in 0 until h) pixels[(h - 1 - band) * w + x] = gapArgb
+                continue
+            }
             var columnMax = 0f
-            for (v in bands) if (v > columnMax) columnMax = v
+            for (v in column.bandCounts) if (v > columnMax) columnMax = v
             for (band in 0 until h) {
-                val t = Spectrogram.intensity(bands[band], columnMax)
+                val t = if (spec.shapeMode || spec.scaleTop <= 0f) {
+                    Spectrogram.shapeIntensity(column.bandCounts[band], columnMax)
+                } else {
+                    Spectrogram.intensity(column.rate(band), spec.scaleTop)
+                }
                 // Row 0 of the bitmap is the top = highest energy band.
                 val y = h - 1 - band
                 pixels[y * w + x] = if (t <= 0f) {

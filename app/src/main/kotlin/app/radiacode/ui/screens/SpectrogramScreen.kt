@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
 import app.radiacode.analysis.Spectrogram
+import app.radiacode.analysis.SpectrogramColumn
 import app.radiacode.analysis.SpectrogramSlice
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.device.ConnectionState
@@ -89,7 +90,30 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
 
-    val columnsData = remember(slices) { Spectrogram.aggregate(slices, MAX_COLUMNS) }
+    // Режим «форма» — нормировка внутри колонки. По умолчанию выключен: он
+    // показывает состав, но уравнивает слабый спектр с сильным.
+    var shapeMode by rememberSaveable { mutableStateOf(false) }
+
+    // Колонки строятся по СЕТКЕ ВРЕМЕНИ с шагом, который выбирается по
+    // статистике: при фоне пятисекундная колонка это ≈1 импульс на полосу, то
+    // есть шум, который глаз читает как линии.
+    val fromMillis = slices.firstOrNull()?.let { it.timestampMillis - it.intervalSeconds * 1000L }
+    val toMillis = slices.lastOrNull()?.timestampMillis
+    val stepSeconds = remember(slices) {
+        if (fromMillis == null || toMillis == null) {
+            Spectrogram.DISPLAY_STEPS_SECONDS.first()
+        } else {
+            Spectrogram.displayStepSeconds(slices, toMillis - fromMillis, MAX_COLUMNS)
+        }
+    }
+    val columnsData = remember(slices, stepSeconds) {
+        if (fromMillis == null || toMillis == null) {
+            emptyList()
+        } else {
+            Spectrogram.grid(slices, fromMillis, toMillis, stepSeconds * 1000L)
+        }
+    }
+    val scaleTop = remember(columnsData) { Spectrogram.scaleTop(columnsData) }
     val selected = selectedIndex?.let { columnsData.getOrNull(it) }
 
     Column(
@@ -160,13 +184,15 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                         WaterfallChart(
                             spec = WaterfallSpec(
-                                columns = columnsData.map { it.bandCounts },
+                                columns = columnsData,
+                                scaleTop = scaleTop,
+                                shapeMode = shapeMode,
                                 selectedIndex = selectedIndex,
                                 timeLabels = TimeAxis.labels(
-                                    columnsData.first().timestampMillis,
-                                    columnsData.last().timestampMillis,
+                                    fromMillis ?: 0L,
+                                    toMillis ?: 0L,
                                 ),
-                                stripValues = columnsData.map { it.doseMicroSvH },
+                                stripValues = columnsData.map { it?.doseMicroSvH },
                             ),
                             onTapColumn = { index ->
                                 selectedIndex = if (selectedIndex == index) null else index
@@ -184,10 +210,34 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                             Spacer(Modifier.weight(1f))
                             LegendRamp()
                         }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                            modifier = Modifier.padding(horizontal = Dimens.space1),
+                        ) {
+                            Chip(
+                                text = "форма",
+                                color = if (shapeMode) colors.dataText else colors.ink2,
+                                selected = shapeMode,
+                                onClick = { shapeMode = !shapeMode },
+                            )
+                            Text(
+                                text = if (shapeMode) {
+                                    "яркость нормирована ВНУТРИ столбца: виден состав, но " +
+                                        "слабый спектр выглядит как сильный"
+                                } else {
+                                    "яркость — имп/с на полосу, общая лог-шкала окна до " +
+                                        "${Uncertainty.num1(scaleTop)} имп/с"
+                                },
+                                style = type.footnote,
+                                color = colors.muted,
+                            )
+                        }
                         Text(
-                            text = "яркость — интенсивность в лог-шкале, нормировка внутри " +
-                                "каждого столбца · полоса внизу — мощность дозы, та же ось " +
-                                "времени · тап — курсор момента",
+                            text = "шаг ${SpectrumFormat.accumulationClock(stepSeconds)} · " +
+                                stepReason(slices, stepSeconds) +
+                                " · пустая колонка — прибор молчал · полоса внизу — мощность " +
+                                "дозы, та же ось времени · тап — курсор момента",
                             style = type.footnote,
                             color = colors.muted,
                             modifier = Modifier.padding(horizontal = Dimens.space1),
@@ -204,7 +254,7 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                             SpectrumFormat.accumulationClock(slices.sumOf { it.intervalSeconds }),
                             "охвачено",
                         ),
-                        StatCell("5 с", "шаг опроса"),
+                        StatCell("${stepSeconds} с", "шаг колонки"),
                         StatCell("≈2 ч", "в памяти"),
                     ),
                 )
@@ -226,8 +276,27 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     }
 }
 
+/**
+ * Почему шаг именно такой — одной фразой и с числом, на котором он стоит.
+ * Иначе укрупнение колонок выглядит как потеря разрешения без причины.
+ */
+private fun stepReason(slices: List<SpectrogramSlice>, stepSeconds: Long): String {
+    val seconds = slices.sumOf { it.intervalSeconds }
+    val counts = slices.sumOf { it.totalCounts.toDouble() }
+    if (seconds <= 0L || counts <= 0.0) return "накапливаем статистику"
+    val perBand = counts / seconds * stepSeconds / Spectrogram.BAND_COUNT
+    val atPoll = counts / seconds * Spectrogram.DISPLAY_STEPS_SECONDS.first() /
+        Spectrogram.BAND_COUNT
+    return if (stepSeconds <= Spectrogram.DISPLAY_STEPS_SECONDS.first()) {
+        "≈${Uncertainty.num1(perBand.toFloat())} имп на полосу в колонке"
+    } else {
+        "≈${Uncertainty.num1(perBand.toFloat())} имп на полосу вместо " +
+            "${Uncertainty.num1(atPoll.toFloat())} при шаге опроса"
+    }
+}
+
 @Composable
-private fun SelectedMomentCard(selected: SpectrogramSlice?, unit: DoseUnitSetting) {
+private fun SelectedMomentCard(selected: SpectrogramColumn?, unit: DoseUnitSetting) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -241,13 +310,13 @@ private fun SelectedMomentCard(selected: SpectrogramSlice?, unit: DoseUnitSettin
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = timeOfDay(selected.timestampMillis),
+                        text = timeOfDay(selected.startMillis),
                         style = type.value,
                         color = colors.ink,
                     )
                     Spacer(Modifier.weight(1f))
                     Text(
-                        text = "интервал ${selected.intervalSeconds} с",
+                        text = "измерено ${selected.seconds} с",
                         style = type.footnote,
                         color = colors.ink2,
                     )
@@ -256,7 +325,7 @@ private fun SelectedMomentCard(selected: SpectrogramSlice?, unit: DoseUnitSettin
                     text = listOfNotNull(
                         selected.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit) },
                         selected.cps?.let { "${Uncertainty.num1(it)} с⁻¹" },
-                        "${selected.totalCounts.toInt()} имп в интервале",
+                        "${selected.totalCounts.toInt()} имп в колонке",
                         selected.meanEnergyKeV?.let { "ср. энергия ${it.toInt()} кэВ" },
                     ).joinToString(" · "),
                     style = type.valueSmall,

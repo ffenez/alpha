@@ -5,11 +5,33 @@ import kotlin.math.log10
 
 /**
  * Pure math for the спектрограмма waterfall (SPEC «Spectrogram», Advanced):
- * Energy × Time × Intensity. Time columns are per-poll interval spectra
- * (current accumulated minus previous accumulated, clamped ≥ 0), energy rows
- * are geometric («log-ish») bands over 20–3000 keV, and the rendered
- * intensity is a per-column log normalization — each time slice shows its
- * spectral *structure* whatever the absolute count rate was.
+ * Energy × Time × Intensity.
+ *
+ * ## Что рисуется
+ *
+ * Прибор опрашивается раз в 5 с, и один опрос даёт интервальный спектр
+ * (накопление минус предыдущее). Но **колонка картинки ≠ один опрос**:
+ * колонки строятся по СЕТКЕ ВРЕМЕНИ ([grid]) с шагом [displayStepSeconds], а
+ * опросы в них суммируются. Причина статистическая: при фоне ≈25 имп/с
+ * пятисекундный опрос это ≈125 импульсов на 96 полос, то есть ≈1 импульс на
+ * полосу — картинка из такой колонки показывает пуассоновский шум, а глаз
+ * читает его как «десятки устойчивых линий». Суммирование — это сложение
+ * импульсов, ничего не выдумывающее; сырые 5-секундные срезы сохраняются в
+ * кольце и остаются доступны на коротком окне.
+ *
+ * Сетка привязана к ВРЕМЕНИ, а не к порядку опросов: пропуск в потоке
+ * остаётся пустой колонкой, а не схлопывается, как раньше, когда ось строилась
+ * по индексу столбца и молча сжимала паузы.
+ *
+ * ## Яркость
+ *
+ * Основной режим — **общая шкала окна**: цвет = импульсы в секунду на полосу
+ * в лог-шкале, верх шкалы один на всю картинку ([scaleTop]). Так слабый
+ * спектр выглядит слабым, а сильный — сильным, и рост интенсивности виден.
+ * Прежняя нормировка ВНУТРИ КОЛОНКИ ([shapeIntensity]) осталась отдельным
+ * режимом «форма»: она удобна, когда сравнивают состав при разной
+ * интенсивности, но по умолчанию она врёт про абсолютную яркость — один
+ * импульс в пустой колонке светился как фотопик.
  *
  * JVM-tested; no Android dependencies.
  */
@@ -86,16 +108,143 @@ object Spectrogram {
     }
 
     /**
-     * Rendered intensity of one cell, 0..1: log10(1+v) / log10(1+columnMax)
-     * where columnMax is the largest band value of the same time slice.
-     * Log scaling keeps single counts visible next to a photopeak;
-     * per-column normalization makes the spectral shape readable at any
-     * count rate (documented on-screen: «яркость — лог-шкала по столбцу»).
+     * Яркость ячейки в ОСНОВНОМ режиме, 0..1: log10(1+r)/log10(1+top), где r —
+     * импульсы в секунду на полосу, а [top] — верх общей шкалы окна.
+     *
+     * Скорость, а не счёт: колонки сетки могут покрывать разное измеренное
+     * время (пропуск потока, край окна), и сравнивать их по сырым суммам
+     * значило бы красить дырку в потоке как спад интенсивности.
      */
-    fun intensity(value: Float, columnMax: Float): Float {
+    fun intensity(ratePerSecond: Float, top: Float): Float {
+        if (ratePerSecond <= 0f || top <= 0f) return 0f
+        return (log10(1f + ratePerSecond) / log10(1f + top)).coerceIn(0f, 1f)
+    }
+
+    /**
+     * Яркость в режиме «форма»: нормировка внутри колонки. Показывает СОСТАВ
+     * спектра независимо от интенсивности — и поэтому не годится как основной
+     * режим: колонка с одним импульсом выглядит так же, как колонка с пиком.
+     */
+    fun shapeIntensity(value: Float, columnMax: Float): Float {
         if (value <= 0f || columnMax <= 0f) return 0f
         return (log10(1f + value) / log10(1f + columnMax)).coerceIn(0f, 1f)
     }
+
+    /**
+     * Верх общей цветовой шкалы, имп/с на полосу: 98-й процентиль ненулевых
+     * ячеек. Не максимум — одна яркая ячейка (например, край сильного
+     * источника) прижала бы весь остальной фон к нулю; и не среднее — оно
+     * пересветило бы половину картинки.
+     */
+    fun scaleTop(columns: List<SpectrogramColumn?>): Float {
+        val rates = ArrayList<Float>()
+        for (column in columns) {
+            if (column == null) continue
+            for (band in 0 until BAND_COUNT) {
+                val r = column.rate(band)
+                if (r > 0f) rates.add(r)
+            }
+        }
+        if (rates.isEmpty()) return 0f
+        rates.sort()
+        // Округление к ближайшему рангу, а не усечение: на паре ячеек
+        // усечение выбрало бы нижнюю и пересветило бы всю картинку.
+        val index = Math.round((rates.size - 1) * SCALE_TOP_QUANTILE)
+            .coerceIn(0, rates.size - 1)
+        return rates[index]
+    }
+
+    /** Квантиль верха шкалы — **инженерный параметр отображения**. */
+    const val SCALE_TOP_QUANTILE = 0.98f
+
+    /**
+     * Лестница шагов ОТОБРАЖЕНИЯ. Запись всегда идёт по 5 с; шаг влияет
+     * только на то, по сколько опросов складывается одна колонка.
+     */
+    val DISPLAY_STEPS_SECONDS = listOf(5L, 15L, 30L, 60L, 300L)
+
+    /**
+     * Сколько импульсов на полосу должно приходиться в колонке, чтобы она была
+     * спектром, а не пуассоновским шумом.
+     *
+     * **Инженерный параметр отображения, не научная константа.** При 4
+     * импульсах относительная флуктуация полосы ≈ 1/√4 = 50 %: структура ещё
+     * грубая, но устойчивая линия уже отличима от «то есть, то нет». Ниже
+     * этого картинка показывает случайность, а глаз читает её как линии.
+     */
+    const val MIN_COUNTS_PER_BAND = 4f
+
+    /**
+     * Шаг сетки времени: самый мелкий из [DISPLAY_STEPS_SECONDS], при котором
+     * колонка несёт [MIN_COUNTS_PER_BAND] импульсов на полосу И колонок не
+     * больше [maxColumns].
+     *
+     * Считается по фактической скорости счёта самих срезов, поэтому у горячего
+     * места шаг остаётся мелким (событий много), а у обычного фона
+     * укрупняется — без ручного переключателя и без неравномерной оси времени
+     * (равная ширина колонки = равное время, иначе картинку нельзя читать).
+     */
+    fun displayStepSeconds(
+        slices: List<SpectrogramSlice>,
+        spanMillis: Long,
+        maxColumns: Int,
+    ): Long {
+        val seconds = slices.sumOf { it.intervalSeconds }
+        val counts = slices.sumOf { it.totalCounts.toDouble() }
+        val rate = if (seconds > 0) counts / seconds else 0.0
+        val neededForStatistics = if (rate > 0.0) {
+            MIN_COUNTS_PER_BAND * BAND_COUNT / rate
+        } else {
+            DISPLAY_STEPS_SECONDS.last().toDouble()
+        }
+        val neededForWidth = if (maxColumns > 0) spanMillis / 1000.0 / maxColumns else 0.0
+        val needed = maxOf(neededForStatistics, neededForWidth)
+        return DISPLAY_STEPS_SECONDS.firstOrNull { it >= needed } ?: DISPLAY_STEPS_SECONDS.last()
+    }
+
+    /**
+     * Колонки по СЕТКЕ ВРЕМЕНИ: срезы складываются в ячейку, которой
+     * принадлежит их момент; ячейка без срезов остаётся `null` — это пропуск
+     * потока, и он обязан быть виден, а не схлопнут.
+     */
+    fun grid(
+        slices: List<SpectrogramSlice>,
+        fromMillis: Long,
+        toMillis: Long,
+        stepMillis: Long,
+    ): List<SpectrogramColumn?> {
+        if (stepMillis <= 0L || toMillis <= fromMillis) return emptyList()
+        val count = (((toMillis - fromMillis) + stepMillis - 1) / stepMillis).toInt()
+            .coerceIn(1, MAX_GRID_COLUMNS)
+        val sums = arrayOfNulls<FloatArray>(count)
+        val seconds = LongArray(count)
+        val cps = arrayOfNulls<Float>(count)
+        val dose = arrayOfNulls<Float>(count)
+        for (slice in slices) {
+            if (slice.timestampMillis < fromMillis || slice.timestampMillis > toMillis) continue
+            val index = ((slice.timestampMillis - fromMillis) / stepMillis).toInt()
+                .coerceIn(0, count - 1)
+            val target = sums[index] ?: FloatArray(BAND_COUNT).also { sums[index] = it }
+            for (b in 0 until BAND_COUNT) target[b] += slice.bandCounts[b]
+            seconds[index] += slice.intervalSeconds
+            slice.cps?.let { cps[index] = it }
+            slice.doseMicroSvH?.let { dose[index] = it }
+        }
+        return (0 until count).map { i ->
+            val bands = sums[i] ?: return@map null
+            SpectrogramColumn(
+                startMillis = fromMillis + i * stepMillis,
+                endMillis = fromMillis + (i + 1) * stepMillis,
+                bandCounts = bands,
+                seconds = seconds[i],
+                cps = cps[i],
+                doseMicroSvH = dose[i],
+            )
+        }
+    }
+
+    /** Потолок числа ячеек сетки — защита от абсурдного окна. */
+    const val MAX_GRID_COLUMNS = 2_000
 
     /** Count-weighted mean photon energy of a banded slice; null if empty. */
     fun meanEnergyKeV(bandCounts: FloatArray): Float? {
@@ -114,30 +263,34 @@ object Spectrogram {
     /** Energy gridlines for the waterfall y-axis (fraction 0..1 → keV label). */
     val ENERGY_TICKS_KEV = listOf(50f, 100f, 300f, 600f, 1000f, 2000f)
 
-    /**
-     * Merges adjacent slices so at most [maxColumns] columns are rendered
-     * (2 h at 5 s cadence = 1440 slices; a bitmap column per slice would be
-     * sub-pixel). Band counts and Δt add; dose/CPS take the merged group's
-     * latest known value; the timestamp is the group's last. Counts are
-     * conserved — merging never invents or hides intensity.
-     */
-    fun aggregate(slices: List<SpectrogramSlice>, maxColumns: Int): List<SpectrogramSlice> {
-        if (maxColumns <= 0 || slices.size <= maxColumns) return slices
-        val groupSize = (slices.size + maxColumns - 1) / maxColumns
-        return slices.chunked(groupSize).map { group ->
-            val bands = FloatArray(BAND_COUNT)
-            for (slice in group) {
-                for (b in 0 until BAND_COUNT) bands[b] += slice.bandCounts[b]
-            }
-            SpectrogramSlice(
-                timestampMillis = group.last().timestampMillis,
-                intervalSeconds = group.sumOf { it.intervalSeconds },
-                bandCounts = bands,
-                cps = group.lastOrNull { it.cps != null }?.cps,
-                doseMicroSvH = group.lastOrNull { it.doseMicroSvH != null }?.doseMicroSvH,
-            )
-        }
-    }
+}
+
+/**
+ * Одна колонка картинки: сумма срезов, попавших в ячейку сетки времени.
+ *
+ * [seconds] — реально измеренное время внутри ячейки: оно может быть меньше
+ * шага сетки (поток прерывался), и именно на него делится счёт, когда
+ * считается скорость. Красить неполную ячейку как спад интенсивности было бы
+ * тем же враньём, что соединять линией пропуск на графике дозы.
+ */
+class SpectrogramColumn(
+    val startMillis: Long,
+    val endMillis: Long,
+    val bandCounts: FloatArray,
+    val seconds: Long,
+    val cps: Float?,
+    val doseMicroSvH: Float?,
+) {
+    val totalCounts: Float = bandCounts.sum()
+    val meanEnergyKeV: Float? = Spectrogram.meanEnergyKeV(bandCounts)
+
+    /** Импульсы в секунду в полосе — то, что красится. */
+    fun rate(band: Int): Float =
+        if (seconds > 0L) bandCounts[band] / seconds else 0f
+
+    /** Доля шага, реально покрытая измерениями, 0..1. */
+    fun coverage(stepSeconds: Long): Float =
+        if (stepSeconds > 0L) (seconds.toFloat() / stepSeconds).coerceIn(0f, 1f) else 0f
 }
 
 /** One waterfall column: an interval spectrum banded into energy rows. */

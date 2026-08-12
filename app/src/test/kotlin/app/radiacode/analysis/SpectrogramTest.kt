@@ -95,13 +95,37 @@ class SpectrogramTest {
     // --- intensity normalization ---
 
     @Test
-    fun `intensity is 0 at zero, 1 at the column max, log-compressed between`() {
+    fun `intensity is 0 at zero, 1 at the top of the shared scale, log between`() {
         assertEquals(0f, Spectrogram.intensity(0f, 100f))
         assertEquals(0f, Spectrogram.intensity(5f, 0f))
         assertEquals(1f, Spectrogram.intensity(100f, 100f))
         val mid = Spectrogram.intensity(10f, 100f)
         // Log scaling: 10 of 100 renders far brighter than the linear 0.1.
         assertTrue(mid > 0.4f && mid < 0.7f, "expected log compression, got $mid")
+    }
+
+    @Test
+    fun `the shared scale keeps weak columns weak`() {
+        // Ровно то, что ломала нормировка внутри столбца: слабая колонка
+        // светилась так же, как сильная.
+        val weak = column(rate = 1f)
+        val strong = column(rate = 100f)
+        val top = Spectrogram.scaleTop(listOf(weak, strong))
+        assertTrue(
+            Spectrogram.intensity(weak.rate(10), top) <
+                Spectrogram.intensity(strong.rate(10), top),
+        )
+        // А режим «форма» их по-прежнему уравнивает — на то он и отдельный.
+        assertEquals(
+            Spectrogram.shapeIntensity(weak.bandCounts[10], weak.bandCounts[10]),
+            Spectrogram.shapeIntensity(strong.bandCounts[10], strong.bandCounts[10]),
+        )
+    }
+
+    private fun column(rate: Float): SpectrogramColumn {
+        val bands = FloatArray(Spectrogram.BAND_COUNT)
+        bands[10] = rate * 10f
+        return SpectrogramColumn(0L, 10_000L, bands, seconds = 10L, cps = null, doseMicroSvH = null)
     }
 
     // --- mean energy ---
@@ -139,23 +163,70 @@ class SpectrogramTest {
         assertTrue(ring.snapshot().isEmpty())
     }
 
-    // --- column aggregation for rendering ---
+    // --- time grid ---
 
-    @Test
-    fun `aggregate merges adjacent slices conserving counts and delta-t`() {
-        val slices = (1..10).map { slice(it.toLong(), counts = 2f) }
-        val merged = Spectrogram.aggregate(slices, maxColumns = 4)
-        assertTrue(merged.size <= 4)
-        assertEquals(20f, merged.map { it.totalCounts }.sum())
-        assertEquals(50L, merged.sumOf { it.intervalSeconds })
-        // Timestamps stay ordered; each group is stamped with its last slice.
-        assertEquals(merged.map { it.timestampMillis }.sorted(), merged.map { it.timestampMillis })
-        assertEquals(10L, merged.last().timestampMillis)
+    /** Срез с [counts] импульсами, снятый в момент [ts] мс. */
+    private fun tick(ts: Long, counts: Float): SpectrogramSlice {
+        val bands = FloatArray(Spectrogram.BAND_COUNT)
+        bands[10] = counts
+        return SpectrogramSlice(ts, 5, bands, cps = null, doseMicroSvH = null)
     }
 
     @Test
-    fun `aggregate is identity when it already fits`() {
-        val slices = (1..5).map { slice(it.toLong()) }
-        assertEquals(slices, Spectrogram.aggregate(slices, maxColumns = 10))
+    fun `the grid sums polls into time cells and conserves counts`() {
+        val slices = (1..12).map { tick(it * 5_000L, counts = 2f) }
+        val grid = Spectrogram.grid(slices, 0L, 60_000L, stepMillis = 15_000L)
+        assertEquals(4, grid.size)
+        assertEquals(24f, grid.filterNotNull().sumOf { it.totalCounts.toDouble() }.toFloat())
+        assertEquals(60L, grid.filterNotNull().sumOf { it.seconds })
+    }
+
+    @Test
+    fun `a gap in the stream stays an empty column instead of collapsing`() {
+        // Две минуты тишины между двумя опросами: раньше ось строилась по
+        // индексу столбца и пауза исчезала.
+        val slices = listOf(tick(5_000L, 10f), tick(125_000L, 10f))
+        val grid = Spectrogram.grid(slices, 0L, 130_000L, stepMillis = 10_000L)
+        assertEquals(13, grid.size)
+        assertNotNull(grid[0])
+        assertNotNull(grid[12])
+        assertTrue(grid.subList(1, 12).all { it == null }, "пропуск схлопнулся")
+    }
+
+    @Test
+    fun `an incomplete cell is coloured by rate, not by its raw sum`() {
+        val full = Spectrogram.grid(listOf(tick(5_000L, 10f), tick(10_000L, 10f)), 0L, 10_000L, 10_000L)
+        val half = Spectrogram.grid(listOf(tick(5_000L, 10f)), 0L, 10_000L, 10_000L)
+        // Половина измеренного времени при той же скорости даёт ту же яркость.
+        assertEquals(full[0]!!.rate(10), half[0]!!.rate(10), 1e-3f)
+        assertTrue(full[0]!!.totalCounts > half[0]!!.totalCounts)
+    }
+
+    // --- adaptive display step ---
+
+    @Test
+    fun `the step grows when a poll would carry only noise`() {
+        // Фон ≈25 имп/с: пятисекундная колонка это ≈1 импульс на полосу.
+        val background = (1..24).map { tick(it * 5_000L, counts = 125f) }
+        val step = Spectrogram.displayStepSeconds(background, 120_000L, maxColumns = 200)
+        assertTrue(step > 5L, "шаг остался $step с при фоне")
+        assertTrue(
+            125.0 / 5.0 * step / Spectrogram.BAND_COUNT >= Spectrogram.MIN_COUNTS_PER_BAND,
+            "шаг $step с не набирает статистику",
+        )
+
+        // Сильный источник: событий хватает, разрешение остаётся высоким.
+        val hot = (1..24).map { tick(it * 5_000L, counts = 5_000f) }
+        assertEquals(
+            Spectrogram.DISPLAY_STEPS_SECONDS.first(),
+            Spectrogram.displayStepSeconds(hot, 120_000L, maxColumns = 200),
+        )
+    }
+
+    @Test
+    fun `the step never produces more columns than the picture can hold`() {
+        val slices = (1..600).map { tick(it * 5_000L, counts = 5_000f) }
+        val step = Spectrogram.displayStepSeconds(slices, 3_000_000L, maxColumns = 100)
+        assertTrue(3_000_000L / 1000 / step <= 100, "колонок больше, чем помещается")
     }
 }
