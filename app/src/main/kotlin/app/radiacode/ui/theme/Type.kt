@@ -79,8 +79,23 @@ data class AppTypography(
         lineHeight = 16.sp,
         fontFeatureSettings = TABULAR_FIGURES,
     ),
-    /** Mono footnotes and units (10.5sp mono 400, tabular). */
+    /**
+     * Приглушённая подпись — ЧЕЛОВЕЧЕСКИЙ ТЕКСТ (11sp sans 400).
+     *
+     * Была моноширинной, и ею набирались объяснения, оговорки и целые абзацы:
+     * моноширинный шрифт хорош для чисел, единиц и меток времени, но длинную
+     * фразу им читать заметно тяжелее, и экран начинает выглядеть терминалом,
+     * а не прибором. Числа внутри такой фразы остаются сансом — они часть
+     * предложения; отдельные ЧИСЛОВЫЕ подписи набираются [footnoteMono].
+     */
     val footnote: TextStyle = TextStyle(
+        fontFamily = PlexSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 11.sp,
+        lineHeight = 15.5.sp,
+    ),
+    /** Числовая подпись: значения в строках карточек, единицы (10.5sp mono). */
+    val footnoteMono: TextStyle = TextStyle(
         fontFamily = PlexMono,
         fontWeight = FontWeight.Normal,
         fontSize = 10.5.sp,

@@ -4,6 +4,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import app.radiacode.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -470,6 +476,68 @@ private fun ContinuationBanner(
     }
 }
 
+/**
+ * «Как читать спектр» — методика по требованию.
+ *
+ * Абзацы про край шкалы, агрегацию колонок, жесты, калибровку и правила
+ * идентификации объясняли всё верно, но занимали место постоянно и читались
+ * один раз. Научность обеспечивают однозначные величины и доступность
+ * методики, а не её присутствие на экране в каждый момент.
+ */
+@Composable
+private fun SpectrumInfoCard(calibrationLine: String, onClose: () -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Как читать спектр".uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                )
+                Spacer(Modifier.weight(1f))
+                Chip(text = "✕", color = colors.ink2, onClick = onClose)
+            }
+            Text(
+                text = "По горизонтали энергия в кэВ, по вертикали импульсы в канале за всё " +
+                    "накопление. В одну колонку экрана попадает несколько каналов, и " +
+                    "берётся их максимум: узкий пик не теряется при отдалении, но линия " +
+                    "континуума проходит по верхней огибающей.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            Text(
+                text = SpectrumEdge.EXPLANATION,
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            Text(
+                text = "Значимость пика — это его нетто-площадь, делённая на собственную " +
+                    "стандартную неопределённость: в неё входит и статистика окна пика, и " +
+                    "неопределённость оценки континуума под ним. Структура принимается за " +
+                    "пик, только если её ширина согласуется с разрешением детектора.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            Text(
+                text = "Кандидат нуклида — это совпадение энергии, а не обнаружение: " +
+                    "надёжная идентификация требует накопленной статистики и, как правило, " +
+                    "нескольких линий одного нуклида.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            Text(
+                text = "Щипок по графику — масштаб, перетаскивание — сдвиг. Сглаживание " +
+                    "меняет только отображение: исходные данные не трогаются.",
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            Text(text = calibrationLine, style = type.footnoteMono, color = colors.muted)
+        }
+    }
+}
+
 @Composable
 private fun SpectrumContent(
     graph: AppGraph,
@@ -488,6 +556,8 @@ private fun SpectrumContent(
     var smoothing by rememberSaveable { mutableStateOf(false) }
     var window by remember { mutableStateOf<EnergyWindow?>(null) }
     var confirmReset by remember { mutableStateOf(false) }
+    var windowsOpen by rememberSaveable { mutableStateOf(false) }
+    var infoOpen by rememberSaveable { mutableStateOf(false) }
 
     val backgroundEntity by graph.measurementRepository.backgroundReference()
         .collectAsState(initial = null)
@@ -503,19 +573,36 @@ private fun SpectrumContent(
     val visible = window?.let { SpectrumDisplay.clampInto(it, full) } ?: full
 
     // --- controls: mode + scale ---
-    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // «Накопл. | −фон» не говорило, ЧТО вычитается: теперь режим назван
+        // целиком, спектр и спектр минус записанный фон.
         Segmented(
-            options = listOf("Накопл.", "−фон"),
+            options = listOf("Спектр", "− фон"),
             selectedIndex = if (subtractOn) 1 else 0,
             onSelect = { minusBackground = it == 1 },
             enabled = { it == 0 || background != null },
-            modifier = Modifier.weight(1.5f),
+            modifier = Modifier.weight(1.7f),
         )
         Segmented(
             options = listOf("Лог", "Лин"),
             selectedIndex = if (logScale) 0 else 1,
             onSelect = { logScale = it == 0 },
             modifier = Modifier.weight(1f),
+        )
+        Chip(text = "i", color = colors.ink2, onClick = { infoOpen = true })
+    }
+    if (infoOpen) {
+        SpectrumInfoCard(
+            calibrationLine = SpectrumFormat.calibrationLine(
+                spectrum.a0,
+                spectrum.a1,
+                spectrum.a2,
+                spectrum.counts.size,
+            ),
+            onClose = { infoOpen = false },
         )
     }
 
@@ -644,8 +731,10 @@ private fun SpectrumContent(
             val edgeCounts = SpectrumEdge.edgeCounts(spectrum.counts)
             if (edgeCounts > 0) {
                 Text(
-                    text = "у верхней границы шкалы: ${HistoryFormat.count(edgeCounts.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())} имп. " +
-                        "· ${SpectrumEdge.EXPLANATION}",
+                    text = "у верхней границы шкалы: " +
+                        HistoryFormat.count(
+                            edgeCounts.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                        ) + " имп.",
                     style = type.footnote,
                     color = colors.muted,
                     modifier = Modifier.padding(horizontal = Dimens.space1),
@@ -679,22 +768,6 @@ private fun SpectrumContent(
                 )
             }
             Column(modifier = Modifier.padding(horizontal = Dimens.space1)) {
-                Text(
-                    text = "щипок по графику — масштаб, перетаскивание — сдвиг",
-                    style = type.footnote,
-                    color = colors.muted,
-                )
-                // В колонку экрана попадает несколько каналов, и берётся их
-                // МАКСИМУМ: пик шириной в канал так не теряется, но линия
-                // континуума проходит по верхней огибающей, а не по среднему.
-                if (spectrum.counts.size > COLUMN_COUNT) {
-                    Text(
-                        text = "в одной колонке экрана — максимум нескольких каналов: " +
-                            "узкий пик не теряется, но фон рисуется по верхней огибающей",
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
                 if (smoothing) {
                     Text(
                         text = "сглаживание — только отображение, исходные данные не меняются",
@@ -752,12 +825,31 @@ private fun SpectrumContent(
     }
 
     // --- energy windows (спец §7): состав спектра, не мера опасности ---
-    EnergyWindowsCard(
-        graph = graph,
-        counts = spectrum.counts,
-        durationSeconds = spectrum.durationSeconds,
-        calibration = calibration,
-    )
+    // Свёрнуты по умолчанию: границы окон — ПАРАМЕТР АНАЛИЗА, выбранный нами,
+    // и стоять сразу под настоящим спектром с настоящими пиками они не должны
+    // — это выглядит фундаментальнее, чем есть.
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(horizontal = Dimens.space1),
+    ) {
+        Chip(
+            text = if (windowsOpen) "энергетические диапазоны ▴" else "энергетические диапазоны ▾",
+            color = colors.ink2,
+            onClick = { windowsOpen = !windowsOpen },
+        )
+    }
+    AnimatedVisibility(
+        visible = windowsOpen,
+        enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
+        exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
+    ) {
+        EnergyWindowsCard(
+            graph = graph,
+            counts = spectrum.counts,
+            durationSeconds = spectrum.durationSeconds,
+            calibration = calibration,
+        )
+    }
 
     // --- actions ---
     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
@@ -802,18 +894,6 @@ private fun SpectrumContent(
             modifier = Modifier.padding(horizontal = Dimens.space1),
         )
     }
-
-    Text(
-        text = SpectrumFormat.calibrationLine(
-            spectrum.a0,
-            spectrum.a1,
-            spectrum.a2,
-            spectrum.counts.size,
-        ),
-        style = type.footnote,
-        color = colors.muted,
-        modifier = Modifier.padding(horizontal = Dimens.space1),
-    )
 
     if (confirmReset) {
         Dialog(onDismissRequest = { confirmReset = false }) {

@@ -1300,6 +1300,7 @@ private fun CursorRow(label: String, value: String) {
         Text(text = label, style = type.footnote, color = colors.ink2)
         Spacer(Modifier.width(Dimens.space2))
         Spacer(Modifier.weight(1f))
-        Text(text = value, style = type.footnote, color = colors.ink)
+        // Значение — данные: моноширинный, чтобы столбец чисел выравнивался.
+        Text(text = value, style = type.footnoteMono, color = colors.ink)
     }
 }
