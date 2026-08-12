@@ -54,6 +54,13 @@ import java.time.format.DateTimeFormatter
 /** Rendered column cap: slices merge beyond this (bitmap stays legible). */
 private const val MAX_COLUMNS = 240
 
+/**
+ * Самое узкое окно картинки. **Инженерный параметр отображения**: пять минут
+ * это тот масштаб, на котором пятисекундные столбцы ещё различимы, а короткая
+ * запись честно выглядит короткой записью, а не длинной историей.
+ */
+private const val MIN_WINDOW_MILLIS = 5L * 60_000L
+
 private val HH_MM_SS = DateTimeFormatter.ofPattern("HH:mm:ss")
 
 /**
@@ -97,8 +104,18 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     // Колонки строятся по СЕТКЕ ВРЕМЕНИ с шагом, который выбирается по
     // статистике: при фоне пятисекундная колонка это ≈1 импульс на полосу, то
     // есть шум, который глаз читает как линии.
-    val fromMillis = slices.firstOrNull()?.let { it.timestampMillis - it.intervalSeconds * 1000L }
+    // Картинка имеет МИНИМАЛЬНОЕ окно: четыре пятисекундных столбца, растянутых
+    // на весь экран, читаются как «длинная запись с четырьмя состояниями», хотя
+    // это двадцать секунд. Недостающее время остаётся пустым — ровно так же,
+    // как затенённая область «сюда данные не доходят» на графике дозы.
+    val dataFromMillis =
+        slices.firstOrNull()?.let { it.timestampMillis - it.intervalSeconds * 1000L }
     val toMillis = slices.lastOrNull()?.timestampMillis
+    val fromMillis = if (dataFromMillis != null && toMillis != null) {
+        minOf(dataFromMillis, toMillis - MIN_WINDOW_MILLIS)
+    } else {
+        dataFromMillis
+    }
     val stepSeconds = remember(slices) {
         if (fromMillis == null || toMillis == null) {
             Spectrogram.DISPLAY_STEPS_SECONDS.first()
@@ -231,6 +248,20 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                                 },
                                 style = type.footnote,
                                 color = colors.muted,
+                            )
+                        }
+                        // Сколько окна реально занято записью — тот же вопрос,
+                        // что «данных: 47 мин из 6 ч» на графике дозы.
+                        val measuredSeconds = slices.sumOf { it.intervalSeconds }
+                        val windowSeconds = ((toMillis ?: 0L) - (fromMillis ?: 0L)) / 1000L
+                        if (windowSeconds > 0 && measuredSeconds < windowSeconds * 95 / 100) {
+                            Text(
+                                text = "записи ${SpectrumFormat.accumulationClock(measuredSeconds)}" +
+                                    " из ${SpectrumFormat.accumulationClock(windowSeconds)} окна — " +
+                                    "остальное время прибор не писал",
+                                style = type.footnote,
+                                color = colors.muted,
+                                modifier = Modifier.padding(horizontal = Dimens.space1),
                             )
                         }
                         Text(

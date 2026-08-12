@@ -617,8 +617,12 @@ private fun SpectrumContent(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = Dimens.space1),
             ) {
+                // Ось называет ОБЕ величины: по горизонтали кэВ, по вертикали
+                // импульсы В КАНАЛЕ (не имп/кэВ — ширина канала по шкале
+                // немного меняется, и делить на неё значило бы показывать не
+                // то, что показывает прибор).
                 Text(
-                    text = "кэВ".uppercase(),
+                    text = "кэВ → · имп в канале ↑".uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
@@ -680,6 +684,17 @@ private fun SpectrumContent(
                     style = type.footnote,
                     color = colors.muted,
                 )
+                // В колонку экрана попадает несколько каналов, и берётся их
+                // МАКСИМУМ: пик шириной в канал так не теряется, но линия
+                // континуума проходит по верхней огибающей, а не по среднему.
+                if (spectrum.counts.size > COLUMN_COUNT) {
+                    Text(
+                        text = "в одной колонке экрана — максимум нескольких каналов: " +
+                            "узкий пик не теряется, но фон рисуется по верхней огибающей",
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
                 if (smoothing) {
                     Text(
                         text = "сглаживание — только отображение, исходные данные не меняются",
