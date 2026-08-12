@@ -214,6 +214,14 @@ fun WaterfallChart(
 
         // 2. Energy gridlines + labels (fraction 0 = 20 keV at the bottom).
         val grid = colors.ink2.copy(alpha = 0.18f)
+        // Единица оси — внутри поля, у первой подписи: отдельная строка
+        // «кэВ ↑ · время →» под графиком повторяла то, что и так видно по
+        // числам 50/100/300 слева и по времени снизу.
+        drawText(
+            textLayoutResult = textMeasurer.measure("кэВ", axisStyle),
+            color = colors.muted,
+            topLeft = Offset(0f, 0f),
+        )
         for ((fraction, label) in energyTicks) {
             val yy = plotBottom - fraction * plotH
             drawLine(grid, Offset(padL, yy), Offset(size.width - padR, yy), 1f)
