@@ -716,21 +716,11 @@ private fun MetricChartCard(
                 }
             }
 
-            for (line in metricFootnotes(metric)) {
+            for (line in ChartMetrics.footnotes(metric)) {
                 Text(text = line, style = type.footnote, color = colors.muted)
             }
         }
     }
-}
-
-/** Постоянные оговорки под величиной — те же слова, что и на полном экране. */
-private fun metricFootnotes(metric: ChartMetric): List<String> = when (metric) {
-    ChartMetric.DOSE -> emptyList()
-    ChartMetric.COUNT_RATE -> listOf(
-        "CPS — счёт событий детектора, не мера опасности: одно и то же число даёт и " +
-            "слабый близкий источник, и сильный далёкий.",
-    )
-    ChartMetric.HARDNESS -> listOf(Hardness.EXPLANATION, Hardness.PURPOSE)
 }
 
 /**

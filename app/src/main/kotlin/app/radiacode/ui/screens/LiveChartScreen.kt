@@ -1,6 +1,8 @@
 package app.radiacode.ui.screens
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
+import app.radiacode.ui.logic.ChartInfo
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -8,8 +10,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +30,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
@@ -39,7 +44,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
 import app.radiacode.analysis.quantiles.KllSketch
@@ -160,12 +168,23 @@ fun LiveChartScreen(
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     val baseline = (baselineState as? BaselineState.Active)?.baseline
 
+    // Пока график открыт, экран не гаснет: на него смотрят, а не листают его,
+    // и системный таймаут гасил дисплей ровно посреди наблюдения. Флаг живёт
+    // на View этого экрана — он снимается, как только экран закрыт, и никогда
+    // не действует на приложение целиком.
+    val view = LocalView.current
+    DisposableEffect(Unit) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
+
     val periodIndices = remember(metric) { ChartMetrics.periodIndices(metric) }
     var logScale by rememberSaveable { mutableStateOf(false) }
     var follow by rememberSaveable { mutableStateOf(true) }
     var cursorActive by rememberSaveable { mutableStateOf(false) }
     var statsExpanded by rememberSaveable { mutableStateOf(false) }
     var histogramExpanded by rememberSaveable { mutableStateOf(false) }
+    var infoOpen by rememberSaveable { mutableStateOf(false) }
     // Crosshair position lives in its own State: the draw layer and the
     // readout card read it, so dragging never recomposes the screen.
     val cursorFraction = remember { mutableStateOf<Float?>(null) }
@@ -346,6 +365,7 @@ fun LiveChartScreen(
                 stats = frame?.stats,
                 paused = cursorActive,
                 onBack = onBack,
+                onInfo = { infoOpen = true },
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
@@ -366,11 +386,20 @@ fun LiveChartScreen(
                     currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000),
                 )
             }
+            ChartInfoSheet(
+                open = infoOpen,
+                metric = metric,
+                frame = frame,
+                baseline = baseline,
+                logScale = logScale,
+                onClose = { infoOpen = false },
+            )
         }
         return
     }
 
-    Column(Modifier.fillMaxSize().background(colors.bg).systemBarsPadding()) {
+    Box(Modifier.fillMaxSize().background(colors.bg).systemBarsPadding()) {
+        Column(Modifier.fillMaxSize()) {
         PortraitTopBar(
             graph = graph,
             unit = unit,
@@ -378,25 +407,11 @@ fun LiveChartScreen(
             metricTitle = metric.title,
             paused = cursorActive,
             onBack = onBack,
+            onInfo = { infoOpen = true },
             metric = metric,
         )
         chart(Modifier.weight(1f).fillMaxWidth())
         AppDivider()
-        // «Что за стрелки наверху» — вопрос из поля: маркеры экстремумов
-        // объяснялись только в длинной строке анатомии внизу экрана. Теперь
-        // подпись стоит там же, где сами маркеры, и только когда они есть.
-        if (frame?.spec?.extremeMarkers?.isNotEmpty() == true) {
-            Text(
-                text = "▲ — самый высокий отсчёт колонки; тап по графику покажет " +
-                    "его точное время и значение",
-                style = type.footnote,
-                color = colors.muted,
-                modifier = Modifier.padding(
-                    horizontal = Dimens.space3,
-                    vertical = Dimens.space1,
-                ),
-            )
-        }
         // §2: неполное окно называется словами, а не остаётся пустым полем.
         coverageWording(frame?.stats, window.spanMillis)?.let { coverage ->
             Text(
@@ -492,25 +507,90 @@ fun LiveChartScreen(
                 currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000),
             )
         }
-        Text(
-            text = listOfNotNull(
-                truthLine(
-                    logScale = logScale,
-                    logDropped = frame?.logDropped ?: 0,
-                    hasBaseline = baseline != null && ChartMetrics.showsProfileBand(metric),
-                    method = frame?.stats?.method ?: QuantileMethod.EXACT_RAW,
-                    metric = metric,
-                ),
-                ChartMetrics.spanLimitNote(metric),
-            ).joinToString(" "),
-            style = type.footnote,
-            color = colors.muted,
-            modifier = Modifier.padding(
-                start = Dimens.space3,
-                end = Dimens.space3,
-                bottom = Dimens.space2,
-            ),
+        Spacer(Modifier.height(Dimens.space1))
+        }
+        ChartInfoSheet(
+            open = infoOpen,
+            metric = metric,
+            frame = frame,
+            baseline = baseline,
+            logScale = logScale,
+            onClose = { infoOpen = false },
         )
+    }
+}
+
+/**
+ * Справка «как читать график» — по кнопке «i» в шапке.
+ *
+ * Панель кладётся ПОВЕРХ экрана, а не раздвигает его: график не должен
+ * прыгать от того, что человек открыл объяснение и закрыл его. Системная
+ * «назад» закрывает справку, а не сам график, — «назад» здесь означает ровно
+ * один шаг, как и везде.
+ */
+@Composable
+private fun BoxScope.ChartInfoSheet(
+    open: Boolean,
+    metric: ChartMetric,
+    frame: ChartFrame?,
+    baseline: Baseline?,
+    logScale: Boolean,
+    onClose: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    BackHandler(enabled = open) { onClose() }
+    AnimatedVisibility(
+        visible = open,
+        enter = fadeIn(Motion.normal()) + expandVertically(Motion.springy()),
+        exit = fadeOut(Motion.fast()) + shrinkVertically(Motion.springy()),
+        modifier = Modifier.align(Alignment.BottomStart),
+    ) {
+        val sections = remember(metric, frame, baseline, logScale) {
+            ChartInfo.sections(
+                metric = metric,
+                hasBaselineBand = baseline != null && ChartMetrics.showsProfileBand(metric),
+                hasExtremeMarkers = frame?.spec?.extremeMarkers?.isNotEmpty() == true,
+                hasEpisodes = frame?.spec?.episodes?.isNotEmpty() == true,
+                method = frame?.stats?.method ?: QuantileMethod.EXACT_RAW,
+                logScale = logScale,
+                logDropped = frame?.logDropped ?: 0,
+            )
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.bg)
+                // Панель лежит ПОВЕРХ графика, поэтому она обязана забирать
+                // касания себе: иначе прокрутка справки двигала бы окно
+                // графика под ней.
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                )
+                .padding(Dimens.space3)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Как читать этот график".uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                )
+                Spacer(Modifier.weight(1f))
+                Chip(text = "✕", color = colors.ink2, onClick = onClose)
+            }
+            for (section in sections) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(text = section.title, style = type.label, color = colors.ink)
+                    for (line in section.lines) {
+                        Text(text = line, style = type.bodySmall, color = colors.muted)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -586,6 +666,7 @@ private fun PortraitTopBar(
     metricTitle: String,
     paused: Boolean,
     onBack: () -> Unit,
+    onInfo: () -> Unit,
     metric: ChartMetric = ChartMetric.DOSE,
 ) {
     val colors = LocalAppColors.current
@@ -613,6 +694,7 @@ private fun PortraitTopBar(
                 )
                 StatusChipSlot(graph, unit, paused, metric)
             }
+            Chip(text = "i", color = colors.ink2, onClick = onInfo)
         }
         AppDivider()
     }
@@ -658,6 +740,7 @@ private fun BoxScope.LandscapeTopBar(
     stats: WindowStats?,
     paused: Boolean,
     onBack: () -> Unit,
+    onInfo: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -687,6 +770,7 @@ private fun BoxScope.LandscapeTopBar(
         }
         val freshness = liveReading(graph, unit, compact = true)
         FreshnessOrPause(freshness, paused)
+        Chip(text = "i", color = colors.ink2, onClick = onInfo)
     }
 }
 
@@ -840,47 +924,6 @@ private fun ExpandedStats(
 }
 
 /**
- * The one muted line that describes the anatomy of the chart exactly (CHART
- * SPEC §6, §7, §8, §41): what is a level, what is observed spread, what is a
- * historical statistic of the place, what is an event marker — and, when the
- * window is long, that the quantiles are an approximation.
- */
-private fun truthLine(
-    logScale: Boolean,
-    logDropped: Int,
-    hasBaseline: Boolean,
-    method: QuantileMethod,
-    metric: ChartMetric = ChartMetric.DOSE,
-): String {
-    val parts = mutableListOf(
-        "линия — медиана корзины (Q50)",
-        "Q25–Q75 и Q10–Q90 — наблюдаемый разброс измерений, не погрешность",
-    )
-    if (metric == ChartMetric.HARDNESS) {
-        parts += "отношение берётся по каждому отсчёту, а не по средним корзины"
-    }
-    parts += if (hasBaseline) {
-        "серая полоса — исторический P10–P90 профиля, это статистика места, а не норматив"
-    } else {
-        "исторический диапазон профиля ещё не собран"
-    }
-    parts += "▲ — экстремум корзины выше порога L1 (залит) или выше P90 профиля (контур)"
-    parts += "полосы эпизодов — журнал событий, длительность расчётная"
-    parts += when (method) {
-        QuantileMethod.EXACT_RAW -> "квантили — точные по сырым отсчётам"
-        QuantileMethod.KLL_SKETCH ->
-            "квантили — приближение по почасовым KLL-скетчам (ошибка ранга ≈ " +
-                QuantileMetadata.errorPercentLabel(KllSketch.DEFAULT_K) + ")"
-        QuantileMethod.SUB_BUCKET_MEANS ->
-            "квантили — грубая оценка по под-корзинам: предагрегация ещё строится"
-    }
-    if (logScale && logDropped > 0) {
-        parts += "лог-шкала: корзин с нулём не показано — $logDropped"
-    }
-    return parts.joinToString(" · ")
-}
-
-/**
  * Исследовательская диагностика квантилей (CHART SPEC §32, §34, §37G; ADR
  * 004). Живёт под расширенной статистикой, потому что это ровно то место, где
  * пользователь уже спрашивает «а как именно посчитано».
@@ -924,13 +967,23 @@ private fun QuantileDiagnosticPanel(
             color = colors.muted,
         )
         if (!method.exact) {
-            // The machine-readable stamp, in the same flat-JSON shape derived
-            // spectra store in `analysisMeta` (spec §22): whoever copies a
-            // number out of this screen can copy what produced it too.
-            Text(
-                text = QuantileMetadata.stamp(method, sketch?.k ?: KllSketch.DEFAULT_K),
-                style = type.footnote,
-                color = colors.muted,
+            // Машинная отметка воспроизводимости (спец §22) существует, но на
+            // экране ей не место: строка вида {"method":…} читается как
+            // вылезший наружу код. Её можно забрать в буфер обмена — тому, кто
+            // выписывает отсюда число, она нужна вместе с ним.
+            val clipboard = LocalClipboardManager.current
+            var copied by remember { mutableStateOf(false) }
+            Chip(
+                text = if (copied) "отметка метода скопирована" else "скопировать отметку метода",
+                color = colors.ink2,
+                onClick = {
+                    clipboard.setText(
+                        AnnotatedString(
+                            QuantileMetadata.stamp(method, sketch?.k ?: KllSketch.DEFAULT_K),
+                        ),
+                    )
+                    copied = true
+                },
             )
         }
         if (backfill.running && backfill.hoursTotal > 0) {

@@ -86,17 +86,19 @@ object ChartMetrics {
      */
     fun showsProfileBand(metric: ChartMetric): Boolean = metric == ChartMetric.DOSE
 
-    /** Строка анатомии графика — та же для всех величин, с их единицами. */
-    fun anatomy(metric: ChartMetric): String = when (metric) {
-        ChartMetric.DOSE ->
-            "Линия — медиана интервала. Полосы показывают наблюдаемый разброс значений, " +
-                "а не погрешность прибора."
-        ChartMetric.COUNT_RATE ->
-            "Линия — медиана интервала. Полосы — наблюдаемый разброс счёта, не погрешность " +
-                "прибора. Счёт событий детектора не является мерой опасности."
-        ChartMetric.HARDNESS ->
-            "Линия — медиана интервала. Отношение считается по каждому отсчёту, а не по " +
-                "средним корзины. " + Hardness.EXPLANATION
+    /**
+     * Постоянные оговорки под величиной на карточке Главной.
+     *
+     * Они не про то, как устроен график (это уехало в справку по кнопке «i»),
+     * а про то, чем является само число: их нельзя показать один раз и убрать.
+     */
+    fun footnotes(metric: ChartMetric): List<String> = when (metric) {
+        ChartMetric.DOSE -> emptyList()
+        ChartMetric.COUNT_RATE -> listOf(
+            "CPS — счёт событий детектора, не мера опасности: одно и то же число даёт и " +
+                "слабый близкий источник, и сильный далёкий.",
+        )
+        ChartMetric.HARDNESS -> listOf(Hardness.EXPLANATION, Hardness.PURPOSE)
     }
 
     /**

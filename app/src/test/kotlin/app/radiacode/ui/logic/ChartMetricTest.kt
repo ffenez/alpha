@@ -66,20 +66,18 @@ class ChartMetricTest {
     }
 
     @Test
-    fun `every anatomy line says the bands are spread, not instrument error`() {
-        for (metric in ChartMetric.entries) {
-            val text = ChartMetrics.anatomy(metric)
-            assertTrue(text.contains("медиана"), text)
-            assertTrue(text.contains("не погрешность") || text.contains("не мера опасности"), text)
-        }
-        // У счёта — обязательная оговорка про то, что это не мера опасности.
-        assertTrue(
-            ChartMetrics.anatomy(ChartMetric.COUNT_RATE).contains("не является мерой опасности"),
-        )
-        // У жёсткости — что отношение берётся по отсчётам, а не по средним.
-        assertTrue(
-            ChartMetrics.anatomy(ChartMetric.HARDNESS).contains("по каждому отсчёту"),
-        )
+    fun `the card footnotes carry only the caveats that can never be dismissed`() {
+        // Устройство графика объясняется по кнопке «i» (ChartInfo); под
+        // карточкой остаётся то, что относится к самой величине и обязано
+        // висеть постоянно.
+        assertTrue(ChartMetrics.footnotes(ChartMetric.DOSE).isEmpty())
+
+        val counts = ChartMetrics.footnotes(ChartMetric.COUNT_RATE).joinToString(" ")
+        assertTrue(counts.contains("не мера опасности"), counts)
+
+        val hardness = ChartMetrics.footnotes(ChartMetric.HARDNESS).joinToString(" ")
+        assertTrue(hardness.contains("не средняя энергия фотона"), hardness)
+        assertTrue(hardness.contains("не мера опасности"), hardness)
     }
 }
 
