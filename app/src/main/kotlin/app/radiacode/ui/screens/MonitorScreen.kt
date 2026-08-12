@@ -25,6 +25,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -273,7 +274,7 @@ fun MonitorScreen(
 
         val baseline = (baselineState as? BaselineState.Active)?.baseline
         val alert = status is MonitorStatus.Alert
-        for (metric in chartMetrics) {
+        for (metric in chartMetrics) key(metric) {
             val loaded = charts[metric]
             val frame = remember(loaded, unit, thresholds, baseline, alert) {
                 loaded?.let {
