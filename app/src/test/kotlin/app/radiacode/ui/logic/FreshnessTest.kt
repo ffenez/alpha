@@ -36,4 +36,17 @@ class FreshnessTest {
         assertEquals("обновлено 7 с назад", freshnessLabel(Freshness.Fresh(7)))
         assertEquals("поток прерван 34 с назад", freshnessLabel(Freshness.Stale(34)))
     }
+
+    /**
+     * Голое «0 с» в чипе было загадкой: число секунд без существительного не
+     * читается никак. Возраст интересен только когда он заметен.
+     */
+    @Test
+    fun `the chip says «только что» instead of a bare zero`() {
+        assertEquals("только что", freshnessChipLabel(Freshness.Fresh(0)))
+        assertEquals("только что", freshnessChipLabel(Freshness.Fresh(FRESH_NOW_SECONDS)))
+        assertEquals("5 с назад", freshnessChipLabel(Freshness.Fresh(5)))
+        assertEquals("прервано 30 с назад", freshnessChipLabel(Freshness.Stale(30)))
+        assertEquals("нет данных", freshnessChipLabel(Freshness.NoData))
+    }
 }

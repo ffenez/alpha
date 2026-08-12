@@ -83,6 +83,7 @@ import app.radiacode.ui.logic.DoseHistograms
 import app.radiacode.ui.logic.DoseScales
 import app.radiacode.ui.logic.ChartSnapshot
 import app.radiacode.ui.logic.Freshness
+import app.radiacode.ui.logic.freshnessChipLabel
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.QuantileMetadata
 import app.radiacode.ui.logic.QuantileMethod
@@ -648,10 +649,11 @@ private fun FreshnessOrPause(freshness: Freshness, paused: Boolean) {
     val colors = LocalAppColors.current
     when {
         paused -> Chip(text = "пауза", color = colors.warn, selected = true)
-        freshness is Freshness.Fresh -> Chip(text = "${freshness.ageSeconds} с", dot = colors.ok)
+        freshness is Freshness.Fresh ->
+            Chip(text = freshnessChipLabel(freshness), dot = colors.ok)
         freshness is Freshness.Stale ->
-            Chip(text = "прервано ${freshness.ageSeconds} с", color = colors.warn)
-        else -> Chip(text = "нет данных", color = colors.muted)
+            Chip(text = freshnessChipLabel(freshness), color = colors.warn)
+        else -> Chip(text = freshnessChipLabel(freshness), color = colors.muted)
     }
 }
 

@@ -69,6 +69,7 @@ import app.radiacode.ui.logic.ChartMetric
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.Evidence
 import app.radiacode.ui.logic.Freshness
+import app.radiacode.ui.logic.freshnessChipLabel
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.MonitorStatus
 import app.radiacode.ui.logic.BaselineSnapshot
@@ -418,10 +419,10 @@ private fun ConnectionChip(connection: ConnectionState, serviceRunning: Boolean)
 private fun FreshnessChip(freshness: Freshness) {
     val colors = LocalAppColors.current
     when (freshness) {
-        Freshness.NoData -> Chip(text = "нет данных", color = colors.muted)
-        is Freshness.Fresh -> Chip(text = "${freshness.ageSeconds} с")
+        Freshness.NoData -> Chip(text = freshnessChipLabel(freshness), color = colors.muted)
+        is Freshness.Fresh -> Chip(text = freshnessChipLabel(freshness))
         is Freshness.Stale ->
-            Chip(text = "прервано ${freshness.ageSeconds} с", color = colors.warn)
+            Chip(text = freshnessChipLabel(freshness), color = colors.warn)
     }
 }
 

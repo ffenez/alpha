@@ -29,6 +29,29 @@ sealed interface Freshness {
     }
 }
 
+/**
+ * Компактная подпись свежести для чипа.
+ *
+ * Чип показывал голое «0 с» — число секунд без существительного, которое не
+ * читается вообще никак: на Главной и в шапке графика висела загадка. Возраст
+ * данных интересен только тогда, когда он заметен, поэтому свежий поток
+ * говорит «только что», а числом становится лишь то, что уже успело устареть.
+ */
+fun freshnessChipLabel(freshness: Freshness): String = when (freshness) {
+    Freshness.NoData -> "нет данных"
+    is Freshness.Fresh ->
+        if (freshness.ageSeconds <= FRESH_NOW_SECONDS) "только что"
+        else "${freshness.ageSeconds} с назад"
+    is Freshness.Stale -> "прервано ${freshness.ageSeconds} с назад"
+}
+
+/**
+ * До этого возраста поток называется «только что». **Инженерный параметр**:
+ * прибор пишет раз в секунду, и разница между нулём и двумя секундами для
+ * человека — это одно и то же «сейчас».
+ */
+const val FRESH_NOW_SECONDS = 2L
+
 /** UI wording for the staleness indicator; amber only in the stale state. */
 fun freshnessLabel(freshness: Freshness): String = when (freshness) {
     Freshness.NoData -> "данных ещё нет"
