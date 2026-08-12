@@ -44,10 +44,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
 import app.radiacode.analysis.quantiles.KllSketch
@@ -984,26 +982,6 @@ private fun QuantileDiagnosticPanel(
             style = type.footnote,
             color = colors.muted,
         )
-        if (!method.exact) {
-            // Машинная отметка воспроизводимости (спец §22) существует, но на
-            // экране ей не место: строка вида {"method":…} читается как
-            // вылезший наружу код. Её можно забрать в буфер обмена — тому, кто
-            // выписывает отсюда число, она нужна вместе с ним.
-            val clipboard = LocalClipboardManager.current
-            var copied by remember { mutableStateOf(false) }
-            Chip(
-                text = if (copied) "отметка метода скопирована" else "скопировать отметку метода",
-                color = colors.ink2,
-                onClick = {
-                    clipboard.setText(
-                        AnnotatedString(
-                            QuantileMetadata.stamp(method, sketch?.k ?: KllSketch.DEFAULT_K),
-                        ),
-                    )
-                    copied = true
-                },
-            )
-        }
         if (backfill.running && backfill.hoursTotal > 0) {
             Text(
                 text = "предагрегация истории: ${(backfill.fraction * 100).toInt()} % " +

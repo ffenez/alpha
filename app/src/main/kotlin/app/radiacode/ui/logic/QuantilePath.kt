@@ -110,10 +110,15 @@ object QuantilePaths {
 }
 
 /**
- * The reproducibility stamp of a quantile result (CHART SPEC §32, spec §22):
- * method, algorithm version and the configured accuracy parameter. Written in
- * the same flat-JSON shape as `spectra.analysisMeta`, so exports and Research
- * details speak one language.
+ * Как назван метод квантилей там, где показано полученное им число (CHART
+ * SPEC §32, spec §22): метод, версия алгоритма и параметр точности.
+ *
+ * Машинная отметка (плоский JSON, как `spectra.analysisMeta`) здесь СОЗНАТЕЛЬНО
+ * не живёт. Числа графика никуда не экспортируются — они смотрятся на экране, —
+ * а версия алгоритма и так уезжает в отладочный отчёт вместе со всеми
+ * остальными (`AlgorithmVersions.all`). Отметка, которую некуда приложить,
+ * оставалась строкой вида `{"method":…}` на экране прибора и не отвечала ни на
+ * один вопрос, который человек здесь задаёт.
  */
 object QuantileMetadata {
 
@@ -132,15 +137,6 @@ object QuantileMetadata {
         val percent = RANK_ERROR_CONSTANT / k * 100.0
         return String.format(java.util.Locale.ROOT, "%.1f", percent).replace('.', ',') + " %"
     }
-
-    /** Machine-readable stamp for export metadata and stored diagnostics. */
-    fun stamp(method: QuantileMethod, k: Int = KllSketch.DEFAULT_K): String = JsonMap.of(
-        "method" to method.storageKey,
-        "algorithms" to "quantile_sketch",
-        "algorithmVersion" to AlgorithmVersions.QUANTILE_SKETCH,
-        "accuracy_k" to if (method == QuantileMethod.KLL_SKETCH) k else null,
-        "exact" to method.exact.toString(),
-    )
 
     /**
      * Rank-error constant of the KLL structure: ε ≈ c/k. The value is the one

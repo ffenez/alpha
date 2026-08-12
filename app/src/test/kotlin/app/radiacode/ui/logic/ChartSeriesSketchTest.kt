@@ -1,5 +1,6 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.analysis.AlgorithmVersions
 import app.radiacode.analysis.quantiles.KllSketch
 import app.radiacode.analysis.quantiles.QuantileDiagnostics
 import kotlin.math.abs
@@ -108,14 +109,16 @@ class QuantilePathTest {
     }
 
     @Test
-    fun `metadata names the method, the version and the accuracy parameter`() {
-        val stamp = QuantileMetadata.stamp(QuantileMethod.KLL_SKETCH, k = 128)
-        assertTrue(stamp.contains("kll_sketch"), stamp)
-        assertTrue(stamp.contains("quantile_sketch"), stamp)
-        assertTrue(stamp.contains("128"), stamp)
-        val exactStamp = QuantileMetadata.stamp(QuantileMethod.EXACT_RAW)
-        assertTrue(exactStamp.contains("exact_raw"), exactStamp)
-        assertTrue(QuantileMetadata.label(QuantileMethod.KLL_SKETCH, 128).contains("k=128"))
+    fun `the method is named in words, with its version and accuracy`() {
+        val label = QuantileMetadata.label(QuantileMethod.KLL_SKETCH, 128)
+        assertTrue(label.contains("k=128"), label)
+        assertTrue(label.contains("v${AlgorithmVersions.QUANTILE_SKETCH}"), label)
+        assertTrue(label.contains("ошибка ранга"), label)
+        // Приближение никогда не выдаётся за точный путь.
+        assertTrue(QuantileMetadata.label(QuantileMethod.EXACT_RAW).contains("точные"))
+        assertTrue(
+            QuantileMetadata.label(QuantileMethod.SUB_BUCKET_MEANS).contains("без доказанной"),
+        )
     }
 }
 
