@@ -94,7 +94,7 @@ private val HH_MM_SS = DateTimeFormatter.ofPattern("HH:mm:ss")
  * Столбец = интервальный спектр одного опроса (накопление минус предыдущее,
  * 5 с), строки — энергия 20–3000 кэВ на геометрической шкале, яркость —
  * лог-нормировка внутри столбца. Внизу — синхронная полоса мощности дозы;
- * тап по столбцу показывает дозу/CPS того момента.
+ * нажатие на столбец показывает дозу/CPS того момента.
  */
 @Composable
 fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
@@ -122,8 +122,6 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val hintSeen by graph.settings.spectrogramHintSeen.collectAsState(initial = true)
     // Экран существует ради одной картинки — она и должна занимать его.
     val chartHeight = (LocalConfiguration.current.screenHeightDp * 0.5f).dp
         .coerceIn(260.dp, 520.dp)
@@ -274,7 +272,6 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                             height = chartHeight,
                             onTapColumn = { index ->
                                 selectedIndex = if (selectedIndex == index) null else index
-                                if (!hintSeen) scope.launch { graph.settings.setSpectrogramHintSeen() }
                             },
                         )
                         // Режим — это РЕЖИМ, а не действие: два физически
@@ -293,7 +290,7 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                     }
                 }
 
-                SelectedMomentCard(selected, unit, showHint = !hintSeen)
+                SelectedMomentCard(selected, unit)
 
                 if (infoOpen) {
                     InfoCard(
@@ -337,50 +334,37 @@ private fun stepReason(slices: List<SpectrogramSlice>, stepSeconds: Long): Strin
 }
 
 @Composable
-private fun SelectedMomentCard(
-    selected: SpectrogramColumn?,
-    unit: DoseUnitSetting,
-    showHint: Boolean,
-) {
+private fun SelectedMomentCard(selected: SpectrogramColumn?, unit: DoseUnitSetting) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    // Подсказка «тапните по столбцу» — обучение, а не элемент интерфейса: она
-    // живёт до первого касания и больше не возвращается. Пока курсора нет и
-    // подсказка уже показана, карточки нет вовсе.
-    if (selected == null && !showHint) return
+    // Курсора нет — карточки нет: пустая карточка с инструкцией занимала место
+    // постоянно ради подсказки, которую читают один раз.
+    if (selected == null) return
     Card(modifier = Modifier.fillMaxWidth()) {
-        if (selected == null) {
-            Text(
-                text = "тапните по столбцу — здесь появятся доза и счёт того момента",
-                style = type.footnote,
-                color = colors.muted,
-            )
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = timeOfDay(selected.startMillis),
-                        style = type.value,
-                        color = colors.ink,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = "измерено ${selected.seconds} с",
-                        style = type.footnote,
-                        color = colors.ink2,
-                    )
-                }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = listOfNotNull(
-                        selected.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit) },
-                        selected.cps?.let { "${Uncertainty.num1(it)} с⁻¹" },
-                        "${selected.totalCounts.toInt()} имп в колонке",
-                        selected.meanEnergyKeV?.let { "ср. энергия ${it.toInt()} кэВ" },
-                    ).joinToString(" · "),
-                    style = type.valueSmall,
+                    text = timeOfDay(selected.startMillis),
+                    style = type.value,
+                    color = colors.ink,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "измерено ${selected.seconds} с",
+                    style = type.footnote,
                     color = colors.ink2,
                 )
             }
+            Text(
+                text = listOfNotNull(
+                    selected.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit) },
+                    selected.cps?.let { "${Uncertainty.num1(it)} с⁻¹" },
+                    "${selected.totalCounts.toInt()} имп в колонке",
+                    selected.meanEnergyKeV?.let { "ср. энергия ${it.toInt()} кэВ" },
+                ).joinToString(" · "),
+                style = type.valueSmall,
+                color = colors.ink2,
+            )
         }
     }
 }

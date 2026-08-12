@@ -113,14 +113,6 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
      * left it (why-spec §11): someone who always opens the numbers should stop
      * having to open them.
      */
-    /** Подсказка «тапните по столбцу» показана — обучающий текст живёт один раз. */
-    val spectrogramHintSeen: Flow<Boolean> =
-        dataStore.data.map { it[SPECTROGRAM_HINT_SEEN] ?: false }
-
-    suspend fun setSpectrogramHintSeen() {
-        dataStore.edit { it[SPECTROGRAM_HINT_SEEN] = true }
-    }
-
     val whyCalculationsExpanded: Flow<Boolean> =
         dataStore.data.map { it[WHY_EXPANDED] ?: false }
 
@@ -351,7 +343,6 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val SEARCH_SOUND_FLAVOUR = stringPreferencesKey("search_sound_flavour")
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")
         private val WHY_EXPANDED = booleanPreferencesKey("why_calculations_expanded")
-        private val SPECTROGRAM_HINT_SEEN = booleanPreferencesKey("spectrogram_hint_seen")
         private val THEME = stringPreferencesKey("theme")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")
         private val CHART_SPANS = stringPreferencesKey("chart_spans")
