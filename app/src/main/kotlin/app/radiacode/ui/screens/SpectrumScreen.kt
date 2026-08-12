@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -784,15 +785,9 @@ private fun SpectrumContent(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = Dimens.space1),
             ) {
-                // Ось называет ОБЕ величины: по горизонтали кэВ, по вертикали
-                // импульсы В КАНАЛЕ (не имп/кэВ — ширина канала по шкале
-                // немного меняется, и делить на неё значило бы показывать не
-                // то, что показывает прибор).
-                Text(
-                    text = "кэВ → · имп в канале ↑".uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                )
+                // Величины осей названы в справке «i»: числа на самих осях
+                // говорят о них яснее, чем строка под графиком.
+                Spacer(Modifier.width(Dimens.space1))
                 Spacer(Modifier.weight(1f))
                 LegendItem(
                     color = colors.data,

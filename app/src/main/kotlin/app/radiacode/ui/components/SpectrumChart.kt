@@ -1,12 +1,12 @@
 package app.radiacode.ui.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
@@ -71,6 +71,8 @@ fun SpectrumChart(
     onGesture: ((scale: Float, panFraction: Float, focusFraction: Float) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
+    // Жесты живут дольше одной композиции — обработчик читается по ссылке.
+    val gesture = rememberUpdatedState(onGesture)
     val axisStyle = LocalAppTypography.current.axis
     val textMeasurer = rememberTextMeasurer()
 
@@ -83,23 +85,25 @@ fun SpectrumChart(
                 if (onGesture == null) {
                     Modifier
                 } else {
-                    // Экран прокручивается по вертикали, поэтому горизонтальный
-                    // сдвиг обязан забирать событие себе: иначе прокрутка
-                    // перехватывает палец и график «не двигается».
-                    Modifier
-                        .pointerInput(Unit) {
-                            detectTransformGestures(panZoomLock = true) { centroid, pan, zoom, _ ->
-                                val w = size.width.toFloat().coerceAtLeast(1f)
-                                onGesture(zoom, pan.x / w, (centroid.x / w).coerceIn(0f, 1f))
-                            }
+                    // ОДИН обработчик: щипок двумя пальцами и сдвиг одним.
+                    //
+                    // Ключ `Unit` означает, что блок запускается ровно раз за
+                    // жизнь узла, поэтому лямбда обязана читаться через
+                    // [rememberUpdatedState]. Без этого захватывалась ПЕРВАЯ
+                    // версия обработчика — та, что видела окно во всю шкалу, —
+                    // и каждый жест пересчитывался от исходного окна: щипок
+                    // как будто срабатывал, а сдвиг не делал ничего вовсе,
+                    // потому что двигать полное окно некуда.
+                    Modifier.pointerInput(Unit) {
+                        detectTransformGestures(panZoomLock = true) { centroid, pan, zoom, _ ->
+                            val w = size.width.toFloat().coerceAtLeast(1f)
+                            gesture.value?.invoke(
+                                zoom,
+                                pan.x / w,
+                                (centroid.x / w).coerceIn(0f, 1f),
+                            )
                         }
-                        .pointerInput(Unit) {
-                            detectHorizontalDragGestures { change, dragAmount ->
-                                change.consume()
-                                val w = size.width.toFloat().coerceAtLeast(1f)
-                                onGesture(1f, dragAmount / w, 0.5f)
-                            }
-                        }
+                    }
                 },
             ),
     ) {
