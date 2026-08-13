@@ -19,6 +19,11 @@ package app.radiacode.ui.text
  */
 interface MapStrings {
 
+    /** Экспорт трека — открытый формат, явное действие. */
+    val exportGpx: String
+    val exportSaved: String
+    val exportFailed: String
+
     // --- заголовки и режимы ---
     val scopeCurrent: String
     val scopeAll: String
@@ -105,6 +110,10 @@ interface MapStrings {
 }
 
 object MapRu : MapStrings {
+
+    override val exportGpx = "GPX"
+    override val exportSaved = "файл сохранён"
+    override val exportFailed = "файл не записался — попробуйте другую папку"
 
     override val scopeCurrent = "Эта запись"
     override val scopeAll = "Все записи"
@@ -202,6 +211,10 @@ object MapRu : MapStrings {
 }
 
 object MapEn : MapStrings {
+
+    override val exportGpx = "GPX"
+    override val exportSaved = "file saved"
+    override val exportFailed = "the file was not written — try another folder"
 
     override val scopeCurrent = "This recording"
     override val scopeAll = "All recordings"
@@ -306,6 +319,7 @@ val MapCatalogue = AreaCatalogue(ru = MapRu, en = MapEn)
  * означала бы непроверенный текст.
  */
 fun MapStrings.allTexts(): List<String> = listOf(
+    exportGpx, exportSaved, exportFailed,
     scopeCurrent, scopeAll, mapTitle, sessionTrack, noTrackInSession, gpsOff,
     lastRecording("12:00"), recordingFor("2 мин"),
     back, showAllRecordings, startRecording, stopRecording, routeMine, route,

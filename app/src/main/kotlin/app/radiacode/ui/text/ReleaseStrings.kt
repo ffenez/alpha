@@ -76,6 +76,11 @@ object ReleaseRu : ReleaseStrings {
             "окнах свежая колонка отбрасывалась целиком.",
         "На пустом графике убраны фоновые полосы, а единица больше не " +
             "накладывается на отметку порога.",
+        "Спектр называет родство кандидатов: Pb-214 и Bi-214 — дочерние " +
+            "продукты радона, один ряд распада.",
+        "Измерения сессии сохраняются в CSV, трек — в GPX.",
+        "Появилась настройка «После перезагрузки» (Прибор): продолжать " +
+            "измерение после включения телефона, по умолчанию выключено.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
             "пока данные идут, о разрыве не говорится ничего.",
         "Нажатия на кнопки самого прибора больше не обрывают связь: занятый " +
@@ -239,6 +244,11 @@ object ReleaseEn : ReleaseStrings {
             "long windows the freshest column was dropped whole.",
         "An empty chart loses its background stripes, and the unit no longer " +
             "overlaps the threshold marker.",
+        "The spectrum names the kinship of its candidates: Pb-214 and Bi-214 " +
+            "are radon daughters from one decay chain.",
+        "Session measurements export to CSV and a track to GPX.",
+        "New setting «After a restart» (Instrument): keep measuring once the " +
+            "phone boots, off by default.",
         "The state of the stream is stated once for every element of the " +
             "screen: while data keeps coming, nothing is said about a break.",
         "Pressing the buttons on the instrument itself no longer drops the " +

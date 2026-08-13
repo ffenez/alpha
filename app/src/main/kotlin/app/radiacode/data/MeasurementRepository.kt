@@ -230,6 +230,10 @@ class MeasurementRepository(
 
     fun samples(from: Long, to: Long): Flow<List<SampleEntity>> = sampleDao.observeRange(from, to)
 
+    /** Разовое чтение диапазона — для экспорта, которому поток не нужен. */
+    suspend fun samplesList(from: Long, to: Long): List<SampleEntity> =
+        sampleDao.rangeList(from, to)
+
     suspend fun downsampledSamples(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> =
         sampleDao.downsampledRange(from, to, bucketMillis)
 

@@ -551,6 +551,10 @@ interface Strings {
     val whatChanged: String
 
     // --- сигналы прибора ---
+    /** Автозапуск после перезагрузки — явная настройка, по умолчанию выкл. */
+    val startOnBootTitle: String
+    val startOnBootNote: String
+
     val deviceSignals: String
     val deviceSignalsNote: String
     val deviceSound: String
@@ -678,6 +682,7 @@ fun Strings.allTexts(): List<String> = listOf(
     freezeLearning, graceNote, instrumentTitle,
     modelLabel, serialNumber, firmware,
     bluetoothConnected, bluetoothConnecting, bluetoothNoLink,
+    startOnBootTitle, startOnBootNote,
     serviceStopped, instrumentBattery, temperature,
     stream, streamActive, streamNoNewData(8), streamReconnecting, streamLost,
     streamNoDataYet, lastMeasurementAgo(120), unitsTitle,

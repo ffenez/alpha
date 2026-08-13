@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -20,6 +23,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +34,7 @@ import app.radiacode.data.db.EventEntity
 import app.radiacode.device.DoseUnits
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
+import app.radiacode.data.export.SeriesExport
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.ChartNotesDialog
 import app.radiacode.ui.components.Chip
@@ -51,7 +56,9 @@ import app.radiacode.ui.text.SessionRadonStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlinx.coroutines.flow.first
 
@@ -94,6 +101,22 @@ fun SessionDetailScreen(
     val t = SessionRadonCatalogue.of(strings.language)
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pendingCsv by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    val csvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        val content = pendingCsv
+        pendingCsv = null
+        if (uri != null && content != null) {
+            scope.launch {
+                notice = if (writeTextToUri(context, uri, content)) t.exportSaved else t.exportFailed
+            }
+        }
+    }
+
     var detail by remember { mutableStateOf<SessionDetail?>(null) }
     var missing by remember { mutableStateOf(false) }
     LaunchedEffect(sessionId) {
@@ -112,6 +135,29 @@ fun SessionDetailScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             AppButton(text = "← ${strings.back}", onClick = onBack)
             Spacer(Modifier.weight(1f))
+            // Ряд измерений в CSV: до сих пор наружу уезжали только спектры, то
+            // есть срез, а не ход измерения. Сохранение — явное действие через
+            // системный диалог, как и у спектров.
+            detail?.let { d ->
+                Chip(
+                    text = t.exportCsv,
+                    color = colors.dataText,
+                    onClick = {
+                        scope.launch {
+                            pendingCsv = SeriesExport.csv(
+                                graph.measurementRepository.samplesList(
+                                    d.summary.startedAt,
+                                    d.summary.endedAt ?: d.toMillis,
+                                ),
+                            )
+                            csvLauncher.launch(
+                                SeriesExport.fileName(d.summary.startedAt, "csv"),
+                            )
+                        }
+                    },
+                )
+                Spacer(Modifier.width(Dimens.space2))
+            }
             Chip(text = t.sessionTag, color = colors.ink)
         }
 
@@ -137,6 +183,9 @@ fun SessionDetailScreen(
                     FlightCard(d, unit, t)
                 }
                 if (d.events.isNotEmpty()) EventsCard(d.events, unit, t)
+                notice?.let {
+                    Text(text = it, style = type.footnote, color = colors.muted)
+                }
             }
         }
     }

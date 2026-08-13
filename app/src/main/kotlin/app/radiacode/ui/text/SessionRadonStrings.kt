@@ -20,6 +20,11 @@ package app.radiacode.ui.text
  */
 interface SessionRadonStrings {
 
+    /** Экспорт ряда измерений сессии — открытый формат, явное действие. */
+    val exportCsv: String
+    val exportSaved: String
+    val exportFailed: String
+
     // --- деталка сессии ---
     val sessionTag: String
     val sessionNotFound: String
@@ -91,6 +96,10 @@ interface SessionRadonStrings {
 }
 
 object SessionRadonRu : SessionRadonStrings {
+
+    override val exportCsv = "CSV"
+    override val exportSaved = "файл сохранён"
+    override val exportFailed = "файл не записался — попробуйте другую папку"
     override val sessionTag = "Сессия"
     override val sessionNotFound = "сессия не найдена"
     override val readingSession = "читаю сессию…"
@@ -186,6 +195,10 @@ object SessionRadonRu : SessionRadonStrings {
 }
 
 object SessionRadonEn : SessionRadonStrings {
+
+    override val exportCsv = "CSV"
+    override val exportSaved = "file saved"
+    override val exportFailed = "the file was not written — try another folder"
     override val sessionTag = "Session"
     override val sessionNotFound = "session not found"
     override val readingSession = "reading the session…"
@@ -288,6 +301,7 @@ val SessionRadonCatalogue = AreaCatalogue(ru = SessionRadonRu, en = SessionRadon
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun SessionRadonStrings.allTexts(): List<String> = listOf(
+    exportCsv, exportSaved, exportFailed,
     sessionTag, sessionNotFound, readingSession, runningNow, samplesLabel, doseRateLabel,
     doseRateSummary("0,15", "0,12", "0,21", "мкЗв/ч"),
     countRateLabel, countRateSummary("12", "31"), sessionDoseLabel, trackOnMap,

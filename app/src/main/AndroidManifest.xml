@@ -41,6 +41,13 @@
     <!-- Search mode: sigma-step feedback pulses (normal permission). -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!--
+      Продолжение измерения после перезагрузки — только по явной настройке
+      (`AppSettings.startOnBoot`, по умолчанию выключена). Разрешение само по
+      себе ничего не запускает.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <uses-feature
         android:name="android.hardware.bluetooth_le"
         android:required="true" />
@@ -60,6 +67,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".service.BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".service.MeasurementService"

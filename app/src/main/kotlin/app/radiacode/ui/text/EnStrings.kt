@@ -647,6 +647,11 @@ object EnStrings : Strings {
     override val recentUpdates = "recent updates"
     override val whatChanged = "what changed"
 
+    override val startOnBootTitle = "After a restart"
+    override val startOnBootNote =
+        "Keep measuring once the phone boots: the app starts the service itself and " +
+            "connects to the last instrument. Off by default."
+
     override val deviceSignals = "Instrument signals"
     override val deviceSignalsNote =
         "The instrument's own sound and vibration. They work even with the phone " +

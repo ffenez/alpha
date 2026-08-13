@@ -632,6 +632,11 @@ object RuStrings : Strings {
     override val recentUpdates = "последние обновления"
     override val whatChanged = "что изменилось"
 
+    override val startOnBootTitle = "После перезагрузки"
+    override val startOnBootNote =
+        "Продолжать измерение, когда телефон включится: приложение само поднимет " +
+            "службу и подключится к последнему прибору. По умолчанию выключено."
+
     override val deviceSignals = "Сигналы прибора"
     override val deviceSignalsNote =
         "Звук и вибрация самого прибора. Они работают, даже когда телефон отключён " +

@@ -52,6 +52,7 @@ import app.radiacode.data.db.TrackPointEntity
 import app.radiacode.device.DoseUnits
 import app.radiacode.service.MeasurementService
 import app.radiacode.ui.components.AppButton
+import app.radiacode.data.export.SeriesExport
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Segmented
@@ -477,6 +478,22 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
     var metricIndex by rememberSaveable { mutableIntStateOf(0) }
     val metric = if (metricIndex == 0) TrackMetric.DOSE else TrackMetric.CPS
 
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pendingGpx by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    val gpxLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/gpx+xml"),
+    ) { uri ->
+        val content = pendingGpx
+        pendingGpx = null
+        if (uri != null && content != null) {
+            scope.launch {
+                notice = if (writeTextToUri(context, uri, content)) t.exportSaved else t.exportFailed
+            }
+        }
+    }
+
     var data by remember { mutableStateOf<TrackData?>(null) }
     LaunchedEffect(sessionId) {
         val summary = graph.sessionRepository.summary(sessionId)
@@ -509,8 +526,31 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
         Row(verticalAlignment = Alignment.CenterVertically) {
             AppButton(text = t.back, onClick = onBack)
             Spacer(Modifier.weight(1f))
+            // Трек в GPX: стандарт, который открывают карты и GIS. Сохранение —
+            // явное действие через системный диалог; ничего не уходит само.
+            data?.trackSessionId?.let { trackId ->
+                Chip(
+                    text = t.exportGpx,
+                    color = colors.dataText,
+                    onClick = {
+                        scope.launch {
+                            val points = graph.trackRepository.points(trackId).first()
+                            pendingGpx = SeriesExport.gpx(points, t.sessionTrack)
+                            gpxLauncher.launch(
+                                SeriesExport.fileName(
+                                    points.firstOrNull()?.timestamp
+                                        ?: System.currentTimeMillis(),
+                                    "gpx",
+                                ),
+                            )
+                        }
+                    },
+                )
+                Spacer(Modifier.width(Dimens.space2))
+            }
             Chip(text = t.sessionTrack, color = colors.ink)
         }
+        notice?.let { Text(text = it, style = type.footnote, color = colors.muted) }
 
         val d = data
         if (d != null && !d.hasTrack) {

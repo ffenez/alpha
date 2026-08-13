@@ -53,6 +53,20 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
      */
     val lastDeviceAddress: Flow<String?> = dataStore.data.map { it[LAST_DEVICE_ADDRESS] }
 
+    /**
+     * Продолжать ли измерение после перезагрузки телефона.
+     *
+     * **По умолчанию выключено.** Приложение, которое само поднимает службу и
+     * включает Bluetooth-обмен после каждой перезагрузки, делает это без
+     * спроса и не в тот момент, когда человек об этом думает. Кому нужен
+     * непрерывный мониторинг — включает сам и знает, что включил.
+     */
+    val startOnBoot: Flow<Boolean> = dataStore.data.map { it[START_ON_BOOT] ?: false }
+
+    suspend fun setStartOnBoot(enabled: Boolean) {
+        dataStore.edit { it[START_ON_BOOT] = enabled }
+    }
+
     suspend fun setLastDeviceAddress(address: String) {
         dataStore.edit { it[LAST_DEVICE_ADDRESS] = address }
     }
@@ -450,6 +464,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         const val DEFAULT_CUSTOM_L1_MICRO_SV_H = 0.30f
         const val DEFAULT_CUSTOM_L2_MICRO_SV_H = 1.00f
         private val LAST_DEVICE_ADDRESS = stringPreferencesKey("last_device_address")
+        private val START_ON_BOOT = booleanPreferencesKey("start_on_boot")
         /** Pre-metadata reference (bare CPS); only ever removed now. */
         private val SEARCH_BACKGROUND_CPS = floatPreferencesKey("search_background_cps")
         private val SEARCH_BACKGROUND = stringPreferencesKey("search_background")

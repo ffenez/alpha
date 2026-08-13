@@ -266,6 +266,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                     CalibrationScreen(graph) { calibrationOpen = false }
                 } else {
                     DeviceSection(graph)
+                    BootSection(graph)
                     DeviceSignalsSection(graph)
                     SpectrumRateSection(graph)
                     SpectralRangesSection(graph)
@@ -1573,6 +1574,46 @@ private fun DeviceSignalsSection(graph: AppGraph) {
                 style = type.footnote,
                 color = colors.muted,
             )
+        }
+    }
+}
+
+/**
+ * Продолжать ли измерение после перезагрузки телефона.
+ *
+ * Живёт рядом с прибором, а не в «Уведомлениях»: решение о том, поднимать ли
+ * связь самому, относится к прибору. По умолчанию выключено — приложение не
+ * начинает обмен по Bluetooth без спроса.
+ */
+@Composable
+private fun BootSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val strings = LocalStrings.current
+    val type = LocalAppTypography.current
+    val scope = rememberCoroutineScope()
+    val enabled by graph.settings.startOnBoot.collectAsState(initial = false)
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle(strings.startOnBootTitle)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = strings.startOnBootNote,
+                    style = type.bodySmall,
+                    color = colors.ink2,
+                    modifier = Modifier.weight(1f),
+                )
+                Chip(
+                    text = if (enabled) strings.on else strings.off,
+                    color = if (enabled) colors.dataText else colors.ink2,
+                    selected = enabled,
+                    onClick = { scope.launch { graph.settings.setStartOnBoot(!enabled) } },
+                )
+            }
         }
     }
 }

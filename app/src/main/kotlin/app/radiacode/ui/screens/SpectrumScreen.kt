@@ -45,6 +45,7 @@ import app.radiacode.device.DeviceModel
 import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.EnergyWindow
 import app.radiacode.analysis.NuclideInfoLibrary
+import app.radiacode.analysis.DecayFamilies
 import app.radiacode.analysis.PeakDetection
 import app.radiacode.analysis.SpectrumDisplay
 import app.radiacode.analysis.SpectrumEdge
@@ -1491,6 +1492,22 @@ private fun SpectrumContent(
                         highlightedIsotope = isotope
                         infoIsotope = isotope
                     },
+                )
+            }
+            // Родство кандидатов: Pb-214 рядом с Bi-214 читается как две
+            // независимые находки, хотя это соседи по одному ряду и вместе они
+            // и встречаются. Строка появляется, только когда родня реально
+            // есть, и говорит РОВНО о родстве — ни родителя, ни активности.
+            for (family in DecayFamilies.of(peakVerdict.evidence.candidates)) {
+                val members = family.members.joinToString(", ")
+                Text(
+                    text = if (family.radonProgeny) {
+                        t.decayFamilyRadon(members)
+                    } else {
+                        t.decayFamilyChain(members, family.chain)
+                    },
+                    style = type.footnote,
+                    color = colors.muted,
                 )
             }
             // Чем считали пики — часть их прочтения, а не примечание к экрану.

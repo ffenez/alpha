@@ -32,6 +32,16 @@ package app.radiacode.ui.text
  */
 interface SpectrumStrings {
 
+    /**
+     * «Pb-214 и Bi-214 — дочерние продукты радона, один ряд распада».
+     *
+     * Утверждается только РОДСТВО, проверяемое по библиотеке линий: доли ряда
+     * зависят от равновесия и возраста материала, поэтому ни родителя, ни
+     * активности здесь назвать нельзя.
+     */
+    fun decayFamilyRadon(members: String): String
+    fun decayFamilyChain(members: String, chain: String): String
+
     // --- экран: график и его подписи ---
     val legendMinusBackground: String
     val noLinkLastSpectrum: String
@@ -303,6 +313,11 @@ interface SpectrumStrings {
 }
 
 object SpectrumRu : SpectrumStrings {
+
+    override fun decayFamilyRadon(members: String) =
+        "$members — дочерние продукты радона: один ряд распада, вместе они и встречаются"
+    override fun decayFamilyChain(members: String, chain: String) =
+        "$members — один ряд распада ($chain), вместе они и встречаются"
 
     override val legendMinusBackground = "−фон"
     override val noLinkLastSpectrum = "нет соединения — показан последний прочитанный спектр"
@@ -621,6 +636,11 @@ object SpectrumRu : SpectrumStrings {
 }
 
 object SpectrumEn : SpectrumStrings {
+
+    override fun decayFamilyRadon(members: String) =
+        "$members are radon daughters: one decay chain, and they occur together"
+    override fun decayFamilyChain(members: String, chain: String) =
+        "$members belong to one decay chain ($chain) and occur together"
 
     override val legendMinusBackground = "−background"
     override val noLinkLastSpectrum = "no link — showing the last spectrum that was read"
@@ -950,6 +970,7 @@ val SpectrumCatalogue = AreaCatalogue(ru = SpectrumRu, en = SpectrumEn)
  * забытая строка означала бы непроверенный текст.
  */
 fun SpectrumStrings.allTexts(): List<String> = listOf(
+    decayFamilyRadon("Pb-214, Bi-214"), decayFamilyChain("Pb-212, Tl-208", "Th-232"),
     rangesSettingsNote, boundsNeedSpectrum,
     spectrumLoading, importNotSaved,
     saveSnapshot, saveSnapshotNote, setAsBackground, setAsBackgroundNote,
