@@ -24,8 +24,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         HourSketchEntity::class,
         BaselineEpochEntity::class,
         ProfileFingerprintEntity::class,
+        SpectrogramSliceEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -41,6 +42,9 @@ abstract class AppDatabase : RoomDatabase() {
 
     /** Derived pre-aggregation of ADR 004 (minute scalars, hourly sketches). */
     abstract fun preAggregateDao(): PreAggregateDao
+
+    /** Постоянная история спектрограммы (ADR 007). */
+    abstract fun spectrogramDao(): SpectrogramDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -97,6 +101,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MigrationSql.FROM_10_TO_11.forEach(db::execSQL)
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "radiacode.db")
                 .addMigrations(
@@ -109,6 +119,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_7_8,
                     MIGRATION_8_9,
                     MIGRATION_9_10,
+                    MIGRATION_10_11,
                 )
                 .build()
     }

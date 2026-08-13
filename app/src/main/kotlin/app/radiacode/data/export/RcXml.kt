@@ -284,19 +284,51 @@ object RcXml {
         return null
     }
 
+    /**
+     * Разборщик XML, настроенный так, чтобы работать НА УСТРОЙСТВЕ.
+     *
+     * ## Полевой дефект, из-за которого падал любой импорт
+     *
+     * `factory.isXIncludeAware = false` роняло приложение на телефоне с
+     * `UnsupportedOperationException: This parser does not support
+     * specification "Unknown" version "0.0"`. Причина в том, что базовый класс
+     * JAXP `DocumentBuilderFactory` реализует `setXIncludeAware` броском
+     * исключения, а реализация Android этот метод НЕ переопределяет — в
+     * отличие от Xerces на настольной JVM, где он работает.
+     *
+     * Отсюда же главный урок: **JVM-тесты этот класс ошибок не ловят** — на
+     * настольной машине тот же файл разбирался идеально, и падало только на
+     * приборе. Поэтому каждая необязательная настройка разборщика вызывается
+     * ОТДЕЛЬНО и в `runCatching`: она укрепляет разбор, но не имеет права его
+     * ломать. Обязательным остаётся только то, без чего разбор неверен.
+     */
     private fun parseDocument(xml: String): Document {
         val factory = DocumentBuilderFactory.newInstance()
+        // Обязательное: формат без пространств имён, и мы читаем теги как есть.
         factory.isNamespaceAware = false
-        factory.isXIncludeAware = false
-        factory.isExpandEntityReferences = false
-        // No DTDs in this format; refusing them closes the XXE surface.
-        // Not every parser knows the feature — degrade silently if so.
+        // Дальше — упрочнение. Каждый вызов свой: одна неподдержанная
+        // настройка не должна утаскивать за собой остальные.
+        runCatching { factory.isExpandEntityReferences = false }
+        runCatching { factory.isXIncludeAware = false }
+        // DTD в этом формате нет; отказ от них закрывает поверхность XXE.
         runCatching {
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+        }
+        runCatching {
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
+        }
+        runCatching {
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
         }
         return try {
             factory.newDocumentBuilder()
                 .parse(ByteArrayInputStream(xml.toByteArray(Charsets.UTF_8)))
+        } catch (e: UnsupportedOperationException) {
+            // Ловится ПЕРВЫМ, иначе ветка мертва (UOE — это RuntimeException).
+            // Разборщик устройства может не поддержать что-то ещё: это наша
+            // среда, а не плохой файл, — и падать приложение всё равно не
+            // должно.
+            throw RcXmlException("разборщик XML этого устройства отказал: ${e.message}", e)
         } catch (e: Exception) {
             throw RcXmlException("файл не является корректным XML: ${e.message}", e)
         }

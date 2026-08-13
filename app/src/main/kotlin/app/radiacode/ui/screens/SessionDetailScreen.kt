@@ -1,6 +1,9 @@
 package app.radiacode.ui.screens
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +41,12 @@ import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.FlightDetect
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.TimeAxis
+import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
+import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.SessionRadonCatalogue
+import app.radiacode.ui.text.SessionRadonStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -71,9 +80,17 @@ fun SessionDetailScreen(
     sessionId: Long,
     onBack: () -> Unit,
     onOpenTrack: () -> Unit = {},
+    /**
+     * Открыть тот же период полноэкранным графиком (жесты, курсор, конверты,
+     * маркеры). Границы отдаются наружу, потому что диапазон — это и есть то,
+     * чем отличается исторический график от живого.
+     */
+    onOpenChart: (fromMillis: Long, toMillis: Long) -> Unit = { _, _ -> },
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = SessionRadonCatalogue.of(strings.language)
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
     var detail by remember { mutableStateOf<SessionDetail?>(null) }
@@ -92,90 +109,109 @@ fun SessionDetailScreen(
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← Назад", onClick = onBack)
+            AppButton(text = "← ${strings.back}", onClick = onBack)
             Spacer(Modifier.weight(1f))
-            Chip(text = "Сессия", color = colors.ink)
+            Chip(text = t.sessionTag, color = colors.ink)
         }
 
         val d = detail
         when {
             missing -> Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "сессия не найдена", style = type.bodySmall, color = colors.muted)
+                Text(text = t.sessionNotFound, style = type.bodySmall, color = colors.muted)
             }
             d == null -> Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "читаю сессию…", style = type.bodySmall, color = colors.muted)
+                Text(text = t.readingSession, style = type.bodySmall, color = colors.muted)
             }
             else -> {
-                SummaryCard(d.summary, unit, onOpenTrack)
-                ChartCard(d, unit)
+                SummaryCard(d.summary, unit, t, onOpenTrack)
+                ChartCard(
+                    detail = d,
+                    unit = unit,
+                    t = t,
+                    onOpenChart = {
+                        onOpenChart(d.summary.startedAt, d.summary.endedAt ?: d.toMillis)
+                    },
+                )
                 if (d.altitudeColumns != null) {
-                    FlightCard(d, unit)
+                    FlightCard(d, unit, t)
                 }
-                if (d.events.isNotEmpty()) EventsCard(d.events, unit)
+                if (d.events.isNotEmpty()) EventsCard(d.events, unit, t)
             }
         }
     }
 }
 
 @Composable
-private fun SummaryCard(summary: SessionSummary, unit: DoseUnitSetting, onOpenTrack: () -> Unit) {
+private fun SummaryCard(
+    summary: SessionSummary,
+    unit: DoseUnitSetting,
+    t: SessionRadonStrings,
+    onOpenTrack: () -> Unit,
+) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
     val now = System.currentTimeMillis()
     val durationSeconds = ((summary.endedAt ?: now) - summary.startedAt) / 1000L
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = summary.profileName ?: "Без профиля",
+                    text = summary.profileName ?: strings.noProfile,
                     style = type.title,
                     color = colors.ink,
                 )
                 Spacer(Modifier.weight(1f))
-                if (summary.endedAt == null) Chip(text = "идёт", color = colors.ok)
+                if (summary.endedAt == null) Chip(text = t.runningNow, color = colors.ok)
             }
             Text(
-                text = HistoryFormat.dayTime(summary.startedAt, now) +
-                    " · ${HistoryFormat.duration(durationSeconds)}",
+                text = HistoryFormat.dayTime(summary.startedAt, now, s = h) +
+                    " · ${HistoryFormat.duration(durationSeconds, s = h)}",
                 style = type.footnote,
                 color = colors.ink2,
             )
             AppDivider()
 
             val stats = summary.stats
-            if (stats.sampleCount == 0 || stats.avgDoseRate == null) {
+            val avgMicroSvH = stats.avgDoseRateMicroSvH
+            if (stats.sampleCount == 0 || avgMicroSvH == null) {
                 Text(
-                    text = "измерений в этой сессии не записано",
+                    text = strings.noSamplesInSession,
                     style = type.body,
                     color = colors.muted,
                 )
             } else {
-                DetailRow("измерений", HistoryFormat.count(stats.sampleCount))
+                DetailRow(t.samplesLabel, HistoryFormat.count(stats.sampleCount))
                 DetailRow(
-                    "мощность дозы",
-                    "ср ${DoseFormat.rate(stats.avgDoseRate, unit)} · " +
-                        "мин ${DoseFormat.rate(stats.minDoseRate ?: 0f, unit)} · " +
-                        "макс ${DoseFormat.rate(stats.maxDoseRate ?: 0f, unit)} " +
-                        DoseFormat.rateUnitLabel(unit),
+                    t.doseRateLabel,
+                    t.doseRateSummary(
+                        avg = DoseFormat.rate(avgMicroSvH, unit),
+                        min = DoseFormat.rate(stats.minDoseRateMicroSvH ?: 0f, unit),
+                        max = DoseFormat.rate(stats.maxDoseRateMicroSvH ?: 0f, unit),
+                        unit = DoseFormat.rateUnitLabel(unit, s = strings),
+                    ),
                 )
                 DetailRow(
-                    "скорость счёта",
-                    "ср ${(stats.avgCountRate ?: 0f).toInt()} · " +
-                        "макс ${(stats.maxCountRate ?: 0f).toInt()} с⁻¹",
+                    t.countRateLabel,
+                    t.countRateSummary(
+                        avg = "${(stats.avgCountRate ?: 0f).toInt()}",
+                        max = "${(stats.maxCountRate ?: 0f).toInt()}",
+                    ),
                 )
                 DetailRow(
-                    "доза за сессию · расчёт",
-                    DoseFormat.doseWithUnit(summary.doseMicroSv, unit),
+                    t.sessionDoseLabel,
+                    DoseFormat.doseWithUnit(summary.doseMicroSv, unit, s = strings),
                 )
             }
 
             if (summary.hasSpectrum || summary.hasTrack || summary.hasFlight) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    if (summary.hasSpectrum) Chip(text = "спектр")
+                    if (summary.hasSpectrum) Chip(text = strings.spectrum)
                     if (summary.hasTrack) {
-                        Chip(text = "трек · на карте", onClick = onOpenTrack)
+                        Chip(text = t.trackOnMap, onClick = onOpenTrack)
                     }
-                    if (summary.hasFlight) Chip(text = "полёт")
+                    if (summary.hasFlight) Chip(text = strings.flight)
                 }
             }
         }
@@ -194,41 +230,67 @@ private fun DetailRow(label: String, value: String, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun ChartCard(detail: SessionDetail, unit: DoseUnitSetting) {
+private fun ChartCard(
+    detail: SessionDetail,
+    unit: DoseUnitSetting,
+    t: SessionRadonStrings,
+    onOpenChart: () -> Unit,
+) {
+    val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Text(
-                text = "Мощность дозы · вся сессия".uppercase(),
-                style = type.labelSmall,
-                color = colors.ink2,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = t.chartTitle.uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                    modifier = Modifier.weight(1f),
+                )
+                // Явное действие рядом с картинкой: тап по самому графику
+                // делает то же, но по одной картинке это не видно.
+                if (detail.stats != null) {
+                    Chip(text = t.openFullChart, color = colors.dataText, onClick = onOpenChart)
+                }
+            }
             val stats = detail.stats
             if (stats == null) {
                 Text(
-                    text = "данных для графика нет",
+                    text = t.noChartData,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
             } else {
                 val yMax = ChartMapping.yMax(stats.max, null)
-                TrendChart(
-                    spec = TrendChartSpec(
-                        columns = detail.columns,
-                        yMax = yMax,
-                        yTicks = ChartMapping.yTicks(yMax).map { it to DoseFormat.rate(it, unit) },
-                        xLabels = TimeAxis.labels(detail.fromMillis, detail.toMillis),
-                        endpointLabel = detail.columns.lastOrNull { it != null }
-                            ?.let { DoseFormat.rate(it, unit) },
+                Box(
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onOpenChart,
                     ),
-                )
+                ) {
+                    TrendChart(
+                        spec = TrendChartSpec(
+                            columns = detail.columns,
+                            yMax = yMax,
+                            yTicks = ChartMapping.yTicks(yMax)
+                                .map { it to DoseFormat.rate(it, unit) },
+                            xLabels = TimeAxis.labels(detail.fromMillis, detail.toMillis),
+                            endpointLabel = detail.columns.lastOrNull { it != null }
+                                ?.let { DoseFormat.rate(it, unit) },
+                        ),
+                    )
+                }
                 StatGrid(
                     cells = listOf(
-                        StatCell(DoseFormat.rate(stats.min, unit), "мин"),
-                        StatCell(DoseFormat.rate(stats.median, unit), "медиана"),
-                        StatCell(DoseFormat.rate(stats.max, unit), "макс"),
-                        StatCell(DoseFormat.rate(stats.sigma, unit), "SD, ${DoseFormat.rateUnitLabel(unit)}"),
+                        StatCell(DoseFormat.rate(stats.min, unit), t.statMin),
+                        StatCell(DoseFormat.rate(stats.median, unit), t.statMedian),
+                        StatCell(DoseFormat.rate(stats.max, unit), t.statMax),
+                        StatCell(
+                            DoseFormat.rate(stats.sigma, unit),
+                            t.sdWithUnit(DoseFormat.rateUnitLabel(unit, s = strings)),
+                        ),
                         StatCell(HistoryFormat.count(detail.summary.stats.sampleCount), "n"),
                     ),
                 )
@@ -237,8 +299,15 @@ private fun ChartCard(detail: SessionDetail, unit: DoseUnitSetting) {
                 // запросом по средним корзин. Разные статистики нельзя молча
                 // называть одним словом — на всплеске они расходятся.
                 Text(
-                    text = "линия — среднее по интервалу (на полноэкранном графике — " +
-                        "медиана); пропуски не соединяются",
+                    text = t.chartLineNote,
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+                // Полный экран считает те же измерения ДРУГОЙ статистикой —
+                // человек, который его откроет, обязан узнать об этом здесь, а
+                // не удивляться расхождению в третьем знаке.
+                Text(
+                    text = t.fullChartNote,
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -253,7 +322,8 @@ private fun ChartCard(detail: SessionDetail, unit: DoseUnitSetting) {
  * честный множитель «на эшелоне фон ×N от наземной медианы этой же записи».
  */
 @Composable
-private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting) {
+private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting, t: SessionRadonStrings) {
+    val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val columns = detail.altitudeColumns ?: return
@@ -262,14 +332,14 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Text(
-                text = "Высота · та же ось времени".uppercase(),
+                text = t.altitudeTitle.uppercase(),
                 style = type.labelSmall,
                 color = colors.ink2,
             )
             val maxAltitude = columns.filterNotNull().maxOrNull()
             if (maxAltitude == null) {
                 Text(
-                    text = "высотных точек для графика нет",
+                    text = t.noAltitudePoints,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
@@ -289,8 +359,7 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting) {
                     height = 80.dp,
                 )
                 Text(
-                    text = "метры GPS-высоты · график дозы выше делит с этим ту же ось " +
-                        "времени — шкалы не совмещаются",
+                    text = t.altitudeNote,
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -300,25 +369,26 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting) {
                 val factor = flight.factor
                 when {
                     factor != null -> Text(
-                        text = "на эшелоне фон ×" + String.format(Locale.US, "%.1f", factor)
-                            .replace('.', ',') +
-                            " от вашего наземного медианного " +
-                            "(${DoseFormat.rate(flight.flightMedianMicroSvH ?: 0f, unit)} " +
-                            "против ${DoseFormat.rate(flight.groundMedianMicroSvH ?: 0f, unit)} " +
-                            DoseFormat.rateUnitLabel(unit) + ", медианы этой записи)",
+                        text = t.flightFactor(
+                            factor = String.format(Locale.US, "%.1f", factor)
+                                .replace('.', ','),
+                            flightMedian =
+                                DoseFormat.rate(flight.flightMedianMicroSvH ?: 0f, unit),
+                            groundMedian =
+                                DoseFormat.rate(flight.groundMedianMicroSvH ?: 0f, unit),
+                            unit = DoseFormat.rateUnitLabel(unit, s = strings),
+                        ),
                         style = type.bodySmall,
                         color = colors.ink2,
                     )
                     flight.flightMedianMicroSvH != null -> Text(
-                        text = "наземных точек с дозой в этой записи нет — " +
-                            "множитель к наземному фону не считается",
+                        text = t.noGroundPoints,
                         style = type.footnote,
                         color = colors.muted,
                     )
                 }
                 Text(
-                    text = "рост фона на эшелоне — ожидаемое космическое излучение, " +
-                        "не неисправность прибора",
+                    text = t.cosmicNote,
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -328,14 +398,19 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting) {
 }
 
 @Composable
-private fun EventsCard(events: List<EventEntity>, unit: DoseUnitSetting) {
+private fun EventsCard(
+    events: List<EventEntity>,
+    unit: DoseUnitSetting,
+    t: SessionRadonStrings,
+) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Text(
-                text = "События сессии".uppercase(),
+                text = t.eventsTitle.uppercase(),
                 style = type.labelSmall,
                 color = colors.ink2,
             )
@@ -345,11 +420,11 @@ private fun EventsCard(events: List<EventEntity>, unit: DoseUnitSetting) {
                 }
                 Text(
                     text = listOfNotNull(
-                        HistoryFormat.dayTime(event.timestamp, now),
+                        HistoryFormat.dayTime(event.timestamp, now, s = h),
                         if (event.source == EventEntity.SOURCE_DEVIATION) {
-                            "отклонение"
+                            t.deviationEvent
                         } else {
-                            "точка превышения"
+                            t.excursionEvent
                         },
                         dose,
                     ).joinToString(" · "),

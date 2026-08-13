@@ -1,5 +1,8 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
+
 import app.radiacode.analysis.quantiles.KllSketch
 import java.util.Arrays
 import kotlin.math.abs
@@ -132,11 +135,17 @@ data class WindowStats(
  * а накоплено 47 минут — и это сказано, а не спрятано пустым полем. Null,
  * когда окно покрыто целиком: писать «данных: 6 ч из 6 ч» незачем.
  */
-fun coverageWording(stats: WindowStats?, spanMillis: Long): String? {
+fun coverageWording(
+    stats: WindowStats?,
+    spanMillis: Long,
+    s: ChartAxisStrings = ChartAxisRu,
+): String? {
     if (stats == null) return null
     if (stats.coverage >= COVERAGE_FULL) return null
-    return "данных: ${durationWording(stats.coveredSeconds)} из " +
-        durationWording(spanMillis / 1000)
+    return s.coverage(
+        covered = durationWording(stats.coveredSeconds),
+        window = durationWording(spanMillis / 1000),
+    )
 }
 
 /**

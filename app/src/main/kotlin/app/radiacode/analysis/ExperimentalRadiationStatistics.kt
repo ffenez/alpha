@@ -18,7 +18,7 @@ package app.radiacode.analysis
  */
 @RequiresOptIn(
     level = RequiresOptIn.Level.ERROR,
-    message = "Candidate statistic: not validated on RC-110 recordings, must not " +
+    message = "Candidate statistic: not validated on real instrument recordings, must not " +
         "reach the user as a claim (graph spec §36).",
 )
 @Retention(AnnotationRetention.BINARY)

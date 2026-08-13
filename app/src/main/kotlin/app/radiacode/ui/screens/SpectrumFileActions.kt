@@ -16,6 +16,10 @@ import app.radiacode.protocol.Spectrum
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.logic.SpectrumFormat
+import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.SpectrumCatalogue
+import app.radiacode.ui.text.SpectrumRu
+import app.radiacode.ui.text.SpectrumStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -43,6 +47,7 @@ internal data class SpectrumFileNotice(
 internal fun SpectrumFileNoticeDialog(notice: SpectrumFileNotice, onDismiss: () -> Unit) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = SpectrumCatalogue.of(LocalStrings.current.language)
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
@@ -54,7 +59,7 @@ internal fun SpectrumFileNoticeDialog(notice: SpectrumFileNotice, onDismiss: () 
                 notice.lines.forEach { line ->
                     Text(text = line, style = type.body, color = colors.ink2)
                 }
-                AppButton(text = "Понятно", onClick = onDismiss)
+                AppButton(text = t.acknowledge, onClick = onDismiss)
             }
         }
     }
@@ -107,16 +112,15 @@ internal suspend fun importRcXmlFile(
     context: Context,
     uri: Uri,
     zone: ZoneId = ZoneId.systemDefault(),
+    s: SpectrumStrings = SpectrumRu,
 ): SpectrumFileNotice = withContext(Dispatchers.IO) {
     val text = try {
         context.contentResolver.openInputStream(uri)?.use { stream ->
             val bytes = stream.readBytes()
             if (bytes.size > MAX_IMPORT_BYTES) {
                 return@withContext SpectrumFileNotice(
-                    title = "Импорт не удался",
-                    lines = listOf(
-                        "Файл больше 20 МБ — это не похоже на спектр RadiaCode.",
-                    ),
+                    title = s.importFailed,
+                    lines = listOf(s.importTooLarge),
                     isError = true,
                 )
             }
@@ -126,9 +130,14 @@ internal suspend fun importRcXmlFile(
         null
     } catch (_: SecurityException) {
         null
+    } catch (_: Throwable) {
+        // Провайдер чужого приложения может бросить что угодно (включая
+        // IllegalStateException и OutOfMemoryError на подставном потоке);
+        // «не смог прочитать файл» — верный ответ на всё это, падение — нет.
+        null
     } ?: return@withContext SpectrumFileNotice(
-        title = "Импорт не удался",
-        lines = listOf("Файл не удалось прочитать — попробуйте выбрать его ещё раз."),
+        title = s.importFailed,
+        lines = listOf(s.importUnreadable),
         isError = true,
     )
 
@@ -136,52 +145,86 @@ internal suspend fun importRcXmlFile(
         RcXml.parse(text, zone)
     } catch (e: RcXmlException) {
         return@withContext SpectrumFileNotice(
-            title = "Импорт не удался",
+            title = s.importFailed,
             lines = listOf(
-                e.message ?: "файл не распознан",
-                "Выберите XML-файл спектра RadiaCode.",
+                e.message ?: s.importNotRecognised,
+                s.importChooseXml,
+            ),
+            isError = true,
+        )
+    } catch (e: Throwable) {
+        // Чужой файл — это ввод, а не код: он может нарушить любое допущение
+        // разбора, и падение приложения на чужом файле недопустимо. Класс и
+        // сообщение печатаются на экране НАМЕРЕННО: человеку их не понять, но
+        // именно их он присылает, когда импорт не удался, и по ним видно
+        // место без отладочного архива.
+        return@withContext SpectrumFileNotice(
+            title = s.importFailed,
+            lines = listOf(
+                s.importNotRecognised,
+                "${e::class.simpleName}: ${e.message.orEmpty()}".trim(),
             ),
             isError = true,
         )
     }
 
     val data = parsed.data
+    // Метка снимка уезжает в базу (`spectra.label`) и в файл экспорта: она НЕ
+    // переводится, иначе снимок, импортированный по-русски, после смены языка
+    // остался бы русским — половина перевода хуже честного «по разделам».
     val label = data.sampleName ?: data.spectrum.name ?: "Импортированный спектр"
     val main = data.spectrum
-    graph.measurementRepository.importSpectrum(
-        spectrum = Spectrum(
-            durationSeconds = main.measurementSeconds,
-            a0 = main.a0,
-            a1 = main.a1,
-            a2 = main.a2,
-            counts = main.counts,
-        ),
-        label = label,
-        timestamp = data.endMillis,
-    )
     val background = data.background
-    if (background != null) {
+    try {
         graph.measurementRepository.importSpectrum(
             spectrum = Spectrum(
-                durationSeconds = background.measurementSeconds,
-                a0 = background.a0,
-                a1 = background.a1,
-                a2 = background.a2,
-                counts = background.counts,
+                durationSeconds = main.measurementSeconds,
+                a0 = main.a0,
+                a1 = main.a1,
+                a2 = main.a2,
+                counts = main.counts,
             ),
-            label = "$label · фон",
+            label = label,
             timestamp = data.endMillis,
+        )
+        if (background != null) {
+            graph.measurementRepository.importSpectrum(
+                spectrum = Spectrum(
+                    durationSeconds = background.measurementSeconds,
+                    a0 = background.a0,
+                    a1 = background.a1,
+                    a2 = background.a2,
+                    counts = background.counts,
+                ),
+                // Тоже метка в базе — по той же причине без языка.
+                label = "$label · фон",
+                timestamp = data.endMillis,
+            )
+        }
+    } catch (e: Throwable) {
+        // Запись в журнал — последний шаг, и он тоже не имеет права ронять
+        // приложение: снимок не сохранён, об этом надо сказать, а не упасть.
+        return@withContext SpectrumFileNotice(
+            title = s.importFailed,
+            lines = listOf(
+                s.importNotSaved,
+                "${e::class.simpleName}: ${e.message.orEmpty()}".trim(),
+            ),
+            isError = true,
         )
     }
 
     val lines = mutableListOf(
-        "«$label» · ${main.counts.size} каналов · " +
-            "Δt ${SpectrumFormat.accumulationClock(main.measurementSeconds)}",
+        s.importedSummary(
+            label = label,
+            channels = s.channels(main.counts.size),
+            clock = SpectrumFormat.accumulationClock(main.measurementSeconds),
+        ),
     )
     if (background != null) {
-        lines += "Фоновый спектр из файла сохранён отдельной строкой."
+        lines += s.importedBackgroundRow
     }
     lines += parsed.warnings
-    lines += "Снимок появился в Истории — там же сравнение и экспорт."
-    SpectrumFileNotice(title = "Спектр импортирован", lines = lines)
+    lines += s.importedInHistory
+    SpectrumFileNotice(title = s.importedTitle, lines = lines)
 }

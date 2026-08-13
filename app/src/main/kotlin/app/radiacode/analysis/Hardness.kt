@@ -1,5 +1,7 @@
 package app.radiacode.analysis
 
+import app.radiacode.ui.text.MonitorRu
+import app.radiacode.ui.text.MonitorStrings
 import kotlin.math.sqrt
 
 /** Жёсткость одного окна: (мкрем/ч)/(имп/с) и её 1σ. */
@@ -120,20 +122,18 @@ object Hardness {
     const val MIN_COUNT_RATE = 0.5
 
     /** The sentence that travels with the number wherever it is shown. */
-    const val EXPLANATION =
-        "Жёсткость — дозовая величина на единицу скорости счёта, (мкрем/ч)/(имп/с). " +
-            "Она связана с тем, какие энергии преобладают в регистрируемом излучении, " +
-            "но это не средняя энергия фотона и не мера опасности."
+    fun explanation(s: MonitorStrings = MonitorRu): String = s.hardnessExplanation
 
     /**
-     * Вторая строка — зачем она нужна. Отдельно от [EXPLANATION], потому что
+     * Вторая строка — зачем она нужна. Отдельно от [explanation], потому что
      * первая говорит, что это, а эта — что с этим делать.
      */
-    const val PURPOSE =
-        "Она подавляет влияние общей интенсивности: если поле то же, а его стало " +
-            "больше, доза и счёт растут вместе, а отношение остаётся примерно " +
-            "прежним. Точного постоянства нет — мешают статистический шум, " +
-            "энергетическая характеристика детектора и погрешность оценки дозы."
+    fun purpose(s: MonitorStrings = MonitorRu): String = s.hardnessPurpose
+
+    /** Русские варианты по умолчанию — для вызовов без каталога языка. */
+    val EXPLANATION: String get() = explanation()
+    val PURPOSE: String get() = purpose()
+    val SIGMA_CAVEAT: String get() = sigmaCaveat()
 
     /**
      * Жёсткость of a window.
@@ -175,10 +175,7 @@ object Hardness {
      * погрешность: она посчитана **без ковариации** дозы и счёта, которая не
      * опубликована, поэтому это оценка, а не граница.
      */
-    const val SIGMA_CAVEAT =
-        "Погрешность посчитана по правилу частного. Доза и счёт формируются из " +
-            "одних и тех же событий, а ковариация их алгоритмов в приборе не " +
-            "опубликована — поэтому это оценка, а не гарантированная граница."
+    fun sigmaCaveat(s: MonitorStrings = MonitorRu): String = s.hardnessSigmaCaveat
 
     /** «0,52» — two decimals, the way the official app shows it. */
     fun format(value: Double): String =

@@ -89,6 +89,10 @@ import app.radiacode.ui.logic.heldWording
 import app.radiacode.ui.logic.learningWording
 import app.radiacode.ui.text.AppLanguage
 import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.CalibrationCatalogue
+import app.radiacode.ui.text.NotificationCatalogue
+import app.radiacode.ui.text.ReleaseCatalogue
+import app.radiacode.ui.text.RuStrings
 import app.radiacode.ui.text.Strings
 import app.radiacode.ui.theme.AppSkin
 import app.radiacode.ui.theme.Dimens
@@ -97,6 +101,7 @@ import app.radiacode.ui.theme.LocalAppTypography
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import app.radiacode.baseline.Admission
+import app.radiacode.data.export.CrashLog
 import app.radiacode.data.export.DebugBundle
 import app.radiacode.data.export.RcResultData
 import app.radiacode.data.export.RcSpectrum
@@ -104,6 +109,7 @@ import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.SpectrumExport
 import app.radiacode.data.export.DebugReport
 import app.radiacode.data.export.DebugSnapshot
+import app.radiacode.data.export.SpectrumTraffic
 import app.radiacode.device.DoseUnits
 import app.radiacode.ui.logic.MonitorStatus
 import app.radiacode.ui.logic.SearchFeedbackMode
@@ -180,6 +186,10 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
     var category by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
+    // Диагностика калибровки — экран внутри «Прибора». Своя «назад» у него
+    // есть (BackHandler композиции ниже), поэтому системный жест закрывает
+    // сначала её, а не весь раздел.
+    var calibrationOpen by rememberSaveable { mutableStateOf(false) }
 
     // Системная «назад» (в том числе жест от края) обязана значить ровно то же,
     // что кнопка на экране: один шаг вверх. Без этого свайп из открытого
@@ -240,18 +250,27 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
             SettingsCategory.PROFILES -> {
                 ProfilesSection(graph)
                 BaselineSection(graph)
+                RetentionSection(graph)
             }
             SettingsCategory.SOUND -> SoundSection(graph)
             SettingsCategory.VIEW -> {
                 LanguageSection(graph)
                 SkinSection(graph)
                 ThemeSection(graph)
+                ScaleSection(graph)
                 UnitsSection(graph)
                 InterfaceSection(graph)
             }
             SettingsCategory.DEVICE -> {
-                DeviceSection(graph)
-                DeviceSignalsSection(graph)
+                if (calibrationOpen) {
+                    CalibrationScreen(graph) { calibrationOpen = false }
+                } else {
+                    DeviceSection(graph)
+                    DeviceSignalsSection(graph)
+                    SpectrumRateSection(graph)
+                    SpectralRangesSection(graph)
+                    CalibrationEntry { calibrationOpen = true }
+                }
             }
             SettingsCategory.ABOUT -> {
                 LicensesSection()
@@ -259,6 +278,29 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
             }
         }
         }
+        }
+    }
+}
+
+/** Вход в диагностику калибровки по природному фону (Настройки → Прибор). */
+@Composable
+private fun CalibrationEntry(onClick: () -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val c = CalibrationCatalogue.of(LocalStrings.current.language)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = Dimens.touchTarget)
+                .clickable(onClick = onClick),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(text = c.entryTitle, style = type.label, color = colors.ink)
+                Text(text = c.entrySubtitle, style = type.footnote, color = colors.muted)
+            }
+            Text(text = "›", style = type.value, color = colors.ink2)
         }
     }
 }
@@ -309,7 +351,7 @@ private fun SoundSection(graph: AppGraph) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle(strings.searchFeedbackTitle)
             Segmented(
-                options = SearchFeedbackMode.entries.map { it.label },
+                options = SearchFeedbackMode.entries.map { it.title(strings) },
                 selectedIndex = SearchFeedbackMode.entries.indexOf(mode),
                 onSelect = { index ->
                     scope.launch {
@@ -479,6 +521,16 @@ private suspend fun buildDebugBundle(
     }
     entries += DebugBundle.Entry("report.txt", report)
 
+    // Журнал падений — то, ради чего архив чаще всего и присылают. Пустой
+    // журнал кладётся тоже: «падений не записано» это ответ, а отсутствие
+    // файла читалось бы как «забыли положить».
+    entries += DebugBundle.Entry(
+        name = CrashLog.FILE_NAME,
+        content = CrashLog.bundleText(
+            runCatching { graph.crashLogFile.readText() }.getOrDefault(""),
+        ),
+    )
+
     // Спектр в формате RC-XML, а не вклеенный в текст: так он остаётся файлом,
     // который открывается другими программами и сравнивается с эталонами.
     graph.spectrumHub.state.value.spectrum?.let { live ->
@@ -523,11 +575,25 @@ private suspend fun buildDebugBundle(
     }
 
     val stamp = FILE_STAMP.format(Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault()))
-    val manifest = DebugBundle.Entry(
-        name = "README.txt",
-        content = DebugBundle.manifest(entries, appVersionName(context) ?: "—", stamp),
+    // Описи README в архиве нет: имена файлов говорят сами за себя, а
+    // оговорка приватности стоит на экране, где архив создают, — читают её
+    // именно там.
+    return DebugBundle.zip(entries)
+}
+
+/**
+ * Цена частоты опроса спектра — ИЗМЕРЕННАЯ (ADR 007): счётчики службы, а не
+ * оценка по выбранной ступени. Служба не работает — «в час» не считается.
+ */
+private suspend fun spectrumTraffic(graph: AppGraph, nowMillis: Long): SpectrumTraffic {
+    val startedAt = graph.serviceStatus.serviceStartedAtMillis
+    return SpectrumTraffic(
+        policy = graph.settings.spectrumPollPolicy.first().id,
+        requests = graph.serviceStatus.spectrumRequests,
+        payloadBytes = graph.serviceStatus.spectrumPayloadBytes,
+        serviceUptimeMillis = if (startedAt > 0L) (nowMillis - startedAt).coerceAtLeast(0L) else 0L,
+        storedSlices = graph.spectrogramRepository.count(),
     )
-    return DebugBundle.zip(listOf(manifest) + entries)
 }
 
 private suspend fun buildDebugReport(
@@ -573,6 +639,10 @@ private suspend fun buildDebugReport(
         spectrumSeconds = spectrum?.durationSeconds,
         seqGapTotal = graph.serviceStatus.seqGapTotal,
         reconnectCount = graph.serviceStatus.reconnectCount,
+        chartsRefreshedAgoSeconds = graph.serviceStatus.chartsRefreshedAtMillis
+            ?.let { (now - it) / 1000L },
+        chartsRefreshCount = graph.serviceStatus.chartsRefreshCount,
+        clockCorrectionMillis = graph.serviceStatus.deviceClockCorrectionMillis,
         serviceRunning = graph.serviceStatus.serviceRunning.value,
         connection = when (connection) {
             is ConnectionState.Connected -> "подключён"
@@ -621,6 +691,7 @@ private suspend fun buildDebugReport(
         fingerprintWording = fingerprint
             ?.let { "создан ${REPORT_STAMP.format(Instant.ofEpochMilli(it.createdAt).atZone(ZoneId.systemDefault()))}" }
             ?: "не создан",
+        spectrumTraffic = spectrumTraffic(graph, now),
     )
     return DebugReport.build(snapshot) { millis ->
         REPORT_STAMP.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
@@ -690,7 +761,7 @@ private fun SkinSection(graph: AppGraph) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle(strings.skinTitle)
             Segmented(
-                options = AppSkin.entries.map { it.title },
+                options = AppSkin.entries.map { it.title(strings) },
                 selectedIndex = AppSkin.entries.indexOf(current),
                 onSelect = { index ->
                     scope.launch { graph.settings.setSkin(AppSkin.entries[index]) }
@@ -718,7 +789,7 @@ private fun ThemeSection(graph: AppGraph) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle(strings.themeTitle)
             Segmented(
-                options = ThemeSetting.entries.map { it.label },
+                options = ThemeSetting.entries.map { it.title(strings) },
                 selectedIndex = ThemeSetting.entries.indexOf(theme),
                 onSelect = { index ->
                     scope.launch { graph.settings.setThemeSetting(ThemeSetting.entries[index]) }
@@ -769,7 +840,7 @@ private fun AlarmsSection(graph: AppGraph) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle("Тревоги")
+            SectionTitle(strings.settingsAlarms)
             Text(
                 text = strings.alarmsIntro,
                 style = type.bodySmall,
@@ -810,6 +881,7 @@ private fun AlarmsSection(graph: AppGraph) {
                 description = presetDescription(
                     alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f),
                     unit,
+                    strings,
                 ),
                 onSelect = {
                     scope.launch { graph.settings.setAlarmSensitivity(AlarmSensitivity.NORMAL) }
@@ -821,6 +893,7 @@ private fun AlarmsSection(graph: AppGraph) {
                 description = presetDescription(
                     alarmThresholds(AlarmSensitivity.HIGH, 0f, 0f),
                     unit,
+                    strings,
                 ),
                 onSelect = {
                     scope.launch { graph.settings.setAlarmSensitivity(AlarmSensitivity.HIGH) }
@@ -865,7 +938,12 @@ private fun AlarmSoundRow() {
                 indication = null,
                 onClick = {
                     // The link needs the channel even if the service never ran.
-                    Notifications.ensureChannels(context)
+                    // Имя канала при этом пишется на языке интерфейса — иначе
+                    // человек попадает в системные настройки к чужому слову.
+                    Notifications.ensureChannels(
+                        context,
+                        NotificationCatalogue.of(strings.language),
+                    )
                     runCatching {
                         context.startActivity(
                             Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
@@ -922,10 +1000,15 @@ private fun SensitivityOption(
     }
 }
 
-private fun presetDescription(thresholds: AlarmThresholds, unit: DoseUnitSetting): String =
-    "от ${DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit)} или " +
-        "${formatFactor(thresholds.relativeFactor)}× к P90 профиля, " +
-        heldWording(thresholds.persistenceSeconds.toLong())
+private fun presetDescription(
+    thresholds: AlarmThresholds,
+    unit: DoseUnitSetting,
+    strings: Strings = RuStrings,
+): String = strings.alarmPreset(
+    level = DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit, s = strings),
+    factor = formatFactor(thresholds.relativeFactor),
+    held = heldWording(thresholds.persistenceSeconds.toLong(), strings),
+)
 
 private fun formatFactor(factor: Float): String =
     if (factor == factor.toInt().toFloat()) "${factor.toInt()}" else "$factor"
@@ -952,8 +1035,8 @@ private fun CustomLevels(
     var error by remember { mutableStateOf<String?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-        LevelField(strings.level1WithUnit(DoseFormat.rateUnitLabel(unit)), l1Text) { l1Text = it }
-        LevelField(strings.level2WithUnit(DoseFormat.rateUnitLabel(unit)), l2Text) { l2Text = it }
+        LevelField(strings.level1WithUnit(DoseFormat.rateUnitLabel(unit, s = strings)), l1Text) { l1Text = it }
+        LevelField(strings.level2WithUnit(DoseFormat.rateUnitLabel(unit, s = strings)), l2Text) { l2Text = it }
         error?.let { Text(text = it, style = type.bodySmall, color = colors.warn) }
         AppButton(
             text = strings.saveLevels,
@@ -1105,7 +1188,11 @@ private fun ProfilesSection(graph: AppGraph) {
     }
 }
 
-private fun baselineSummary(state: BaselineState?, unit: DoseUnitSetting): String = when (state) {
+private fun baselineSummary(
+    state: BaselineState?,
+    unit: DoseUnitSetting,
+    strings: Strings = RuStrings,
+): String = when (state) {
     null -> "…"
     is BaselineState.Learning -> learningWording(state)
     is BaselineState.Active ->
@@ -1113,16 +1200,22 @@ private fun baselineSummary(state: BaselineState?, unit: DoseUnitSetting): Strin
             state.baseline.doseLowMicroSvH,
             state.baseline.doseHighMicroSvH,
             unit,
-        ) + " ${DoseFormat.rateUnitLabel(unit)} · " + baselineCollectedWording(state.baseline)
+        ) + " ${DoseFormat.rateUnitLabel(unit, s = strings)} · " + baselineCollectedWording(state.baseline)
 }
 
 /** Extended per-profile statistics (spec §4.1) shown inside the expanded row. */
-private fun baselineStatsLine(state: BaselineState?, unit: DoseUnitSetting): String? {
+private fun baselineStatsLine(
+    state: BaselineState?,
+    unit: DoseUnitSetting,
+    s: Strings = RuStrings,
+): String? {
     val baseline = (state as? BaselineState.Active)?.baseline ?: return null
-    return "медиана ${DoseFormat.rate(baseline.doseMedianMicroSvH, unit)} · " +
-        "P25–P75 ${DoseFormat.range(baseline.doseP25MicroSvH, baseline.doseP75MicroSvH, unit)} · " +
-        "MAD ${DoseFormat.rate(baseline.doseMadMicroSvH, unit)} · " +
-        "n ${baseline.bucketCount} корзин"
+    return s.baselineStats(
+        median = DoseFormat.rate(baseline.doseMedianMicroSvH, unit),
+        iqr = DoseFormat.range(baseline.doseP25MicroSvH, baseline.doseP75MicroSvH, unit),
+        mad = DoseFormat.rate(baseline.doseMadMicroSvH, unit),
+        buckets = baseline.bucketCount,
+    )
 }
 
 @Composable
@@ -1196,7 +1289,7 @@ private fun ProfileSettingsRow(
 
         if (!expanded) return@Column
 
-        baselineStatsLine(baselineState, unit)?.let {
+        baselineStatsLine(baselineState, unit, strings)?.let {
             Text(text = it, style = type.footnote, color = colors.muted)
         }
 
@@ -1418,7 +1511,7 @@ private fun BaselineSection(graph: AppGraph) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 ContextConfig.ALLOWED_GRACE_MILLIS.forEach { millis ->
                     Chip(
-                        text = "${millis / 60_000} мин",
+                        text = strings.minutes(millis / 60_000),
                         color = if (millis == grace) colors.dataText else colors.ink2,
                         onClick = { scope.launch { graph.settings.setContextGraceMillis(millis) } },
                     )
@@ -1472,10 +1565,9 @@ private fun DeviceSignalsSection(graph: AppGraph) {
             )
             Text(
                 text = if (connected) {
-                    "Приложение умеет включить и выключить их, но не умеет спросить прибор, " +
-                        "что в нём стоит сейчас: до первой команды состояние неизвестно."
+                    strings.deviceSignalsUnknownNote
                 } else {
-                    "Прибор не подключён — команду отправить некуда."
+                    strings.deviceSignalsOfflineNote
                 },
                 style = type.footnote,
                 color = colors.muted,
@@ -1957,14 +2049,14 @@ private fun VersionRow(expanded: Boolean, onToggle: () -> Unit) {
     }
 }
 
-/** Последние [ReleaseNotes.SHOWN] обновлений — по датам, не по номерам версий. */
+/** Последние [ReleaseNotes.SHOWN] обновлений — на языке интерфейса. */
 @Composable
 private fun ReleaseNotesList() {
     val colors = LocalAppColors.current
-    val strings = LocalStrings.current
     val type = LocalAppTypography.current
+    val notes = ReleaseCatalogue.of(LocalStrings.current.language)
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-        for (note in ReleaseNotes.shown) {
+        for (note in ReleaseNotes.shownIn(notes)) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     Text(text = note.version, style = type.axis, color = colors.ink2)

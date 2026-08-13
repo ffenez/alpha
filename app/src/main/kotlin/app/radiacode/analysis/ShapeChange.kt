@@ -1,5 +1,7 @@
 package app.radiacode.analysis
 
+import app.radiacode.ui.text.SpectrumRu
+import app.radiacode.ui.text.SpectrumStrings
 import kotlin.math.roundToInt
 
 /** What a shape comparison is allowed to conclude. */
@@ -181,13 +183,17 @@ object ShapeChange {
     }
 
     /** «форма спектра: z = 4,1 по 18 корзинам» — the research one-liner. */
-    fun detail(comparison: ShapeComparison): String = when (comparison.verdict) {
-        ShapeVerdict.NOT_ENOUGH_DATA ->
-            "спектральных данных пока мало: " +
-                "${comparison.referenceCounts.roundToInt()} и " +
-                "${comparison.excursionCounts.roundToInt()} импульсов"
-        else ->
-            "χ² по ${comparison.bins} корзинам, z = " +
-                "${(comparison.z * 10).roundToInt() / 10.0}".replace('.', ',')
+    fun detail(
+        comparison: ShapeComparison,
+        s: SpectrumStrings = SpectrumRu,
+    ): String = when (comparison.verdict) {
+        ShapeVerdict.NOT_ENOUGH_DATA -> s.shapeNotEnoughData(
+            comparison.referenceCounts.roundToInt().toString(),
+            comparison.excursionCounts.roundToInt().toString(),
+        )
+        else -> s.shapeChiSquare(
+            comparison.bins,
+            "${(comparison.z * 10).roundToInt() / 10.0}".replace('.', ','),
+        )
     }
 }

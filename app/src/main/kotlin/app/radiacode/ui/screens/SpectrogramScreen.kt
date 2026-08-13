@@ -4,11 +4,13 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -22,15 +24,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import kotlinx.coroutines.launch
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
 import app.radiacode.analysis.Spectrogram
 import app.radiacode.analysis.SpectrogramColumn
@@ -50,6 +50,10 @@ import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.SpectrumFormat
 import app.radiacode.ui.logic.TimeAxis
 import app.radiacode.ui.logic.Uncertainty
+import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.SpectrogramCatalogue
+import app.radiacode.ui.text.SpectrogramRu
+import app.radiacode.ui.text.SpectrogramStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -67,26 +71,23 @@ private const val MAX_COLUMNS = 240
  */
 private const val MIN_WINDOW_MILLIS = 5L * 60_000L
 
-/** Окна картинки: то же управление, что у графика дозы, только короче. */
-private val WINDOWS: List<Pair<String, Long>> = listOf(
-    "1м" to 60_000L,
-    "5м" to 5L * 60_000L,
-    "15м" to 15L * 60_000L,
-    "1ч" to 3_600_000L,
-    "2ч" to 2L * 3_600_000L,
+/**
+ * Окна картинки: то же управление, что у графика дозы, только короче. Подпись
+ * ступени собирается каталогом по числу и единице — «15м» и «15m» отличаются
+ * только буквой, и держать их в двух списках значило бы разъезжание длин.
+ */
+private data class Window(val amount: Int, val hours: Boolean, val millis: Long)
+
+private val WINDOWS: List<Window> = listOf(
+    Window(1, hours = false, millis = 60_000L),
+    Window(5, hours = false, millis = 5L * 60_000L),
+    Window(15, hours = false, millis = 15L * 60_000L),
+    Window(1, hours = true, millis = 3_600_000L),
+    Window(2, hours = true, millis = 2L * 3_600_000L),
 )
 
-/**
- * Честный ответ на «почему в фоне почти ничего»: спектр в фоне опрашивается
- * раз в 10 минут — тем же опросом, который кормит радоновый индикатор. Чаще
- * нельзя дёшево: запрос спектра идёт по тому же однозапросному каналу, что и
- * секундные показания, и его учащение отнимает пропускную способность у самих
- * измерений. Частая запись включается, когда экран открыт.
- */
-private const val BACKGROUND_NOTE =
-    "В фоне спектр опрашивается раз в 10 минут — этим же опросом живёт радоновый " +
-        "индикатор. Пока открыт экран Спектра или Спектрограммы, запись идёт раз в 5 с. " +
-        "История спектрограммы хранится только в памяти приложения."
+private fun Window.label(t: SpectrogramStrings): String =
+    if (hours) t.windowHours(amount) else t.windowMinutes(amount)
 
 private val HH_MM_SS = DateTimeFormatter.ofPattern("HH:mm:ss")
 
@@ -102,6 +103,8 @@ private val HH_MM_SS = DateTimeFormatter.ofPattern("HH:mm:ss")
 fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = SpectrogramCatalogue.of(strings.language)
     val hub = graph.spectrumHub
 
     BackHandler { onBack() }
@@ -117,6 +120,14 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
     val liveSlices by graph.spectrogramStore.slices.collectAsState()
+    // История переживает процесс: если служба ещё не поднимала окно из базы
+    // (приложение открыли без запущенного измерения), это делает экран. Вызов
+    // идемпотентен — при непустом кольце он ничего не трогает.
+    var storedSlices by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(Unit) {
+        graph.spectrogramStore.restore(System.currentTimeMillis())
+        storedSlices = graph.spectrogramRepository.count()
+    }
     var paused by rememberSaveable { mutableStateOf(false) }
     // While paused the displayed history freezes; recording continues.
     var frozen by remember { mutableStateOf<List<SpectrogramSlice>?>(null) }
@@ -124,9 +135,6 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
-    // Экран существует ради одной картинки — она и должна занимать его.
-    val chartHeight = (LocalConfiguration.current.screenHeightDp * 0.5f).dp
-        .coerceIn(260.dp, 520.dp)
 
     // Режим «форма» — нормировка внутри колонки. По умолчанию выключен: он
     // показывает состав, но уравнивает слабый спектр с сильным.
@@ -148,7 +156,7 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     var windowChoice by rememberSaveable { mutableStateOf<Long?>(null) }
     val autoWindow = if (dataFromMillis != null && toMillis != null) {
         val span = (toMillis - dataFromMillis).coerceAtLeast(MIN_WINDOW_MILLIS)
-        WINDOWS.firstOrNull { it.second >= span }?.second ?: WINDOWS.last().second
+        WINDOWS.firstOrNull { it.millis >= span }?.millis ?: WINDOWS.last().millis
     } else {
         MIN_WINDOW_MILLIS
     }
@@ -185,65 +193,59 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     LaunchedEffect(windowMillis) { selectedIndex = null }
     val selected = selectedIndex?.let { columnsData.getOrNull(it) }
 
+    // Экран существует ради одной картинки, поэтому он НЕ прокручивается:
+    // высоту забирает поле, а всё остальное — тонкие полосы над и под ним.
+    // Прокрутка возвращала бы картинке фиксированную высоту и оставляла под
+    // ней пустое место.
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(Dimens.space3),
-        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+        verticalArrangement = Arrangement.spacedBy(Dimens.space2),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← Назад", onClick = onBack)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+        ) {
+            AppButton(text = "← ${strings.back}", onClick = onBack)
             Spacer(Modifier.weight(1f))
-            Chip(text = "Спектрограмма", color = colors.ink)
+            // Состояние связи — чип, а не строка под картинкой: это статус
+            // экрана, и он не должен отнимать высоту у поля.
+            if (!connected && slices.isNotEmpty()) {
+                Chip(text = t.offlineTag, color = colors.ink2)
+            }
             Chip(text = "i", color = colors.ink2, onClick = { infoOpen = true })
         }
 
-        if (paused) {
-            Text(
-                text = "показ остановлен · запись продолжается",
-                style = type.footnote,
-                color = colors.ink2,
-            )
-        }
-
         when {
+            // Пустые состояния — одна строка о том, что происходит сейчас.
+            // Как устроена запись и где выбирается её частота, рассказывает
+            // «i»: объяснение не становится содержимым экрана.
             slices.isEmpty() && !connected -> Card(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(
-                        text = "нет соединения с прибором",
-                        style = type.bodySmall,
-                        color = colors.ink2,
-                    )
-                    Text(
-                        text = BACKGROUND_NOTE,
-                        style = type.bodySmall,
-                        color = colors.muted,
-                    )
-                }
+                Text(text = t.noLink, style = type.bodySmall, color = colors.ink2)
             }
             slices.isEmpty() -> Card(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(
-                        text = "накапливаем первые интервалы… столбцы появятся через ~10 с",
-                        style = type.bodySmall,
-                        color = colors.muted,
-                    )
-                    Text(text = BACKGROUND_NOTE, style = type.footnote, color = colors.muted)
-                }
+                Text(text = t.warmingUp, style = type.bodySmall, color = colors.muted)
             }
             else -> {
-                Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
-                    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentPadding = Dimens.space2,
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+                    ) {
                         // Управление живёт над самой картинкой: окно времени и
                         // пауза — это про неё, а не про экран.
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
                         ) {
-                            for ((label, span) in WINDOWS) {
+                            for (window in WINDOWS) {
+                                val span = window.millis
                                 Chip(
-                                    text = label,
+                                    text = window.label(t),
                                     color = if (span == windowMillis) {
                                         colors.dataText
                                     } else {
@@ -254,8 +256,11 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                                 )
                             }
                             Spacer(Modifier.weight(1f))
+                            // Пауза называет себя сама: на паузе чип подписан
+                            // словом, потому что «показ остановлен, а запись
+                            // идёт» — факт, который нельзя оставить значку.
                             Chip(
-                                text = if (paused) "▶" else "Ⅱ",
+                                text = if (paused) "▶ ${t.pausedTag}" else "Ⅱ",
                                 color = if (paused) colors.dataText else colors.ink2,
                                 selected = paused,
                                 onClick = {
@@ -265,30 +270,40 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                                 },
                             )
                         }
-                        WaterfallChart(
-                            spec = WaterfallSpec(
-                                columns = columnsData,
-                                scaleTop = scaleTop,
-                                shapeMode = shapeMode,
-                                bandGroups = bandGroups,
-                                selectedIndex = selectedIndex,
-                                timeLabels = TimeAxis.labels(
-                                    fromMillis ?: 0L,
-                                    toMillis ?: 0L,
+                        // Поле забирает всю высоту, которая осталась от полос
+                        // управления: точную величину знает только раскладка,
+                        // поэтому она измеряется, а не назначается долей экрана.
+                        BoxWithConstraints(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                        ) {
+                            WaterfallChart(
+                                spec = WaterfallSpec(
+                                    columns = columnsData,
+                                    scaleTop = scaleTop,
+                                    shapeMode = shapeMode,
+                                    bandGroups = bandGroups,
+                                    selectedIndex = selectedIndex,
+                                    timeLabels = TimeAxis.labels(
+                                        fromMillis ?: 0L,
+                                        toMillis ?: 0L,
+                                    ),
+                                    stripValues = columnsData.map { it?.doseMicroSvH },
+                                    stripLabel = t.doseStripLabel(
+                                        DoseFormat.rateUnitLabel(unit, s = strings),
+                                    ),
+                                    energyUnit = t.energyUnit,
                                 ),
-                                stripValues = columnsData.map { it?.doseMicroSvH },
-                                stripLabel = "мощность дозы, ${DoseFormat.rateUnitLabel(unit)}",
-                            ),
-                            height = chartHeight,
-                            onTapColumn = { index ->
-                                selectedIndex = if (selectedIndex == index) null else index
-                            },
-                        )
+                                height = maxHeight,
+                                onTapColumn = { index ->
+                                    selectedIndex = if (selectedIndex == index) null else index
+                                },
+                            )
+                        }
                         // Режим — это РЕЖИМ, а не действие: два физически
                         // разных вопроса к одним данным, «сколько» и «какого
                         // состава».
                         Segmented(
-                            options = listOf("Интенсивность", "Форма"),
+                            options = listOf(t.modeIntensity, t.modeShape),
                             selectedIndex = if (shapeMode) 1 else 0,
                             onSelect = { shapeMode = it == 1 },
                             modifier = Modifier.fillMaxWidth(),
@@ -296,55 +311,71 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                         // Шкала количественная: подписанные концы — это и есть
                         // объяснение цвета, отдельная фраза под ней была бы
                         // третьим повторением одного и того же.
-                        LegendRamp(shapeMode, scaleTop)
+                        LegendRamp(shapeMode, scaleTop, t)
                     }
                 }
 
-                SelectedMomentCard(selected, unit)
-
-                if (infoOpen) {
-                    InfoCard(
-                        slices = slices,
-                        stepSeconds = stepSeconds,
-                        bandGroups = bandGroups,
-                        fromMillis = fromMillis,
-                        toMillis = toMillis,
-                        onClose = { infoOpen = false },
-                    )
-                }
-                if (!connected) {
-                    Text(
-                        text = "нет соединения — показана записанная история",
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
+                SelectedMomentCard(selected, unit, t)
             }
         }
+
+        // Частота записи живёт в Настройках → Прибор: это параметр опроса
+        // прибора, а не способ смотреть картинку, и на экране он занимал место
+        // постоянно ради выбора, который делают один раз.
+    }
+
+    // Справка лежит ПОВЕРХ экрана и доступна в любом состоянии: диалог не
+    // двигает картинку, а объяснения на самом экране больше не живут.
+    if (infoOpen) {
+        InfoDialog(
+            slices = slices,
+            stepSeconds = stepSeconds,
+            bandGroups = bandGroups,
+            fromMillis = fromMillis,
+            toMillis = toMillis,
+            storedSlices = storedSlices,
+            connected = connected,
+            paused = paused,
+            onClose = { infoOpen = false },
+            t = t,
+        )
     }
 }
+
+
 
 /**
  * Почему шаг именно такой — одной фразой и с числом, на котором он стоит.
  * Иначе укрупнение колонок выглядит как потеря разрешения без причины.
  */
-private fun stepReason(slices: List<SpectrogramSlice>, stepSeconds: Long): String {
+private fun stepReason(
+    slices: List<SpectrogramSlice>,
+    stepSeconds: Long,
+    s: SpectrogramStrings = SpectrogramRu,
+): String {
     val seconds = slices.sumOf { it.intervalSeconds }
     val counts = slices.sumOf { it.totalCounts.toDouble() }
-    if (seconds <= 0L || counts <= 0.0) return "накапливаем статистику"
+    if (seconds <= 0L || counts <= 0.0) return s.stepCollecting
     val perBand = counts / seconds * stepSeconds / Spectrogram.BAND_COUNT
     val atPoll = counts / seconds * Spectrogram.DISPLAY_STEPS_SECONDS.first() /
         Spectrogram.BAND_COUNT
     return if (stepSeconds <= Spectrogram.DISPLAY_STEPS_SECONDS.first()) {
-        "≈${Uncertainty.num1(perBand.toFloat())} имп на полосу в колонке"
+        s.stepPerBand(Uncertainty.num1(perBand.toFloat()))
     } else {
-        "≈${Uncertainty.num1(perBand.toFloat())} имп на полосу вместо " +
-            "${Uncertainty.num1(atPoll.toFloat())} при шаге опроса"
+        s.stepPerBandInstead(
+            Uncertainty.num1(perBand.toFloat()),
+            Uncertainty.num1(atPoll.toFloat()),
+        )
     }
 }
 
 @Composable
-private fun SelectedMomentCard(selected: SpectrogramColumn?, unit: DoseUnitSetting) {
+private fun SelectedMomentCard(
+    selected: SpectrogramColumn?,
+    unit: DoseUnitSetting,
+    t: SpectrogramStrings,
+) {
+    val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     // Курсора нет — карточки нет: пустая карточка с инструкцией занимала место
@@ -360,17 +391,17 @@ private fun SelectedMomentCard(selected: SpectrogramColumn?, unit: DoseUnitSetti
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = "измерено ${selected.seconds} с",
+                    text = t.measuredSeconds(selected.seconds),
                     style = type.footnote,
                     color = colors.ink2,
                 )
             }
             Text(
                 text = listOfNotNull(
-                    selected.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit) },
-                    selected.cps?.let { "${Uncertainty.num1(it)} с⁻¹" },
-                    "${selected.totalCounts.toInt()} имп в колонке",
-                    selected.meanEnergyKeV?.let { "ср. энергия ${it.toInt()} кэВ" },
+                    selected.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit, s = strings) },
+                    selected.cps?.let { t.countsPerSecond(Uncertainty.num1(it)) },
+                    t.countsInColumn(selected.totalCounts.toInt()),
+                    selected.meanEnergyKeV?.let { t.meanEnergy(it.toInt()) },
                 ).joinToString(" · "),
                 style = type.valueSmall,
                 color = colors.ink2,
@@ -382,15 +413,25 @@ private fun SelectedMomentCard(selected: SpectrogramColumn?, unit: DoseUnitSetti
 /**
  * «Как это устроено» — под кнопкой «i», а не полосой мелкого текста под
  * картинкой: параметры агрегации нужны один раз, а высоту отнимали всегда.
+ *
+ * Диалог, а не карточка в потоке: картинка занимает весь экран, и объяснение
+ * не имеет права её двигать.
  */
 @Composable
-private fun InfoCard(
+private fun InfoDialog(
     slices: List<SpectrogramSlice>,
     stepSeconds: Long,
     bandGroups: List<IntRange>,
     fromMillis: Long?,
     toMillis: Long?,
+    /** Строк в базе; null — ещё не посчитано. */
+    storedSlices: Int?,
+    /** Связь с прибором: без неё видна записанная история, и это надо сказать. */
+    connected: Boolean,
+    /** Показ остановлен — но запись при этом продолжается. */
+    paused: Boolean,
     onClose: () -> Unit,
+    t: SpectrogramStrings,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -401,81 +442,92 @@ private fun InfoCard(
     } else {
         Spectrogram.BAND_COUNT / bandGroups.size
     }
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+    Dialog(onDismissRequest = onClose) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .heightIn(max = 480.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Как построена картинка".uppercase(),
+                    text = t.infoTitle.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
                 Spacer(Modifier.weight(1f))
                 Chip(text = "✕", color = colors.ink2, onClick = onClose)
             }
+            if (!connected) {
+                Text(text = t.offlineHistory, style = type.bodySmall, color = colors.ink2)
+            }
+            if (paused) {
+                Text(text = t.paused, style = type.bodySmall, color = colors.ink2)
+            }
             StatGrid(
-                cells = listOf(
-                    StatCell("${slices.size}", "интервалов"),
-                    StatCell(SpectrumFormat.accumulationClock(measuredSeconds), "записи"),
-                    StatCell("$stepSeconds с", "шаг колонки"),
-                    StatCell("${bandGroups.size}", "полос"),
+                cells = listOfNotNull(
+                    StatCell("${slices.size}", t.statIntervals),
+                    // Строки в базе — видимое доказательство, что история не
+                    // исчезает вместе с процессом.
+                    storedSlices?.let { StatCell("$it", t.statStored) },
+                    StatCell(SpectrumFormat.accumulationClock(measuredSeconds), t.statRecorded),
+                    StatCell(t.secondsValue(stepSeconds), t.statColumnStep),
+                    StatCell("${bandGroups.size}", t.statBands),
                 ),
             )
             if (windowSeconds > 0 && measuredSeconds < windowSeconds * 95 / 100) {
                 Text(
-                    text = "записи ${SpectrumFormat.accumulationClock(measuredSeconds)} из " +
-                        "${SpectrumFormat.accumulationClock(windowSeconds)} окна — остальное " +
-                        "время прибор не писал, такие колонки пустые",
+                    text = t.coverageNote(
+                        SpectrumFormat.accumulationClock(measuredSeconds),
+                        SpectrumFormat.accumulationClock(windowSeconds),
+                    ),
                     style = type.footnote,
                     color = colors.muted,
                 )
             }
             Text(
-                text = "Шаг колонки подобран по статистике: " + stepReason(slices, stepSeconds) +
-                    ". Прибор опрашивается раз в 5 с, колонка складывает несколько опросов — " +
-                    "импульсы суммируются, ничего не додумывается.",
+                text = t.stepNote(stepReason(slices, stepSeconds, t)),
                 style = type.footnote,
                 color = colors.muted,
             )
             if (bandsPerGroup > 1) {
                 Text(
-                    text = "Энергетические полосы объединены по $bandsPerGroup: при " +
-                        "${Spectrogram.BAND_COUNT} полосах на них приходилось меньше " +
-                        "${Spectrogram.MIN_BAND_COUNTS.toInt()} импульсов, и случайные " +
-                        "светлые строчки читались бы как спектральные линии. Исходные " +
-                        "каналы не меняются.",
+                    text = t.bandsMerged(
+                        bandsPerGroup,
+                        Spectrogram.BAND_COUNT,
+                        Spectrogram.MIN_BAND_COUNTS.toInt(),
+                    ),
                     style = type.footnote,
                     color = colors.muted,
                 )
             }
             Text(
-                text = "Интенсивность. Цвет соответствует скорости регистрации событий в " +
-                    "энергетической полосе, имп/с. Для всего отображаемого окна — единая " +
-                    "логарифмическая шкала, поэтому столбцы сравнимы между собой.",
+                text = t.intensityNote,
                 style = type.footnote,
                 color = colors.muted,
             )
             Text(
-                text = "Форма. Каждый временной спектр нормируется независимо. Режим " +
-                    "предназначен для сравнения энергетического распределения и не " +
-                    "показывает абсолютную интенсивность.",
+                text = t.shapeNote,
                 style = type.footnote,
                 color = colors.muted,
             )
             Text(
-                text = "Диапазон энергий ${Spectrogram.MIN_KEV.toInt()}–" +
-                    "${Spectrogram.MAX_KEV.toInt()} кэВ, шкала полос геометрическая. " +
-                    "Пустая колонка — измерений в этой ячейке не было; пропуски не " +
-                    "заполняются.",
+                text = t.energyRangeNote(
+                    Spectrogram.MIN_KEV.toInt(),
+                    Spectrogram.MAX_KEV.toInt(),
+                ),
                 style = type.footnote,
                 color = colors.muted,
             )
-            Text(text = BACKGROUND_NOTE, style = type.footnote, color = colors.muted)
+            Text(text = t.backgroundNote, style = type.footnote, color = colors.muted)
+        }
         }
     }
 }
 
 @Composable
-private fun LegendRamp(shapeMode: Boolean, scaleTop: Float) {
+private fun LegendRamp(shapeMode: Boolean, scaleTop: Float, t: SpectrogramStrings) {
     val type = LocalAppTypography.current
     val colors = LocalAppColors.current
     Row(
@@ -484,7 +536,7 @@ private fun LegendRamp(shapeMode: Boolean, scaleTop: Float) {
     ) {
         // Шкала называет ВЕЛИЧИНУ и её концы. «Меньше ■■■ больше» в режиме
         // формы означало бы «меньше излучения», хотя это доля внутри столбца.
-        Text(text = "0", style = type.axis, color = colors.muted)
+        Text(text = t.legendZero, style = type.axis, color = colors.muted)
         // Непрерывная полоса вместо отдельных квадратиков: шкала интенсивности
         // непрерывна, и разрывы в легенде подсказывали бы ступени, которых нет.
         Box(
@@ -497,9 +549,9 @@ private fun LegendRamp(shapeMode: Boolean, scaleTop: Float) {
         )
         Text(
             text = if (shapeMode) {
-                "макс. столбца"
+                t.legendColumnMax
             } else {
-                "${Uncertainty.num1(scaleTop)} имп/с"
+                t.legendRate(Uncertainty.num1(scaleTop))
             },
             style = type.axis,
             color = colors.muted,

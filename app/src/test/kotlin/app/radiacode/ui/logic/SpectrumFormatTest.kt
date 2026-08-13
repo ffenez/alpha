@@ -1,6 +1,9 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.EnergyWindow
+import app.radiacode.analysis.EnergyWindowSpec
+import app.radiacode.analysis.EnergyWindows
 import app.radiacode.analysis.HintConfidence
 import app.radiacode.analysis.IsotopeHint
 import app.radiacode.analysis.Peak
@@ -65,6 +68,26 @@ class SpectrumFormatTest {
             "калибровка: E = 0,0 + 3,00·ch − 1,0·10⁻³·ch² · 256 каналов",
             SpectrumFormat.calibrationLine(0f, 3f, -1e-3f, 256),
         )
+    }
+
+    @Test
+    fun `range cells carry the rate with its sigma, the share and the covered span`() {
+        // 1000 импульсов за 200 с: R = 5 имп/с, σ_R = √1000/200 ≈ 0,158.
+        val counts = List(1000) { if (it in 100..299) 5 else 0 }
+        val window = EnergyWindows.window(
+            counts,
+            200,
+            EnergyCalibration(0f, 1f, 0f),
+            EnergyWindowSpec(100f, 300f),
+        )
+        assertEquals("100–300", SpectrumFormat.rangeLabel(window.spec))
+        assertEquals("5,00 ± 0,158", SpectrumFormat.rangeRate(window))
+        assertEquals("100 %", SpectrumFormat.rangeShare(window))
+        assertEquals("99,5–299,5", SpectrumFormat.rangeCovered(window))
+
+        val ratio = EnergyWindows.spectralIndex(window, window.copy(counts = 500L))
+        assertEquals("2,00", SpectrumFormat.ratioShort(ratio!!))
+        assertEquals("2,00 ± 0,110", SpectrumFormat.ratioValue(ratio))
     }
 
     private fun hint(

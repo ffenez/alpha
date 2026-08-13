@@ -2,6 +2,9 @@ package app.radiacode.ui.logic
 
 import app.radiacode.baseline.ABOVE_USUAL_MIN_DWELL_SECONDS
 import app.radiacode.baseline.AlarmThresholds
+import app.radiacode.ui.text.MonitorCatalogue
+import app.radiacode.ui.text.MonitorRu
+import app.radiacode.ui.text.MonitorStrings
 import app.radiacode.ui.text.RuStrings
 import app.radiacode.ui.text.Strings
 import app.radiacode.baseline.Baseline
@@ -145,35 +148,35 @@ fun statusDetail(
 ): String? = when (status) {
     MonitorStatus.Unknown -> null
     is MonitorStatus.Fixed ->
-        s.detailNoBaseline(DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit))
+        s.detailNoBaseline(DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit, s = s))
     is MonitorStatus.Usual ->
         // «baseline» — внутреннее имя движка; на экране у величины есть
         // человеческое название, и смешивать их незачем.
         s.detailUsual(
             baselineRange(status.baseline, unit),
-            DoseFormat.rateUnitLabel(unit),
-            baselineCollectedShort(status.baseline),
+            DoseFormat.rateUnitLabel(unit, s = s),
+            baselineCollectedShort(status.baseline, MonitorCatalogue.of(s.language)),
         )
     is MonitorStatus.AboveUsual ->
         s.detailAboveUsual(
             baselineRange(status.baseline, unit),
-            DoseFormat.rateUnitLabel(unit),
+            DoseFormat.rateUnitLabel(unit, s = s),
             heldWording(status.heldSeconds, s),
         )
     is MonitorStatus.AboveThreshold ->
         // Величина И длительность: обе названы, поэтому ожидание видно, а не
         // выглядит как «приложение ничего не заметило».
         s.detailAboveThreshold(
-            DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit),
+            DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit, s = s),
             status.heldSeconds,
             status.requiredSeconds,
         )
     is MonitorStatus.Alert -> {
         val reference = status.baseline
             ?.let {
-                s.referenceProfileBand(baselineRange(it, unit), DoseFormat.rateUnitLabel(unit))
+                s.referenceProfileBand(baselineRange(it, unit), DoseFormat.rateUnitLabel(unit, s = s))
             }
-            ?: s.referenceThreshold(DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit))
+            ?: s.referenceThreshold(DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit, s = s))
         s.detailAlert(reference, heldWording(status.heldSeconds, s))
     }
 }
@@ -192,19 +195,19 @@ fun heldWording(heldSeconds: Long, s: Strings = RuStrings): String {
 }
 
 /** Learning progress: «изучаю обычный фон — 1,5 ч из 3». */
-fun learningWording(state: BaselineState.Learning): String {
-    val collected = formatHours(state.accumulatedSeconds)
-    val required = formatHours(state.requiredSeconds)
-    return "изучаю обычный фон — $collected ч из $required"
-}
+fun learningWording(state: BaselineState.Learning, s: MonitorStrings = MonitorRu): String =
+    s.collectingUsualBackground(
+        formatHours(state.accumulatedSeconds),
+        formatHours(state.requiredSeconds),
+    )
 
 /** Settings wording: «baseline собран за 26 ч наблюдений». */
-fun baselineCollectedWording(baseline: Baseline): String =
-    "baseline собран за ${formatHours(baseline.accumulatedSeconds)} ч наблюдений"
+fun baselineCollectedWording(baseline: Baseline, s: MonitorStrings = MonitorRu): String =
+    s.usualBackgroundCollected(formatHours(baseline.accumulatedSeconds))
 
 /** Status-line reference (§18 «baseline: 18 h»): «26,4 ч». */
-fun baselineCollectedShort(baseline: Baseline): String =
-    "${formatHours(baseline.accumulatedSeconds)} ч"
+fun baselineCollectedShort(baseline: Baseline, s: MonitorStrings = MonitorRu): String =
+    s.hoursShort(formatHours(baseline.accumulatedSeconds))
 
 private fun formatHours(seconds: Long): String {
     val hours = seconds / 3600.0

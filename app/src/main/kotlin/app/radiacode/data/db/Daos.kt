@@ -1,5 +1,7 @@
 package app.radiacode.data.db
 
+import app.radiacode.device.DoseUnits
+
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -54,6 +56,19 @@ data class SpectrumMetaRow(
 )
 
 /** Aggregate over one session's time range (see [SampleDao.rangeStats]). */
+/**
+ * Сводка по диапазону измерений.
+ *
+ * **Дозовые поля здесь СЫРЫЕ — в единицах прибора, как они лежат в
+ * `samples.doseRate`.** Так исторически хранится измерение (CLAUDE.md:
+ * сырые значения не конвертируются при записи), и умножение на
+ * [DoseUnits.RAW_TO_MICRO_SIEVERT_PER_HOUR] делает каждый потребитель сам.
+ * Ровно на этом экран Истории и споткнулся: он печатал сырое число через
+ * форматтер мкЗв/ч, и 0,15 мкЗв/ч показывалось как «0,00».
+ *
+ * Поэтому у показа есть отдельные свойства `…MicroSvH` — их и надо
+ * использовать в UI, а сырые поля оставить тем, кто считает.
+ */
 data class RangeStats(
     val sampleCount: Int,
     val avgDoseRate: Float?,
@@ -61,7 +76,16 @@ data class RangeStats(
     val maxDoseRate: Float?,
     val avgCountRate: Float?,
     val maxCountRate: Float?,
-)
+) {
+    val avgDoseRateMicroSvH: Float?
+        get() = avgDoseRate?.let { DoseUnits.rawToMicroSievertPerHour(it) }
+
+    val minDoseRateMicroSvH: Float?
+        get() = minDoseRate?.let { DoseUnits.rawToMicroSievertPerHour(it) }
+
+    val maxDoseRateMicroSvH: Float?
+        get() = maxDoseRate?.let { DoseUnits.rawToMicroSievertPerHour(it) }
+}
 
 /**
  * How many samples one baseline-admission verdict accounts for

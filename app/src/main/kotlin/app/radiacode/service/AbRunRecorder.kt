@@ -54,8 +54,16 @@ class AbRunRecorder(
     val state: StateFlow<AbRun?> = _state.asStateFlow()
 
     /** Последний исход: экран показывает его, когда возвращается. */
-    private val _notice = MutableStateFlow<String?>(null)
-    val notice: StateFlow<String?> = _notice.asStateFlow()
+    /**
+     * Что записыватель хочет сказать человеку — КОДОМ, а не текстом.
+     *
+     * Формулировку выбирает экран: он один знает язык интерфейса, а сервис
+     * пишет прогон и без открытого экрана.
+     */
+    enum class Notice { RUN_WITHOUT_SPECTRUM }
+
+    private val _notice = MutableStateFlow<Notice?>(null)
+    val notice: StateFlow<Notice?> = _notice.asStateFlow()
 
     private var timer: Job? = null
 
@@ -105,11 +113,7 @@ class AbRunRecorder(
         timer = null
         spectrumHub.detach()
         status.onExperiment(ServiceStatus.SOURCE_AB, null)
-        _notice.value = if (spectrumId == null) {
-            "спектр прогона не записан — сравнение будет только по мощности дозы"
-        } else {
-            null
-        }
+        _notice.value = if (spectrumId == null) Notice.RUN_WITHOUT_SPECTRUM else null
     }
 
     private companion object {

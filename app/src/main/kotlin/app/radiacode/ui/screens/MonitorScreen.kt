@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,9 +39,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import app.radiacode.data.export.CrashLog
 import app.radiacode.AppGraph
 import app.radiacode.analysis.Hardness
 import app.radiacode.baseline.Admission
+import app.radiacode.baseline.BaselineExclusion
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.Baseline
 import app.radiacode.baseline.BaselineState
@@ -57,7 +64,6 @@ import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppIcons
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
-import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.components.ProfilePickerDialog
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
@@ -66,9 +72,10 @@ import app.radiacode.ui.components.WhySheet
 import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.ChartMetric
 import app.radiacode.ui.logic.DoseFormat
-import app.radiacode.ui.logic.Evidence
 import app.radiacode.ui.logic.Freshness
-import app.radiacode.ui.logic.freshnessChipLabel
+import app.radiacode.ui.logic.StreamState
+import app.radiacode.ui.logic.streamAgeLine
+import app.radiacode.ui.logic.streamStatusLine
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.MonitorStatus
 import app.radiacode.ui.logic.BaselineSnapshot
@@ -79,9 +86,17 @@ import app.radiacode.ui.logic.TrendFit
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.WhyInput
 import app.radiacode.ui.logic.learningWording
-import app.radiacode.ui.logic.statusDetail
 import app.radiacode.ui.logic.statusHeadline
+import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
+import app.radiacode.ui.text.ChartAxisCatalogue
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
 import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.MonitorCatalogue
+import app.radiacode.ui.text.MonitorRu
+import app.radiacode.ui.text.MonitorStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppColors
@@ -108,6 +123,13 @@ import kotlinx.coroutines.withContext
 private const val CHART_REFRESH_MILLIS = 15_000L
 
 /**
+ * Доля окна, за которую картинка обязана обновиться хотя бы раз.
+ * **Инженерный параметр**: 1/200 окна ≈ ширина одной колонки — обновление
+ * поспевает за движением правого края, не перечитывая базу впустую.
+ */
+private const val LIVE_TICK_WINDOW_FRACTION = 200L
+
+/**
  * Окно тренда на Главной — ЧАС, независимо от того, какое окно выбрано у
  * карточки графика.
  *
@@ -120,8 +142,7 @@ private const val CHART_REFRESH_MILLIS = 15_000L
  */
 private const val TREND_WINDOW_MILLIS = 3_600_000L
 
-/** Как это окно называется в подписи под значением. */
-private const val TREND_WINDOW_LABEL = "1 ч"
+// Как это окно называется в подписи под значением — MonitorStrings.trendWindowHour.
 
 /**
  * Загруженный кадр одной величины: окно и снимок ровно те же, что у
@@ -173,6 +194,11 @@ fun MonitorScreen(
             nowMillis = System.currentTimeMillis()
         }
     }
+    // ОДИН источник свежести на весь экран: главное число, плитки, статус и
+    // графики обязаны говорить одно и то же. До этого каждый считал возраст
+    // сам, и экран мог одновременно сообщать «поток прерван» вверху и
+    // выглядеть живым в карточках.
+    val stream = StreamState.of(sample?.timestamp, nowMillis, connection)
     val freshness = Freshness.of(sample?.timestamp, nowMillis)
 
     // Графики Главной читаются тем же путём, что и полноэкранный (ADR 004):
@@ -189,24 +215,89 @@ fun MonitorScreen(
     var charts by remember { mutableStateOf<Map<ChartMetric, LoadedChart>>(emptyMap()) }
     var trend by remember { mutableStateOf<TrendAvailability?>(null) }
     var doseTodayMicroSv by remember { mutableStateOf<Double?>(null) }
-    LaunchedEffect(chartMetrics, savedSpans) {
+    // Цикл перечитывания графиков привязан к ЖИЗНЕННОМУ ЦИКЛУ и не может
+    // умереть молча.
+    //
+    // Полевой дефект: при открытом экране графики через некоторое время
+    // замирали, хотя измерения продолжали приходить, а сворачивание и возврат
+    // немедленно показывали накопившееся. Это подпись под ошибкой ВНУТРИ цикла:
+    // одно упавшее чтение убивало корутину `LaunchedEffect` навсегда, и картинка
+    // застывала до пересоздания композиции. Теперь сбой чтения не рвёт цикл —
+    // он записывается в журнал (тот же, что уезжает в отладочный архив) и
+    // следующий проход пробует снова; а возврат на передний план запускает
+    // обновление сразу, не дожидаясь очередных 15 секунд.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var resumeTick by remember { mutableIntStateOf(0) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumeTick += 1
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    // Обновление ведут САМИ ДАННЫЕ, а не только таймер.
+    //
+    // Полевой дефект: графики замирали при открытом экране, хотя измерения шли,
+    // — то есть цикл по таймеру переставал доходить до чтения. Поэтому у
+    // перечитывания появился второй, независимый повод: отметка времени
+    // последнего отсчёта, огрублённая до шага обновления. Пока прибор пишет,
+    // ключ меняется и эффект запускается заново, даже если предыдущий проход
+    // где-то застрял. Если отсчётов нет — обновлять нечего по определению.
+    // Шаг обновления следует ОКНУ, а не константе: на пятиминутном окне
+    // колонка — секунды, и прежние 15 с читались как «график запаздывает»;
+    // на месячном чаще и не нужно — перерисовывались бы те же колонки ценой
+    // тяжёлого запроса. Берётся самое короткое окно из включённых величин.
+    val liveTickMillis = remember(chartMetrics, savedSpans) {
+        val shortest = chartMetrics.minOf { metric ->
+            ChartMetrics.startWindow(metric, savedSpans, System.currentTimeMillis())
+                .spanMillis
+        }
+        (shortest / LIVE_TICK_WINDOW_FRACTION).coerceIn(1_000L, CHART_REFRESH_MILLIS)
+    }
+    val liveTick = sample?.timestamp?.let { it / liveTickMillis }
+    LaunchedEffect(chartMetrics, savedSpans, resumeTick, liveTick) {
         while (true) {
             val now = System.currentTimeMillis()
-            charts = withContext(Dispatchers.IO) {
-                chartMetrics.associateWith { metric ->
-                    val window = ChartMetrics.startWindow(metric, savedSpans, now)
-                    LoadedChart(window, loadSnapshot(graph, window, metric))
+            val outcome = runCatching {
+                val loadedCharts = withContext(Dispatchers.IO) {
+                    chartMetrics.associateWith { metric ->
+                        val window = ChartMetrics.startWindow(metric, savedSpans, now)
+                        LoadedChart(window, loadSnapshot(graph, window, metric))
+                    }
                 }
+                val loadedTrend = withContext(Dispatchers.IO) {
+                    val hour = ChartWindows.latest(TREND_WINDOW_MILLIS, now)
+                    TrendFit.availability(
+                        loadSnapshot(graph, hour, ChartMetric.DOSE).buckets
+                            .filter { it.midMillis >= hour.fromMillis }
+                            .map { TrendPoint(it.midMillis, it.median) },
+                    )
+                }
+                val loadedDose = withContext(Dispatchers.IO) { loadDoseToday(graph) }
+                Triple(loadedCharts, loadedTrend, loadedDose)
             }
-            trend = withContext(Dispatchers.IO) {
-                val hour = ChartWindows.latest(TREND_WINDOW_MILLIS, now)
-                TrendFit.availability(
-                    loadSnapshot(graph, hour, ChartMetric.DOSE).buckets
-                        .filter { it.midMillis >= hour.fromMillis }
-                        .map { TrendPoint(it.midMillis, it.median) },
+            outcome.getOrNull()?.let { (loadedCharts, loadedTrend, loadedDose) ->
+                charts = loadedCharts
+                trend = loadedTrend
+                doseTodayMicroSv = loadedDose
+                // Отметка для отладочного отчёта: по ней видно, ЖИВ ли цикл
+                // обновления, — без неё замерший график и работающий выглядят
+                // на экране одинаково.
+                graph.serviceStatus.onChartsRefreshed(System.currentTimeMillis())
+            }
+            outcome.exceptionOrNull()?.let { error ->
+                // Отмена корутины — не сбой: она приходит при уходе с экрана.
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                CrashLog.append(
+                    graph.crashLogFile,
+                    CrashLog.entry(
+                        atMillis = System.currentTimeMillis(),
+                        stamp = "обновление графиков Главной",
+                        threadName = Thread.currentThread().name,
+                        error = error,
+                    ),
                 )
             }
-            doseTodayMicroSv = withContext(Dispatchers.IO) { loadDoseToday(graph) }
             delay(CHART_REFRESH_MILLIS)
         }
     }
@@ -216,10 +307,11 @@ fun MonitorScreen(
 
     // Сравнение с эталоном места — тоже запрос, и тоже только ради «Почему?»
     // и вкладки отпечатка: считается, когда шторка открывается.
+    val language = LocalStrings.current.language
     var fingerprint by remember {
         mutableStateOf<app.radiacode.analysis.FingerprintComparison?>(null)
     }
-    LaunchedEffect(activeProfile?.id, showWhy) {
+    LaunchedEffect(activeProfile?.id, showWhy, language) {
         val id = activeProfile?.id
         fingerprint = if (id == null || !showWhy) {
             null
@@ -227,6 +319,7 @@ fun MonitorScreen(
             app.radiacode.analysis.Fingerprint.compare(
                 window = graph.fingerprintRepository.window(id),
                 reference = graph.fingerprintRepository.reference(id),
+                s = app.radiacode.ui.text.FingerprintCatalogue.of(language),
             )
         }
     }
@@ -249,6 +342,7 @@ fun MonitorScreen(
 
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val t = MonitorCatalogue.of(strings.language)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -261,16 +355,16 @@ fun MonitorScreen(
             horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
         ) {
             Chip(
-                text = profileChipText(activeProfile, profiles, contextState),
+                text = profileChipText(activeProfile, profiles, contextState, t),
                 color = colors.ink,
                 onClick = { showProfilePicker = true },
             )
             Spacer(Modifier.weight(1f))
             ConnectionChip(connection, serviceRunning)
-            FreshnessChip(freshness)
+            StreamChip(stream)
             Icon(
                 imageVector = AppIcons.Lambda,
-                contentDescription = "Настройки",
+                contentDescription = strings.settings,
                 tint = colors.ink2,
                 modifier = Modifier
                     .size(22.dp)
@@ -287,12 +381,13 @@ fun MonitorScreen(
             errPercent = sample?.doseRateErr,
             cps = sample?.countRate,
             trend = trend,
-            trendWindowLabel = TREND_WINDOW_LABEL,
+            trendWindowLabel = t.trendWindowHour,
             doseTodayMicroSv = doseTodayMicroSv,
             status = status,
             baselineState = baselineState,
             unit = unit,
-            stale = freshness !is Freshness.Fresh,
+            stale = !stream.live,
+            stream = stream,
             blocks = blocks,
             admission = admission,
             frozen = frozen,
@@ -315,13 +410,13 @@ fun MonitorScreen(
                         endpointAlert = alert && metric == ChartMetric.DOSE,
                         metric = metric,
                         xLabelCount = 3,
+                        showUnit = false,
                     )
                 }
             }
             MetricChartCard(
                 metric = metric,
                 frame = frame,
-                windowLabel = loaded?.let { windowLabel(metric, it.window) },
                 spanMillis = loaded?.window?.spanMillis,
                 hasBaselineBand = baseline != null,
                 unit = unit,
@@ -340,7 +435,7 @@ fun MonitorScreen(
             profiles = profiles,
             activeProfileId = activeProfile?.id,
             manual = contextState.isManual,
-            contextWording = contextWording(contextState),
+            contextWording = contextWording(contextState, t),
             onSelect = { id -> scope.launch { graph.profileRepository.selectManually(id) } },
             onReturnToAuto = { scope.launch { graph.profileRepository.returnToAuto() } },
             onCreate = { name ->
@@ -397,7 +492,7 @@ fun MonitorScreen(
                 exclusions = exclusions,
                 unit = unit,
                 profileName = activeProfile?.let { ProfileTree.displayName(it, profiles) },
-                contextWording = contextWording(contextState),
+                contextWording = contextWording(contextState, t),
                 fingerprint = fingerprint,
             ),
             onDismiss = { showWhy = false },
@@ -410,27 +505,42 @@ private fun profileChipText(
     active: ProfileEntity?,
     profiles: List<ProfileEntity>,
     context: MeasurementContext,
+    s: MonitorStrings = MonitorRu,
 ): String {
-    val name = active?.let { ProfileTree.displayName(it, profiles) } ?: "Профиль?"
+    val name = active?.let { ProfileTree.displayName(it, profiles) } ?: s.profileUnknown
     val icon = active?.icon.orEmpty()
     val prefix = if (icon.isBlank()) "" else "$icon "
-    return "$prefix$name · ${contextModeWord(context)} ▾"
+    val mode = contextModeWord(context, s)
+    return if (mode == null) "$prefix$name ▾" else "$prefix$name · $mode ▾"
 }
 
-private fun contextModeWord(context: MeasurementContext): String = when (context) {
-    is MeasurementContext.Manual -> "вручную"
-    is MeasurementContext.AutoUncertain -> "не подтв."
-    else -> "авто"
+/**
+ * Слово о том, КАК выбран профиль, — только когда оно что-то сообщает.
+ *
+ * Автоматический выбор — обычное состояние приложения, и подпись «авто» рядом
+ * с названием места висела всегда, ничего не добавляя. Значение имеют два
+ * других случая: место закреплено рукой (иначе человек забудет, почему оно не
+ * меняется) и место не подтверждено (сеть пропала). Их и говорим.
+ */
+private fun contextModeWord(
+    context: MeasurementContext,
+    s: MonitorStrings = MonitorRu,
+): String? = when (context) {
+    is MeasurementContext.Manual -> s.modeManual
+    is MeasurementContext.AutoUncertain -> s.modeUnconfirmed
+    else -> null
 }
 
 /** One honest phrase about how the current profile was chosen (spec §3.4). */
-fun contextWording(context: MeasurementContext): String = when (context) {
-    is MeasurementContext.AutoKnown -> "выбран автоматически по знакомой сети"
-    is MeasurementContext.AutoUncertain ->
-        "сеть пропала — место не подтверждено, обучение приостановлено"
-    MeasurementContext.AutoTransit -> "знакомой сети нет — «В пути»"
-    MeasurementContext.NoContext -> "место определить нельзя — «Без места»"
-    is MeasurementContext.Manual -> "выбран вручную"
+fun contextWording(
+    context: MeasurementContext,
+    s: MonitorStrings = MonitorRu,
+): String = when (context) {
+    is MeasurementContext.AutoKnown -> s.contextAutoKnown
+    is MeasurementContext.AutoUncertain -> s.contextAutoUncertain
+    MeasurementContext.AutoTransit -> s.contextTransit
+    MeasurementContext.NoContext -> s.contextNoContext
+    is MeasurementContext.Manual -> s.contextManual
 }
 
 @Composable
@@ -456,16 +566,25 @@ private fun ConnectionChip(connection: ConnectionState, serviceRunning: Boolean)
     }
 }
 
+/**
+ * Состояние потока одним чипом.
+ *
+ * В [StreamState.Live] чипа нет вовсе: молчание и есть сообщение «данные
+ * идут». Секунды называются только в короткой запинке; в устойчивом состоянии
+ * («связь потеряна») счётчик не растёт бесконечно — возраст уходит во
+ * вторичную строку под главным числом.
+ */
 @Composable
-private fun FreshnessChip(freshness: Freshness) {
+private fun StreamChip(stream: StreamState) {
     val colors = LocalAppColors.current
-    // Пока поток идёт, подписи нет вовсе: чип говорит об ОТСТАВАНИИ данных.
-    val label = freshnessChipLabel(freshness, LocalStrings.current) ?: return
-    when (freshness) {
-        Freshness.NoData -> Chip(text = label, color = colors.muted)
-        is Freshness.Fresh -> Chip(text = label, color = colors.warn)
-        is Freshness.Stale -> Chip(text = label, color = colors.warn)
+    val label = streamStatusLine(stream, LocalStrings.current) ?: return
+    val color = when (stream) {
+        StreamState.Live -> colors.muted
+        is StreamState.Stale -> colors.ink2
+        StreamState.Reconnecting -> colors.ink2
+        is StreamState.Disconnected -> colors.warn
     }
+    Chip(text = label, color = color)
 }
 
 /**
@@ -491,6 +610,8 @@ private fun HeroCard(
     baselineState: BaselineState?,
     unit: DoseUnitSetting,
     stale: Boolean,
+    /** То же состояние потока, что у чипа в шапке: экран говорит одним голосом. */
+    stream: StreamState = StreamState.Live,
     blocks: MonitorBlocks = MonitorBlocks(),
     admission: Admission = Admission.Admitted,
     frozen: Boolean = false,
@@ -499,6 +620,7 @@ private fun HeroCard(
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val strings = LocalStrings.current
+    val t = MonitorCatalogue.of(strings.language)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
             // 1. Величина, ради которой открывают приложение. По центру: это
@@ -508,29 +630,46 @@ private fun HeroCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = strings.doseRate.uppercase(),
-                        style = type.labelSmall,
-                        color = colors.ink2,
-                    )
-                    EvidenceTag(Evidence.MEASURED, Modifier.padding(start = 6.dp))
-                }
+                // Метки «изм. · расч. · стат.» с Главной убраны (§21): они
+                // висели у каждого значения постоянно, поэтому переставали
+                // читаться — а именно чтение и было их единственной задачей.
+                // Источник каждого числа назван словами в «Почему такой вывод».
+                Text(
+                    text = strings.doseRate.uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                )
                 Text(
                     text = doseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
                     style = type.valueHero,
                     color = if (doseMicroSvH == null || stale) colors.muted else colors.ink,
                     modifier = Modifier.padding(top = 2.dp),
                 )
+                // Возраст последнего измерения — ВТОРИЧНАЯ строка и только в
+                // устойчивом состоянии: в короткой запинке секунды уже названы
+                // чипом, а в живом потоке говорить не о чем.
+                streamAgeLine(stream, strings)?.let { age ->
+                    Text(
+                        text = age,
+                        style = type.footnote,
+                        color = colors.muted,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 Text(
                     text = listOfNotNull(
-                        DoseFormat.rateUnitLabel(unit),
+                        DoseFormat.rateUnitLabel(unit, s = strings),
                         Uncertainty.errPercentLabel(errPercent),
                     ).joinToString(" · "),
                     style = type.footnote,
                     color = colors.ink2,
                     modifier = Modifier.padding(top = 2.dp),
                 )
+                // Чья это ± — объясняет «Почему такой вывод» (строка дозы), а
+                // не постоянная подпись под главным числом: на Главной она
+                // висела всегда, а прочитывается один раз. Правило прежнее
+                // (одна составляющая не выдаётся за полную неопределённость),
+                // изменилось только место объяснения.
             }
 
             // 2. Состояние фона: во всю ширину, без соседей по строке.
@@ -567,24 +706,16 @@ private fun HeroCard(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    // The verdict leans on a statistical model, not on a reading.
-                    if (status is MonitorStatus.Usual || status is MonitorStatus.AboveUsual ||
-                        status is MonitorStatus.Alert
-                    ) {
-                        EvidenceTag(Evidence.STATISTICALLY_DETECTED)
-                    }
+                    // Что вывод опирается на статистику места, а не на одно
+                    // показание, сказано словами в «Почему такой вывод» —
+                    // метка «стат.» рядом со строкой этого не объясняла.
                 }
-                // Эталон, по которому сделан вывод, стоит под ним ВСЕГДА: без
-                // диапазона и объёма истории «в обычном диапазоне» — это
-                // утверждение, которое нечем проверить.
-                statusDetail(status, unit, strings)?.let { detail ->
-                    Text(
-                        text = detail,
-                        style = type.footnote,
-                        color = colors.ink2,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                // Эталон вывода (P10–P90 и объём истории) переехал в «Почему
+                // такой вывод»: там он стоит на первом уровне вместе со шкалой
+                // P10 · медиана · P90 и строкой «использовано N ч». Требование
+                // «вывод должен быть проверяем» осталось — изменилось место:
+                // на Главной эта строка висела всегда, а читается один раз.
+                // `statusDetail` жив и используется шторкой и отчётом.
                 (baselineState as? BaselineState.Learning)?.let { learning ->
                     Text(
                         text = learningWording(learning),
@@ -597,27 +728,28 @@ private fun HeroCard(
                 // человек задаёт, глядя на объём истории. Молчание означало
                 // «да», и это было незаметно; теперь ответ есть в обе стороны.
                 Text(
-                    text = admissionNote(admission, frozen) ?: ADMISSION_OK_NOTE,
+                    text = admissionNote(admission, frozen, t) ?: t.usualBackgroundUpdating,
                     style = type.footnote,
-                    color = if (admission is Admission.Excluded || frozen) {
+                    color = if (
+                        (admission is Admission.Excluded && !admissionIsDeliberate(admission)) ||
+                        frozen
+                    ) {
                         colors.warn
                     } else {
                         colors.muted
                     },
                     textAlign = TextAlign.Center,
                 )
-                Text(
-                    text = strings.whyThisConclusion,
-                    style = type.footnote,
-                    color = colors.dataText,
-                )
+                // Подписи «почему такой вывод ›» нет: нажимается сама строка
+                // вывода, а приглашение к нажатию занимало место под каждым
+                // состоянием и повторяло то, что уже сообщает цвет ссылки.
             }
 
             // 3. Плитки: то, что дополняет главное число, а не спорит с ним.
             val tiles = buildList {
                 add(
                     HeroTile(
-                        label = "Счёт",
+                        label = t.countTile,
                         value = cps?.let { Uncertainty.cpsWithSigma(it) } ?: "—",
                     ),
                 )
@@ -628,13 +760,12 @@ private fun HeroCard(
                             label = strings.trendPerHour,
                             value = slope?.let { TrendFit.label(it, unit) } ?: "—",
                             valueColor = trendWarnColor(slope, status),
-                            evidence = Evidence.CALCULATED,
                             // Прочерк без причины неотличим от поломки: плитка
                             // говорит, чего именно не хватает — или за какое
                             // окно посчитан показанный наклон.
                             note = when {
                                 trend == null -> null
-                                slope != null -> trendWindowLabel?.let { "за $it" }
+                                slope != null -> trendWindowLabel?.let { t.overWindow(it) }
                                 else -> TrendFit.unavailableNote(trend)
                             },
                         ),
@@ -644,10 +775,8 @@ private fun HeroCard(
                     add(
                         HeroTile(
                             label = strings.doseToday,
-                            value = doseTodayMicroSv?.let { DoseFormat.doseWithUnit(it, unit) }
+                            value = doseTodayMicroSv?.let { DoseFormat.doseWithUnit(it, unit, s = strings) }
                                 ?: "—",
-                            // Integral of the measured rate, not a measured dose.
-                            evidence = Evidence.CALCULATED,
                         ),
                     )
                 }
@@ -664,15 +793,14 @@ private fun HeroCard(
     }
 }
 
-/** Что показано, когда статистика места пополняется как обычно. */
-private const val ADMISSION_OK_NOTE = "обычный фон пополняется"
+// Что показано, когда статистика места пополняется как обычно, —
+// MonitorStrings.usualBackgroundUpdating.
 
 /** Одна плитка под главным числом. */
 private data class HeroTile(
     val label: String,
     val value: String,
     val valueColor: Color? = null,
-    val evidence: Evidence? = null,
     /** Одна тихая строка под значением: за какое окно оно или чего не хватает. */
     val note: String? = null,
 )
@@ -689,17 +817,12 @@ private fun HeroTileBox(tile: HeroTile, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = tile.label.uppercase(),
-                style = type.overline,
-                color = colors.muted,
-                maxLines = 1,
-            )
-            if (tile.evidence != null) {
-                EvidenceTag(tile.evidence, Modifier.padding(start = 4.dp))
-            }
-        }
+        Text(
+            text = tile.label.uppercase(),
+            style = type.overline,
+            color = colors.muted,
+            maxLines = 1,
+        )
         Text(
             text = tile.value,
             style = type.value,
@@ -717,12 +840,27 @@ private fun HeroTileBox(tile: HeroTile, modifier: Modifier = Modifier) {
  * Silence means «учится» — saying that on every screen would be noise, but
  * hiding the opposite would make the statistics quietly unexplainable.
  */
-private fun admissionNote(admission: Admission, frozen: Boolean): String? = when {
-    admission is Admission.Excluded ->
-        "обычный фон сейчас не пополняется: ${admission.reason.label}"
-    frozen -> "обычный фон заморожен вручную"
+private fun admissionNote(
+    admission: Admission,
+    frozen: Boolean,
+    s: MonitorStrings = MonitorRu,
+): String? = when {
+    // Профиль, который фон не собирает по устройству, — это его СВОЙСТВО, а не
+    // приостановка: «не пополняется» подразумевало бы, что обычно пополняется.
+    admission is Admission.Excluded &&
+        admission.reason == BaselineExclusion.LEARNING_OFF -> s.usualBackgroundNotCollected
+    // §12: причина («карантин после отклонения», «непригодно по статистике»)
+    // на Главной читалась как основной показатель прибора. Первый уровень
+    // называет ОДНО состояние; какие именно измерения исключены и почему —
+    // в «Почему такой вывод», куда ведёт нажатие на эту же строку вывода.
+    admission is Admission.Excluded -> s.usualBackgroundNotUpdating
+    frozen -> s.usualBackgroundFrozen
     else -> null
 }
+
+/** Сбой это или заданное состояние: янтарь только там, где что-то пошло не так. */
+private fun admissionIsDeliberate(admission: Admission): Boolean =
+    admission is Admission.Excluded && admission.reason == BaselineExclusion.LEARNING_OFF
 
 @Composable
 private fun trendWarnColor(trend: Float?, status: MonitorStatus): Color? {
@@ -748,7 +886,6 @@ private fun trendWarnColor(trend: Float?, status: MonitorStatus): Color? {
 private fun MetricChartCard(
     metric: ChartMetric,
     frame: ChartFrame?,
-    windowLabel: String?,
     spanMillis: Long?,
     hasBaselineBand: Boolean,
     unit: DoseUnitSetting,
@@ -758,6 +895,7 @@ private fun MetricChartCard(
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val strings = LocalStrings.current
+    val t = MonitorCatalogue.of(strings.language)
     val cursor = remember { mutableStateOf<Float?>(null) }
     Card(
         modifier = Modifier
@@ -773,38 +911,25 @@ private fun MetricChartCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                // В шапке остаётся ровно то, что называет картинку, и знак
+                // раскрытия. Окно («5м») читается по подписям оси времени,
+                // единица — по значениям и по углу полноэкранного графика; обе
+                // подписи висели здесь постоянно и спорили с самим названием.
+                // Название стало крупнее: оно опознаёт график, и мельче
+                // соседних подписей быть не должно.
                 Text(
                     text = ChartMetrics.title(metric, strings).uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
+                    style = type.label,
+                    color = colors.ink,
                 )
-                if (windowLabel != null) {
-                    Text(text = windowLabel, style = type.footnote, color = colors.muted)
-                }
-                if (metric == ChartMetric.HARDNESS) {
-                    EvidenceTag(Evidence.CALCULATED)
-                }
                 Spacer(Modifier.weight(1f))
-                if (metric == ChartMetric.DOSE && hasBaselineBand) {
-                    Text(
-                        text = "полоса — P10–P90 профиля",
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                } else {
-                    Text(
-                        text = ChartMetrics.unitLabel(metric, unit),
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
                 // Tap affordance: the card opens the fullscreen live chart.
                 Text(text = "⤢", style = type.label, color = colors.ink2)
             }
 
             if (frame == null || frame.spec.buckets.isEmpty()) {
                 Text(
-                    text = "накапливаем измерения…",
+                    text = t.collectingMeasurements,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
@@ -830,9 +955,12 @@ private fun MetricChartCard(
                 if (showStats && stats != null) {
                     StatGrid(
                         cells = listOf(
-                            StatCell(ChartMetrics.format(metric, stats.min, unit), "мин"),
-                            StatCell(ChartMetrics.format(metric, stats.median, unit), "медиана"),
-                            StatCell(ChartMetrics.format(metric, stats.max, unit), "макс"),
+                            StatCell(ChartMetrics.format(metric, stats.min, unit), t.statMin),
+                            StatCell(
+                                ChartMetrics.format(metric, stats.median, unit),
+                                t.statMedian,
+                            ),
+                            StatCell(ChartMetrics.format(metric, stats.max, unit), t.statMax),
                             StatCell(
                                 ChartMetrics.format(metric, stats.sd, unit),
                                 "SD, ${ChartMetrics.unitLabel(metric, unit)}",
@@ -847,21 +975,6 @@ private fun MetricChartCard(
     }
 }
 
-/**
- * Подпись окна карточки: ступень лестницы, если окно ей равно, иначе
- * фактическая длительность — то же правило, что у свёрнутого чипа периодов.
- */
-private fun windowLabel(metric: ChartMetric, window: ChartWindow): String {
-    val index = ChartWindows.nearestPeriodIndex(
-        window.spanMillis,
-        ChartMetrics.periodIndices(metric),
-    )
-    return if (ChartWindows.matchesPeriod(window.spanMillis, index)) {
-        ChartWindows.PERIODS[index].first
-    } else {
-        HistoryFormat.duration(window.spanMillis / 1000)
-    }
-}
 
 @Composable
 private fun BatteryBanner() {
@@ -870,16 +983,16 @@ private fun BatteryBanner() {
     if (exempt) return
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = MonitorCatalogue.of(LocalStrings.current.language)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Text(
-                text = "Android может остановить измерение в фоне. Чтобы запись " +
-                    "шла непрерывно, исключите приложение из оптимизации батареи.",
+                text = t.batteryBannerBody,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
             AppButton(
-                text = "Разрешить работу в фоне",
+                text = t.batteryBannerAction,
                 onClick = {
                     runCatching {
                         context.startActivity(BatteryOptimization.buildRequestIntent(context))

@@ -1,5 +1,7 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.MapRu
+import app.radiacode.ui.text.MapStrings
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.ceil
@@ -284,10 +286,13 @@ object TrackMap {
     // --- formatting ---
 
     /** «1,2 км» / «340 м» for the overlay chip. */
-    fun formatDistance(meters: Double): String = when {
-        meters >= 10_000 -> String.format(Locale.US, "%.0f км", meters / 1000)
-        meters >= 1_000 -> String.format(Locale.US, "%.1f км", meters / 1000).replace('.', ',')
-        else -> String.format(Locale.US, "%.0f м", meters)
+    fun formatDistance(meters: Double, s: MapStrings = MapRu): String = when {
+        meters >= 10_000 ->
+            String.format(Locale.US, "%.0f", meters / 1000) + " " + s.unitKilometers
+        meters >= 1_000 ->
+            String.format(Locale.US, "%.1f", meters / 1000).replace('.', ',') +
+                " " + s.unitKilometers
+        else -> String.format(Locale.US, "%.0f", meters) + " " + s.unitMeters
     }
 
     /** CPS with one decimal below 10 («9,4»), whole above («27»). */

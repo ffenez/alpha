@@ -605,3 +605,44 @@ data class ProfileFingerprintEntity(
         const val ORIGIN_USER = "user"
     }
 }
+
+/**
+ * Один срез спектрограммы — ПОСТОЯННЫЙ продукт измерения (ADR 007), а не кэш
+ * интерфейса. Строка представляет реально измеренный интервал и не
+ * подразумевает временнóго разрешения мельче своей экспозиции.
+ *
+ * **Это не снимок спектра.** В `spectra` лежат 1024 канала с калибровкой — по
+ * ним ищут пики, называют нуклиды и экспортируют. Здесь лежит
+ * [app.radiacode.analysis.SpectrogramBinning.CURRENT_SCHEME] полос
+ * ОТОБРАЖЕНИЯ: каналы просуммированы необратимо, калибровка впечатана, ширина
+ * полосы в разы больше аппаратного разрешения. Искать по срезам пики нельзя.
+ *
+ * Хранится СЧЁТ, а не скорость: R = N/Δt восстанавливается всегда, обратно
+ * пуассоновская статистика — нет.
+ */
+@Entity(tableName = "spectrogram_slices")
+data class SpectrogramSliceEntity(
+    /** Начало интервала, epoch millis; оно же ключ — двух срезов с одним
+     *  началом не бывает, поэтому перезапись идемпотентна. */
+    @PrimaryKey val startMillis: Long,
+    /** Конец интервала (момент опроса, давшего этот срез). */
+    val endMillis: Long,
+    /** Экспозиция: насколько выросло накопление прибора. Не `end − start`. */
+    val durationMillis: Long,
+    /** Версия схемы полос; записи разных схем не складываются. */
+    val schemeId: String,
+    /** Число полос в [counts] — читается без знания схемы. */
+    val bandCount: Int,
+    /** Счёт по полосам, i32 LE ([app.radiacode.data.SpectrumBlob]). */
+    val counts: ByteArray,
+    /** Показание 1 Гц (у слитого среза — среднее по экспозиции); null — нет. */
+    val cps: Float?,
+    val doseMicroSvH: Float?,
+    /** Сколько записанных срезов слито в этот; 1 — как записано. */
+    val sliceCount: Int,
+) {
+    // ByteArray needs manual equality; начало интервала идентифицирует строку.
+    override fun equals(other: Any?): Boolean =
+        other is SpectrogramSliceEntity && other.startMillis == startMillis
+    override fun hashCode(): Int = startMillis.hashCode()
+}

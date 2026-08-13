@@ -1,13 +1,27 @@
 package app.radiacode.analysis
 
+import app.radiacode.ui.text.FingerprintRu
+import app.radiacode.ui.text.FingerprintStrings
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** Одно измерение отпечатка и его состояние. */
-enum class FingerprintDimension(val title: String) {
-    DOSE("Мощность дозы"),
-    COUNT_RATE("Скорость счёта"),
-    SPECTRUM("Форма спектра"),
+enum class FingerprintDimension {
+    DOSE,
+    COUNT_RATE,
+    SPECTRUM,
+    ;
+
+    /**
+     * Название измерения берётся из каталога, а не из самой константы: имя
+     * enum уезжает в базу и в отчёты, а подпись на экране обязана следовать
+     * языку интерфейса.
+     */
+    fun title(s: FingerprintStrings = FingerprintRu): String = when (this) {
+        DOSE -> s.doseDimension
+        COUNT_RATE -> s.countDimension
+        SPECTRUM -> s.shapeDimension
+    }
 }
 
 /** Что можно сказать про одно измерение. Четыре состояния, не два. */
@@ -142,11 +156,15 @@ object Fingerprint {
     /** …и минимальный опорный спектр: без него форма ничего не скажет. */
     const val MATURITY_SPECTRUM_COUNTS = 20_000L
 
-    fun compare(window: FingerprintWindow?, reference: FingerprintReference?): FingerprintComparison {
+    fun compare(
+        window: FingerprintWindow?,
+        reference: FingerprintReference?,
+        s: FingerprintStrings = FingerprintRu,
+    ): FingerprintComparison {
         if (reference == null) {
             return FingerprintComparison(
                 verdicts = FingerprintDimension.entries.map {
-                    DimensionVerdict(it, FingerprintState.NOT_EVALUATED, "эталон места не создан")
+                    DimensionVerdict(it, FingerprintState.NOT_EVALUATED, s.referenceMissing)
                 },
                 hardnessNow = null,
                 hardnessReference = null,
@@ -159,7 +177,7 @@ object Fingerprint {
                     DimensionVerdict(
                         it,
                         FingerprintState.NOT_ENOUGH_DATA,
-                        "нужно ${MIN_WINDOW_SECONDS / 60} мин пригодных измерений",
+                        s.needsWindow(MIN_WINDOW_SECONDS / 60),
                     )
                 },
                 hardnessNow = null,
@@ -174,8 +192,9 @@ object Fingerprint {
             low = reference.doseLowMicroSvH,
             median = reference.doseMedianMicroSvH,
             high = reference.doseHighMicroSvH,
-            unit = "мкЗв/ч",
+            unit = s.unitDose,
             decimals = 2,
+            s = s,
         )
         val counts = band(
             dimension = FingerprintDimension.COUNT_RATE,
@@ -183,10 +202,11 @@ object Fingerprint {
             low = reference.cpsLow,
             median = reference.cpsMedian,
             high = reference.cpsHigh,
-            unit = "с⁻¹",
+            unit = s.unitCount,
             decimals = 1,
+            s = s,
         )
-        val shape = shape(window, reference)
+        val shape = shape(window, reference, s)
 
         val hardnessNow = Hardness.of(
             doseRateMicroSvH = window.doseMedianMicroSvH.toDouble(),
@@ -217,13 +237,18 @@ object Fingerprint {
         high: Float,
         unit: String,
         decimals: Int,
+        s: FingerprintStrings,
     ): DimensionVerdict {
         val inside = now in low..high
         return DimensionVerdict(
             dimension = dimension,
             state = if (inside) FingerprintState.SAME else FingerprintState.CHANGED,
-            detail = "сейчас ${number(now, decimals)} · эталон " +
-                "${number(low, decimals)}–${number(high, decimals)} $unit",
+            detail = s.nowVsReference(
+                now = number(now, decimals),
+                low = number(low, decimals),
+                high = number(high, decimals),
+                unit = unit,
+            ),
             changePercent = percent(now.toDouble(), median.toDouble()),
         )
     }
@@ -231,12 +256,13 @@ object Fingerprint {
     private fun shape(
         window: FingerprintWindow,
         reference: FingerprintReference,
+        s: FingerprintStrings,
     ): DimensionVerdict {
         if (window.spectrum.size != reference.spectrum.size || window.spectrum.isEmpty()) {
             return DimensionVerdict(
                 FingerprintDimension.SPECTRUM,
                 FingerprintState.NOT_ENOUGH_DATA,
-                "спектры сняты с разной сеткой каналов",
+                s.differentChannelGrid,
             )
         }
         // Крайний канал — граница шкалы, а не форма спектра ([SpectrumEdge]).
@@ -278,16 +304,19 @@ object Fingerprint {
      * которую делает человек. Оно говорит, что именно изменилось, а жёсткость
      * стоит рядом как объяснение, почему доза и счёт разошлись.
      */
-    fun headline(comparison: FingerprintComparison): String {
+    fun headline(
+        comparison: FingerprintComparison,
+        s: FingerprintStrings = FingerprintRu,
+    ): String {
         val dose = comparison.of(FingerprintDimension.DOSE)
         val counts = comparison.of(FingerprintDimension.COUNT_RATE)
         val shape = comparison.of(FingerprintDimension.SPECTRUM)
 
         if (dose?.state == FingerprintState.NOT_EVALUATED) {
-            return "Эталон этого места ещё не создан"
+            return s.headlineNoReference
         }
         if (comparison.verdicts.all { it.state == FingerprintState.NOT_ENOUGH_DATA }) {
-            return "Пока недостаточно измерений для сравнения с эталоном"
+            return s.headlineNotEnough
         }
         val intensityChanged = dose?.changed == true || counts?.changed == true
         val shapeChanged = shape?.changed == true
@@ -295,30 +324,31 @@ object Fingerprint {
         // сравнение не делало: каждое измерение проверяло ОТЛИЧИЕ и его не
         // нашло. Формулировки говорят ровно это.
         return when {
-            intensityChanged && shapeChanged ->
-                "Изменились интенсивность и энергетический характер регистрируемого излучения"
-            intensityChanged ->
-                "Интенсивность отличается от эталона, у энергетического характера " +
-                    "отличий не найдено"
-            shapeChanged ->
-                "Изменился энергетический характер, у интенсивности отличий не найдено"
-            else -> "Отличий от эталона этого места не найдено"
+            intensityChanged && shapeChanged -> s.headlineBothChanged
+            intensityChanged -> s.headlineIntensityChanged
+            shapeChanged -> s.headlineShapeChanged
+            else -> s.headlineNoDifference
         }
     }
 
     /** Строка-интерпретатор про жёсткость: она объясняет, а не голосует. */
-    fun hardnessLine(comparison: FingerprintComparison): String? {
+    fun hardnessLine(
+        comparison: FingerprintComparison,
+        s: FingerprintStrings = FingerprintRu,
+    ): String? {
         val now = comparison.hardnessNow ?: return null
         val reference = comparison.hardnessReference ?: return null
         val change = comparison.hardnessChangePercent ?: return null
         val direction = when {
-            abs(change) <= HARDNESS_FLAT_PERCENT -> "отличий не найдено"
-            change > 0 -> "выше эталона на $change %"
-            else -> "ниже эталона на ${abs(change)} %"
+            abs(change) <= HARDNESS_FLAT_PERCENT -> s.hardnessFlat
+            change > 0 -> s.hardnessAbove(change)
+            else -> s.hardnessBelow(abs(change))
         }
-        return "Жёсткость ${Hardness.format(now)} против ${Hardness.format(reference)} — " +
-            "$direction. Это производная величина: она не голосует в выводе, а " +
-            "объясняет, почему доза и счёт разошлись."
+        return s.hardnessExplains(
+            now = Hardness.format(now),
+            reference = Hardness.format(reference),
+            direction = direction,
+        )
     }
 
     /**
@@ -328,9 +358,12 @@ object Fingerprint {
      */
     const val HARDNESS_FLAT_PERCENT = 5
 
-    /** Обязательная оговорка под выводом (спец §13). */
-    const val CAVEAT =
-        "Совпадение отпечатка не доказывает, что прибор в том же месте, а " +
-            "расхождение не называет причину: это описание наблюдения, а не " +
-            "оценка опасности."
+    /**
+     * Обязательная оговорка под выводом (спец §13).
+     *
+     * Функция, а не константа: `const val` не умеет зависеть от языка, а
+     * оговорка обязана звучать на языке интерфейса — иначе главное
+     * ограничение функции читал бы не тот, кому оно адресовано.
+     */
+    fun caveat(s: FingerprintStrings = FingerprintRu): String = s.caveat
 }

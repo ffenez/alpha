@@ -1,9 +1,13 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.text.SearchRu
+import app.radiacode.ui.text.SearchStrings
 import app.radiacode.ui.text.Strings
+import app.radiacode.analysis.Dispersion
 import app.radiacode.analysis.RateComparisonResult
 import app.radiacode.analysis.RateTest
+import app.radiacode.analysis.UncertaintyModel
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -58,7 +62,7 @@ object SearchVerdict {
         s: Strings = RuStrings,
     ): String {
         val since = comparison?.let { ratioPhrase(it, s) }
-        val confirm = seconds(SearchLadder.CONFIRM_MILLIS)
+        val confirm = seconds(SearchLadder.CONFIRM_MILLIS, s)
         return when (level) {
             SearchLevel.UNKNOWN -> s.searchCannotCompare
             SearchLevel.BACKGROUND -> s.searchNotConfirmed(since)
@@ -136,149 +140,173 @@ object SearchVerdict {
         }
 
     /** Line about short excursions that never reached the confirmation time. */
-    fun spikeLine(spikes: List<SpikeMarker>): String? {
+    fun spikeLine(spikes: List<SpikeMarker>, t: SearchStrings = SearchRu): String? {
         if (spikes.isEmpty()) return null
         val peak = spikes.maxOf { it.peakRatio }
-        return "короткие всплески: ${spikes.size} · сильнейший ×${num2(peak)} к фону — " +
-            "не подтверждены длительностью, отмечены как события"
+        return t.spikes(spikes.size, "×${num2(peak)}")
     }
 
     /**
      * The research layer (§4): every number the verdict stands on, including
      * the ones that make it weaker.
      */
-    fun whyLines(input: SearchWhyInput): List<WhyLine> {
+    fun whyLines(
+        input: SearchWhyInput,
+        s: Strings = RuStrings,
+        t: SearchStrings = SearchRu,
+    ): List<WhyLine> {
         val lines = ArrayList<WhyLine>(12)
         val comparison = input.comparison
 
         lines += WhyLine(
-            label = "Скорость счёта сейчас",
-            value = input.cps?.let { "${Uncertainty.num1(it)} с⁻¹" } ?: "нет данных",
+            label = t.whyCountRateNow,
+            value = input.cps?.let { "${Uncertainty.num1(it)} ${t.cpsUnit}" } ?: t.valueNoData,
             evidence = Evidence.MEASURED,
             note = input.cps?.let { Uncertainty.cpsSigmaLine(it) },
         )
 
         val background = input.background
         lines += WhyLine(
-            label = "Записанный фон",
-            value = background?.let { "${Uncertainty.num1(it.cps)} с⁻¹" } ?: "не записан",
+            label = t.whyBackground,
+            value = background?.let { "${Uncertainty.num1(it.cps)} ${t.cpsUnit}" }
+                ?: t.valueNotRecorded,
             evidence = Evidence.MEASURED,
             note = background?.let {
-                "±${Uncertainty.num1(it.sigma)} с⁻¹ · ${it.window.samples} показаний · " +
-                    "экспозиция ${num1(it.window.seconds)} с · качество: ${it.quality.label}"
+                t.backgroundWindowNote(
+                    sigma = Uncertainty.num1(it.sigma),
+                    samples = it.window.samples,
+                    exposure = num1(it.window.seconds),
+                    quality = SearchBaseline.qualityLabel(it.quality, t),
+                )
             },
         )
 
         if (comparison == null) {
             lines += WhyLine(
-                label = "Сравнение",
-                value = "не выполнялось",
+                label = t.whyComparison,
+                value = t.valueNotPerformed,
                 evidence = Evidence.STATISTICALLY_DETECTED,
-                note = if (background == null) {
-                    "нет записанного фона — сравнивать не с чем"
-                } else {
-                    "в решающем окне нет показаний: поток данных прерван"
-                },
+                note = if (background == null) t.noBackgroundToCompare else t.noReadingsInWindow,
             )
             return lines
         }
 
         lines += WhyLine(
-            label = "Окно решения",
-            value = "${num1(comparison.current.seconds)} с",
+            label = t.whyDecisionWindow,
+            value = t.secondsValue(num1(comparison.current.seconds)),
             evidence = Evidence.MEASURED,
-            note = "${num0(comparison.current.counts)} импульсов в окне " +
-                "(${comparison.current.samples} показаний)" +
-                gapNote(comparison.current.gapSeconds),
+            note = t.countsInWindow(num0(comparison.current.counts), comparison.current.samples) +
+                gapNote(comparison.current.gapSeconds, t),
         )
         lines += WhyLine(
-            label = "Окно фона",
-            value = "${num1(comparison.background.seconds)} с",
+            label = t.whyBackgroundWindow,
+            value = t.secondsValue(num1(comparison.background.seconds)),
             evidence = Evidence.MEASURED,
-            note = "${num0(comparison.background.counts)} импульсов" +
-                gapNote(comparison.background.gapSeconds),
+            note = t.counts(num0(comparison.background.counts)) +
+                gapNote(comparison.background.gapSeconds, t),
         )
         lines += WhyLine(
-            label = "Разность",
-            value = signed(comparison.differencePerSecond) + " с⁻¹",
+            label = t.whyDifference,
+            value = signed(comparison.differencePerSecond) + " ${t.cpsUnit}",
             evidence = Evidence.CALCULATED,
-            note = "±${num2(comparison.differenceSigma)} с⁻¹ (1σ) · " +
-                (deltaPercent(comparison)?.let { "${signedPercent(it)} к записанному фону" } ?: ""),
+            note = t.differenceNote(
+                sigma = num2(comparison.differenceSigma),
+                percent = deltaPercent(comparison)?.let { signedPercent(it) },
+            ),
         )
-        ratioPhrase(comparison)?.let {
+        ratioPhrase(comparison, s)?.let {
             lines += WhyLine(
-                label = "Отношение скоростей",
+                label = t.whyRatio,
                 value = "×${num2(comparison.ratio)}",
                 evidence = Evidence.STATISTICALLY_DETECTED,
                 // Интервал без названного метода — просто пара чисел: у
                 // пуассоновских счётов нормальное приближение на малых
                 // числах даёт не тот охват, ради которого интервал и строят.
-                note = "$it · интервал точный: условное биномиальное " +
-                    "распределение числа импульсов окна при фиксированной сумме, " +
-                    "границы по Клопперу–Пирсону, перенесённые на отношение " +
-                    "скоростей; нормальное приближение не используется",
+                note = t.ratioNote(it),
             )
         }
         lines += WhyLine(
-            label = "Критерий",
-            value = shortTestName(comparison.test),
+            label = t.whyCriterion,
+            value = shortTestName(comparison.test, t),
             evidence = Evidence.STATISTICALLY_DETECTED,
-            note = comparison.test.label + " · модель неопределённости: " +
-                comparison.model.label,
+            note = t.criterionNote(testLabel(comparison.test, t), modelLabel(comparison.model, t)),
         )
         lines += WhyLine(
-            label = "Значимость",
+            label = t.whySignificance,
             value = pLabel(comparison.pValue),
             evidence = Evidence.STATISTICALLY_DETECTED,
-            note = buildString {
-                append("порог отличия α = ${num2(SearchLadder.ALPHA)}")
-                comparison.zEquivalent?.let { append(" · z = ${num2(it)}") }
-                append(" · p — вероятность увидеть такое различие, если скорости равны")
-            },
+            note = t.significanceNote(
+                alpha = num2(SearchLadder.ALPHA),
+                z = comparison.zEquivalent?.let { num2(it) },
+            ),
         )
         lines += WhyLine(
-            label = "Разброс показаний",
-            value = comparison.fanoFactor?.let { "F = ${num2(it)}" } ?: "не оценивался",
+            label = t.whyScatter,
+            value = comparison.fanoFactor?.let { "F = ${num2(it)}" } ?: t.valueScatterNotEvaluated,
             evidence = Evidence.STATISTICALLY_DETECTED,
-            note = comparison.dispersion.label +
-                if (comparison.dispersionFactor > 1.0) {
-                    " · счёт поделён на φ = ${num2(comparison.dispersionFactor)}"
+            note = t.dispersionNote(
+                dispersion = dispersionLabel(comparison.dispersion, t),
+                phi = if (comparison.dispersionFactor > 1.0) {
+                    num2(comparison.dispersionFactor)
                 } else {
-                    ""
+                    null
                 },
+            ),
         )
         lines += WhyLine(
-            label = "Длительность отклонения",
-            value = input.heldMillis?.let { "${seconds(it)}" } ?: "нет",
+            label = t.whyHold,
+            value = input.heldMillis?.let { seconds(it, s) } ?: t.valueNoHold,
             evidence = Evidence.STATISTICALLY_DETECTED,
-            note = "подтверждение требует ${seconds(SearchLadder.CONFIRM_MILLIS)} подряд, " +
-                "снятие — ${seconds(SearchLadder.RELEASE_MILLIS)} согласия",
+            note = t.holdNote(
+                confirm = seconds(SearchLadder.CONFIRM_MILLIS, s),
+                release = seconds(SearchLadder.RELEASE_MILLIS, s),
+            ),
         )
         lines += WhyLine(
-            label = "Поток данных",
-            value = if (input.streamFresh) "идёт" else "прерван",
+            label = t.whyStream,
+            value = if (input.streamFresh) t.valueStreamRunning else t.valueStreamBroken,
             evidence = Evidence.MEASURED,
-            note = "окна строятся по времени прибора; пропуски укорачивают " +
-                "экспозицию, а не растягивают последнее показание",
+            note = t.streamNote,
         )
+        // «Не оценивается» — это не «изменений нет»: экран сравнивает счёт.
         lines += WhyLine(
-            label = "Спектральная форма",
-            value = "не оценивается",
+            label = t.whyShape,
+            value = t.valueShapeNotEvaluated,
             evidence = Evidence.STATISTICALLY_DETECTED,
-            note = "этот экран сравнивает только скорость счёта; изотоп по одному " +
-                "росту счёта не определяется — это вкладка «Спектр»",
+            note = t.shapeNote,
         )
         return lines
     }
 
-    private fun gapNote(gapSeconds: Double): String =
-        if (gapSeconds > 0.5) " · пропуск потока ${num1(gapSeconds)} с" else ""
+    private fun gapNote(gapSeconds: Double, t: SearchStrings): String =
+        if (gapSeconds > 0.5) t.gapNote(num1(gapSeconds)) else ""
 
-    private fun shortTestName(test: RateTest): String = when (test) {
-        RateTest.CONDITIONAL_BINOMIAL -> "условный биномиальный"
-        RateTest.QUASI_BINOMIAL -> "квазибиномиальный"
-        RateTest.NONE -> "нет"
+    private fun shortTestName(test: RateTest, t: SearchStrings): String = when (test) {
+        RateTest.CONDITIONAL_BINOMIAL -> t.testConditionalBinomial
+        RateTest.QUASI_BINOMIAL -> t.testQuasiBinomial
+        RateTest.NONE -> t.testNone
     }
+
+    // Сами перечисления живут в движке (`analysis/`), общем для всех экранов,
+    // поэтому их человеческие подписи собираются здесь, из каталога области.
+    private fun testLabel(test: RateTest, t: SearchStrings): String = when (test) {
+        RateTest.CONDITIONAL_BINOMIAL -> t.testLabelConditionalBinomial
+        RateTest.QUASI_BINOMIAL -> t.testLabelQuasiBinomial
+        RateTest.NONE -> t.testLabelNone
+    }
+
+    private fun modelLabel(model: UncertaintyModel, t: SearchStrings): String = when (model) {
+        UncertaintyModel.POISSON -> t.modelPoisson
+        UncertaintyModel.EMPIRICAL_VARIANCE -> t.modelEmpiricalVariance
+    }
+
+    private fun dispersionLabel(dispersion: Dispersion, t: SearchStrings): String =
+        when (dispersion) {
+            Dispersion.UNKNOWN -> t.dispersionUnknown
+            Dispersion.POISSON_LIKE -> t.dispersionPoissonLike
+            Dispersion.OVERDISPERSED -> t.dispersionOverdispersed
+            Dispersion.UNDERDISPERSED -> t.dispersionUnderdispersed
+        }
 
     private fun pLabel(p: Double): String = when {
         !p.isFinite() -> "—"
@@ -293,7 +321,7 @@ object SearchVerdict {
     private fun signed(value: Double): String =
         if (value >= 0) "+${num2(value)}" else "−${num2(abs(value))}"
 
-    fun seconds(millis: Long): String = "${millis / 1000} с"
+    fun seconds(millis: Long, s: Strings = RuStrings): String = s.seconds(millis / 1000)
 
     // Formatting matches [Uncertainty]: fixed locale, comma as the decimal
     // separator — the strings are pinned by tests and must not depend on the

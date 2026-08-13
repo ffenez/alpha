@@ -85,6 +85,15 @@ internal fun buildFrame(
     metric: ChartMetric = ChartMetric.DOSE,
     /** Подписей времени на оси: у миниатюры на карточке их меньше. */
     xLabelCount: Int = 4,
+    /**
+     * Показывать ли единицу в углу поля.
+     *
+     * На карточке Главной — нет: величина названа заголовком карточки, а
+     * «мкЗв/ч» в углу графика повторяло её третий раз (после заголовка и
+     * значений). На полноэкранном единица остаётся: там заголовок уезжает из
+     * поля зрения при жестах, и угол — единственное место, где она есть.
+     */
+    showUnit: Boolean = true,
 ): ChartFrame {
     val visible = snapshot.buckets.filter {
         it.midMillis >= window.fromMillis && it.midMillis <= window.toMillis
@@ -131,11 +140,19 @@ internal fun buildFrame(
         alarmLevel = alarm,
     )
     val rawDots = if (dotsVisible) snapshot.aggregates else emptyList()
+    // Правый край кадра — «сейчас» плюс небольшой постоянный отступ.
+    //
+    // Свежая точка, приклеенная к самой кромке, читается как обрыв графика, а
+    // не как его край; тот же приём — у биржевых графиков. Отступ ВРЕМЕННОЙ, а
+    // не пиксельный: он не растягивает данные и не рисует в будущем ничего —
+    // просто оставляет воздух справа. Пропуск в конце (поток встал) выглядит
+    // так же честно: линия кончается на последнем измерении, дальше пусто.
+    val padded = ChartWindows.withRightPadding(window)
     return ChartFrame(
         spec = DoseChartSpec(
             buckets = visible,
-            fromMillis = window.fromMillis,
-            toMillis = window.toMillis,
+            fromMillis = padded.fromMillis,
+            toMillis = padded.toMillis,
             scale = scale,
             baselineBand = band,
             baselineMedian = baseline?.doseMedianMicroSvH,
@@ -154,7 +171,7 @@ internal fun buildFrame(
             extremeMarkers = markers,
             yLabels = scale.ticks().map { it to ChartMetrics.format(metric, it, unit) },
             xLabels = TimeAxis.autoLabels(window.fromMillis, window.toMillis, count = xLabelCount),
-            unitLabel = ChartMetrics.unitLabel(metric, unit),
+            unitLabel = if (showUnit) ChartMetrics.unitLabel(metric, unit) else "",
             // Фон, который несёт данные: где прибор молчал, куда история не
             // доходит и где проходят сутки/часы (§2 ТЗ и правило «не
             // интерполировать пропуски»).

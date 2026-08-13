@@ -4,6 +4,8 @@ import app.radiacode.analysis.AlgorithmVersions
 import app.radiacode.analysis.Fingerprint
 import app.radiacode.analysis.FingerprintReference
 import app.radiacode.analysis.FingerprintWindow
+import app.radiacode.ui.text.FingerprintRu
+import app.radiacode.ui.text.FingerprintStrings
 import app.radiacode.baseline.Baseline
 import app.radiacode.baseline.BaselineConfig
 import app.radiacode.baseline.BaselineState
@@ -83,14 +85,20 @@ class FingerprintRepository(
      * важнее первого — без спектра отпечаток теряет единственное измерение,
      * которого нет больше нигде.
      */
-    suspend fun maturity(profileId: Long, baseline: BaselineState?): Maturity {
+    suspend fun maturity(
+        profileId: Long,
+        baseline: BaselineState?,
+        s: FingerprintStrings = FingerprintRu,
+    ): Maturity {
         val active = (baseline as? BaselineState.Active)?.baseline
-            ?: return Maturity(ready = false, reason = "исторический диапазон ещё не собран")
+            ?: return Maturity(ready = false, reason = s.maturityNoBaseline)
         if (active.accumulatedSeconds < Fingerprint.MATURITY_SECONDS) {
             return Maturity(
                 ready = false,
-                reason = "нужно ${Fingerprint.MATURITY_SECONDS / 3600} ч пригодных измерений, " +
-                    "собрано ${active.accumulatedSeconds / 3600} ч",
+                reason = s.maturityNeedsHours(
+                    needHours = Fingerprint.MATURITY_SECONDS / 3600,
+                    haveHours = active.accumulatedSeconds / 3600,
+                ),
             )
         }
         val spectrum = referenceSpectrum(profileId)
@@ -98,8 +106,10 @@ class FingerprintRepository(
         if (counts < Fingerprint.MATURITY_SPECTRUM_COUNTS) {
             return Maturity(
                 ready = false,
-                reason = "опорный спектр ещё тонкий: ${counts} импульсов из " +
-                    "${Fingerprint.MATURITY_SPECTRUM_COUNTS}",
+                reason = s.maturityThinSpectrum(
+                    counts = counts,
+                    needCounts = Fingerprint.MATURITY_SPECTRUM_COUNTS,
+                ),
             )
         }
         return Maturity(ready = true, reason = null)

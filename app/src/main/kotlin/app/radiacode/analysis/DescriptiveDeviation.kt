@@ -1,6 +1,8 @@
 package app.radiacode.analysis
 
 import app.radiacode.baseline.Baseline
+import app.radiacode.ui.text.MonitorRu
+import app.radiacode.ui.text.MonitorStrings
 
 /** What a statement is about — the UI picks wording and icon by kind, not by parsing text. */
 enum class DeviationKind {
@@ -132,17 +134,21 @@ object DescriptiveDeviation {
     const val MIN_OBSERVATIONS = 20
 
     /** What the UI says when no statement fires. */
-    const val USUAL_TEXT = "в обычном диапазоне этого профиля"
+    fun usualText(s: MonitorStrings = MonitorRu): String = s.deviationUsual
 
     /** What the UI says when the window is too thin to compare. */
-    const val NOT_ENOUGH_TEXT = "мало измерений для сравнения с профилем"
+    fun notEnoughText(s: MonitorStrings = MonitorRu): String = s.deviationNotEnough
 
     /**
      * Statements about [window] against [baseline], strongest first. Empty
-     * means «в обычном диапазоне этого профиля» ([USUAL_TEXT]); null means
-     * there is not enough measurement to say anything ([NOT_ENOUGH_TEXT]).
+     * means «в обычном диапазоне этого профиля» ([usualText]); null means
+     * there is not enough measurement to say anything ([notEnoughText]).
      */
-    fun statements(window: WindowSummary, baseline: Baseline): List<DeviationStatement>? {
+    fun statements(
+        window: WindowSummary,
+        baseline: Baseline,
+        s: MonitorStrings = MonitorRu,
+    ): List<DeviationStatement>? {
         if (window.observations < MIN_OBSERVATIONS) return null
         val out = ArrayList<DeviationStatement>(4)
 
@@ -152,15 +158,11 @@ object DescriptiveDeviation {
             val above = window.medianMicroSvH > baseline.doseHighMicroSvH
             out += DeviationStatement(
                 kind = DeviationKind.OUTSIDE_PROFILE_BAND,
-                text = if (above) {
-                    "медиана окна выше исторического диапазона P10–P90 профиля"
-                } else {
-                    "медиана окна ниже исторического диапазона P10–P90 профиля"
-                },
+                text = if (above) s.deviationAboveBand else s.deviationBelowBand,
                 numbers = listOf(
-                    rate("медиана окна", window.medianMicroSvH),
-                    rate("P10 профиля", baseline.doseLowMicroSvH),
-                    rate("P90 профиля", baseline.doseHighMicroSvH),
+                    rate(s.numberWindowMedian, window.medianMicroSvH),
+                    rate(s.numberProfileP10, baseline.doseLowMicroSvH),
+                    rate(s.numberProfileP90, baseline.doseHighMicroSvH),
                 ),
             )
         } else {
@@ -172,16 +174,12 @@ object DescriptiveDeviation {
                 val up = window.medianMicroSvH > baseline.doseP75MicroSvH
                 out += DeviationStatement(
                     kind = DeviationKind.MEDIAN_SHIFT,
-                    text = if (up) {
-                        "медиана сместилась вверх относительно обычной середины профиля"
-                    } else {
-                        "медиана сместилась вниз относительно обычной середины профиля"
-                    },
+                    text = if (up) s.deviationShiftedUp else s.deviationShiftedDown,
                     numbers = listOf(
-                        rate("медиана окна", window.medianMicroSvH),
-                        rate("медиана профиля", baseline.doseMedianMicroSvH),
-                        rate("P25 профиля", baseline.doseP25MicroSvH),
-                        rate("P75 профиля", baseline.doseP75MicroSvH),
+                        rate(s.numberWindowMedian, window.medianMicroSvH),
+                        rate(s.numberProfileMedian, baseline.doseMedianMicroSvH),
+                        rate(s.numberProfileP25, baseline.doseP25MicroSvH),
+                        rate(s.numberProfileP75, baseline.doseP75MicroSvH),
                     ),
                 )
             }
@@ -192,10 +190,10 @@ object DescriptiveDeviation {
         if (profileIqr > 0f && windowIqr > SPREAD_FACTOR * profileIqr) {
             out += DeviationStatement(
                 kind = DeviationKind.SPREAD_WIDER,
-                text = "разброс измерений в окне шире обычного для профиля",
+                text = s.deviationSpreadWider,
                 numbers = listOf(
-                    rate("Q25–Q75 окна", windowIqr.toDouble()),
-                    rate("P25–P75 профиля", profileIqr.toDouble()),
+                    rate(s.numberWindowIqr, windowIqr.toDouble()),
+                    rate(s.numberProfileIqr, profileIqr.toDouble()),
                 ),
             )
         }
@@ -206,13 +204,17 @@ object DescriptiveDeviation {
         ) {
             out += DeviationStatement(
                 kind = DeviationKind.SHORT_SPIKE,
-                text = "короткий всплеск: выше P90 профиля недолго, уровень не удержался",
+                text = s.deviationShortSpike,
                 numbers = listOf(
-                    rate("максимум окна", window.maxMicroSvH),
-                    rate("P90 профиля", baseline.doseHighMicroSvH),
-                    DeviationNumber("время выше P90", aboveSeconds.toDouble(), DeviationUnit.SECONDS),
+                    rate(s.numberWindowMax, window.maxMicroSvH),
+                    rate(s.numberProfileP90, baseline.doseHighMicroSvH),
                     DeviationNumber(
-                        "измерено в окне",
+                        s.numberSecondsAboveP90,
+                        aboveSeconds.toDouble(),
+                        DeviationUnit.SECONDS,
+                    ),
+                    DeviationNumber(
+                        s.numberMeasuredInWindow,
                         window.measuredSeconds.toDouble(),
                         DeviationUnit.SECONDS,
                     ),
@@ -223,9 +225,12 @@ object DescriptiveDeviation {
     }
 
     /** Headline for the statements: the honest «nothing to say» is a first-class answer. */
-    fun headline(statements: List<DeviationStatement>?): String = when {
-        statements == null -> NOT_ENOUGH_TEXT
-        statements.isEmpty() -> USUAL_TEXT
+    fun headline(
+        statements: List<DeviationStatement>?,
+        s: MonitorStrings = MonitorRu,
+    ): String = when {
+        statements == null -> notEnoughText(s)
+        statements.isEmpty() -> usualText(s)
         else -> statements.first().text
     }
 

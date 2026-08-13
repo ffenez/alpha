@@ -74,6 +74,7 @@ class WhyReportTest {
         report.nowValue?.let { add(it) }
         report.usualValue?.let { add(it) }
         add(report.legend)
+        add(report.caveat)
         report.sections.forEach { section ->
             add(section.title)
             section.note?.let { add(it) }
@@ -90,11 +91,17 @@ class WhyReportTest {
     @Test
     fun `the sheet opens with the verdict, its sentence and the evidence`() {
         val report = WhyReportBuilder.build(input())
-        assertEquals("В обычном диапазоне этого профиля", report.status)
+        assertEquals("Показания обычны для этого места", report.status)
         assertEquals(WhyTone.OK, report.tone)
-        assertTrue(report.sentence.contains("P10–P90"), report.sentence)
+        // 14.md: первая фраза человеческая. Нотация P10–P90 не исчезла — она
+        // подписывает шкалу и живёт во втором уровне вместе с объяснением.
+        assertTrue(report.sentence.contains("обычно находятся измерения"), report.sentence)
+        assertTrue(!report.sentence.contains("P10–P90"), report.sentence)
         assertEquals("0,16 мкЗв/ч", report.nowValue)
         assertEquals("0,14–0,17 мкЗв/ч", report.usualValue)
+        // Обязательная оговорка стоит на первом уровне.
+        assertTrue(report.caveat.contains("отличие от вашего обычного фона"), report.caveat)
+        assertTrue(report.caveat.contains("не является заключением"), report.caveat)
 
         // ...and the first section is «Сейчас», not MAD or quarantine (§1).
         assertEquals("Сейчас", report.sections.first().title)
@@ -109,6 +116,8 @@ class WhyReportTest {
         val scale = assertNotNull(WhyReportBuilder.build(input()).scale)
         assertEquals("0,14", scale.lowLabel)
         assertEquals("0,17", scale.highLabel)
+        // Средняя засечка шкалы: «P10 · медиана · P90» (14.md §5).
+        assertEquals("0,15", scale.medianLabel)
         assertEquals("0,16", scale.currentLabel)
         assertTrue(scale.position in 0.6f..0.7f, "${scale.position}")
         assertTrue(!scale.outside)
@@ -191,14 +200,20 @@ class WhyReportTest {
         val note = assertNotNull(comparison.note)
         assertTrue(note.contains("80 %"), note)
         assertTrue(note.contains("не норматив"), note)
-        assertEquals("внутри P10–P90", comparison.lines.single { it.label == "Положение" }.value)
+        // Положение — человеческими словами; P-нотация стоит на шкале рядом.
+        assertEquals(
+            "внутри обычного диапазона",
+            comparison.lines.single { it.label == "Положение" }.value,
+        )
     }
 
+    /** MAD — экспертный уровень (14.md §6), но оговорка при нём осталась. */
     @Test
     fun `MAD is never called an instrument error`() {
-        val statistics = WhyReportBuilder.build(input())
-            .sections.single { it.title == "Статистика профиля" && it.advanced }
-        val mad = statistics.lines.single { it.label == "MAD" }
+        val calculations = WhyReportBuilder.build(input())
+            .sections.single { it.title == "Расчёты и формулы" }
+        assertEquals(WhyLevel.EXPERT, calculations.level)
+        val mad = calculations.lines.single { it.label == "MAD" }
         val note = assertNotNull(mad.note)
         assertTrue(note.contains("не погрешность прибора"), note)
         assertTrue(note.contains("median(|xᵢ"), note)
@@ -245,17 +260,34 @@ class WhyReportTest {
                 ),
             ),
         )
+        // §12: первый уровень называет ОДНО состояние и одно «зачем» —
+        // «карантин после отклонения 36 ч» выглядел там основным показателем.
         val state = report.sections.single { it.title == "Состояние статистики" }
-        assertEquals("8,7 ч", state.lines.single { it.label == "Не учтено в статистике" }.value)
+        assertEquals(WhyLevel.PLAIN, state.level)
+        assertEquals(listOf("Состояние"), state.lines.map { it.label })
+        assertEquals("Временно не обновляется", state.lines.single().value)
+        val plainNote = assertNotNull(state.note)
+        assertTrue(plainNote.contains("не стало его частью"), plainNote)
+        assertTrue(plainNote.contains("сохраняются"), plainNote)
+
+        // Ни одна причина и ни одна длительность не потеряны — они уровнем
+        // глубже, где их и ищут.
+        val details = report.sections.single { it.title == "Что исключено из статистики" }
+        assertEquals(WhyLevel.METHOD, details.level)
+        assertEquals(
+            BaselineExclusion.QUARANTINE.label,
+            details.lines.single { it.label == "Причина сейчас" }.value,
+        )
+        assertEquals("8,7 ч", details.lines.single { it.label == "Не учтено в статистике" }.value)
         // Both reasons appear as their own lines, largest first.
-        val reasons = state.lines.drop(2).map { it.label }
+        val reasons = details.lines.drop(2).map { it.label }
         assertEquals(
             listOf(BaselineExclusion.EXPERIMENT.label, BaselineExclusion.QUARANTINE.label),
             reasons,
         )
         // «baseline» — имя движка, на экране его нет: оговорка объясняет, что
         // отклонение не становится новым ОБЫЧНЫМ ФОНОМ.
-        assertTrue(assertNotNull(state.note).contains("новый обычный фон"), state.note!!)
+        assertTrue(assertNotNull(details.note).contains("новый обычный фон"), details.note!!)
     }
 
     @Test
@@ -269,7 +301,7 @@ class WhyReportTest {
         )
         assertEquals(
             "${thresholds.relativeFactor.toInt()} × P90 профиля",
-            criteria.lines.single { it.label == "Относительный критерий" }.value,
+            criteria.lines.single { it.label == "Порог относительно обычного диапазона" }.value,
         )
         assertEquals(
             durationWording(thresholds.persistenceSeconds.toLong()),
@@ -343,6 +375,127 @@ class WhyReportTest {
         createdAtMillis = 0L,
         accumulatedSeconds = 72 * 3600L,
     )
+
+    // --------------------------------------------- 14.md: три уровня глубины
+
+    private fun textOf(sections: List<WhySection>): List<String> = sections.flatMap { section ->
+        buildList {
+            add(section.title)
+            section.note?.let { add(it) }
+            section.lines.forEach {
+                add(it.label)
+                add(it.value)
+                it.note?.let { note -> add(note) }
+            }
+        }
+    }
+
+    /**
+     * Первый экран отвечает на вопрос «что это значит», а не «как это
+     * посчитано»: ни χ², ни z, ни MAD, ни формул, ни числа корзин.
+     */
+    @Test
+    fun `the first level carries no formulas`() {
+        val report = WhyReportBuilder.build(
+            input(fingerprint = changedFingerprint),
+        )
+        val plain = textOf(report.sections(WhyLevel.PLAIN))
+        val forbidden = listOf("χ²", "z =", "MAD", "median(|", "√", "корзин", "P25", "1σ")
+        for (text in plain) {
+            for (token in forbidden) {
+                assertTrue(!text.contains(token), "«$token» на первом уровне: $text")
+            }
+        }
+        // Зато на нём есть ответ, объём данных и спектр одной фразой.
+        val titles = report.sections(WhyLevel.PLAIN).map { it.title }
+        assertEquals(
+            listOf(
+                "Сейчас",
+                "Сравнение с профилем",
+                "Сколько данных",
+                "Состояние статистики",
+                "Спектральное сравнение",
+            ),
+            titles,
+        )
+    }
+
+    /**
+     * Ни одно число не исчезло — оно переехало глубже. Числа второго и
+     * третьего уровня перечислены поимённо: молчаливая пропажа величины и
+     * есть та регрессия, ради которой этот тест написан.
+     */
+    @Test
+    fun `nothing is lost on the way down`() {
+        val report = WhyReportBuilder.build(input(fingerprint = changedFingerprint))
+
+        val method = textOf(report.sections(WhyLevel.METHOD))
+        assertTrue(method.contains("Медиана"), "$method")
+        assertTrue(method.contains("P25–P75"), "$method")
+        assertTrue(method.contains("P10–P90"), "$method")
+        assertTrue(method.contains("Абсолютный порог L1"), "$method")
+        // Точная нотация положения не пропала — она на научном уровне.
+        assertTrue(method.contains("внутри P10–P90"), "$method")
+        // «Измерений: 82 800» с честной подписью (14.md §3).
+        val measurements = report.sections(WhyLevel.METHOD)
+            .flatMap { it.lines }.single { it.label == "Измерений" }
+        assertEquals("82 800", measurements.value)
+        assertTrue(
+            assertNotNull(measurements.note).startsWith("показаний прибора"),
+            measurements.note!!,
+        )
+        assertTrue(assertNotNull(measurements.note).contains("при пропусках"), measurements.note!!)
+
+        val expert = report.sections(WhyLevel.EXPERT).single()
+        val labels = expert.lines.map { it.label }
+        assertTrue(labels.contains("MAD"), "$labels")
+        // «корзина» — структура хранения; на экране интервал называется
+        // тем, чем он является для человека, — минутой (§3).
+        assertTrue(labels.contains("Минутных интервалов"), "$labels")
+        // χ² и z со спектрального сравнения — тоже здесь, а не на первом.
+        val shape = expert.lines.single { it.label == "Статистика сравнения формы" }
+        assertTrue(shape.value.contains("χ²"), shape.value)
+        assertTrue(shape.value.contains("z ="), shape.value)
+        // Пуассоновская формула и бюджет неопределённости дозы.
+        val note = assertNotNull(expert.note)
+        assertTrue(note.contains("√(N/τ)"), note)
+        assertTrue(note.contains("не полная неопределённость измерения"), note)
+    }
+
+    /** ±% рядом с дозой обязана называть, ЧЬЯ она (14.md §7). */
+    @Test
+    fun `the plus-minus next to the dose names the instrument`() {
+        val now = WhyReportBuilder.build(input()).sections.first { it.title == "Сейчас" }
+        val dose = now.lines.first()
+        val note = assertNotNull(dose.note)
+        assertTrue(note.contains("собственная оценка прибора"), note)
+        assertTrue(note.contains("для этого показания"), note)
+        // Полный бюджет неопределённости назван отдельно и глубже — выдавать
+        // одну составляющую за всю неопределённость нельзя.
+        assertTrue(!note.contains("калибровка"), note)
+    }
+
+    /** Счёт объясняется физическим смыслом, а не геометрией источника. */
+    @Test
+    fun `the count rate is explained by what it measures`() {
+        val now = WhyReportBuilder.build(input()).sections.first { it.title == "Сейчас" }
+        val note = assertNotNull(now.lines.single { it.label == "Скорость счёта" }.note)
+        assertTrue(note.contains("не показывает дозу"), note)
+        assertTrue(note.contains("энергии"), note)
+        assertTrue(!note.contains("далёк"), note)
+    }
+
+    private val changedFingerprint: FingerprintComparison
+        get() = Fingerprint.compare(
+            window = FingerprintWindow(
+                doseMedianMicroSvH = 0.16f,
+                cpsMedian = 25f,
+                spectrum = flatSpectrum.mapIndexed { i, v -> if (i in 300..340) v * 6 else v },
+                spectrumSeconds = 3600,
+                seconds = 3600,
+            ),
+            reference = fingerprintReference,
+        )
 
     @Test
     fun `research numbers stay folded, the answer never does`() {

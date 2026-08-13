@@ -187,6 +187,68 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 10 to 11 produces exactly the exported v11 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(10))
+            MigrationSql.FROM_10_TO_11.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(11))
+        }
+    }
+
+    @Test
+    fun `migration 10 to 11 adds an empty slice table and keeps the spectra`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(10))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO spectra (timestamp, accumulated, isBackgroundReference, " +
+                        "origin, label, durationSeconds, a0, a1, a2, channelCount, counts) " +
+                        "VALUES (3000, 0, 0, 'user', 'Проба', 600, -5.5, 2.4, 0.0004, 4, " +
+                        "x'01000000020000000300000004000000')",
+                )
+            }
+
+            MigrationSql.FROM_10_TO_11.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            // Снимки спектра — другой вид данных, миграция их не трогает и
+            // ничего из них не пересчитывает: срез спектрограммы это разность
+            // двух ПОСЛЕДОВАТЕЛЬНЫХ опросов, а не сохранённый снимок.
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery("SELECT label FROM spectra")
+                assertTrue(rows.next())
+                assertEquals("Проба", rows.getString("label"))
+            }
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery("SELECT COUNT(*) AS n FROM spectrogram_slices")
+                rows.next()
+                assertEquals(0, rows.getInt("n"), "история наполняется вперёд, а не миграцией")
+            }
+            // Начало интервала — ключ: повторная запись заменяет строку, а не
+            // удваивает историю.
+            connection.createStatement().use { statement ->
+                for (counts in listOf(1, 2)) {
+                    statement.execute(
+                        "INSERT OR REPLACE INTO spectrogram_slices (startMillis, endMillis, " +
+                            "durationMillis, schemeId, bandCount, counts, cps, doseMicroSvH, " +
+                            "sliceCount) VALUES (1000, 6000, 5000, 'SPECTROGRAM_96_V1', 96, " +
+                            "x'0100000002000000', NULL, NULL, $counts)",
+                    )
+                }
+                val rows = statement.executeQuery(
+                    "SELECT COUNT(*) AS n, MAX(sliceCount) AS c FROM spectrogram_slices",
+                )
+                rows.next()
+                assertEquals(1, rows.getInt("n"))
+                assertEquals(2, rows.getInt("c"))
+            }
+        }
+    }
+
+    @Test
     fun `migration 9 to 10 produces exactly the exported v10 schema`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(9))

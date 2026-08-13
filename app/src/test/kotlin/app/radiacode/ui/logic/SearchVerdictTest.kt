@@ -134,7 +134,9 @@ class SearchVerdictTest {
             ),
         )
         val labels = lines.map { it.label }
-        assertTrue(labels.contains("Окно решения"), "$labels")
+        // «окно решения» — термин алгоритма; он назван один раз в справке
+        // экрана, а строка отчёта называет то же человеческими словами (§3).
+        assertTrue(labels.contains("Время подтверждения"), "$labels")
         assertTrue(labels.contains("Окно фона"), "$labels")
         assertTrue(labels.contains("Критерий"), "$labels")
         assertTrue(labels.contains("Значимость"), "$labels")

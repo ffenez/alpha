@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import app.radiacode.ui.text.NotificationRu
+import app.radiacode.ui.text.NotificationStrings
 
 /**
  * Notification channels, creatable from any entry point (service startup or
@@ -23,14 +25,14 @@ object Notifications {
      */
     const val ALARM_CHANNEL_ID = "alarm"
 
-    fun ensureChannels(context: Context) {
+    fun ensureChannels(context: Context, s: NotificationStrings = NotificationRu) {
         val manager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         manager.createNotificationChannel(
             NotificationChannel(
                 MEASUREMENT_CHANNEL_ID,
-                "Measurement",
+                s.measurementChannel,
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
                 setShowBadge(false)
@@ -40,10 +42,10 @@ object Notifications {
         manager.createNotificationChannel(
             NotificationChannel(
                 ALARM_CHANNEL_ID,
-                "Тревога",
+                s.alarmChannel,
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description = "Устойчивое превышение уровня, подтверждённое по величине и длительности"
+                description = s.alarmChannelDescription
                 enableVibration(true)
                 setSound(
                     RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),

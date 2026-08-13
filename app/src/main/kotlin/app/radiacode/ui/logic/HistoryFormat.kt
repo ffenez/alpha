@@ -1,6 +1,8 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.data.SessionAdmission
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -8,39 +10,43 @@ import java.time.format.DateTimeFormatter
 /** Pure formatting for История: durations, dates, counts. JVM-tested. */
 object HistoryFormat {
 
-    private val MONTHS = listOf(
-        "янв", "фев", "мар", "апр", "мая", "июн",
-        "июл", "авг", "сен", "окт", "ноя", "дек",
-    )
-
     private val TIME = DateTimeFormatter.ofPattern("HH:mm")
 
     /** «45 с» / «12 мин» / «8 ч 12 мин». */
-    fun duration(seconds: Long): String {
-        val s = seconds.coerceAtLeast(0)
+    fun duration(seconds: Long, s: HistoryStrings = HistoryRu): String {
+        val value = seconds.coerceAtLeast(0)
         return when {
-            s < 60 -> "$s с"
-            s < 3600 -> "${s / 60} мин"
+            value < 60 -> s.seconds(value)
+            value < 3600 -> s.minutes(value / 60)
             else -> {
-                val minutes = s % 3600 / 60
-                if (minutes == 0L) "${s / 3600} ч" else "${s / 3600} ч $minutes мин"
+                val minutes = value % 3600 / 60
+                if (minutes == 0L) s.hours(value / 3600) else s.hoursMinutes(value / 3600, minutes)
             }
         }
     }
 
     /** «8 авг 14:02»; adds the year when it differs from the current one. */
-    fun dayTime(millis: Long, nowMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+    fun dayTime(
+        millis: Long,
+        nowMillis: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+        s: HistoryStrings = HistoryRu,
+    ): String {
         val dateTime = Instant.ofEpochMilli(millis).atZone(zone)
         val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
-        val day = "${dateTime.dayOfMonth} ${MONTHS[dateTime.monthValue - 1]}"
+        val day = "${dateTime.dayOfMonth} ${s.months[dateTime.monthValue - 1]}"
         val year = if (dateTime.year != now.year) " ${dateTime.year}" else ""
         return "$day$year ${dateTime.format(TIME)}"
     }
 
     /** «9 авг» — day and month only (chart edge labels). */
-    fun day(millis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+    fun day(
+        millis: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+        s: HistoryStrings = HistoryRu,
+    ): String {
         val date = Instant.ofEpochMilli(millis).atZone(zone)
-        return "${date.dayOfMonth} ${MONTHS[date.monthValue - 1]}"
+        return "${date.dayOfMonth} ${s.months[date.monthValue - 1]}"
     }
 
     /**
@@ -48,17 +54,16 @@ object HistoryFormat {
      * «нет» with the dominating reason. Never says just «нет» — an
      * unexplained exclusion is worse than none.
      */
-    fun admissionLine(admission: SessionAdmission): String {
+    fun admissionLine(admission: SessionAdmission, s: HistoryStrings = HistoryRu): String {
         val excluded = admission.exclusions
         return when {
-            excluded.isEmpty() && admission.included -> "в обычный фон: да"
-            admission.included -> {
-                val top = excluded.first()
-                "в обычный фон: частично · вне обучения " +
-                    "${durationWording(admission.excludedSeconds)} — ${top.reason.label}"
-            }
-            excluded.isEmpty() -> "в обычный фон: нет измерений"
-            else -> "в обычный фон: нет — ${excluded.first().reason.label}"
+            excluded.isEmpty() && admission.included -> s.admissionYes
+            admission.included -> s.admissionPartial(
+                excluded = durationWording(admission.excludedSeconds),
+                reason = excluded.first().reason.label,
+            )
+            excluded.isEmpty() -> s.admissionNoData
+            else -> s.admissionNo(excluded.first().reason.label)
         }
     }
 
@@ -68,9 +73,8 @@ object HistoryFormat {
      * result an annual (effective) dose, and must not promise anything about
      * the person carrying the device.
      */
-    fun doseProjectionSentence(doseWithUnit: String): String =
-        "если средняя измеренная внешняя фотонная мощность дозы останется такой же — " +
-            "за год ≈ $doseWithUnit"
+    fun doseProjectionSentence(doseWithUnit: String, s: HistoryStrings = HistoryRu): String =
+        s.doseProjection(doseWithUnit)
 
     /**
      * «по 26 ч измерений · средняя 0,155 мкЗв/ч» — сначала ОБЪЁМ наблюдений.
@@ -79,18 +83,37 @@ object HistoryFormat {
      * объёме данных, и он должен стоять рядом с числом, а не строкой ниже
      * мелким шрифтом.
      */
-    fun doseProjectionBasis(rateWithUnit: String, measuredSeconds: Long): String =
-        "по ${duration(measuredSeconds)} измерений · средняя $rateWithUnit"
+    fun doseProjectionBasis(
+        rateWithUnit: String,
+        measuredSeconds: Long,
+        s: HistoryStrings = HistoryRu,
+    ): String = s.doseProjectionBasis(rateWithUnit, duration(measuredSeconds, s))
 
-    /** What the projection deliberately does not include (spec §6, §23). */
-    const val DOSE_PROJECTION_CAVEAT =
-        "Это не годовая эффективная доза человека: в неё не входят внутреннее " +
-            "облучение, радон, медицинские процедуры и всё время, когда прибор " +
-            "не измерял или не был рядом."
+    /**
+     * Одна строка под проекцией: что это за величина и чем она не является.
+     *
+     * Отказ остаётся на первом уровне ЦЕЛИКОМ — меняется только длина
+     * перечисления: список того, что в проекцию не входит, лежит на втором
+     * уровне ([doseProjectionCaveat], справка «i»), а отказ называть число
+     * годовой эффективной дозой человека виден сразу, рядом с числом.
+     */
+    fun doseProjectionCaveatShort(s: HistoryStrings = HistoryRu): String =
+        s.doseProjectionCaveatShort
+
+    /**
+     * What the projection deliberately does not include (spec §6, §23).
+     *
+     * Функция, а не `const val`: константа не умеет зависеть от языка, а
+     * перечень того, что в проекцию НЕ входит, обязан читаться на языке
+     * интерфейса — иначе главное ограничение числа остаётся непрочитанным.
+     */
+    fun doseProjectionCaveat(s: HistoryStrings = HistoryRu): String = s.doseProjectionCaveat
 
     /** Shown instead of the projection when the window is too thin (spec §6). */
-    fun doseProjectionUnavailable(measuredSeconds: Long): String =
-        "измерений пока мало (${duration(measuredSeconds)}) — за год пересчитывать не из чего"
+    fun doseProjectionUnavailable(
+        measuredSeconds: Long,
+        s: HistoryStrings = HistoryRu,
+    ): String = s.doseProjectionUnavailable(duration(measuredSeconds, s))
 
     /** Thousands grouped with a space: 29520 -> «29 520». */
     fun count(value: Int): String {

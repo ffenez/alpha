@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.radiacode.ui.logic.SearchVerdict
 import app.radiacode.ui.logic.SearchWhyInput
+import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.SearchCatalogue
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -34,10 +36,12 @@ fun SearchWhySheet(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = SearchCatalogue.of(strings.language)
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = "Почему такой вывод", style = type.title, color = colors.ink)
+                Text(text = t.whyTitle, style = type.title, color = colors.ink)
                 Text(text = headline, style = type.label, color = colors.ink2)
                 Text(text = explanation, style = type.bodySmall, color = colors.muted)
                 AppDivider()
@@ -47,17 +51,16 @@ fun SearchWhySheet(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(Dimens.space2),
                 ) {
-                    SearchVerdict.whyLines(input).forEach { WhyRow(it) }
+                    SearchVerdict.whyLines(input, strings, t).forEach { WhyRow(it) }
                 }
                 AppDivider()
                 Text(
-                    text = "изм. — измерено прибором · расчёт — арифметика из измерений · " +
-                        "стат. — вывод статистической модели",
+                    text = t.evidenceLegend,
                     style = type.footnote,
                     color = colors.muted,
                 )
                 AppButton(
-                    text = "Понятно",
+                    text = t.understood,
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
                 )

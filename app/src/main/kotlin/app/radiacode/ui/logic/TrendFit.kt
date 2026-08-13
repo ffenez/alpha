@@ -1,5 +1,10 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
+
 import app.radiacode.analysis.AlgorithmVersions
 import app.radiacode.data.DoseUnitSetting
 import java.util.Locale
@@ -145,6 +150,9 @@ object TrendFit {
     const val MAX_PAIRED_POINTS = 250
 
     /** What the UI shows instead of a number when the window is too thin. */
+    /** «тренд недоступен» — подпись вместо числа; язык берётся из каталога. */
+    fun unavailable(s: ChartAxisStrings = ChartAxisRu): String = s.trendUnavailable
+
     const val UNAVAILABLE = "тренд недоступен"
 
     /**
@@ -196,13 +204,17 @@ object TrendFit {
     }
 
     /** Короткая подпись «почему тренда нет»; null, когда он есть. */
-    fun unavailableNote(availability: TrendAvailability): String? = when (availability) {
+    fun unavailableNote(
+        availability: TrendAvailability,
+        s: ChartAxisStrings = ChartAxisRu,
+        h: HistoryStrings = HistoryRu,
+    ): String? = when (availability) {
         is TrendAvailability.Ready -> null
-        is TrendAvailability.TooFewBins ->
-            "нужно $MIN_PRESENT_BINS интервалов · есть ${availability.present}"
-        is TrendAvailability.TooShort ->
-            "нужно ${HistoryFormat.duration(MIN_SPAN_MILLIS / 1000)} измерений · есть " +
-                HistoryFormat.duration(availability.spanMillis / 1000)
+        is TrendAvailability.TooFewBins -> s.needBins(MIN_PRESENT_BINS, availability.present)
+        is TrendAvailability.TooShort -> s.needSpan(
+            need = HistoryFormat.duration(MIN_SPAN_MILLIS / 1000, h),
+            have = HistoryFormat.duration(availability.spanMillis / 1000, h),
+        )
     }
 
     /**

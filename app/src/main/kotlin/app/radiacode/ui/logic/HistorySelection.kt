@@ -1,5 +1,8 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
+
 /**
  * What the user has ticked in История while the selection mode is on.
  *
@@ -83,30 +86,27 @@ data class DeletionPlan(
  */
 object HistoryDeletion {
 
-    fun actionLabel(selection: HistorySelection): String =
-        if (selection.isEmpty) "Удалить" else "Удалить · ${selection.count}"
+    fun actionLabel(selection: HistorySelection, s: HistoryStrings = HistoryRu): String =
+        if (selection.isEmpty) s.delete else s.deleteCount(selection.count)
 
-    fun title(plan: DeletionPlan): String = when {
-        plan.sessions > 0 && plan.spectra > 0 -> "Удалить выбранное?"
-        plan.spectra > 0 -> "Удалить ${plural(plan.spectra, "спектр", "спектра", "спектров")}?"
-        else -> "Удалить ${plural(plan.sessions, "сессию", "сессии", "сессий")}?"
+    fun title(plan: DeletionPlan, s: HistoryStrings = HistoryRu): String = when {
+        plan.sessions > 0 && plan.spectra > 0 -> s.deleteSelectedTitle
+        plan.spectra > 0 -> s.deleteSpectraTitle(plan.spectra)
+        else -> s.deleteSessionsTitle(plan.sessions)
     }
 
     /** The full account of what goes, in the order of how much it matters. */
-    fun body(plan: DeletionPlan): String {
+    fun body(plan: DeletionPlan, s: HistoryStrings = HistoryRu): String {
         val parts = ArrayList<String>(4)
         if (plan.sessions > 0) {
-            parts += "${plural(plan.sessions, "сессия", "сессии", "сессий")} · " +
-                "${durationWording(plan.seconds)} измерений"
-            parts += "${count(plan.samples)} записей прибора будут удалены навсегда"
-            if (plan.events > 0) {
-                parts += "${plural(plan.events, "событие", "события", "событий")} " +
-                    "отклонения внутри этих периодов"
-            }
+            parts += s.sessionsWithDuration(
+                sessions = s.sessions(plan.sessions),
+                duration = durationWording(plan.seconds),
+            )
+            parts += s.samplesGone(count(plan.samples))
+            if (plan.events > 0) parts += s.eventsInside(s.events(plan.events))
         }
-        if (plan.spectra > 0) {
-            parts += "${plural(plan.spectra, "спектр", "спектра", "спектров")} из списка"
-        }
+        if (plan.spectra > 0) parts += s.spectraFromList(s.spectra(plan.spectra))
         return parts.joinToString("\n") { "· $it" }
     }
 
@@ -114,20 +114,12 @@ object HistoryDeletion {
      * What survives. Said out loud because the alternative is the user
      * discovering it later and not knowing which is true.
      */
-    fun keepsWording(plan: DeletionPlan): String = buildString {
-        append("Отменить удаление нельзя. ")
-        if (plan.sessions > 0) {
-            append(
-                "Записанные маршруты на Карте и сохранённые спектры остаются — " +
-                    "их удаляют отдельно. Обычный фон профиля пересчитается без " +
-                    "удалённых измерений.",
-            )
-        } else {
-            append("Измерения и маршруты не затрагиваются.")
-        }
+    fun keepsWording(plan: DeletionPlan, s: HistoryStrings = HistoryRu): String = buildString {
+        append(s.cannotUndo)
+        if (plan.sessions > 0) append(s.tracksAndSpectraStay) else append(s.measurementsUntouched)
     }
 
-    fun emptyHint(): String = "Отметьте, что удалить"
+    fun emptyHint(s: HistoryStrings = HistoryRu): String = s.markWhatToDelete
 
     /**
      * Digit-group separator: a **no-break** space, so «41 203 записей» can
@@ -145,18 +137,5 @@ object HistoryDeletion {
             out.append(ch)
         }
         return out.toString()
-    }
-
-    private fun plural(n: Int, one: String, few: String, many: String): String =
-        "$n ${pluralForm(n, one, few, many)}"
-
-    private fun pluralForm(n: Int, one: String, few: String, many: String): String {
-        val mod100 = n % 100
-        if (mod100 in 11..14) return many
-        return when (n % 10) {
-            1 -> one
-            2, 3, 4 -> few
-            else -> many
-        }
     }
 }

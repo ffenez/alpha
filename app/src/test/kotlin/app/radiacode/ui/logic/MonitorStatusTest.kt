@@ -48,7 +48,7 @@ class MonitorStatusTest {
         assertEquals("Ниже порога L1", statusHeadline(below))
         // The reference is shown even before a baseline exists (spec §18).
         assertEquals(
-            "порог L1 0,30 мкЗв/ч · исторический диапазон профиля ещё не собран",
+            "порог L1 0,30 мкЗв/ч · обычный диапазон профиля ещё не собран",
             statusDetail(below, DoseUnitSetting.MICRO_SIEVERT),
         )
 
@@ -71,7 +71,9 @@ class MonitorStatusTest {
     fun `active baseline - usual wording with the place band`() {
         val status = MonitorStatus.of(0.12f, active, calm, thresholds, 0)
         assertEquals(MonitorStatus.Usual(baseline), status)
-        assertEquals("В обычном диапазоне этого профиля", statusHeadline(status))
+        // 14.md §8: «обычны», а не «нормальны» — «норма» читается как
+        // санитарная норма, а это статистика конкретного места.
+        assertEquals("Показания обычны для этого места", statusHeadline(status))
         assertEquals("Обычный для этого места", statusHeadlineShort(status))
         assertEquals(
             "P10–P90: 0,09–0,14 мкЗв/ч · наблюдений: 26 ч",
@@ -144,7 +146,8 @@ class MonitorStatusTest {
             "изучаю обычный фон — 0 ч из 3",
             learningWording(BaselineState.Learning(0, 10800)),
         )
-        assertEquals("baseline собран за 26 ч наблюдений", baselineCollectedWording(baseline))
+        // «baseline» — имя движка, а не название величины на экране (§2).
+        assertEquals("обычный фон собран за 26 ч наблюдений", baselineCollectedWording(baseline))
         assertEquals("26 ч", baselineCollectedShort(baseline))
     }
 
@@ -195,7 +198,7 @@ class MonitorStatusTest {
     @Test
     fun `the engine's internal name never reaches the screen`() {
         // «baseline» — имя движка. У величины на экране есть человеческое
-        // название («обычный фон», «исторический диапазон профиля»), и
+        // название («обычный фон», «обычный диапазон профиля»), и
         // техническое рядом с ним только мешает.
         val texts = listOf(
             statusHeadline(MonitorStatus.Usual(baseline)),

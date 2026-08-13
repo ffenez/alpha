@@ -1,5 +1,8 @@
 package app.radiacode.analysis
 
+import app.radiacode.ui.text.SpectrumRu
+import app.radiacode.ui.text.SpectrumStrings
+
 /**
  * Крайний канал спектра — граница диапазона, а не точка спектра.
  *
@@ -49,11 +52,15 @@ object SpectrumEdge {
      */
     const val EDGE_CHANNELS = 1
 
-    const val EXPLANATION =
-        "Последний канал — граница энергетической шкалы. Что происходило выше неё, " +
-            "прибор в этой шкале не различает, поэтому крайний канал не показан на " +
-            "кривой и не участвует в поиске пиков: всплеск шириной в один канал не " +
-            "является пиком."
+    /**
+     * Текст живёт в каталоге области (`SpectrumStrings.edgeExplanation`) —
+     * его показывают человеку, и он обязан переезжать вместе с языком. Здесь
+     * остаётся русская форма по умолчанию: свойство читают тесты и вызовы без
+     * каталога.
+     */
+    val EXPLANATION: String get() = explanation()
+
+    fun explanation(s: SpectrumStrings = SpectrumRu): String = s.edgeExplanation
 
     /** Последний канал, который считается точкой спектра. */
     fun lastAnalysableChannel(channelCount: Int): Int =

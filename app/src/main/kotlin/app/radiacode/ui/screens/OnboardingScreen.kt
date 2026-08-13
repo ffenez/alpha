@@ -278,7 +278,7 @@ private fun DeviceRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(device.address, style = type.footnote, color = colors.muted)
-                Chip(text = "${device.rssi} дБм")
+                Chip(text = strings.signalDbm(device.rssi))
             }
         }
         if (connecting) {

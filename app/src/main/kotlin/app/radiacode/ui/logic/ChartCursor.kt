@@ -1,5 +1,8 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
+
 import java.util.Locale
 
 /**
@@ -96,26 +99,33 @@ object CursorReadout {
      * «×4,8 к P90 профиля» / «×4,8 к медиане профиля» — the denominator is
      * always part of the sentence (§17, §39).
      */
-    fun ratioLabel(ratio: Float, denominator: RatioDenominator): String {
+    fun ratioLabel(
+        ratio: Float,
+        denominator: RatioDenominator,
+        s: ChartAxisStrings = ChartAxisRu,
+    ): String {
         val number = String.format(Locale.US, "%.1f", ratio).replace('.', ',')
-        return "×$number к ${denominatorWording(denominator)}"
+        return s.ratio(number, denominatorWording(denominator, s))
     }
 
-    fun denominatorWording(denominator: RatioDenominator): String = when (denominator) {
-        RatioDenominator.BASELINE_P90 -> "P90 профиля"
-        RatioDenominator.BASELINE_MEDIAN -> "медиане профиля"
+    fun denominatorWording(
+        denominator: RatioDenominator,
+        s: ChartAxisStrings = ChartAxisRu,
+    ): String = when (denominator) {
+        RatioDenominator.BASELINE_P90 -> s.denominatorProfileP90
+        RatioDenominator.BASELINE_MEDIAN -> s.denominatorProfileMedian
     }
 
     /**
      * The «Почему?» half-sentence shown wherever the ratio appears. P90 is a
      * description of this profile's history, never a permitted level (§8).
      */
-    fun ratioExplanation(denominator: RatioDenominator): String = when (denominator) {
-        RatioDenominator.BASELINE_P90 ->
-            "P90 профиля — уровень, ниже которого оставались 90 % исторических " +
-                "измерений этого места; это описание истории, а не норматив"
-        RatioDenominator.BASELINE_MEDIAN ->
-            "медиана профиля — половина исторических измерений этого места была ниже"
+    fun ratioExplanation(
+        denominator: RatioDenominator,
+        s: ChartAxisStrings = ChartAxisRu,
+    ): String = when (denominator) {
+        RatioDenominator.BASELINE_P90 -> s.profileP90Explained
+        RatioDenominator.BASELINE_MEDIAN -> s.profileMedianExplained
     }
 
     /** «14:02:00–14:03:00» — the interval the column actually covers. */
@@ -131,11 +141,13 @@ object CursorReadout {
     fun extremeTimeLabel(
         atMillis: Long,
         windowMillis: Long,
+        s: ChartAxisStrings = ChartAxisRu,
+        // Лямбда последней: иначе вызов с trailing-lambda перестаёт собираться.
         format: (Long) -> String,
     ): String = if (windowMillis <= 1_000L) {
-        "в ${format(atMillis)}"
+        s.atMoment(format(atMillis))
     } else {
-        "в ${format(atMillis)}–${format(atMillis + windowMillis)}"
+        s.atInterval(format(atMillis), format(atMillis + windowMillis))
     }
 
     private const val MIN_NOTABLE_RATIO = 1.0f

@@ -62,7 +62,9 @@ class DescriptiveDeviationTest {
     fun `median above P90 is reported against the band, with its numbers`() {
         val statements = DescriptiveDeviation.statements(window(median = 0.20f), profile)!!
         val band = statements.single { it.kind == DeviationKind.OUTSIDE_PROFILE_BAND }
-        assertEquals("медиана окна выше исторического диапазона P10–P90 профиля", band.text)
+        // §3: «исторический P10–P90» → «обычный диапазон этого места»; сама
+        // P-нотация никуда не делась — она в числах строкой ниже.
+        assertEquals("медиана за это время выше обычного диапазона места", band.text)
         assertEquals(
             listOf("медиана окна", "P10 профиля", "P90 профиля"),
             band.numbers.map { it.label },
@@ -77,7 +79,7 @@ class DescriptiveDeviationTest {
     fun `median below P10 is reported the same way, downwards`() {
         val statements = DescriptiveDeviation.statements(window(median = 0.05f, max = 0.06f), profile)!!
         val band = statements.single { it.kind == DeviationKind.OUTSIDE_PROFILE_BAND }
-        assertEquals("медиана окна ниже исторического диапазона P10–P90 профиля", band.text)
+        assertEquals("медиана за это время ниже обычного диапазона места", band.text)
     }
 
     @Test

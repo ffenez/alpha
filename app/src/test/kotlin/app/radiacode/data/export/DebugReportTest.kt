@@ -29,6 +29,9 @@ class DebugReportTest {
         spectrumSeconds = 3_600L,
         seqGapTotal = 0,
         reconnectCount = 0,
+        chartsRefreshedAgoSeconds = 12L,
+        chartsRefreshCount = 5,
+        clockCorrectionMillis = -96_000L,
         serviceRunning = true,
         connection = "подключён",
         doseRateMicroSvH = 0.17f,
@@ -102,6 +105,46 @@ class DebugReportTest {
         assertTrue(report.contains("rate_comparison: v"), report)
         assertTrue(report.contains("fingerprint: v"), report)
         assertTrue(report.contains("версия: 0.1.0-alpha"), report)
+    }
+
+    /**
+     * Цена частоты опроса спектра — ФАКТЫ (ADR 007). Отчёт печатает запросы,
+     * байты и время работы; вывода про батарею в нём нет, потому что из этих
+     * чисел он не следует.
+     */
+    @Test
+    fun `the spectrum traffic section reports measurements, not a battery verdict`() {
+        val withTraffic = DebugReport.build(
+            snapshot.copy(
+                spectrumTraffic = SpectrumTraffic(
+                    policy = "30s",
+                    requests = 240,
+                    payloadBytes = 480_000,
+                    serviceUptimeMillis = 2L * 3_600_000L,
+                    storedSlices = 5_760,
+                ),
+            ),
+        ) { stamp(it) }
+        assertTrue(withTraffic.contains("политика частоты: 30s"), withTraffic)
+        assertTrue(withTraffic.contains("запросов спектра: 240 (≈120 в час)"), withTraffic)
+        assertTrue(withTraffic.contains("байт ответов: 480000 (≈240000 в час)"), withTraffic)
+        assertTrue(withTraffic.contains("срезов спектрограммы в базе: 5760"), withTraffic)
+        assertTrue(!withTraffic.lowercase().contains("батаре"), withTraffic)
+        // Без данных раздела нет вовсе: пустые нули читались бы как измерение.
+        assertTrue(!report.contains("## Опрос спектра"), report)
+    }
+
+    @Test
+    fun `a rate is not printed when the service has barely run`() {
+        val traffic = SpectrumTraffic(
+            policy = "5s",
+            requests = 2,
+            payloadBytes = 4_000,
+            serviceUptimeMillis = 10_000L,
+            storedSlices = 1,
+        )
+        assertEquals(null, traffic.requestsPerHour())
+        assertEquals(null, traffic.bytesPerHour())
     }
 
     @Test

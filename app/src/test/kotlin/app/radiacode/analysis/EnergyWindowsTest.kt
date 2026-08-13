@@ -171,6 +171,27 @@ class EnergyWindowsTest {
     }
 
     @Test
+    fun `the storage form of the bounds is a contract with the previous version`() {
+        // Редактор границ стал цепочкой из четырёх чисел, но НА ДИСКЕ формат
+        // прежний: настройка, записанная старой версией, обязана читаться как
+        // ровно те же окна — обновление приложения не вправе её переписать.
+        assertEquals(
+            listOf(100f to 300f, 300f to 700f, 700f to 1500f),
+            EnergyWindows.parse("100:300,300:700,700:1500").map { it.startKeV to it.endKeV },
+        )
+        assertEquals(
+            listOf(50f to 250f, 250f to 900f),
+            EnergyWindows.parse("50:250,250:900").map { it.startKeV to it.endKeV },
+        )
+        // Настройка с разрывом (её позволял прежний редактор) тоже читается
+        // как была — окна не «склеиваются» молча.
+        assertEquals(
+            listOf(100f to 300f, 700f to 1500f),
+            EnergyWindows.parse("100:300,700:1500").map { it.startKeV to it.endKeV },
+        )
+    }
+
+    @Test
     fun `malformed or invalid stored bounds fall back to the defaults`() {
         assertEquals(EnergyWindows.DEFAULTS, EnergyWindows.parse(null))
         assertEquals(EnergyWindows.DEFAULTS, EnergyWindows.parse(""))

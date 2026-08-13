@@ -34,7 +34,6 @@ object EnStrings : Strings {
     override val hardness = "Hardness"
     override val trendPerHour = "Trend/h"
     override val doseToday = "Today"
-    override val whyThisConclusion = "why this conclusion ›"
     override val placeFingerprint = "Place fingerprint"
 
     override val groupMeasurement = "Measurement"
@@ -59,7 +58,7 @@ object EnStrings : Strings {
     override val statusNoData = "No data"
     override val statusAboveL1 = "Above the L1 threshold"
     override val statusBelowL1 = "Below the L1 threshold"
-    override val statusUsual = "Within this place's usual range"
+    override val statusUsual = "The readings are usual for this place"
     override val statusUsualShort = "Usual for this place"
     override val statusAboveUsual = "Above this place's usual range"
     override val statusAboveUsualShort = "Above usual"
@@ -177,8 +176,6 @@ object EnStrings : Strings {
 
     override val spectrumAccumulating = "current accumulation"
     override val spectrumContinuation = "continuing: "
-    override val spectrogramEntry = "Spectrogram ▸"
-    override val radonEntry = "Radon ▸"
     override val formatUnsupportedTitle = "Format not supported"
 
     override fun formatUnsupportedBody(version: Int) =
@@ -207,37 +204,13 @@ object EnStrings : Strings {
 
     override val sumShown =
         "showing the snapshot plus the current accumulation (channels add up, Δt adds " +
-            "up); «Save» will store the sum"
+            "up); «Save snapshot» will store the sum"
     override val noLiveAccumulation =
         "no live accumulation yet — the saved snapshot is shown"
     override val continuationWarning =
         "The instrument accumulates its spectrum independently of the app. If the snapshot " +
             "was taken from the current accumulation without a reset, counts are counted " +
             "twice — reset the spectrum first."
-    override val spectrumInfoTitle = "How to read this spectrum"
-    override val spectrumInfoAxes =
-        "Energy in keV runs horizontally; counts per channel over the whole accumulation " +
-            "run vertically. One screen column holds several channels and takes their " +
-            "maximum: a narrow peak survives zooming out, but the continuum line rides the " +
-            "upper envelope."
-    override val spectrumInfoSignificance =
-        "A peak's significance is its net area divided by the net area's own standard " +
-            "uncertainty, which includes both the statistics of the peak window and the " +
-            "uncertainty of the continuum estimated under it. A structure counts as a peak " +
-            "only if its width agrees with the detector's resolution."
-    override val spectrumInfoCandidate =
-        "A nuclide candidate is an energy match, not a detection: reliable identification " +
-            "needs accumulated statistics and, as a rule, several lines of the same nuclide."
-    override val spectrumInfoScales =
-        "The counts axis: linear preserves the ratio of areas but crushes everything but " +
-            "the tallest towards zero; logarithmic shows single counts next to a photopeak " +
-            "but visually equalises quantities that differ severalfold; the power scale 1/n " +
-            "sits between them (1/2 is the familiar square root). All three are monotone " +
-            "transforms of the same number: the distribution of height changes, the data " +
-            "does not."
-    override val spectrumInfoGestures =
-        "Pinch to scale, drag to pan. Smoothing changes the display only: the underlying " +
-            "data is untouched."
     override val scaleLinear = "Lin"
     override val scalePower = "Power"
     override val scaleLog = "Log"
@@ -249,17 +222,14 @@ object EnStrings : Strings {
     override val smoothing = "smooth"
     override val energyRanges = "energy ranges"
     override val peakTableEnergy = "E, keV"
-    override val peakTableNet = "net"
+    override val peakTableNet = "area"
     override val peakTableSignificance = "significance"
-    override val peakTableCandidate = "candidate"
+    override val peakTableCandidate = "possible match"
     override val notEnoughForPeaks =
         "too little data for peak analysis — accumulate at least a minute"
     override val noPeaksFound = "no pronounced peaks above the continuum were found"
     override val peakTableCaveat =
-        "a possible match ≠ a detection · confirmation is needed: accumulate longer · " +
-            "tap a row for the nuclide reference"
-    override val recordBackground = "Record background"
-    override val save = "Save"
+        "a possible match ≠ a detection · confirmation is needed: accumulate longer"
     override val reset = "Reset"
     override val resetSpectrumTitle = "Reset the spectrum?"
     override val resetSpectrumBody =
@@ -268,10 +238,6 @@ object EnStrings : Strings {
     override val cancel = "Cancel"
 
     override fun edgeCounts(counts: String) = "at the top edge of the scale: $counts counts"
-
-    override fun rangeWhole(range: String) = "range $range · whole · pinch to zoom in"
-
-    override fun rangeDraggable(range: String) = "range $range · drag to pan"
 
     override val noSpectrumBackground =
         "no background recorded — record a spectrum of ordinary surroundings and the " +
@@ -331,7 +297,9 @@ object EnStrings : Strings {
     override val pickTwoToCompare = "pick two snapshots — the comparison opens"
     override val pickTwoOrMoreToMerge =
         "tick two or more snapshots — channels add up and accumulation times are summed"
-    override val snapshotOpensActions = "a snapshot opens export, comparison and continuation"
+    override val snapshotOpensActions = "a snapshot opens in full: curve, peaks and actions"
+    override val openSnapshot = "Open the spectrum"
+    override val chooseSnapshotToCompare = "Which snapshot to compare with"
 
     override fun mergeAction(count: Int) = "Merge ($count)"
 
@@ -349,16 +317,45 @@ object EnStrings : Strings {
     override val delete = "Delete"
 
     override val evidenceLegend =
-        "meas. — measured by the instrument · calc. — computed from measurements · " +
-            "stat. — the result of the place's statistical model"
+        "Source of the value: meas. — measured by the instrument · calc. — computed from " +
+            "measurements · stat. — the result of the place's statistical model"
     override val nowSection = "Now"
-    override val poissonNote =
-        "Poisson 1σ ≈ √(N/τ), τ = 1 s · a count on its own is not converted into a dose"
+    override val usualRangeHere = "Usual range here"
+    override val notASafetyConclusion =
+        "This conclusion describes a difference from your own usual background in this " +
+            "place. It is not a radiation-safety assessment."
+    override val dataVolume = "How much data"
+    override val usedForComparison = "Used for the comparison"
+    override val suitableMeasurements = "of suitable measurements of this place"
+    override val measurementsCount = "Measurements"
+    override val measurementsCountNote =
+        "readings of the instrument used for the statistics. The instrument writes about " +
+            "once a second, but with gaps this number is smaller than the observed time"
+    override val calculationsSection = "Calculations and formulas"
+    override val countIsNotDose =
+        "counts are handy for spotting changes, but on their own they do not show the dose: " +
+            "the contribution of an event depends, among other things, on its energy"
+    override val deviceErrorNote =
+        "the ± on the dose rate is the instrument's own estimate for this reading"
+    override val deviceErrorBudget =
+        "the instrument's ± is not the full measurement uncertainty: that would also " +
+            "include calibration and systematic effects."
+    override val insideUsualRange = "inside the usual range"
+    override val aboveUsualRange = "above the usual range"
+    override val belowUsualRange = "below the usual range"
+    override val spectralComparedPlain =
+        "The shape of the current spectrum is compared with the one usual for this place, " +
+            "not with an absolute level. The conclusion describes the composition of the " +
+            "radiation."
+    override val spectralTooLittlePlain =
+        "The comparison with the place's reference has started, but there is little data yet."
+    override val shapeStatistics = "Shape-comparison statistics"
+    override val poissonNote = "The count's uncertainty is Poisson 1σ ≈ √(N/τ), τ = 1 s."
     override val dataSection = "Data"
     override val profile = "Place"
     override val outsideProfile = "outside any place"
     override val comparisonSection = "Comparison with the place"
-    override val historicalRange = "Historical range"
+    override val historicalRange = "The usual range of this place"
     override val notCollectedYet = "not collected yet"
     override val comparisonRuns = "Compared"
 
@@ -369,8 +366,8 @@ object EnStrings : Strings {
     override val currentValue = "Current value"
     override val position = "Position"
     override val bandExplained =
-        "P10–P90 is the range that held about 80 % of this place's usable historical " +
-            "measurements. It describes this place, not a radiation-safety limit."
+        "About 80 % of this place's suitable measurements fell inside this range (from P10 " +
+            "to P90). It is the history of the place itself, not a radiation-safety limit."
     override val belowP10 = "below P10"
     override val aboveP90 = "above P90"
     override val insideBand = "inside P10–P90"
@@ -379,19 +376,24 @@ object EnStrings : Strings {
     override val madNote =
         "median(|xᵢ − median|) — a robust description of the observed spread that assumes " +
             "no normal distribution. It is not the instrument's uncertainty"
-    override val usableData = "Usable data"
-    override val minuteBuckets = "Minute buckets"
+    override val usableData = "Data used for comparison"
+    override val usableDataNote =
+        "only measurements that passed the admission checks are counted: a confirmed place, " +
+            "an uninterrupted data stream, a reading with an acceptable uncertainty"
+    override val minuteBuckets = "One-minute intervals"
     override val honestN = "the honest n of the order statistics"
     override val notEnoughData = "Not enough data"
     override val updating = "Updating"
     override val temporarilyNotUpdating = "Temporarily not updating"
     override val updatingNote =
-        "New usable measurements are taken into account when the historical range is " +
-            "recomputed."
+        "New suitable measurements keep extending the usual range of this place."
     override val notUpdatingNote =
-        "New measurements are being stored, but are temporarily not used to update the " +
-            "historical range."
+        "Some measurements are being kept out of the usual background right now — so that an " +
+            "unusual event does not become part of it. Nothing is discarded: every " +
+            "measurement is still stored."
     override val state = "State"
+    override val excludedSection = "What is kept out of the statistics"
+    override val excludedNow = "Reason right now"
     override val excludedFromStatistics = "Not counted in the statistics"
     override val statisticsState = "State of the statistics"
     override val quarantineNote =
@@ -400,7 +402,7 @@ object EnStrings : Strings {
             "gradually becoming the new usual background."
     override val howDetected = "How a deviation is detected"
     override val absoluteThresholdL1 = "Absolute threshold L1"
-    override val relativeCriterion = "Relative criterion"
+    override val relativeCriterion = "Threshold relative to the usual range"
 
     override fun timesProfileP90(factor: String) = "$factor × the place's P90"
 
@@ -420,15 +422,6 @@ object EnStrings : Strings {
     override val spectralNoReference =
         "This place has no reference fingerprint yet, so the spectrum is not part of the " +
             "conclusion. «Not evaluated» is not «no change»."
-
-    override fun spectralTooLittle(detail: String) =
-        "Comparison with the place's reference has started, but there is little data yet: " +
-            detail
-
-    override fun spectralCompared(detail: String) =
-        "The shape of the spectrum is compared with the place's reference (not with an " +
-            "absolute level): $detail. The conclusion describes the composition of the " +
-            "radiation, not its harm."
 
     override val spectralComparison = "Spectral comparison"
 
@@ -467,6 +460,43 @@ object EnStrings : Strings {
         "Translation is in progress: untranslated parts are shown in Russian. · Перевод " +
             "выполняется по разделам: непереведённые части пока показываются по-русски."
     override val skinTitle = "Skin"
+    override val skinTerminal = "Science terminal"
+    override val skinEightBit = "8-bit"
+    override val themeSystem = "System"
+    override val themeDark = "Dark"
+    override val themeLight = "Light"
+
+    override fun signalDbm(value: Int) = "$value dBm"
+
+    override fun alarmPreset(level: String, factor: String, held: String) =
+        "from $level or ×$factor of the profile's P90, $held"
+
+    override val retentionTitle = "Raw measurement storage"
+    override val retentionKeepAll = "everything"
+
+    override fun retentionDays(days: Int) = "$days days"
+
+    override val retentionNote =
+        "Per-second instrument records older than the limit are deleted. Long-period charts, " +
+            "place statistics, session summaries, spectra and tracks remain — only the raw " +
+            "detail is lost. By default everything is kept."
+
+    override val scaleTitle = "Scale"
+    override val scaleNote =
+        "Text and elements are adjusted separately: numbers are read from a distance while " +
+            "buttons are pressed with a finger, and enlarging everything at once costs half " +
+            "the screen. The system font size is kept — the percentages multiply it."
+    override val scaleFont = "text"
+    override val scaleElements = "elements"
+
+    override fun scalePercent(percent: Int) = "$percent %"
+
+    override val scaleReset = "Back to 100 %"
+    override val crystalOrganicPlastic = "organic plastic"
+    override val modeOff = "off"
+    override val modeClicks = "clicks"
+    override val modeTone = "tone"
+    override val modeVibro = "vibration"
     override val skinNote =
         "A skin changes colours, type and the shape of borders — and nothing else: " +
             "readings, wording and calculations do not depend on it. Light and dark work " +
@@ -562,11 +592,28 @@ object EnStrings : Strings {
     override val temperature = "temperature"
     override val stream = "stream"
     override val streamActive = "running · 1 Hz"
+
+    override fun streamNoNewData(seconds: Long) = "no new data · $seconds s"
+
+    override val streamReconnecting = "reconnecting"
+    override val streamLost = "the link to the instrument is lost"
+    override val streamNoDataYet = "no current data"
+
+    override fun lastMeasurementAgo(seconds: Long): String {
+        val text = when {
+            seconds < 60 -> "$seconds s"
+            seconds < 3600 -> "${seconds / 60} min"
+            else -> "${seconds / 3600} h"
+        }
+        return "last measurement $text ago"
+    }
     override val unitsTitle = "Units"
     override val unitMicroSv = "µSv/h"
     override val unitMicroSvNote = "microsieverts per hour — the SI unit"
     override val unitMicroR = "µR/h"
     override val unitMicroRNote = "microroentgens per hour · 1 µSv/h = 100 µR/h"
+    override val unitDoseMicroSv = "µSv"
+    override val unitDoseMicroR = "µR"
     override val unitsNote =
         "The conversion is for display only: measurements are stored in the instrument's " +
             "own units without loss of precision."
@@ -607,6 +654,14 @@ object EnStrings : Strings {
             "disconnected or the app closed, and are separate from Search feedback."
     override val deviceSound = "Instrument sound"
     override val deviceVibro = "Instrument vibration"
+    override val deviceSignalsUnknownNote =
+        "The app can switch them on and off, but cannot ask the instrument what is set " +
+            "there right now: until the first command the state is unknown."
+    override val deviceSignalsOfflineNote =
+        "The instrument is not connected — there is nowhere to send the command."
+
+    override fun baselineStats(median: String, iqr: String, mad: String, buckets: Int) =
+        "median $median · P25–P75 $iqr · MAD $mad · n $buckets one-minute intervals"
     override val stateUnknown = "state unknown"
     override val stateOnByApp = "switched on by this app"
     override val stateOffByApp = "switched off by this app"

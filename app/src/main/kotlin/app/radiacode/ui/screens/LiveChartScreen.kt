@@ -1,32 +1,23 @@
 package app.radiacode.ui.screens
 
 import android.content.res.Configuration
-import androidx.activity.compose.BackHandler
 import app.radiacode.ui.logic.ChartInfo
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
@@ -63,6 +54,7 @@ import app.radiacode.data.PreAggregateRepository
 import app.radiacode.device.DoseUnits
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.ChartSheet
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.DistributionStrip
 import app.radiacode.ui.components.DoseChart
@@ -76,11 +68,14 @@ import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.analysis.Hardness
 import app.radiacode.ui.logic.ChartMetric
 import app.radiacode.ui.logic.ChartMetrics
+import app.radiacode.ui.logic.ChartRange
+import app.radiacode.ui.logic.ChartRanges
 import app.radiacode.ui.logic.CursorReadout
 import app.radiacode.ui.logic.coverageWording
 import app.radiacode.ui.logic.ChartSeriesModel
 import app.radiacode.ui.logic.DoseExtremes
 import app.radiacode.ui.logic.DoseFormat
+import app.radiacode.ui.logic.DoseHistograms
 import app.radiacode.ui.logic.DoseReference
 import app.radiacode.ui.logic.ChartSnapshot
 import app.radiacode.ui.logic.Freshness
@@ -93,8 +88,15 @@ import app.radiacode.ui.logic.markerWording
 import app.radiacode.ui.logic.referenceWording
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.logic.WindowStats
+import app.radiacode.ui.text.ChartAxisCatalogue
+import app.radiacode.ui.text.ChartTextCatalogue
+import app.radiacode.ui.text.ChartTextStrings
+import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
+import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.Strings
 import app.radiacode.ui.theme.Dimens
-import app.radiacode.ui.theme.Motion
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 import java.time.Instant
@@ -118,6 +120,9 @@ private const val RELOAD_DEBOUNCE_MILLIS = 250L
 private const val CHIP_STEP_DP = 52
 
 private val CURSOR_TIME = DateTimeFormatter.ofPattern("HH:mm:ss")
+
+/** Правый край исторического диапазона — только время: день назван слева. */
+private val RANGE_TIME = DateTimeFormatter.ofPattern("HH:mm")
 
 /** Default period on open — long enough to show a shape, short enough to load fast. */
 
@@ -150,16 +155,36 @@ private val CURSOR_TIME = DateTimeFormatter.ofPattern("HH:mm:ss")
  * норматив. Эпизоды берут время из журнала событий, длительность считается
  * по корзинам и всегда названа относительно своего порога. Строка под
  * управлением говорит это словами.
+ *
+ * **Исторический режим** ([range] ≠ null, вход — деталка сессии). Экран тот
+ * же, меняется только КРАЙ ВРЕМЕНИ: окно открывается по диапазону сессии,
+ * жесты упираются в её конец, а не в «сейчас», чип «⌖ сейчас» становится
+ * «⌖ сессия» и возвращает к полному диапазону, живого значения в шапке нет —
+ * на его месте сам диапазон и его длительность. Отдельного экрана для истории
+ * не существует намеренно: две реализации одного графика неизбежно разошлись
+ * бы математикой, и человек искал бы в истории то, что видел на живом.
  */
 @Composable
 fun LiveChartScreen(
     graph: AppGraph,
     onBack: () -> Unit,
     metric: ChartMetric = ChartMetric.DOSE,
+    /**
+     * Фиксированный диапазон (сессия из Истории) вместо живого края.
+     *
+     * Экран один и тот же намеренно: два графика с разной математикой уже
+     * однажды разошлись между Главной и полным экраном, и человек искал на
+     * большом графике то, что видел на маленьком. Здесь меняется только КРАЙ —
+     * жесты, конверты, курсор, маркеры и статистика остаются те же.
+     */
+    range: ChartRange? = null,
 ) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val settingsScope = rememberCoroutineScope()
     val type = LocalAppTypography.current
+    val t = ChartTextCatalogue.of(LocalStrings.current.language)
+    val metricTitle = ChartMetrics.title(metric, LocalStrings.current)
     val landscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -181,8 +206,11 @@ fun LiveChartScreen(
     }
 
     val periodIndices = remember(metric) { ChartMetrics.periodIndices(metric) }
+    // Исторический режим: край времени — конец сессии, а не «сейчас».
+    val historical = !ChartRanges.followsLiveEdge(range)
+    val maxSpan = ChartMetrics.maxSpanMillis(metric)
     var logScale by rememberSaveable { mutableStateOf(false) }
-    var follow by rememberSaveable { mutableStateOf(true) }
+    var follow by rememberSaveable(historical) { mutableStateOf(!historical) }
     var cursorActive by rememberSaveable { mutableStateOf(false) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
     var detailsOpen by rememberSaveable { mutableStateOf(false) }
@@ -191,14 +219,23 @@ fun LiveChartScreen(
     val cursorFraction = remember { mutableStateOf<Float?>(null) }
 
     val savedSpans by graph.settings.chartSpans.collectAsState(initial = emptyMap())
-    var window by remember(metric) {
-        mutableStateOf(ChartMetrics.startWindow(metric, emptyMap(), System.currentTimeMillis()))
+    var window by remember(metric, range) {
+        mutableStateOf(
+            if (range != null) {
+                ChartRanges.initialWindow(range, maxSpan)
+            } else {
+                ChartMetrics.startWindow(metric, emptyMap(), System.currentTimeMillis())
+            },
+        )
     }
     // Экран открывается там, где его закрыли: окно — это ЧТО человек смотрит,
     // и переспрашивать об этом каждый раз незачем. Восстанавливается один раз,
     // после того как настройки прочитаны.
     var spanRestored by remember(metric) { mutableStateOf(false) }
-    LaunchedEffect(metric, savedSpans) {
+    LaunchedEffect(metric, savedSpans, historical) {
+        // Окно исторического графика задано диапазоном сессии: запомненное
+        // окно живого экрана к нему отношения не имеет.
+        if (historical) return@LaunchedEffect
         if (spanRestored) return@LaunchedEffect
         if (metric.id !in savedSpans) return@LaunchedEffect
         spanRestored = true
@@ -213,8 +250,8 @@ fun LiveChartScreen(
     // Live-follow: advance the right edge at the cadence at which a new column
     // can actually appear (1 s on short windows, at most 15 s on long ones) —
     // never faster than the display could show a difference.
-    LaunchedEffect(follow, periodIndex) {
-        while (follow) {
+    LaunchedEffect(follow, periodIndex, historical) {
+        while (follow && !historical) {
             delay(
                 ChartWindows.refreshMillis(
                     ChartSeriesModel.bucketMillis(window.spanMillis),
@@ -252,37 +289,49 @@ fun LiveChartScreen(
         }
     }
 
+    /** Правый предел времени: «сейчас» на живом графике, конец сессии — на историческом. */
+    fun edge(): Long = ChartRanges.edgeMillis(range, System.currentTimeMillis())
+
     fun selectPeriod(index: Int) {
         val span = ChartWindows.PERIODS[index].second
-        window = ChartWindows.latest(span, System.currentTimeMillis())
-        spanRestored = true
-        settingsScope.launch { graph.settings.setChartSpan(metric.id, span) }
+        window = ChartWindows.latest(span, edge())
+        // Запомненное окно принадлежит ЖИВОМУ экрану (и карточке Главной):
+        // выбор ступени при разглядывании прошлой сессии не должен переставлять
+        // то, что человек смотрит на Главной.
+        if (!historical) {
+            spanRestored = true
+            settingsScope.launch { graph.settings.setChartSpan(metric.id, span) }
+        }
         val next = ChartInteractions.periodChanged()
-        follow = next.follow
+        follow = next.follow && !historical
         cursorActive = false
         cursorFraction.value = null
     }
 
-    fun jumpToNow() {
-        window = ChartWindows.follow(window, System.currentTimeMillis())
-        val next = ChartInteractions.jumpToNow()
-        follow = next.follow
+    /** «⌖ сейчас» на живом графике, «⌖ сессия» — на историческом. */
+    fun jumpToEdge() {
+        if (range != null) {
+            window = ChartRanges.initialWindow(range, maxSpan)
+        } else {
+            window = ChartWindows.follow(window, System.currentTimeMillis())
+            follow = ChartInteractions.jumpToNow().follow
+        }
         cursorActive = false
         cursorFraction.value = null
     }
 
     val onTransform: (Float, Float, Float) -> Unit = { pan, zoom, focus ->
-        val now = System.currentTimeMillis()
+        val now = edge()
         var w = window
         if (zoom != 1f) w = ChartWindows.zoom(w, zoom, focus, now)
         // Dragging right pulls earlier data into view.
         if (pan != 0f) w = ChartWindows.pan(w, -pan, now)
         // Щипок не должен выводить окно за пределы того, что величина умеет
         // показать честно: у счёта и жёсткости нет предагрегации длинных окон.
-        val limit = ChartMetrics.maxSpanMillis(metric)
+        val limit = maxSpan
         if (w.spanMillis > limit) w = ChartWindows.latest(limit, minOf(w.toMillis, now))
         window = w
-        val atEdge = ChartWindows.isAtLiveEdge(
+        val atEdge = !historical && ChartWindows.isAtLiveEdge(
             w,
             now,
             ChartSeriesModel.bucketMillis(w.spanMillis),
@@ -321,7 +370,7 @@ fun LiveChartScreen(
                         selectPeriod(periodIndex)
                     },
                     onCursorDismiss = {
-                        val atEdge = ChartWindows.isAtLiveEdge(
+                        val atEdge = !historical && ChartWindows.isAtLiveEdge(
                             window,
                             System.currentTimeMillis(),
                             ChartSeriesModel.bucketMillis(window.spanMillis),
@@ -346,7 +395,7 @@ fun LiveChartScreen(
             }
             if (f == null || f.spec.buckets.isEmpty()) {
                 Text(
-                    text = if (snapshot == null) "читаем журнал…" else "в этом окне нет измерений",
+                    text = if (snapshot == null) t.loadingLog else t.emptyWindow,
                     style = type.bodySmall,
                     color = colors.muted,
                     modifier = Modifier.align(Alignment.Center),
@@ -362,14 +411,16 @@ fun LiveChartScreen(
                 graph = graph,
                 unit = unit,
                 periodLabel = ChartWindows.PERIODS[periodIndex].first,
-                metricTitle = metric.title,
+                metricTitle = metricTitle,
                 stats = frame?.stats,
                 paused = cursorActive,
                 follow = follow,
                 onBack = onBack,
                 onInfo = { infoOpen = true },
-                onJumpToNow = ::jumpToNow,
+                onJumpToEdge = ::jumpToEdge,
                 onOpenDetails = { detailsOpen = true },
+                range = range,
+                atRange = range != null && ChartRanges.atFullRange(window, range, maxSpan),
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
@@ -385,7 +436,7 @@ fun LiveChartScreen(
                     onToggleScale = { logScale = !logScale },
                     availablePeriods = periodIndices,
                     periodExact = periodExact,
-                    currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000),
+                    currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000, s = h),
                 )
             }
             ChartDetailsSheet(
@@ -404,6 +455,7 @@ fun LiveChartScreen(
                 frame = frame,
                 baseline = baseline,
                 logScale = logScale,
+                historical = historical,
                 onClose = { infoOpen = false },
             )
         }
@@ -416,13 +468,15 @@ fun LiveChartScreen(
             graph = graph,
             unit = unit,
             periodLabel = ChartWindows.PERIODS[periodIndex].first,
-            metricTitle = metric.title,
+            metricTitle = metricTitle,
             paused = cursorActive,
             follow = follow,
             onBack = onBack,
             onInfo = { infoOpen = true },
-            onJumpToNow = ::jumpToNow,
+            onJumpToEdge = ::jumpToEdge,
             metric = metric,
+            range = range,
+            atRange = range != null && ChartRanges.atFullRange(window, range, maxSpan),
         )
         chart(Modifier.weight(1f).fillMaxWidth())
         AppDivider()
@@ -452,7 +506,7 @@ fun LiveChartScreen(
                 onToggleScale = { logScale = !logScale },
                 availablePeriods = periodIndices,
                 periodExact = periodExact,
-                currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000),
+                currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000, s = h),
             )
         }
         }
@@ -472,84 +526,11 @@ fun LiveChartScreen(
             frame = frame,
             baseline = baseline,
             logScale = logScale,
+            historical = historical,
             onClose = { infoOpen = false },
         )
     }
 }
-
-/**
- * Общая оболочка панелей поверх графика: затемнение, заголовок, крестик,
- * «назад» и потолок высоты.
- *
- * Панель не двигает график и не может съесть весь экран: под ней всегда видна
- * часть картинки, к которой она относится. Касание мимо панели закрывает её —
- * тем же движением, каким человек возвращается к графику.
- */
-@Composable
-private fun BoxScope.ChartSheet(
-    open: Boolean,
-    title: String,
-    onClose: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * SHEET_MAX_FRACTION).dp
-    BackHandler(enabled = open) { onClose() }
-    AnimatedVisibility(
-        visible = open,
-        enter = fadeIn(Motion.fast()),
-        exit = fadeOut(Motion.fast()),
-        modifier = Modifier.matchParentSize(),
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(colors.bg.copy(alpha = 0.72f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClose,
-                ),
-        )
-    }
-    AnimatedVisibility(
-        visible = open,
-        enter = fadeIn(Motion.normal()) + expandVertically(Motion.springy()),
-        exit = fadeOut(Motion.fast()) + shrinkVertically(Motion.springy()),
-        modifier = Modifier.align(Alignment.BottomStart),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = maxSheetHeight)
-                .background(colors.surface)
-                // Панель лежит ПОВЕРХ графика, поэтому забирает касания себе:
-                // иначе прокрутка её содержимого двигала бы окно под ней.
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {},
-                )
-                .padding(vertical = Dimens.space2)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(Dimens.space2),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.space3),
-            ) {
-                Text(text = title.uppercase(), style = type.labelSmall, color = colors.ink2)
-                Spacer(Modifier.weight(1f))
-                Chip(text = "✕", color = colors.ink2, onClick = onClose)
-            }
-            content()
-        }
-    }
-}
-
-/** Панель никогда не занимает больше этой доли экрана — график остаётся виден. */
-private const val SHEET_MAX_FRACTION = 0.72f
 
 /**
  * Числа окна одной строкой: квантили, честное n и длительность окна.
@@ -568,8 +549,10 @@ private fun WindowStatsLine(
     spanMillis: Long,
     onOpenDetails: () -> Unit,
 ) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ChartTextCatalogue.of(LocalStrings.current.language)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -584,11 +567,15 @@ private fun WindowStatsLine(
         val value = { v: Float -> ChartMetrics.format(metric, v, unit) }
         Text(
             text = if (stats == null) {
-                "окно ${HistoryFormat.duration(spanMillis / 1000)}"
+                t.windowLabel(HistoryFormat.duration(spanMillis / 1000, s = h))
             } else {
-                "P10 ${value(stats.p10)} · медиана ${value(stats.median)} · " +
-                    "P90 ${value(stats.p90)} · n ${HistoryFormat.count(stats.sampleCount)} · " +
-                    HistoryFormat.duration(spanMillis / 1000)
+                t.windowStatsLine(
+                    p10 = value(stats.p10),
+                    median = value(stats.median),
+                    p90 = value(stats.p90),
+                    samples = HistoryFormat.count(stats.sampleCount),
+                    duration = HistoryFormat.duration(spanMillis / 1000, s = h),
+                )
             },
             style = type.axis,
             color = colors.ink2,
@@ -596,7 +583,7 @@ private fun WindowStatsLine(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Text(text = "подробнее ▴", style = type.footnote, color = colors.muted)
+        Text(text = t.moreDetails, style = type.footnote, color = colors.muted)
     }
 }
 
@@ -618,11 +605,13 @@ private fun BoxScope.ChartDetailsSheet(
     spanMillis: Long,
     onClose: () -> Unit,
 ) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ChartTextCatalogue.of(LocalStrings.current.language)
     ChartSheet(
         open = open,
-        title = "Окно ${HistoryFormat.duration(spanMillis / 1000)}",
+        title = t.windowSheetTitle(HistoryFormat.duration(spanMillis / 1000, s = h)),
         onClose = onClose,
     ) {
         // §2 ТЗ: неполное окно называется словами, а не остаётся пустым полем.
@@ -637,15 +626,21 @@ private fun BoxScope.ChartDetailsSheet(
         val histogram = frame?.histogram
         if (histogram != null) {
             Text(
-                text = "Распределение",
+                text = t.distribution,
                 style = type.label,
                 color = colors.ink,
                 modifier = Modifier.padding(horizontal = Dimens.space3),
             )
-            DistributionStrip(histogram = histogram, labels = frame.histogramLabels)
+            DistributionStrip(
+                histogram = histogram,
+                labels = frame.histogramLabels,
+                countCaption = DoseHistograms.countAxisLabel(
+                    ChartAxisCatalogue.of(LocalStrings.current.language),
+                ),
+            )
         }
         Text(
-            text = "Статистика окна",
+            text = t.windowStatistics,
             style = type.label,
             color = colors.ink,
             modifier = Modifier.padding(horizontal = Dimens.space3),
@@ -671,10 +666,14 @@ private fun BoxScope.ChartInfoSheet(
     baseline: Baseline?,
     logScale: Boolean,
     onClose: () -> Unit,
+    historical: Boolean = false,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    val sections = remember(metric, frame, baseline, logScale) {
+    val t = ChartTextCatalogue.of(LocalStrings.current.language)
+    // Каталог входит в ключ: смена языка обязана пересобрать справку, иначе
+    // на экране остались бы разделы, посчитанные прежним языком.
+    val sections = remember(metric, frame, baseline, logScale, historical, t) {
         ChartInfo.sections(
             metric = metric,
             hasBaselineBand = baseline != null && ChartMetrics.showsProfileBand(metric),
@@ -683,9 +682,15 @@ private fun BoxScope.ChartInfoSheet(
             method = frame?.stats?.method ?: QuantileMethod.EXACT_RAW,
             logScale = logScale,
             logDropped = frame?.logDropped ?: 0,
+            historical = historical,
+            s = t,
         )
     }
-    ChartSheet(open = open, title = "Как читать этот график", onClose = onClose) {
+    // Второй уровень справки: «что я вижу» читают все, «P50, P25–P75, метод
+    // квантилей» — по требованию. Один переключатель на всю панель: два
+    // раскрытия в четырёх разделах превратили бы справку в меню.
+    var details by rememberSaveable { mutableStateOf(false) }
+    ChartSheet(open = open, title = t.infoTitle, onClose = onClose) {
         for (section in sections) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -695,6 +700,20 @@ private fun BoxScope.ChartInfoSheet(
                 for (line in section.lines) {
                     Text(text = line, style = type.bodySmall, color = colors.muted)
                 }
+                if (details) {
+                    for (line in section.details) {
+                        Text(text = line, style = type.bodySmall, color = colors.ink2)
+                    }
+                }
+            }
+        }
+        if (sections.any { it.details.isNotEmpty() }) {
+            Column(modifier = Modifier.padding(horizontal = Dimens.space3)) {
+                Chip(
+                    text = if (details) t.hideDetails else t.showDetails,
+                    color = colors.dataText,
+                    onClick = { details = !details },
+                )
             }
         }
     }
@@ -717,6 +736,8 @@ private fun liveReading(
 ): Freshness {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val axis = ChartAxisCatalogue.of(strings.language)
     val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -754,7 +775,7 @@ private fun liveReading(
                     } else {
                         null
                     },
-                    ChartMetrics.unitLabel(metric, unit),
+                    ChartMetrics.unitLabel(metric, unit, axis, strings),
                 ).joinToString(" "),
                 style = type.footnote,
                 color = colors.ink2,
@@ -775,8 +796,11 @@ private fun PortraitTopBar(
     follow: Boolean,
     onBack: () -> Unit,
     onInfo: () -> Unit,
-    onJumpToNow: () -> Unit,
+    onJumpToEdge: () -> Unit,
     metric: ChartMetric = ChartMetric.DOSE,
+    /** Исторический диапазон: живого значения у прошлого нет. */
+    range: ChartRange? = null,
+    atRange: Boolean = false,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -800,9 +824,16 @@ private fun PortraitTopBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            val freshness = liveReading(graph, unit, compact = true, metric = metric)
-            FreshnessOrPause(freshness, paused)
-            NowChip(follow, onJumpToNow)
+            if (range == null) {
+                val freshness = liveReading(graph, unit, compact = true, metric = metric)
+                FreshnessOrPause(freshness, paused)
+            } else {
+                // У прошлого нет «сейчас»: на месте живого значения стоит то,
+                // что это за отрезок времени.
+                RangeLabel(range, compact = true)
+                if (paused) FreshnessOrPause(Freshness.NoData, paused = true)
+            }
+            EdgeChip(range = range, follow = follow, atRange = atRange, onClick = onJumpToEdge)
             Chip(text = "i", color = colors.ink2, onClick = onInfo)
         }
         AppDivider()
@@ -816,13 +847,56 @@ private fun PortraitTopBar(
  * когда график НЕ следил за временем.
  */
 @Composable
-private fun NowChip(follow: Boolean, onJumpToNow: () -> Unit) {
+private fun EdgeChip(
+    range: ChartRange?,
+    follow: Boolean,
+    atRange: Boolean,
+    onClick: () -> Unit,
+) {
     val colors = LocalAppColors.current
+    val t = ChartTextCatalogue.of(LocalStrings.current.language)
+    // У исторического графика «сейчас» не значит ничего: живой край относится
+    // к другому времени. Чип возвращает к диапазону сессии, а подсветка
+    // подчиняется тому же правилу — горит названное состояние.
+    val selected = if (range == null) follow else atRange
     Chip(
-        text = "⌖ сейчас",
-        color = if (follow) colors.dataText else colors.ink2,
-        selected = follow,
-        onClick = onJumpToNow,
+        text = if (range == null) t.nowChip else t.sessionChip,
+        color = if (selected) colors.dataText else colors.ink2,
+        selected = selected,
+        onClick = onClick,
+    )
+}
+
+/**
+ * Диапазон исторического графика словами: когда и сколько это длилось.
+ *
+ * В портрете шапка — одна строка на весь экран, и полный «14:03–16:18 · 2 ч
+ * 15 мин» съедал бы название величины: там печатается начало и длительность,
+ * конец из них следует. В ландшафте место есть, и стоит весь отрезок.
+ */
+@Composable
+private fun RangeLabel(range: ChartRange, compact: Boolean = false) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    val t = ChartTextCatalogue.of(strings.language)
+    val now = System.currentTimeMillis()
+    Text(
+        text = t.sessionRangeLabel(
+            range = HistoryFormat.dayTime(range.fromMillis, now, s = h) + if (compact) {
+                ""
+            } else {
+                "–" + Instant.ofEpochMilli(range.toMillis)
+                    .atZone(ZoneId.systemDefault())
+                    .format(RANGE_TIME)
+            },
+            duration = HistoryFormat.duration(range.spanMillis / 1000, s = h),
+        ),
+        style = type.footnote,
+        color = colors.ink2,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
@@ -830,11 +904,15 @@ private fun NowChip(follow: Boolean, onJumpToNow: () -> Unit) {
 private fun FreshnessOrPause(freshness: Freshness, paused: Boolean) {
     val colors = LocalAppColors.current
     if (paused) {
-        Chip(text = "пауза", color = colors.warn, selected = true)
+        Chip(
+            text = ChartTextCatalogue.of(LocalStrings.current.language).pausedChip,
+            color = colors.warn,
+            selected = true,
+        )
         return
     }
     // Идущий поток чипа не заслуживает — заслуживает отставший.
-    val label = freshnessChipLabel(freshness) ?: return
+    val label = freshnessChipLabel(freshness, LocalStrings.current) ?: return
     when (freshness) {
         is Freshness.Stale, is Freshness.Fresh -> Chip(text = label, color = colors.warn)
         Freshness.NoData -> Chip(text = label, color = colors.muted)
@@ -852,8 +930,10 @@ private fun BoxScope.LandscapeTopBar(
     follow: Boolean,
     onBack: () -> Unit,
     onInfo: () -> Unit,
-    onJumpToNow: () -> Unit,
+    onJumpToEdge: () -> Unit,
     onOpenDetails: () -> Unit,
+    range: ChartRange? = null,
+    atRange: Boolean = false,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -872,10 +952,16 @@ private fun BoxScope.LandscapeTopBar(
             color = colors.ink2,
             maxLines = 1,
         )
+        if (range != null) RangeLabel(range)
         Spacer(Modifier.weight(1f))
         stats?.let {
             Text(
-                text = landscapeStatsLine(it, unit),
+                text = landscapeStatsLine(
+                    it,
+                    unit,
+                    ChartTextCatalogue.of(LocalStrings.current.language),
+                    LocalStrings.current,
+                ),
                 style = type.footnote,
                 color = colors.ink2,
                 maxLines = 1,
@@ -886,19 +972,28 @@ private fun BoxScope.LandscapeTopBar(
                 ),
             )
         }
-        val freshness = liveReading(graph, unit, showValue = false)
-        FreshnessOrPause(freshness, paused)
-        NowChip(follow, onJumpToNow)
+        if (range == null) {
+            val freshness = liveReading(graph, unit, showValue = false)
+            FreshnessOrPause(freshness, paused)
+        } else if (paused) {
+            FreshnessOrPause(Freshness.NoData, paused = true)
+        }
+        EdgeChip(range = range, follow = follow, atRange = atRange, onClick = onJumpToEdge)
         Chip(text = "i", color = colors.ink2, onClick = onInfo)
     }
 }
 
-private fun landscapeStatsLine(stats: WindowStats, unit: DoseUnitSetting): String = listOf(
+private fun landscapeStatsLine(
+    stats: WindowStats,
+    unit: DoseUnitSetting,
+    t: ChartTextStrings,
+    strings: Strings,
+): String = listOf(
     "P10 ${DoseFormat.rate(stats.p10, unit)}",
-    "медиана ${DoseFormat.rate(stats.median, unit)}",
+    "${t.median} ${DoseFormat.rate(stats.median, unit)}",
     "P90 ${DoseFormat.rate(stats.p90, unit)}",
     "MAD ${DoseFormat.rate(stats.mad, unit)}",
-    "SD ${DoseFormat.rate(stats.sd, unit)} ${DoseFormat.rateUnitLabel(unit)}",
+    "SD ${DoseFormat.rate(stats.sd, unit)} ${DoseFormat.rateUnitLabel(unit, s = strings)}",
     "n ${HistoryFormat.count(stats.sampleCount)}",
 ).joinToString(" · ")
 
@@ -970,7 +1065,7 @@ private fun RowScope.ControlChips(
     // Название у чипа постоянное («лог»), иначе подсветка ничего не значила
     // бы — надпись и так меняла бы смысл под ней.
     Chip(
-        text = "лог",
+        text = ChartTextCatalogue.of(LocalStrings.current.language).logChip,
         color = if (logScale) colors.dataText else colors.ink2,
         selected = logScale,
         onClick = onToggleScale,
@@ -990,13 +1085,16 @@ private fun ExpandedStats(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    val unitLabel = ChartMetrics.unitLabel(metric, unit)
+    val strings = LocalStrings.current
+    val t = ChartTextCatalogue.of(strings.language)
+    val axis = ChartAxisCatalogue.of(strings.language)
+    val unitLabel = ChartMetrics.unitLabel(metric, unit, axis, strings)
     StatGrid(
         cells = listOf(
-            StatCell(stats?.let { DoseFormat.rate(it.min, unit) } ?: "—", "мин"),
-            StatCell(stats?.let { DoseFormat.rate(it.q25, unit) } ?: "—", "Q25"),
-            StatCell(stats?.let { DoseFormat.rate(it.q75, unit) } ?: "—", "Q75"),
-            StatCell(stats?.let { DoseFormat.rate(it.max, unit) } ?: "—", "макс"),
+            StatCell(stats?.let { DoseFormat.rate(it.min, unit) } ?: "—", t.min),
+            StatCell(stats?.let { DoseFormat.rate(it.q25, unit) } ?: "—", "P25"),
+            StatCell(stats?.let { DoseFormat.rate(it.q75, unit) } ?: "—", "P75"),
+            StatCell(stats?.let { DoseFormat.rate(it.max, unit) } ?: "—", t.max),
         ),
     )
     StatGrid(
@@ -1007,8 +1105,7 @@ private fun ExpandedStats(
         ),
     )
     Text(
-        text = "SD — наблюдаемый разброс значений · MAD = median(|xᵢ − медиана|), " +
-            "робастный разброс · IQR = Q75 − Q25",
+        text = t.spreadDefinitions,
         style = type.footnote,
         color = colors.muted,
         modifier = Modifier.padding(
@@ -1042,6 +1139,7 @@ private fun QuantileDiagnosticPanel(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ChartTextCatalogue.of(LocalStrings.current.language)
     val scope = rememberCoroutineScope()
     val backfill by graph.preAggregator.progress.collectAsState()
     var running by remember { mutableStateOf(false) }
@@ -1058,14 +1156,19 @@ private fun QuantileDiagnosticPanel(
         ),
     ) {
         Text(
-            text = "метод квантилей: " + QuantileMetadata.label(method, sketch?.k ?: KllSketch.DEFAULT_K),
+            text = t.quantileMethodLine(
+                QuantileMetadata.label(method, sketch?.k ?: KllSketch.DEFAULT_K),
+            ),
             style = type.footnote,
             color = colors.muted,
         )
         if (backfill.running && backfill.hoursTotal > 0) {
             Text(
-                text = "предагрегация истории: ${(backfill.fraction * 100).toInt()} % " +
-                    "(${backfill.hoursDone} из ${backfill.hoursTotal} ч)",
+                text = t.preAggregationProgress(
+                    percent = (backfill.fraction * 100).toInt(),
+                    done = backfill.hoursDone,
+                    total = backfill.hoursTotal,
+                ),
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -1077,7 +1180,7 @@ private fun QuantileDiagnosticPanel(
                 modifier = Modifier.padding(top = Dimens.space1),
             ) {
                 Chip(
-                    text = if (running) "считаем…" else "сверить с сырыми",
+                    text = if (running) t.computing else t.compareWithRaw,
                     color = colors.ink2,
                     onClick = {
                         if (!running) {
@@ -1085,7 +1188,7 @@ private fun QuantileDiagnosticPanel(
                             report = null
                             scope.launch {
                                 val text = withContext(Dispatchers.IO) {
-                                    compareQuantilePaths(graph, sketch, range, unit)
+                                    compareQuantilePaths(graph, sketch, range, unit, t)
                                 }
                                 report = text
                                 running = false
@@ -1111,25 +1214,28 @@ private suspend fun compareQuantilePaths(
     sketch: KllSketch,
     range: LongRange,
     unit: DoseUnitSetting,
+    t: ChartTextStrings,
 ): String {
     val raw = graph.preAggregateRepository.rawDoseValues(range.first, range.last)
-        ?: return "точный путь отказался: в окне больше " +
-            "${PreAggregateRepository.MAX_DIAGNOSTIC_ROWS} отсчётов"
-    if (raw.isEmpty()) return "в этих часах нет сырых отсчётов"
+        ?: return t.exactPathRefused(PreAggregateRepository.MAX_DIAGNOSTIC_ROWS)
+    if (raw.isEmpty()) return t.noRawSamplesInHours
     val factor = DoseUnits.RAW_TO_MICRO_SIEVERT_PER_HOUR
     for (i in raw.indices) raw[i] = raw[i] * factor
     val comparison = QuantileDiagnostics.compare(raw, sketch)
-    return diagnosticReport(comparison, unit)
+    return diagnosticReport(comparison, unit, t)
 }
 
 /** Text of the exact-vs-sketch comparison — plain numbers, no verdicts. */
-private fun diagnosticReport(comparison: QuantileComparison, unit: DoseUnitSetting): String {
-    val names = listOf("P10", "Q25", "медиана", "Q75", "P90")
+private fun diagnosticReport(
+    comparison: QuantileComparison,
+    unit: DoseUnitSetting,
+    t: ChartTextStrings,
+): String {
+    val names = listOf("P10", "P25", t.median, "P75", "P90")
     val lines = StringBuilder()
-    lines.append("точные против скетча · n ")
-    lines.append(HistoryFormat.count(comparison.sampleCount))
+    lines.append(t.diagnosticsHeader(HistoryFormat.count(comparison.sampleCount)))
     if (!comparison.countsAgree) {
-        lines.append(" (скетч знает ${comparison.sketchCount} — сравниваются разные данные)")
+        lines.append(t.sketchCountMismatch(comparison.sketchCount.toString()))
     }
     lines.append(" · k=${comparison.k}\n")
     for (i in comparison.probabilities.indices) {
@@ -1139,12 +1245,10 @@ private fun diagnosticReport(comparison: QuantileComparison, unit: DoseUnitSetti
         lines.append(DoseFormat.rate(comparison.exactValues[i], unit))
         lines.append(" → ")
         lines.append(DoseFormat.rate(comparison.approximateValues[i], unit))
-        lines.append(" (ранг ")
-        lines.append(percent(comparison.rankErrors[i]))
-        lines.append(")\n")
+        lines.append(t.rankErrorSuffix(percent(comparison.rankErrors[i])))
+        lines.append("\n")
     }
-    lines.append("максимальная ошибка ранга ")
-    lines.append(percent(comparison.maxRankError))
+    lines.append(t.maxRankError(percent(comparison.maxRankError)))
     return lines.toString()
 }
 
@@ -1169,6 +1273,7 @@ private fun BoxScope.CursorCard(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ChartTextCatalogue.of(LocalStrings.current.language)
     val fraction = cursorFraction.value ?: return
     val time = ChartWindows.timeAt(window, fraction)
     val clock: (Long) -> String = { millis ->
@@ -1186,9 +1291,9 @@ private fun BoxScope.CursorCard(
         ) {
             Column {
                 Text(text = clock(time), style = type.footnote, color = colors.ink2)
-                Text(text = "нет данных", style = type.value, color = colors.muted)
+                Text(text = t.cursorNoData, style = type.value, color = colors.muted)
                 Text(
-                    text = "прибор не писал в этот момент",
+                    text = t.cursorNoDataDetail,
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -1217,34 +1322,34 @@ private fun BoxScope.CursorCard(
                 style = type.value,
                 color = if (above) colors.crit else colors.ink,
             )
-            CursorRow("медиана", DoseFormat.rate(bucket.median, unit))
+            CursorRow(t.median, DoseFormat.rate(bucket.median, unit))
             CursorRow(
-                "Q25–Q75",
+                "P25–P75",
                 DoseFormat.range(bucket.q25, bucket.q75, unit),
             )
             CursorRow(
-                "Q10–Q90",
+                "P10–P90",
                 DoseFormat.range(bucket.q10, bucket.q90, unit),
             )
             CursorRow(
-                "мин",
+                t.min,
                 DoseFormat.rate(bucket.min, unit) + " " +
                     CursorReadout.extremeTimeLabel(
                         bucket.minAtMillis,
                         bucket.extremeWindowMillis,
-                        clock,
+                        format = clock,
                     ),
             )
             CursorRow(
-                "макс",
+                t.max,
                 DoseFormat.rate(bucket.max, unit) + " " +
                     CursorReadout.extremeTimeLabel(
                         bucket.maxAtMillis,
                         bucket.extremeWindowMillis,
-                        clock,
+                        format = clock,
                     ),
             )
-            CursorRow("измерений", HistoryFormat.count(bucket.sampleCount))
+            CursorRow(t.samplesLabel, HistoryFormat.count(bucket.sampleCount))
             if (extreme != null) {
                 // Маркер сообщает ФАКТ СРАВНЕНИЯ и сразу показывает оба числа,
                 // на которых он стоит: «выше P90 профиля» без самого P90 —
@@ -1260,9 +1365,17 @@ private fun BoxScope.CursorCard(
                 )
                 if (reference != null) {
                     Text(
-                        text = "макс ${DoseFormat.rate(bucket.max, unit)} · " +
-                            (if (extreme == DoseReference.ALARM_L1) "L1 " else "P90 профиля ") +
-                            DoseFormat.rate(reference, unit),
+                        text = if (extreme == DoseReference.ALARM_L1) {
+                            t.cursorMaxAgainstAlarm(
+                                DoseFormat.rate(bucket.max, unit),
+                                DoseFormat.rate(reference, unit),
+                            )
+                        } else {
+                            t.cursorMaxAgainstProfileP90(
+                                DoseFormat.rate(bucket.max, unit),
+                                DoseFormat.rate(reference, unit),
+                            )
+                        },
                         style = type.footnote,
                         color = colors.muted,
                     )
@@ -1271,9 +1384,8 @@ private fun BoxScope.CursorCard(
             if (!bucket.quantilesExact) {
                 Text(
                     text = when (bucket.method) {
-                        QuantileMethod.KLL_SKETCH -> "квантили корзины — почасовые скетчи; " +
-                            "мин/макс и время — точные"
-                        else -> "квантили корзины — грубая оценка, предагрегация ещё строится"
+                        QuantileMethod.KLL_SKETCH -> t.bucketQuantilesSketch
+                        else -> t.bucketQuantilesCoarse
                     },
                     style = type.footnote,
                     color = colors.muted,
@@ -1282,11 +1394,11 @@ private fun BoxScope.CursorCard(
             if (baseline != null) {
                 AppDivider(Modifier.padding(vertical = 4.dp))
                 Text(
-                    text = "исторический профиль",
+                    text = t.historicalProfile,
                     style = type.footnote,
                     color = colors.ink2,
                 )
-                CursorRow("медиана", DoseFormat.rate(baseline.doseMedianMicroSvH, unit))
+                CursorRow(t.median, DoseFormat.rate(baseline.doseMedianMicroSvH, unit))
                 CursorRow(
                     "P10–P90",
                     DoseFormat.range(

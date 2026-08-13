@@ -5,6 +5,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.text.Strings
 
 /**
  * Оформление приложения — вариант дизайн-языка, а не «тема».
@@ -20,9 +22,9 @@ import androidx.compose.ui.unit.dp
  * `LocalAppMetrics`. Ни одна формулировка, ни одно правило честности, ни один
  * расчёт от скина не зависят — меняются цвет, шрифт и радиус, и только они.
  */
-enum class AppSkin(val id: String, val title: String) {
+enum class AppSkin(val id: String) {
     /** «Научный терминал» — исходный дизайн-язык (docs/design/design-language.md). */
-    TERMINAL("terminal", "Научный терминал"),
+    TERMINAL("terminal"),
 
     /**
      * «8-bit» — дозиметр с ретро-консоли: ограниченная насыщенная палитра,
@@ -32,8 +34,14 @@ enum class AppSkin(val id: String, val title: String) {
      * окупается, а IBM Plex Mono с разрядкой даёт нужное ощущение экрана
      * консоли, не притворяясь растровым шрифтом.
      */
-    EIGHT_BIT("8bit", "8-bit"),
+    EIGHT_BIT("8bit"),
     ;
+
+    /** Название оформления — из каталога: имя enum уезжает в настройки на диск. */
+    fun title(s: Strings = RuStrings): String = when (this) {
+        TERMINAL -> s.skinTerminal
+        EIGHT_BIT -> s.skinEightBit
+    }
 
     companion object {
         fun of(id: String?): AppSkin = entries.firstOrNull { it.id == id } ?: TERMINAL

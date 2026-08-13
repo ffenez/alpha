@@ -34,30 +34,6 @@ object DebugBundle {
     fun fileName(nowMillis: Long, stamp: (Long) -> String): String =
         "radiacode-debug-${stamp(nowMillis)}.zip"
 
-    /**
-     * Опись содержимого — первым файлом архива, чтобы тот, кто его откроет,
-     * сразу видел, что внутри и чего внутри нет.
-     */
-    fun manifest(entries: List<Entry>, appVersion: String, stamp: String): String = buildString {
-        appendLine("# Архив отладки RadiaCode")
-        appendLine("версия приложения: $appVersion")
-        appendLine("создан: $stamp")
-        appendLine()
-        appendLine(PRIVACY_NOTE)
-        appendLine()
-        appendLine("## Содержимое")
-        for (entry in entries) appendLine("${entry.name} — ${describe(entry.name)}")
-    }
-
-    private fun describe(name: String): String = when {
-        name == "report.txt" -> "состояние приложения и прибора в момент создания"
-        name == "problem.txt" -> "описание проблемы словами пользователя"
-        name == "spectrum.xml" -> "текущий накопленный спектр, формат RC-XML"
-        name == "background.xml" -> "записанный фоновый спектр, формат RC-XML"
-        name.endsWith(".xml") -> "спектр, формат RC-XML"
-        else -> "текстовый файл"
-    }
-
     /** Собирает архив в память: файлы отладки маленькие, поток здесь не нужен. */
     fun zip(entries: List<Entry>): ByteArray {
         val out = ByteArrayOutputStream()

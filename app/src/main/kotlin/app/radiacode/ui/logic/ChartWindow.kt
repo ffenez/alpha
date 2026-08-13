@@ -1,5 +1,8 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
+
 /**
  * Visible time window of the fullscreen live chart. Pure math for pinch-zoom,
  * pan and live-follow (window ↔ pixel-fraction mapping); JVM-tested. The
@@ -26,23 +29,47 @@ object ChartWindows {
      * прибор пишет раз в секунду, и окно короче минуты показывало бы горстку
      * отсчётов.
      */
-    val PERIODS: List<Pair<String, Long>> = listOf(
-        "1м" to 60_000L,
-        "2м" to 2L * 60_000L,
-        "3м" to 3L * 60_000L,
-        "5м" to 5L * 60_000L,
-        "10м" to 10L * 60_000L,
-        "30м" to 30L * 60_000L,
-        "1ч" to 3_600_000L,
-        "2ч" to 2L * 3_600_000L,
-        "3ч" to 3L * 3_600_000L,
-        "6ч" to 6L * 3_600_000L,
-        "12ч" to 12L * 3_600_000L,
-        "1д" to 24L * 3_600_000L,
-        "2д" to 2L * 24 * 3_600_000L,
-        "7д" to 7L * 24 * 3_600_000L,
-        "30д" to MAX_SPAN_MILLIS,
+    /** Ступень лестницы: число и единица времени, из которых собрана подпись. */
+    data class Step(val amount: Int, val unit: TimeUnit, val millis: Long)
+
+    enum class TimeUnit { MINUTES, HOURS, DAYS }
+
+    val STEPS: List<Step> = listOf(
+        Step(1, TimeUnit.MINUTES, 60_000L),
+        Step(2, TimeUnit.MINUTES, 2L * 60_000L),
+        Step(3, TimeUnit.MINUTES, 3L * 60_000L),
+        Step(5, TimeUnit.MINUTES, 5L * 60_000L),
+        Step(10, TimeUnit.MINUTES, 10L * 60_000L),
+        Step(30, TimeUnit.MINUTES, 30L * 60_000L),
+        Step(1, TimeUnit.HOURS, 3_600_000L),
+        Step(2, TimeUnit.HOURS, 2L * 3_600_000L),
+        Step(3, TimeUnit.HOURS, 3L * 3_600_000L),
+        Step(6, TimeUnit.HOURS, 6L * 3_600_000L),
+        Step(12, TimeUnit.HOURS, 12L * 3_600_000L),
+        Step(1, TimeUnit.DAYS, 24L * 3_600_000L),
+        Step(2, TimeUnit.DAYS, 2L * 24 * 3_600_000L),
+        Step(7, TimeUnit.DAYS, 7L * 24 * 3_600_000L),
+        Step(30, TimeUnit.DAYS, MAX_SPAN_MILLIS),
     )
+
+    /**
+     * Подпись ступени на языке интерфейса: «6ч» / «6h».
+     *
+     * Единица собирается из каталога, а не хранится строкой: подпись чипа
+     * обязана следовать языку, а сама ступень — нет, она число.
+     */
+    fun stepLabel(step: Step, s: ChartAxisStrings = ChartAxisRu): String = step.amount.toString() +
+        when (step.unit) {
+            TimeUnit.MINUTES -> s.stepMinutes
+            TimeUnit.HOURS -> s.stepHours
+            TimeUnit.DAYS -> s.stepDays
+        }
+
+    fun periodLabel(index: Int, s: ChartAxisStrings = ChartAxisRu): String =
+        stepLabel(STEPS[index], s)
+
+    /** Ступени в прежнем виде «подпись → длительность» (подпись русская). */
+    val PERIODS: List<Pair<String, Long>> = STEPS.map { stepLabel(it) to it.millis }
 
     /** Индекс окна, которое открывается по умолчанию (6 ч). */
     val DEFAULT_PERIOD_INDEX: Int = PERIODS.indexOfFirst { it.second == 6L * 3_600_000L }
@@ -117,6 +144,21 @@ object ChartWindows {
         val span = spanMillis.coerceIn(MIN_SPAN_MILLIS, MAX_SPAN_MILLIS)
         return ChartWindow(nowMillis - span, nowMillis)
     }
+
+    /**
+     * Доля окна, оставляемая воздухом справа от «сейчас».
+     *
+     * **Инженерный параметр**: 2 % ширины — заметно глазу и не крадёт данных.
+     * Область правее «сейчас» НЕ является пропуском: там ещё нечего измерять,
+     * поэтому она не штрихуется и не участвует в поиске пропусков.
+     */
+    const val RIGHT_PADDING_FRACTION = 0.02
+
+    /** Кадр отрисовки: то же окно данных плюс воздух у живого края. */
+    fun withRightPadding(window: ChartWindow): ChartWindow = ChartWindow(
+        fromMillis = window.fromMillis,
+        toMillis = window.toMillis + (window.spanMillis * RIGHT_PADDING_FRACTION).toLong(),
+    )
 
     /** Live-follow tick: keep the span, pin the right edge to now. */
     fun follow(window: ChartWindow, nowMillis: Long): ChartWindow =

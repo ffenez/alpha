@@ -40,15 +40,98 @@ class DeviceConnection private constructor(
     val info: DeviceInfo,
     val baseTimeMillis: Long,
     val configurationText: String,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
 
+    /**
+     * Измеренная поправка к эмпирической базе времени, мс (≤ 0).
+     *
+     * База `подключение + 128 с` — константа из cdump, и на живом приборе она
+     * врёт: полевой отчёт показывал «возраст показания: −96 с», то есть метки
+     * записей уезжали в БУДУЩЕЕ на полторы минуты. Следствия видимые: правый
+     * край графика «не дотягивается» до свежих отсчётов, а на стыках
+     * переподключений сырые метки наслаиваются и рвутся.
+     *
+     * Вместо константы — измерение по обе стороны.
+     *
+     * **Вниз — сразу**: запись не может прийти раньше, чем была сделана,
+     * поэтому опережение новейшей записи над часами телефона это заведомо
+     * завышенная база.
+     *
+     * **Вверх — только по минимуму окна**, и вот почему. Первый ответ после
+     * подключения может содержать запись из БУФЕРА прибора с большим
+     * смещением; односторонний храповик вычитал по ней слишком много, и дальше
+     * все метки оседали на десятки секунд в ПРОШЛОМ — навсегда, потому что
+     * подниматься он не умел. Полевая картина этого дефекта: зелёный кружок
+     * связи, «нет новых данных · 31 с» и графики, идущие с постоянным
+     * отставанием. Одна старая запись — честная задержка буфера, её чинить
+     * нельзя; но если САМАЯ СВЕЖАЯ запись каждого ответа подряд стара на
+     * десятки секунд, значит занижена база. Поэтому вверх поправка идёт по
+     * минимуму возраста за окно ответов — классический min-фильтр
+     * синхронизации часов, устойчивый к разовым выбросам.
+     */
+    @Volatile
+    var clockCorrectionMillis: Long = 0L
+        private set
+
+    /** Возрасты новейших записей последних ответов — окно min-фильтра. */
+    private val recentAges = ArrayDeque<Long>()
+
     /** Drains buffered device records; poll at ~1 Hz for real-time data. */
-    suspend fun readDataBuf(): DataBufResult =
-        DataBufDecoder.decode(readVs(Vs.DATA_BUF), baseTimeMillis)
+    suspend fun readDataBuf(): DataBufResult {
+        val payload = readVs(Vs.DATA_BUF)
+        var result = DataBufDecoder.decode(payload, baseTimeMillis + clockCorrectionMillis)
+        val newest = result.records.maxOfOrNull { it.timestampMillis }
+        if (newest != null) {
+            val shift = correctionShift(newest - clock())
+            if (shift != 0L) {
+                clockCorrectionMillis += shift
+                // Тот же ответ перечитывается с исправленной базой: записи
+                // одного ответа не должны нести метки из двух эпох.
+                result = DataBufDecoder.decode(payload, baseTimeMillis + clockCorrectionMillis)
+            }
+        }
+        return result
+    }
+
+    /**
+     * Сколько прибавить к поправке по опережению новейшей записи ответа.
+     *
+     * Возвращает 0, когда трогать базу не нужно. Окно возрастов чистится при
+     * каждом сдвиге: после переезда базы прежние измерения относятся к другой
+     * эпохе и в фильтре им не место.
+     */
+    private fun correctionShift(aheadMillis: Long): Long {
+        if (aheadMillis > FUTURE_TOLERANCE_MILLIS) {
+            recentAges.clear()
+            return -aheadMillis
+        }
+        val age = -aheadMillis
+        recentAges.addLast(age)
+        while (recentAges.size > LAG_WINDOW_RESPONSES) recentAges.removeFirst()
+        if (recentAges.size < LAG_WINDOW_RESPONSES) return 0L
+        val minAge = recentAges.min()
+        if (minAge <= LAG_TOLERANCE_MILLIS) return 0L
+        recentAges.clear()
+        return minAge
+    }
+
+    /**
+     * Объём полезной нагрузки ответов со спектром за эту сессию, байт.
+     * Считается ЗДЕСЬ, потому что здесь ещё виден сам ответ: это реальный
+     * объём, снятый с прибора, а не оценка по числу каналов (формат v1 —
+     * RLE, и распакованный размер про эфир ничего не говорит).
+     */
+    @Volatile
+    var spectrumPayloadBytes: Long = 0L
+        private set
 
     /** Spectrum since the last spectrum reset. */
-    suspend fun readSpectrum(): Spectrum =
-        SpectrumDecoder.decode(readVs(Vs.SPECTRUM), info.spectrumFormatVersion)
+    suspend fun readSpectrum(): Spectrum {
+        val payload = readVs(Vs.SPECTRUM)
+        spectrumPayloadBytes += payload.size
+        return SpectrumDecoder.decode(payload, info.spectrumFormatVersion)
+    }
 
     /** Accumulated (lifetime) spectrum; canonical VS id 0x205. */
     suspend fun readAccumSpectrum(): Spectrum =
@@ -148,10 +231,33 @@ class DeviceConnection private constructor(
                 ),
                 baseTimeMillis = baseTimeMillis,
                 configurationText = config.text,
+                clock = clock,
             )
         }
 
         const val BASE_TIME_OFFSET_MILLIS = 128_000L
+
+        /**
+         * Насколько метка записи может честно опережать часы телефона:
+         * задержка BLE-переноса и шаг опроса. **Инженерный параметр**: всё,
+         * что дальше, — завышенная база, а не физика.
+         */
+        const val FUTURE_TOLERANCE_MILLIS = 2_000L
+
+        /**
+         * Сколько ответов подряд должны отставать, прежде чем база поднимется.
+         * **Инженерный параметр**: при опросе раз в секунду это ~10 с — дольше
+         * любой разовой задержки переноса и короче, чем человек успевает
+         * заметить отставание графика.
+         */
+        const val LAG_WINDOW_RESPONSES = 10
+
+        /**
+         * Отставание, ниже которого база считается верной.
+         * **Инженерный параметр**: 5 с — заведомо больше секундного шага
+         * записи и задержки BLE, заведомо меньше «графики идут с опозданием».
+         */
+        const val LAG_TOLERANCE_MILLIS = 5_000L
 
         private fun u32le(v: Long): ByteArray = byteArrayOf(
             (v and 0xFF).toByte(),

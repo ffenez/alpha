@@ -1,6 +1,8 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.analysis.Hardness
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
 import app.radiacode.ui.text.RuStrings
 import app.radiacode.ui.text.Strings
 import app.radiacode.data.DoseUnitSetting
@@ -59,18 +61,24 @@ object ChartMetrics {
     }
 
     /** Почему длинных окон нет; null у величины, у которой они есть. */
-    fun spanLimitNote(metric: ChartMetric): String? = when (metric) {
+    fun spanLimitNote(
+        metric: ChartMetric,
+        s: ChartAxisStrings = ChartAxisRu,
+    ): String? = when (metric) {
         ChartMetric.DOSE -> null
         ChartMetric.COUNT_RATE, ChartMetric.HARDNESS ->
-            "Окна длиннее ${label(QuantilePaths.EXACT_MAX_SPAN_MILLIS)} у этой величины пока " +
-                "нет: предагрегация посчитана для мощности дозы, а перебирать всю сырую " +
-                "историю на каждое открытие нельзя."
+            s.longWindowsUnavailable(label(QuantilePaths.EXACT_MAX_SPAN_MILLIS, s))
     }
 
-    fun unitLabel(metric: ChartMetric, unit: DoseUnitSetting): String = when (metric) {
-        ChartMetric.DOSE -> DoseFormat.rateUnitLabel(unit)
-        ChartMetric.COUNT_RATE -> "с⁻¹"
-        ChartMetric.HARDNESS -> "(мкрем/ч)/(имп/с)"
+    fun unitLabel(
+        metric: ChartMetric,
+        unit: DoseUnitSetting,
+        s: ChartAxisStrings = ChartAxisRu,
+        units: Strings = RuStrings,
+    ): String = when (metric) {
+        ChartMetric.DOSE -> DoseFormat.rateUnitLabel(unit, units)
+        ChartMetric.COUNT_RATE -> s.unitCountRate
+        ChartMetric.HARDNESS -> s.unitHardness
     }
 
     /** Значение без единицы — для осей, курсора и статистики. */
@@ -118,12 +126,12 @@ object ChartMetrics {
      * Они не про то, как устроен график (это уехало в справку по кнопке «i»),
      * а про то, чем является само число: их нельзя показать один раз и убрать.
      */
-    fun footnotes(metric: ChartMetric): List<String> = when (metric) {
+    fun footnotes(
+        metric: ChartMetric,
+        s: ChartAxisStrings = ChartAxisRu,
+    ): List<String> = when (metric) {
         ChartMetric.DOSE -> emptyList()
-        ChartMetric.COUNT_RATE -> listOf(
-            "CPS — счёт событий детектора, не мера опасности: одно и то же число даёт и " +
-                "слабый близкий источник, и сильный далёкий.",
-        )
+        ChartMetric.COUNT_RATE -> listOf(s.cpsFootnote)
         ChartMetric.HARDNESS -> listOf(Hardness.EXPLANATION, Hardness.PURPOSE)
     }
 
@@ -147,6 +155,8 @@ object ChartMetrics {
         return ChartWindows.latest(span, nowMillis)
     }
 
-    private fun label(spanMillis: Long): String =
-        ChartWindows.PERIODS.lastOrNull { it.second <= spanMillis }?.first ?: "6ч"
+    private fun label(spanMillis: Long, s: ChartAxisStrings): String =
+        ChartWindows.STEPS.lastOrNull { it.millis <= spanMillis }
+            ?.let { ChartWindows.stepLabel(it, s) }
+            ?: ChartWindows.stepLabel(ChartWindows.STEPS[ChartWindows.DEFAULT_PERIOD_INDEX], s)
 }

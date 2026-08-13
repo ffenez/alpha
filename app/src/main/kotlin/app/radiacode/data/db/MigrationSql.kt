@@ -11,6 +11,33 @@ package app.radiacode.data.db
 object MigrationSql {
 
     /**
+     * v10 → v11: постоянная история спектрограммы (ADR 007) — `spectrogram_slices`.
+     *
+     * Strategy — add only, and **start empty**: пересчитать историю в миграции
+     * не из чего. Срез спектрограммы это разность двух последовательных
+     * приборных снимков, а в `spectra` лежат снимки, снятые раз в минуту и
+     * только пока шла запись, — восстановленная из них «история» была бы не
+     * теми интервалами, которые прибор действительно измерял. Таблица
+     * наполняется вперёд, с первого же опроса после обновления.
+     */
+    val FROM_10_TO_11: List<String> = listOf(
+        """
+        CREATE TABLE IF NOT EXISTS `spectrogram_slices` (
+            `startMillis` INTEGER NOT NULL,
+            `endMillis` INTEGER NOT NULL,
+            `durationMillis` INTEGER NOT NULL,
+            `schemeId` TEXT NOT NULL,
+            `bandCount` INTEGER NOT NULL,
+            `counts` BLOB NOT NULL,
+            `cps` REAL,
+            `doseMicroSvH` REAL,
+            `sliceCount` INTEGER NOT NULL,
+            PRIMARY KEY(`startMillis`)
+        )
+        """.trimIndent(),
+    )
+
+    /**
      * v7 → v8: the versioned pre-aggregation of ADR 004 — minute scalars
      * (`minute_stats`) and hourly mergeable quantile sketches
      * (`hour_sketches`).

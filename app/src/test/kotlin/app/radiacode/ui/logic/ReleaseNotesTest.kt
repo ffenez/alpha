@@ -40,6 +40,17 @@ class ReleaseNotesTest {
     }
 
     @Test
+    fun `version numbers do not depend on the language`() {
+        // Номер версии — факт сборки: он обязан быть одним и тем же на любом
+        // языке, иначе «та ли у меня версия» перестало бы иметь ответ.
+        val ru = ReleaseNotes.notes(app.radiacode.ui.text.ReleaseRu).map { it.version }
+        val en = ReleaseNotes.notes(app.radiacode.ui.text.ReleaseEn).map { it.version }
+        assertEquals(ru, en)
+        assertEquals(ru.first(), ReleaseNotes.current)
+        assertEquals(ReleaseNotes.SHOWN, ReleaseNotes.shownIn(app.radiacode.ui.text.ReleaseEn).size)
+    }
+
+    @Test
     fun `nothing here promises safety`() {
         val forbidden = listOf(
             Regex("""\bбезопасн(о|ый|ая|ое)\b"""),

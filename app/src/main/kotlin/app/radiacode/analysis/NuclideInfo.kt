@@ -1,10 +1,28 @@
 package app.radiacode.analysis
 
-/** One gamma line of the reference card: energy and emission probability. */
+import app.radiacode.analysis.evidence.DataSource
+import app.radiacode.ui.text.NuclideRu
+import app.radiacode.ui.text.NuclideStrings
+
+/**
+ * One gamma line of the reference card: energy, emission probability and where
+ * both numbers came from.
+ *
+ * Provenance живёт в самой линии, а не в подписи внизу карточки: справка
+ * обязана уметь сказать про КОНКРЕТНОЕ число, откуда оно и с какой
+ * неопределённостью. Сейчас у всех линий источник [DataSource.ENSDF], а
+ * неопределённости `null` — см. KDoc [GammaLine]: их в нашей выборке нет, и
+ * выдавать отсутствие за ноль нельзя.
+ */
 data class NuclideGammaLine(
     val energyKeV: Float,
     /** Photons emitted per 100 decays **of this nuclide** (not of its parent). */
     val intensityPercent: Float,
+    /** 1σ табличной энергии, кэВ; `null` — источник её не дал. */
+    val energyUncertaintyKeV: Float? = null,
+    /** 1σ выхода в процентных единицах; `null` — источник её не дал. */
+    val intensityUncertaintyPercent: Float? = null,
+    val source: DataSource = DataSource.ENSDF,
 )
 
 /** Whether the nuclide exists in the undisturbed environment. */
@@ -54,66 +72,52 @@ data class Nuclide(
  */
 object NuclideInfoLibrary {
 
-    val ALL: List<Nuclide> = listOf(
+    /**
+     * Справка на выбранном языке. Каталог приходит параметром, а не из
+     * композиции: эту таблицу читают и тесты, куда `LocalStrings` не доходит.
+     */
+    fun all(s: NuclideStrings = NuclideRu): List<Nuclide> = listOf(
         Nuclide(
             symbol = "K-40",
-            name = "калий-40",
-            halfLife = "1,248·10⁹ лет",
-            decay = "β⁻ (89,3 %) → Ca-40; захват электрона (10,7 %) → Ar-40, " +
-                "фотон 1460,8 кэВ рождается именно в этой ветви",
+            name = s.k40Name,
+            halfLife = s.k40HalfLife,
+            decay = s.k40Decay,
             origin = NuclideOrigin.NATURAL,
             chain = null,
             lines = listOf(NuclideGammaLine(1460.8f, 10.7f)),
-            everyday = "Постоянная примесь природного калия — 0,0117 % его атомов, " +
-                "доля не зависит от происхождения калия. Поэтому линия 1461 кэВ " +
-                "видна от заменителей соли и удобрений на хлориде калия, бананов " +
-                "и других богатых калием продуктов, гранита, бетона, золы и от " +
-                "тела самого человека.",
-            confirmation = "Других линий у K-40 в диапазоне прибора нет, так что " +
-                "подтвердить совпадение второй линией нельзя. Косвенный довод — " +
-                "устойчивость пика при долгом накоплении и его рост рядом с " +
-                "калийным материалом.",
+            everyday = s.k40Everyday,
+            confirmation = s.k40Confirmation,
         ),
         Nuclide(
             symbol = "Cs-137",
-            name = "цезий-137",
-            halfLife = "30,08 года",
-            decay = "β⁻ → Ba-137m (94,7 %), метастабильный барий за 2,55 мин " +
-                "переходит в основное состояние и излучает 661,7 кэВ",
+            name = s.cs137Name,
+            halfLife = s.cs137HalfLife,
+            decay = s.cs137Decay,
             origin = NuclideOrigin.ARTIFICIAL,
             chain = null,
             lines = listOf(NuclideGammaLine(661.7f, 85.1f)),
-            everyday = "Продукт деления: глобальные следы атмосферных испытаний " +
-                "и аварий в верхнем слое почвы, в лесных грибах и дичи " +
-                "загрязнённых районов. Как закрытый источник встречается в " +
-                "уровнемерах, плотномерах и калибровочных наборах.",
-            confirmation = "Единственная заметная линия, поэтому одиночного пика " +
-                "мало. Осмысленный довод — сравнение с записанным опорным фоном " +
-                "того же места и повтор на другом накоплении.",
+            everyday = s.cs137Everyday,
+            confirmation = s.cs137Confirmation,
         ),
         Nuclide(
             symbol = "Co-60",
-            name = "кобальт-60",
-            halfLife = "5,27 года",
-            decay = "β⁻ → Ni-60; обе линии испускаются каскадом почти при каждом распаде",
+            name = s.co60Name,
+            halfLife = s.co60HalfLife,
+            decay = s.co60Decay,
             origin = NuclideOrigin.ARTIFICIAL,
             chain = null,
             lines = listOf(
                 NuclideGammaLine(1332.5f, 100.0f),
                 NuclideGammaLine(1173.2f, 99.9f),
             ),
-            everyday = "Промышленная радиография и стерилизация, медицинские " +
-                "телетерапевтические установки, калибровочные источники; изредка " +
-                "попадает в переплавленный металлолом.",
-            confirmation = "Линии 1173 и 1333 кэВ рождаются каскадом, поэтому " +
-                "осмысленное совпадение требует ОБЕ, причём примерно равной " +
-                "площади. Одинокий бугор около 1173 кэВ — не Co-60.",
+            everyday = s.co60Everyday,
+            confirmation = s.co60Confirmation,
         ),
         Nuclide(
             symbol = "I-131",
-            name = "йод-131",
-            halfLife = "8,03 суток",
-            decay = "β⁻ → Xe-131",
+            name = s.i131Name,
+            halfLife = s.i131HalfLife,
+            decay = s.i131Decay,
             origin = NuclideOrigin.ARTIFICIAL,
             chain = null,
             lines = listOf(
@@ -121,35 +125,25 @@ object NuclideInfoLibrary {
                 NuclideGammaLine(637.0f, 7.2f),
                 NuclideGammaLine(284.3f, 6.1f),
             ),
-            everyday = "Медицинский изотоп: диагностика и лечение щитовидной " +
-                "железы. Человек, недавно прошедший процедуру, остаётся " +
-                "источником несколько дней — это самая частая бытовая встреча " +
-                "с ним, в том числе в транспорте.",
-            confirmation = "Восьмидневный период полураспада проверяем: повтор " +
-                "через несколько дней должен показать заметный спад. Вторая " +
-                "линия 637 кэВ слабая, но её отсутствие при сильной 364 кэВ — " +
-                "довод против.",
+            everyday = s.i131Everyday,
+            confirmation = s.i131Confirmation,
         ),
         Nuclide(
             symbol = "Am-241",
-            name = "америций-241",
-            halfLife = "432,6 года",
-            decay = "α → Np-237, сопровождается фотоном 59,5 кэВ",
+            name = s.am241Name,
+            halfLife = s.am241HalfLife,
+            decay = s.am241Decay,
             origin = NuclideOrigin.ARTIFICIAL,
             chain = null,
             lines = listOf(NuclideGammaLine(59.5f, 35.9f)),
-            everyday = "Ионизационные датчики дыма — самый распространённый " +
-                "бытовой источник; также промышленные толщиномеры и плотномеры.",
-            confirmation = "59,5 кэВ лежит там, где отклик CsI(Tl) и заводская " +
-                "энергетическая калибровка наименее точны, поэтому " +
-                "низкоэнергетическое совпадение заслуживает особого сомнения. " +
-                "Других линий в диапазоне прибора нет.",
+            everyday = s.am241Everyday,
+            confirmation = s.am241Confirmation,
         ),
         Nuclide(
             symbol = "Bi-214",
-            name = "висмут-214",
-            halfLife = "19,9 минуты",
-            decay = "β⁻ → Po-214; дочерний продукт радона-222 в ряду U-238",
+            name = s.bi214Name,
+            halfLife = s.bi214HalfLife,
+            decay = s.bi214Decay,
             origin = NuclideOrigin.NATURAL,
             chain = "Ra-226",
             lines = listOf(
@@ -157,20 +151,14 @@ object NuclideInfoLibrary {
                 NuclideGammaLine(1764.5f, 15.3f),
                 NuclideGammaLine(1120.3f, 14.9f),
             ),
-            everyday = "Продукт распада радона-222, который сочится из грунта и " +
-                "строительного камня. Обычен в подвалах и плохо проветриваемых " +
-                "нижних этажах, усиливается после дождя и снегопада — осадки " +
-                "вымывают продукты распада из воздуха.",
-            confirmation = "Радоновая цепочка узнаётся по НЕСКОЛЬКИМ линиям " +
-                "сразу — 609, 1120 и 1765 кэВ вместе с 352 кэВ от Pb-214. " +
-                "Короткий период полураспада означает быстрый спад после " +
-                "проветривания, и это проверяемо.",
+            everyday = s.bi214Everyday,
+            confirmation = s.bi214Confirmation,
         ),
         Nuclide(
             symbol = "Pb-214",
-            name = "свинец-214",
-            halfLife = "26,9 минуты",
-            decay = "β⁻ → Bi-214; дочерний продукт радона-222 в ряду U-238",
+            name = s.pb214Name,
+            halfLife = s.pb214HalfLife,
+            decay = s.pb214Decay,
             origin = NuclideOrigin.NATURAL,
             chain = "Ra-226",
             lines = listOf(
@@ -178,38 +166,28 @@ object NuclideInfoLibrary {
                 NuclideGammaLine(295.2f, 18.4f),
                 NuclideGammaLine(242.0f, 7.3f),
             ),
-            everyday = "Тот же радоновый ряд, что и Bi-214: подвалы, погреба, " +
-                "гранит и туф, воздух после дождя.",
-            confirmation = "Идёт в паре с Bi-214, поэтому 352 кэВ без 609 кэВ " +
-                "выглядит странно. Обе линии вместе и их спад после " +
-                "проветривания — гораздо более осмысленный довод, чем один пик.",
+            everyday = s.pb214Everyday,
+            confirmation = s.pb214Confirmation,
         ),
         Nuclide(
             symbol = "Pb-212",
-            name = "свинец-212",
-            halfLife = "10,64 часа",
-            decay = "β⁻ → Bi-212; дочерний продукт торона (Rn-220) в ряду Th-232",
+            name = s.pb212Name,
+            halfLife = s.pb212HalfLife,
+            decay = s.pb212Decay,
             origin = NuclideOrigin.NATURAL,
             chain = "Th-232",
             lines = listOf(
                 NuclideGammaLine(238.6f, 43.6f),
                 NuclideGammaLine(300.1f, 3.3f),
             ),
-            everyday = "Ториевый ряд: старые калильные сетки газовых и " +
-                "керосиновых ламп, ториевое оптическое стекло старых " +
-                "объективов, монацитовый песок, некоторые сварочные электроды, " +
-                "а также обычный гранит.",
-            confirmation = "Ториевая цепочка узнаётся по 238,6 кэВ ВМЕСТЕ с " +
-                "583 и 2615 кэВ от Tl-208. Линия 2615 кэВ стоит особняком в " +
-                "спектре и потому самая показательная.",
+            everyday = s.pb212Everyday,
+            confirmation = s.pb212Confirmation,
         ),
         Nuclide(
             symbol = "Tl-208",
-            name = "таллий-208",
-            halfLife = "3,05 минуты",
-            decay = "β⁻ → Pb-208; в ряду Th-232 через Tl-208 идёт лишь 35,9 % " +
-                "распадов Bi-212, поэтому в пересчёте на цепочку выход линий " +
-                "примерно втрое меньше приведённого",
+            name = s.tl208Name,
+            halfLife = s.tl208HalfLife,
+            decay = s.tl208Decay,
             origin = NuclideOrigin.NATURAL,
             chain = "Th-232",
             lines = listOf(
@@ -217,16 +195,18 @@ object NuclideInfoLibrary {
                 NuclideGammaLine(583.2f, 85.0f),
                 NuclideGammaLine(510.8f, 22.6f),
             ),
-            everyday = "Конец ториевого ряда: калильные сетки, ториевая оптика, " +
-                "монацит, гранитные облицовки. Линия 2615 кэВ — самая жёсткая в " +
-                "природном фоне и часто видна в обычной комнате.",
-            confirmation = "Осмысленное совпадение — 583 и 2615 кэВ вместе, " +
-                "желательно с 238,6 кэВ от Pb-212. Одна линия 583 кэВ соседствует " +
-                "по энергии с другими и сама по себе слаба как довод.",
+            everyday = s.tl208Everyday,
+            confirmation = s.tl208Confirmation,
         ),
     )
 
+    /** Русская справка — язык по умолчанию и единственный, который читают тесты. */
+    val ALL: List<Nuclide> = all(NuclideRu)
+
     private val bySymbol: Map<String, Nuclide> = ALL.associateBy { it.symbol }
 
-    fun of(symbol: String): Nuclide? = bySymbol[symbol]
+    // Русский путь держится картой, остальные языки собирают девять карточек
+    // на открытие диалога — это дешевле, чем кэш, который надо синхронизировать.
+    fun of(symbol: String, s: NuclideStrings = NuclideRu): Nuclide? =
+        if (s === NuclideRu) bySymbol[symbol] else all(s).firstOrNull { it.symbol == symbol }
 }

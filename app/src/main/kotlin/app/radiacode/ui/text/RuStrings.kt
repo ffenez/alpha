@@ -26,7 +26,6 @@ object RuStrings : Strings {
     override val hardness = "Жёсткость"
     override val trendPerHour = "Тренд/ч"
     override val doseToday = "Сегодня"
-    override val whyThisConclusion = "почему такой вывод ›"
     override val placeFingerprint = "Отпечаток места"
 
     override val groupMeasurement = "Измерение"
@@ -51,7 +50,7 @@ object RuStrings : Strings {
     override val statusNoData = "Нет данных"
     override val statusAboveL1 = "Выше порога L1"
     override val statusBelowL1 = "Ниже порога L1"
-    override val statusUsual = "В обычном диапазоне этого профиля"
+    override val statusUsual = "Показания обычны для этого места"
     override val statusUsualShort = "Обычный для этого места"
     override val statusAboveUsual = "Выше обычного диапазона профиля"
     override val statusAboveUsualShort = "Выше обычного"
@@ -60,7 +59,7 @@ object RuStrings : Strings {
     override val statusAlert = "Уровень радиации изменился"
 
     override fun detailNoBaseline(threshold: String) =
-        "порог L1 $threshold · исторический диапазон профиля ещё не собран"
+        "порог L1 $threshold · обычный диапазон профиля ещё не собран"
 
     override fun detailUsual(range: String, unit: String, collected: String) =
         "P10–P90: $range $unit · наблюдений: $collected"
@@ -168,8 +167,6 @@ object RuStrings : Strings {
 
     override val spectrumAccumulating = "текущее накопление"
     override val spectrumContinuation = "продолжение: "
-    override val spectrogramEntry = "Спектрограмма ▸"
-    override val radonEntry = "Радон ▸"
     override val formatUnsupportedTitle = "Формат не поддержан"
 
     override fun formatUnsupportedBody(version: Int) =
@@ -198,35 +195,11 @@ object RuStrings : Strings {
 
     override val sumShown =
         "показана сумма снимка и текущего накопления (каналы складываются, Δt " +
-            "суммируется); «Сохранить» сохранит сумму"
+            "суммируется); «Сохранить снимок» сохранит сумму"
     override val noLiveAccumulation = "живого накопления пока нет — показан сохранённый снимок"
     override val continuationWarning =
         "Прибор копит спектр независимо от приложения. Если снимок сделан из текущего " +
             "накопления без сброса, импульсы посчитаются дважды — сначала сбросьте спектр."
-    override val spectrumInfoTitle = "Как читать спектр"
-    override val spectrumInfoAxes =
-        "По горизонтали энергия в кэВ, по вертикали импульсы в канале за всё накопление. " +
-            "В одну колонку экрана попадает несколько каналов, и берётся их максимум: " +
-            "узкий пик не теряется при отдалении, но линия континуума проходит по верхней " +
-            "огибающей."
-    override val spectrumInfoSignificance =
-        "Значимость пика — это его нетто-площадь, делённая на собственную стандартную " +
-            "неопределённость: в неё входит и статистика окна пика, и неопределённость " +
-            "оценки континуума под ним. Структура принимается за пик, только если её " +
-            "ширина согласуется с разрешением детектора."
-    override val spectrumInfoCandidate =
-        "Кандидат нуклида — это совпадение энергии, а не обнаружение: надёжная " +
-            "идентификация требует накопленной статистики и, как правило, нескольких " +
-            "линий одного нуклида."
-    override val spectrumInfoScales =
-        "Масштаб оси импульсов: линейный передаёт отношение площадей, но прижимает всё, " +
-            "кроме самого высокого, к нулю; логарифмический показывает и одиночные " +
-            "отсчёты, и фотопик, но зрительно уравнивает величины, различающиеся в разы; " +
-            "степенной 1/n — промежуточный (1/2 — привычный корень). Все три — монотонные " +
-            "преобразования одного числа: меняется распределение высоты, а не данные."
-    override val spectrumInfoGestures =
-        "Щипок по графику — масштаб, перетаскивание — сдвиг. Сглаживание меняет только " +
-            "отображение: исходные данные не трогаются."
     override val scaleLinear = "Лин"
     override val scalePower = "Степень"
     override val scaleLog = "Лог"
@@ -238,16 +211,18 @@ object RuStrings : Strings {
     override val smoothing = "сглаж."
     override val energyRanges = "энергетические диапазоны"
     override val peakTableEnergy = "E, кэВ"
-    override val peakTableNet = "нетто"
+    // «нетто» и «кандидат» — слова протокола обработки, а не разговора о
+    // спектре (§3). Что площадь чистая и что совпадение — не обнаружение,
+    // сказано словами под таблицей, где это и читают.
+    override val peakTableNet = "площадь"
     override val peakTableSignificance = "значимость"
-    override val peakTableCandidate = "кандидат"
+    override val peakTableCandidate = "возможное совпадение"
     override val notEnoughForPeaks = "мало данных для анализа пиков — накопите хотя бы минуту"
     override val noPeaksFound = "выраженных пиков над континуумом не найдено"
+    // Что такое «площадь», объясняет справка «i»: на рабочем экране осталась
+    // только та половина оговорки, которая ограничивает ВЫВОД.
     override val peakTableCaveat =
-        "возможное совпадение ≠ обнаружение · нужно подтверждение: копите дольше · " +
-            "нажмите строку — справка о нуклиде"
-    override val recordBackground = "Записать фон"
-    override val save = "Сохранить"
+        "возможное совпадение ≠ обнаружение · нужно подтверждение: копите дольше"
     override val reset = "Сброс"
     override val resetSpectrumTitle = "Сбросить спектр?"
     override val resetSpectrumBody =
@@ -256,10 +231,6 @@ object RuStrings : Strings {
     override val cancel = "Отмена"
 
     override fun edgeCounts(counts: String) = "у верхней границы шкалы: $counts имп."
-
-    override fun rangeWhole(range: String) = "диапазон $range · весь · щипок увеличит"
-
-    override fun rangeDraggable(range: String) = "диапазон $range · перетаскивание сдвигает"
 
     override val noSpectrumBackground =
         "фон не записан — запишите спектр обычной обстановки, появятся наложение и «минус фон»"
@@ -317,7 +288,9 @@ object RuStrings : Strings {
     override val pickTwoToCompare = "выберите два снимка — откроется сравнение"
     override val pickTwoOrMoreToMerge =
         "отметьте два и более снимков — каналы сложатся, время накопления просуммируется"
-    override val snapshotOpensActions = "снимок открывает экспорт, сравнение и продолжение"
+    override val snapshotOpensActions = "снимок открывается целиком: кривая, пики и действия"
+    override val openSnapshot = "Открыть спектр"
+    override val chooseSnapshotToCompare = "С каким снимком сравнить"
 
     override fun mergeAction(count: Int) = "Объединить ($count)"
 
@@ -334,17 +307,47 @@ object RuStrings : Strings {
     override val backgroundTag = "фон"
     override val delete = "Удалить"
 
+    // Легенда стоит только там, где стоят сами метки, — за раскрытием «показать
+    // методику и расчёты» (§21): на первом уровне меток больше нет.
     override val evidenceLegend =
-        "изм. — измерено прибором · расчёт — вычислено из измерений · " +
-            "стат. — результат статистической модели профиля"
+        "Источник значения: изм. — измерено прибором · расчёт — вычислено из измерений · " +
+            "стат. — вывод статистической модели профиля"
     override val nowSection = "Сейчас"
-    override val poissonNote =
-        "1σ Пуассона ≈ √(N/τ), τ = 1 с · счёт сам по себе не пересчитывается в дозу"
+    override val usualRangeHere = "Обычный диапазон здесь"
+    override val notASafetyConclusion =
+        "Этот вывод описывает отличие от вашего обычного фона в этом месте. Он не является " +
+            "заключением о радиационной безопасности."
+    override val dataVolume = "Сколько данных"
+    override val usedForComparison = "Использовано для сравнения"
+    override val suitableMeasurements = "подходящих измерений этого места"
+    override val measurementsCount = "Измерений"
+    override val measurementsCountNote =
+        "показаний прибора, использованных для статистики. Прибор пишет примерно раз в " +
+            "секунду, но при пропусках это число меньше времени наблюдений"
+    override val calculationsSection = "Расчёты и формулы"
+    override val countIsNotDose =
+        "счёт удобен для поиска изменений, но сам по себе не показывает дозу: вклад события " +
+            "зависит в том числе от его энергии"
+    override val deviceErrorNote =
+        "± у мощности дозы — собственная оценка прибора для этого показания"
+    override val deviceErrorBudget =
+        "± прибора — не полная неопределённость измерения: в неё входили бы ещё калибровка и " +
+            "систематические эффекты."
+    override val insideUsualRange = "внутри обычного диапазона"
+    override val aboveUsualRange = "выше обычного диапазона"
+    override val belowUsualRange = "ниже обычного диапазона"
+    override val spectralComparedPlain =
+        "Форма текущего спектра сравнивается с обычной для этого места, а не с абсолютным " +
+            "уровнем. Вывод описывает состав излучения."
+    override val spectralTooLittlePlain =
+        "Сравнение с эталоном места началось, но данных пока мало."
+    override val shapeStatistics = "Статистика сравнения формы"
+    override val poissonNote = "Погрешность счёта — 1σ Пуассона ≈ √(N/τ), τ = 1 с."
     override val dataSection = "Данные"
     override val profile = "Профиль"
     override val outsideProfile = "вне профиля"
     override val comparisonSection = "Сравнение с профилем"
-    override val historicalRange = "Исторический диапазон"
+    override val historicalRange = "Обычный диапазон этого места"
     override val notCollectedYet = "ещё не собран"
     override val comparisonRuns = "Сравнение идёт"
 
@@ -355,9 +358,9 @@ object RuStrings : Strings {
     override val currentValue = "Текущее значение"
     override val position = "Положение"
     override val bandExplained =
-        "P10–P90 — диапазон, внутри которого находилось около 80 % пригодных исторических " +
-            "измерений этого профиля. Это характеристика данного места, а не норматив " +
-            "радиационной безопасности."
+        "Внутри этого диапазона находились около 80 % подходящих измерений этого места " +
+            "(от P10 до P90). Это история самого места, а не норматив радиационной " +
+            "безопасности."
     override val belowP10 = "ниже P10"
     override val aboveP90 = "выше P90"
     override val insideBand = "внутри P10–P90"
@@ -366,18 +369,23 @@ object RuStrings : Strings {
     override val madNote =
         "median(|xᵢ − медиана|) — робастная характеристика наблюдаемого разброса, не " +
             "требующая нормального распределения. Это не погрешность прибора"
-    override val usableData = "Пригодных данных"
-    override val minuteBuckets = "Минутных корзин"
+    override val usableData = "Данных для сравнения"
+    override val usableDataNote =
+        "учитываются только измерения, прошедшие отбор: подтверждённое место, непрерывный " +
+            "поток данных, показание с приемлемой погрешностью"
+    override val minuteBuckets = "Минутных интервалов"
     override val honestN = "честное n порядковых статистик"
     override val notEnoughData = "Недостаточно данных"
     override val updating = "Обновляется"
     override val temporarilyNotUpdating = "Временно не обновляется"
     override val updatingNote =
-        "Новые пригодные измерения учитываются при пересчёте исторического диапазона."
+        "Новые подходящие измерения пополняют обычный диапазон этого места."
     override val notUpdatingNote =
-        "Новые измерения сохраняются, но временно не используются для обновления " +
-            "исторического диапазона."
+        "Часть измерений сейчас не идёт в обычный фон — чтобы необычное событие не стало " +
+            "его частью. Измерения при этом сохраняются полностью."
     override val state = "Состояние"
+    override val excludedSection = "Что исключено из статистики"
+    override val excludedNow = "Причина сейчас"
     override val excludedFromStatistics = "Не учтено в статистике"
     override val statisticsState = "Состояние статистики"
     override val quarantineNote =
@@ -386,7 +394,7 @@ object RuStrings : Strings {
             "превращение самого отклонения в новый обычный фон."
     override val howDetected = "Как обнаруживается отклонение"
     override val absoluteThresholdL1 = "Абсолютный порог L1"
-    override val relativeCriterion = "Относительный критерий"
+    override val relativeCriterion = "Порог относительно обычного диапазона"
 
     override fun timesProfileP90(factor: String) = "$factor × P90 профиля"
 
@@ -406,13 +414,6 @@ object RuStrings : Strings {
     override val spectralNoReference =
         "Эталон этого места ещё не создан, поэтому спектр в вывод не входит. " +
             "«Не оценивалось» — это не «изменений нет»."
-
-    override fun spectralTooLittle(detail: String) =
-        "Сравнение с эталоном места началось, но данных пока мало: $detail"
-
-    override fun spectralCompared(detail: String) =
-        "Форма спектра сравнивается с эталоном места (не с абсолютным уровнем): $detail. " +
-            "Вывод описывает состав излучения, а не его опасность."
 
     override val spectralComparison = "Спектральное сравнение"
 
@@ -449,6 +450,43 @@ object RuStrings : Strings {
         "Перевод выполняется по разделам: непереведённые части пока показываются " +
             "по-русски. · Translation is in progress: untranslated parts are shown in Russian."
     override val skinTitle = "Оформление"
+    override val skinTerminal = "Научный терминал"
+    override val skinEightBit = "8-bit"
+    override val themeSystem = "Системная"
+    override val themeDark = "Тёмная"
+    override val themeLight = "Светлая"
+
+    override fun signalDbm(value: Int) = "$value дБм"
+
+    override fun alarmPreset(level: String, factor: String, held: String) =
+        "от $level или $factor× к P90 профиля, $held"
+
+    override val retentionTitle = "Хранение сырых измерений"
+    override val retentionKeepAll = "всё"
+
+    override fun retentionDays(days: Int) = "$days дней"
+
+    override val retentionNote =
+        "Посекундные записи прибора старше срока удаляются. Графики долгих периодов, " +
+            "статистика мест, сводки сессий, спектры и маршруты остаются — теряется только " +
+            "сырая детализация. По умолчанию хранится всё."
+
+    override val scaleTitle = "Масштаб"
+    override val scaleNote =
+        "Текст и элементы регулируются отдельно: числа читают издалека, а кнопки нажимают " +
+            "пальцем, и увеличивать всё сразу значит терять половину экрана. Системный " +
+            "размер шрифта при этом сохраняется — проценты умножаются на него."
+    override val scaleFont = "текст"
+    override val scaleElements = "элементы"
+
+    override fun scalePercent(percent: Int) = "$percent %"
+
+    override val scaleReset = "Вернуть 100 %"
+    override val crystalOrganicPlastic = "органический пластик"
+    override val modeOff = "нет"
+    override val modeClicks = "клики"
+    override val modeTone = "тон"
+    override val modeVibro = "вибро"
     override val skinNote =
         "Оформление меняет цвета, шрифт и форму рамок — и только их: показания, " +
             "формулировки и расчёты от него не зависят. Светлая и тёмная тема работают " +
@@ -517,7 +555,7 @@ object RuStrings : Strings {
     override val deleteProfileQuestion = "Удалить профиль?"
     override val usualBackgroundTitle = "Обычный фон"
     override val usualBackgroundIntro =
-        "Обычный фон профиля пополняется только из пригодных измерений. Не учитываются: " +
+        "Обычный фон профиля пополняется только из подходящих измерений. Не учитываются: " +
             "Поиск и опыты, обрыв потока, полчаса после отклонения и время, пока место не " +
             "подтверждено. Сами измерения записываются всегда."
     override val freezeLearning = "Заморозить обучение"
@@ -539,11 +577,28 @@ object RuStrings : Strings {
     override val temperature = "температура"
     override val stream = "поток"
     override val streamActive = "активен · 1 Гц"
+
+    override fun streamNoNewData(seconds: Long) = "нет новых данных · $seconds с"
+
+    override val streamReconnecting = "связь восстанавливается"
+    override val streamLost = "связь с прибором потеряна"
+    override val streamNoDataYet = "нет текущих данных"
+
+    override fun lastMeasurementAgo(seconds: Long): String {
+        val text = when {
+            seconds < 60 -> "$seconds с"
+            seconds < 3600 -> "${seconds / 60} мин"
+            else -> "${seconds / 3600} ч"
+        }
+        return "последнее измерение $text назад"
+    }
     override val unitsTitle = "Единицы"
     override val unitMicroSv = "мкЗв/ч"
     override val unitMicroSvNote = "микрозиверты в час — единица СИ"
     override val unitMicroR = "мкР/ч"
     override val unitMicroRNote = "микрорентгены в час · 1 мкЗв/ч = 100 мкР/ч"
+    override val unitDoseMicroSv = "мкЗв"
+    override val unitDoseMicroR = "мкР"
     override val unitsNote =
         "Пересчёт только для отображения: измерения хранятся в исходных единицах прибора " +
             "без потери точности."
@@ -584,6 +639,13 @@ object RuStrings : Strings {
             "или приложение закрыто, и не связаны с откликом Поиска."
     override val deviceSound = "Звук прибора"
     override val deviceVibro = "Вибрация прибора"
+    override val deviceSignalsUnknownNote =
+        "Приложение умеет включить и выключить их, но не умеет спросить прибор, " +
+            "что в нём стоит сейчас: до первой команды состояние неизвестно."
+    override val deviceSignalsOfflineNote = "Прибор не подключён — команду отправить некуда."
+
+    override fun baselineStats(median: String, iqr: String, mad: String, buckets: Int) =
+        "медиана $median · P25–P75 $iqr · MAD $mad · n $buckets минутных интервалов"
     override val stateUnknown = "состояние неизвестно"
     override val stateOnByApp = "включено этим приложением"
     override val stateOffByApp = "выключено этим приложением"

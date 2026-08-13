@@ -33,6 +33,14 @@ import app.radiacode.baseline.aboveUsualMagnitude
 import app.radiacode.baseline.alarmThresholds
 import app.radiacode.baseline.deviationMagnitude
 import app.radiacode.data.DoseUnitSetting
+import app.radiacode.data.RawRetention
+import app.radiacode.data.SpectrumPollPolicy
+import app.radiacode.ui.text.AppLanguage
+import app.radiacode.ui.text.NotificationCatalogue
+import app.radiacode.ui.text.NotificationEn
+import app.radiacode.ui.text.NotificationRu
+import app.radiacode.ui.text.NotificationStrings
+import app.radiacode.ui.text.stringsFor
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
@@ -140,6 +148,14 @@ class MeasurementService : Service() {
     @Volatile
     private var sessionId: Long? = null
 
+    /**
+     * Язык уведомлений. Сервис читает его сам: `LocalStrings` живёт в
+     * композиции, а уведомление пишется без экрана — и человек, выбравший
+     * английский, не должен получать русскую тревогу.
+     */
+    @Volatile
+    private var texts: NotificationStrings = NotificationRu
+
     /** Guarded by [alarmLock]: trackers are recreated on place/threshold change. */
     private val alarmLock = Any()
     private var aboveUsualTracker = PersistenceTracker(persistenceMillis = 0)
@@ -164,6 +180,27 @@ class MeasurementService : Service() {
         // quantile sketches. Owns its own IO loop and history backfill.
         graph.preAggregator.start(scope)
         scope.launch {
+            // Срез сырых измерений — только по явному выбору владельца
+            // (умолчание «хранить всё»); правило и границы — в [RawRetention].
+            while (true) {
+                val days = graph.settings.rawRetentionDays.first()
+                RawRetention.cutoffMillis(System.currentTimeMillis(), days)?.let { cutoff ->
+                    graph.database.sampleDao().deleteOlderThan(cutoff)
+                }
+                delay(RETENTION_SWEEP_MILLIS)
+            }
+        }
+        scope.launch {
+            // История спектрограммы переживает процесс (ADR 007): окно
+            // поднимается из базы ДО первого опроса, поэтому экран открывается
+            // на продолжении картинки, а не на пустоте.
+            graph.spectrogramStore.restore(System.currentTimeMillis())
+            while (true) {
+                graph.spectrogramStore.compact(System.currentTimeMillis())
+                delay(SPECTROGRAM_COMPACT_INTERVAL_MILLIS)
+            }
+        }
+        scope.launch {
             graph.settings.alarmThresholds.collect { next ->
                 val persistenceChanged = next.persistenceSeconds != thresholds.persistenceSeconds
                 thresholds = next
@@ -173,6 +210,18 @@ class MeasurementService : Service() {
         }
         scope.launch {
             graph.settings.doseUnit.collect { doseUnit = it }
+        }
+        scope.launch {
+            graph.settings.language.collect { setting ->
+                val language = AppLanguage.resolve(
+                    setting,
+                    resources.configuration.locales[0]?.toLanguageTag().orEmpty(),
+                )
+                texts = NotificationCatalogue.of(language)
+                // Имя канала видно в системных настройках: после смены языка
+                // его нужно переписать, иначе там остаётся прежний язык.
+                Notifications.ensureChannels(this@MeasurementService, texts)
+            }
         }
         scope.launch {
             graph.profileRepository.activeProfile().collect { profile ->
@@ -199,7 +248,7 @@ class MeasurementService : Service() {
             graph.fastPollHub.watchers.collect { watchers ->
                 graph.serviceStatus.onExperiment(
                     ServiceStatus.SOURCE_SEARCH,
-                    if (watchers > 0) "Поиск" else null,
+                    if (watchers > 0) texts.searchSource else null,
                 )
             }
         }
@@ -390,12 +439,12 @@ class MeasurementService : Service() {
      */
     private fun postAlarmNotification(doseMicroSvH: Float, typicalHighMicroSvH: Float?) {
         if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return
+        val s = texts
+        val units = stringsFor(if (s === NotificationEn) AppLanguage.EN else AppLanguage.RU)
         val text = buildString {
-            append("Сейчас ")
-            append(DoseFormat.rateWithUnit(doseMicroSvH, doseUnit))
+            append(s.nowRate(DoseFormat.rateWithUnit(doseMicroSvH, doseUnit, units)))
             if (typicalHighMicroSvH != null && typicalHighMicroSvH > 0f) {
-                append(" · обычно здесь до ")
-                append(DoseFormat.rateWithUnit(typicalHighMicroSvH, doseUnit))
+                append(s.usuallyUpTo(DoseFormat.rateWithUnit(typicalHighMicroSvH, doseUnit, units)))
             }
         }
         val contentIntent = PendingIntent.getActivity(
@@ -406,7 +455,7 @@ class MeasurementService : Service() {
         )
         val notification = NotificationCompat.Builder(this, Notifications.ALARM_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_measurement)
-            .setContentTitle("Уровень радиации изменился")
+            .setContentTitle(s.levelChanged)
             .setContentText(text)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
@@ -477,6 +526,7 @@ class MeasurementService : Service() {
         }
         deviceJobs += scope.launch {
             newDevice.realTimeData.collect { sample ->
+                graph.serviceStatus.onClockCorrection(newDevice.clockCorrectionMillis)
                 lastSample = sample
                 onSampleForAlarm(sample)
                 onSampleForHotspot(sample)
@@ -499,33 +549,33 @@ class MeasurementService : Service() {
             }
         }
         deviceJobs += scope.launch {
-            combine(newDevice.connectionState, graph.spectrumHub.watchers) { conn, watchers ->
+            combine(
+                newDevice.connectionState,
+                graph.spectrumHub.watchers,
+                graph.settings.spectrumPollPolicy,
+            ) { conn, watchers, policy ->
                 if (conn is ConnectionState.Connected) {
-                    conn.info.spectrumFormatVersion to (watchers > 0)
+                    conn.info.spectrumFormatVersion to
+                        SpectrumPollPolicy.intervalMillis(policy, watchers)
                 } else {
                     null
                 }
             }.distinctUntilChanged().collectLatest { state ->
                 if (state == null) return@collectLatest
-                val (formatVersion, watched) = state
+                val (formatVersion, intervalMillis) = state
                 if (formatVersion !in SpectrumHub.SUPPORTED_FORMAT_VERSIONS) {
                     graph.spectrumHub.onUnsupportedFormat(formatVersion)
                     return@collectLatest
                 }
                 // Spectrum poll interleaves with the 1 Hz DATA_BUF poll on the
-                // single-in-flight ProtocolClient. Watched (Спектр screen):
-                // 5 s live cadence. Unwatched: a slow poll keeps the radon
-                // indicator fed — the 1/min autosave throttle persists every
-                // slow poll, so the История-visible data stays hourly-dense.
+                // single-in-flight ProtocolClient. Частота — ЯВНАЯ политика
+                // (ADR 007): открытый Спектр/Спектрограмма всегда 5 с, иначе
+                // выбранная ступень. Каждый опрос это ещё и срез истории
+                // спектрограммы, поэтому политика решает не «живость экрана», а
+                // временное разрешение записи.
                 while (true) {
                     pollSpectrum(newDevice)
-                    delay(
-                        if (watched) {
-                            SpectrumHub.POLL_INTERVAL_MILLIS
-                        } else {
-                            BACKGROUND_SPECTRUM_POLL_MILLIS
-                        },
-                    )
+                    delay(intervalMillis)
                 }
             }
         }
@@ -568,6 +618,7 @@ class MeasurementService : Service() {
     // --- spectrum acquisition ---
 
     private suspend fun pollSpectrum(device: RadiaCodeDevice) {
+        val bytesBefore = device.spectrumPayloadBytes
         val spectrum = try {
             device.readSpectrum()
         } catch (e: CancellationException) {
@@ -575,6 +626,9 @@ class MeasurementService : Service() {
         } catch (_: Exception) {
             return // link hiccup or timeout: the loop retries on the next tick
         }
+        // Цена частоты записывается на каждом опросе — ADR 007 обещает факты, а
+        // не оценку по числу опросов.
+        graph.serviceStatus.onSpectrumRead(device.spectrumPayloadBytes - bytesBefore)
         val now = System.currentTimeMillis()
         graph.spectrumHub.onSpectrum(spectrum, now)
         val sample = lastSample
@@ -798,11 +852,15 @@ class MeasurementService : Service() {
         private const val BASELINE_REFRESH_MILLIS = 10L * 60_000L
 
         /**
-         * Spectrum poll cadence with no Спектр watcher: one ~1–3 KB read per
-         * 10 min feeds the радон indicator around the clock while connected
-         * (~6 autosaved snapshots/hour, a few hundred KB per day).
+         * Как часто прорежается старая история спектрограммы (ADR 007). Раз в
+         * час: работа идёт часовыми кусками и трогает только то, что старше
+         * недели, поэтому чаще нечего делать, а реже — история неделями лежала
+         * бы в самом дорогом виде.
          */
-        private const val BACKGROUND_SPECTRUM_POLL_MILLIS = 10L * 60_000L
+        private const val SPECTROGRAM_COMPACT_INTERVAL_MILLIS = 3_600_000L
+
+        /** Как часто проверяется срез: раз в 6 ч достаточно для суточных величин. */
+        private const val RETENTION_SWEEP_MILLIS = 6L * 3_600_000L
 
         fun startIntent(context: Context, deviceAddress: String): Intent =
             Intent(context, MeasurementService::class.java)

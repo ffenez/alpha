@@ -21,6 +21,36 @@ class ServiceStatus {
     private val _serviceRunning = MutableStateFlow(false)
     val serviceRunning: StateFlow<Boolean> = _serviceRunning.asStateFlow()
 
+    /**
+     * Когда графики Главной последний раз ПЕРЕЧИТАЛИСЬ и сколько раз всего.
+     *
+     * Существует ради разбора полевого случая «графики замерли при открытом
+     * экране»: на экране застывшая картинка и работающая выглядят одинаково, а
+     * по этим двум числам в отладочном отчёте видно, жив ли цикл обновления
+     * вообще. К измерению отношения не имеет и в UI не показывается.
+     */
+    @Volatile
+    var chartsRefreshedAtMillis: Long? = null
+        private set
+
+    @Volatile
+    var chartsRefreshCount: Int = 0
+        private set
+
+    /** Измеренная поправка часов прибора, мс (0 = база не корректировалась). */
+    @Volatile
+    var deviceClockCorrectionMillis: Long = 0L
+        private set
+
+    fun onClockCorrection(millis: Long) {
+        deviceClockCorrectionMillis = millis
+    }
+
+    fun onChartsRefreshed(atMillis: Long) {
+        chartsRefreshedAtMillis = atMillis
+        chartsRefreshCount += 1
+    }
+
     /** Baseline of the active place, computed by the service; null = unknown yet. */
     private val _baseline = MutableStateFlow<BaselineState?>(null)
     val baseline: StateFlow<BaselineState?> = _baseline.asStateFlow()
@@ -59,10 +89,14 @@ class ServiceStatus {
 
     internal fun onServiceStarted() {
         _serviceRunning.value = true
+        serviceStartedAtMillis = System.currentTimeMillis()
+        spectrumRequests = 0L
+        spectrumPayloadBytes = 0L
     }
 
     internal fun onServiceStopped() {
         _serviceRunning.value = false
+        serviceStartedAtMillis = 0L
         _connection.value = ConnectionState.Disconnected
         _deviation.value = DeviationSnapshot()
         _trackRecording.value = null
@@ -93,6 +127,31 @@ class ServiceStatus {
     @Volatile
     var reconnectCount: Int = 0
         internal set
+
+    /**
+     * Цена частоты опроса спектра, ИЗМЕРЕННАЯ, а не предсказанная (ADR 007):
+     * сколько запросов сделано, сколько байт ответов принято и сколько времени
+     * работает служба. Из этих трёх чисел получаются «запросов в час» и «байт в
+     * час» — факты, на которые можно опереться, прежде чем говорить что-либо
+     * про батарею.
+     */
+    @Volatile
+    var spectrumRequests: Long = 0L
+        internal set
+
+    @Volatile
+    var spectrumPayloadBytes: Long = 0L
+        internal set
+
+    /** Когда служба поднялась; 0 — не работает. */
+    @Volatile
+    var serviceStartedAtMillis: Long = 0L
+        internal set
+
+    internal fun onSpectrumRead(payloadBytes: Long) {
+        spectrumRequests += 1
+        if (payloadBytes > 0L) spectrumPayloadBytes += payloadBytes
+    }
 
     internal fun onConnectionState(state: ConnectionState) {
         _connection.value = state

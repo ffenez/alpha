@@ -1,5 +1,6 @@
 package app.radiacode.service
 
+import app.radiacode.data.SpectrumPollPolicy
 import app.radiacode.protocol.Spectrum
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,11 +94,15 @@ class SpectrumHub {
         val SUPPORTED_FORMAT_VERSIONS = 0..1
 
         /**
-         * 5 s: fast enough that накопление feels live, sparse enough that the
-         * ~1–3 KB spectrum read (worst-case budget 30 s, typically well under
-         * a second) leaves the 1 Hz DATA_BUF poll essentially undisturbed.
+         * 5 s while a screen is watching: fast enough that накопление feels
+         * live, sparse enough that the ~1–3 KB spectrum read (worst-case budget
+         * 30 s, typically well under a second) leaves the 1 Hz DATA_BUF poll
+         * essentially undisturbed.
+         *
+         * Один источник истины с политикой частоты (ADR 007): «5 с» это
+         * ступень [SpectrumPollPolicy.EVERY_5_S], а не второе такое же число.
          */
-        const val POLL_INTERVAL_MILLIS = 5_000L
+        val POLL_INTERVAL_MILLIS = SpectrumPollPolicy.EVERY_5_S.intervalMillis
 
         /** Auto-persist throttle: one snapshot per minute while watching. */
         const val AUTOSAVE_INTERVAL_MILLIS = 60_000L

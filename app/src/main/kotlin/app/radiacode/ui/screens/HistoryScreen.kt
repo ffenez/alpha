@@ -2,8 +2,10 @@ package app.radiacode.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -11,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import app.radiacode.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -79,9 +82,11 @@ import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.HistorySelection
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.SpectrumFormat
+import app.radiacode.ui.text.HistoryCatalogue
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
+import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppTypography
 import java.time.LocalDate
 import java.time.ZoneId
@@ -132,9 +137,12 @@ fun HistoryScreen(
     graph: AppGraph,
     onOpenSession: (Long) -> Unit,
     onContinueSpectrum: (Long) -> Unit = {},
+    /** Снимок спектра открывается тем же экраном Спектра, что и живой. */
+    onOpenSpectrum: (Long) -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
@@ -212,8 +220,9 @@ fun HistoryScreen(
             .padding(Dimens.space3),
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
+        // Название экрана в шапке не повторяется: оно и так подписано во
+        // вкладке снизу.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Chip(text = strings.tabHistory, color = colors.ink)
             Spacer(Modifier.weight(1f))
             if (selection.active) {
                 Chip(
@@ -256,7 +265,7 @@ fun HistoryScreen(
                 )
                 Text(
                     text = if (selection.isEmpty) {
-                        HistoryDeletion.emptyHint()
+                        HistoryDeletion.emptyHint(h)
                     } else {
                         strings.selectedCount(selection.count)
                     },
@@ -279,6 +288,7 @@ fun HistoryScreen(
                 spectra = savedSpectra,
                 onCompare = { first, second -> comparePair = first to second },
                 onContinue = onContinueSpectrum,
+                onOpen = onOpenSpectrum,
                 selectionActive = selection.active,
                 selected = selection.spectra,
                 onToggle = { id -> selection = selection.toggleSpectrum(id) },
@@ -349,7 +359,7 @@ fun HistoryScreen(
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                         AppButton(
-                            text = HistoryDeletion.actionLabel(selection),
+                            text = HistoryDeletion.actionLabel(selection, h),
                             onClick = {
                                 scope.launch {
                                     confirming = graph.sessionRepository.deletionPlan(
@@ -378,7 +388,14 @@ fun HistoryScreen(
 private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
+    // Объяснения карточки живут под «i»: на экране История первым делом
+    // показывает данные, а не рассказывает о них.
+    var infoOpen by rememberSaveable { mutableStateOf(false) }
+    if (infoOpen) {
+        AccumulatedDoseInfoDialog(onClose = { infoOpen = false })
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -389,6 +406,12 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                 )
                 Spacer(Modifier.weight(1f))
                 Text(text = strings.calculatedTag, style = type.footnote, color = colors.muted)
+                Chip(
+                    text = "i",
+                    color = colors.ink2,
+                    onClick = { infoOpen = true },
+                    modifier = Modifier.padding(start = Dimens.space2),
+                )
             }
             val dailyMax = model.dailyDose.maxOfOrNull { it.microSv } ?: 0f
             if (dailyMax > 0f) {
@@ -401,36 +424,108 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                         partial = model.dailyDose.map { !it.full },
                         yMax = dailyMax * 1.15f,
                         emphasizeLast = true,
-                        xStartLabel = HistoryFormat.day(model.fromMillis),
-                        xEndLabel = HistoryFormat.day(model.toMillis),
+                        xStartLabel = HistoryFormat.day(model.fromMillis, s = h),
+                        xEndLabel = HistoryFormat.day(model.toMillis, s = h),
                     ),
                     height = 55.dp,
                 )
+                // Полый столбец назван ОБОЗНАЧЕНИЕМ, а не абзацем: факт
+                // «этот день измерен не полностью и с полным не сравним»
+                // остаётся видимым, объяснение — под «i».
                 if (model.dailyDose.any { it.microSv > 0f && !it.full }) {
-                    Text(
-                        text = strings.partialDayNote,
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
+                    PartialDayLegend()
                 }
             }
             StatGrid(
                 cells = listOf(
                     StatCell(
                         DoseFormat.dose(model.doseTodayMicroSv, unit),
-                        strings.todayWithUnit(DoseFormat.doseUnitLabel(unit)),
+                        strings.todayWithUnit(DoseFormat.doseUnitLabel(unit, s = strings)),
                     ),
                     StatCell(DoseFormat.dose(model.dose7dMicroSv, unit), strings.days7),
                     StatCell(DoseFormat.dose(model.dose30dMicroSv, unit), strings.days30),
                 ),
             )
-            Text(
-                text = strings.accumulatedDoseNote,
-                style = type.footnote,
-                color = colors.muted,
-            )
             AppDivider()
             DoseProjectionBlock(model, unit)
+        }
+    }
+}
+
+/**
+ * Легенда полого столбца: сам знак и два слова.
+ *
+ * Знак рисуется теми же средствами, что и столбец на графике (контур цветом
+ * данных, толщина рамки — из скина), поэтому в «8-bit» он остаётся прямым
+ * углом, а не превращается в чужой символ из шрифта.
+ */
+@Composable
+private fun PartialDayLegend() {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val metrics = LocalAppMetrics.current
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+    ) {
+        Box(
+            Modifier
+                .size(width = 7.dp, height = 10.dp)
+                .border(
+                    width = metrics.border,
+                    color = colors.data,
+                    shape = RoundedCornerShape(if (metrics.radiusChip > 0.dp) 2.dp else 0.dp),
+                ),
+        )
+        Text(text = h.legendPartialDay, style = type.footnote, color = colors.muted)
+    }
+}
+
+/**
+ * Второй уровень карточки накопленной дозы: что именно посчитано, почему
+ * неполный день выглядит иначе и что в проекцию не входит.
+ *
+ * Ни одна оговорка не исчезла — они переехали сюда с рабочего экрана.
+ */
+@Composable
+private fun AccumulatedDoseInfoDialog(onClose: () -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    Dialog(onDismissRequest = onClose) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(text = h.infoTitle, style = type.title, color = colors.ink)
+                Text(
+                    text = strings.accumulatedDoseNote,
+                    style = type.bodySmall,
+                    color = colors.ink2,
+                )
+                PartialDayLegend()
+                Text(
+                    text = strings.partialDayNote,
+                    style = type.bodySmall,
+                    color = colors.ink2,
+                )
+                AppDivider()
+                Text(
+                    text = strings.doseProjection,
+                    style = type.label,
+                    color = colors.ink,
+                )
+                Text(
+                    text = HistoryFormat.doseProjectionCaveat(h),
+                    style = type.bodySmall,
+                    color = colors.muted,
+                )
+                AppButton(
+                    text = strings.close,
+                    onClick = onClose,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
@@ -445,6 +540,7 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
 private fun DoseProjectionBlock(model: HistoryModel, unit: DoseUnitSetting) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     var windowIndex by rememberSaveable { mutableIntStateOf(1) }
 
@@ -473,14 +569,15 @@ private fun DoseProjectionBlock(model: HistoryModel, unit: DoseUnitSetting) {
         }
         if (projection == null) {
             Text(
-                text = HistoryFormat.doseProjectionUnavailable(measuredSeconds),
+                text = HistoryFormat.doseProjectionUnavailable(measuredSeconds, h),
                 style = type.bodySmall,
                 color = colors.muted,
             )
         } else {
             Text(
                 text = HistoryFormat.doseProjectionSentence(
-                    DoseFormat.doseCoarseWithUnit(projection.doseMicroSv, unit),
+                    DoseFormat.doseCoarseWithUnit(projection.doseMicroSv, unit, s = strings),
+                    h,
                 ),
                 style = type.body,
                 color = colors.ink,
@@ -489,15 +586,19 @@ private fun DoseProjectionBlock(model: HistoryModel, unit: DoseUnitSetting) {
                 text = HistoryFormat.doseProjectionBasis(
                     // Та же точность, из которой посчитана проекция: иначе
                     // видимые числа её не воспроизводят.
-                    DoseFormat.rateBasisWithUnit(projection.meanRateMicroSvPerHour, unit),
+                    DoseFormat.rateBasisWithUnit(projection.meanRateMicroSvPerHour, unit, s = strings),
                     projection.measuredSeconds,
+                    h,
                 ),
                 style = type.bodySmall,
                 color = colors.ink2,
             )
         }
+        // Три строки: результат, основание и один отказ. Перечень того, что в
+        // проекцию не входит, целиком лежит в справке «i» — сокращено
+        // перечисление, а не сам отказ.
         Text(
-            text = HistoryFormat.DOSE_PROJECTION_CAVEAT,
+            text = HistoryFormat.doseProjectionCaveatShort(h),
             style = type.footnote,
             color = colors.muted,
         )
@@ -516,6 +617,7 @@ private fun SessionRow(
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
     val endedAt = summary.endedAt
@@ -557,22 +659,34 @@ private fun SessionRow(
             }
             Spacer(Modifier.weight(1f))
             Text(
-                text = HistoryFormat.dayTime(summary.startedAt, now) +
-                    " · " + HistoryFormat.duration(durationSeconds),
+                text = HistoryFormat.dayTime(summary.startedAt, now, s = h) +
+                    " · " + HistoryFormat.duration(durationSeconds, h),
                 style = type.footnote,
                 color = colors.ink2,
             )
+            // Строка открывается — и это видно, а не угадывается. Тот же
+            // шеврон, что у строк Настроек; в режиме уборки его место занимает
+            // отметка, и обещать открытие там было бы неправдой.
+            if (!selectionActive) {
+                Text(
+                    text = "›",
+                    style = type.value,
+                    color = colors.ink2,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
         }
 
         val stats = summary.stats
-        if (stats.sampleCount > 0 && stats.avgDoseRate != null) {
+        val avgMicroSvH = stats.avgDoseRateMicroSvH
+        if (stats.sampleCount > 0 && avgMicroSvH != null) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space3),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                DataItem(strings.avg, DoseFormat.rate(stats.avgDoseRate, unit))
-                DataItem(strings.max, DoseFormat.rate(stats.maxDoseRate ?: 0f, unit))
-                DataItem(strings.dose, DoseFormat.doseWithUnit(summary.doseMicroSv, unit))
+                DataItem(strings.avg, DoseFormat.rate(avgMicroSvH, unit))
+                DataItem(strings.max, DoseFormat.rate(stats.maxDoseRateMicroSvH ?: 0f, unit))
+                DataItem(strings.dose, DoseFormat.doseWithUnit(summary.doseMicroSv, unit, s = strings))
                 DataItem("n", HistoryFormat.count(stats.sampleCount))
                 val badges = listOfNotNull(
                     strings.track.takeIf { summary.hasTrack },
@@ -601,7 +715,7 @@ private fun SessionRow(
             horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
         ) {
             Text(
-                text = HistoryFormat.admissionLine(summary.admission),
+                text = HistoryFormat.admissionLine(summary.admission, h),
                 style = type.footnote,
                 color = if (summary.admission.included) colors.muted else colors.ink2,
                 modifier = Modifier.weight(1f),
@@ -625,6 +739,7 @@ private fun SessionProfileDialog(
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -632,7 +747,7 @@ private fun SessionProfileDialog(
                 Text(text = strings.sessionProfileTitle, style = type.title, color = colors.ink)
                 Text(
                     text = strings.sessionProfileBody(
-                        HistoryFormat.dayTime(session.startedAt, System.currentTimeMillis()),
+                        HistoryFormat.dayTime(session.startedAt, System.currentTimeMillis(), s = h),
                     ),
                     style = type.bodySmall,
                     color = colors.muted,
@@ -683,6 +798,7 @@ private fun SessionProfileDialog(
 private fun DataItem(label: String, value: String, valueColor: Color? = null) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(text = label, style = type.valueSmall, color = colors.ink2)
@@ -701,6 +817,7 @@ private fun DataItem(label: String, value: String, valueColor: Color? = null) {
 private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
     val kind = when (event.source) {
@@ -715,7 +832,7 @@ private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
             Text(text = "⚠ $kind", style = type.label, color = colors.warn)
             Spacer(Modifier.weight(1f))
             Text(
-                text = HistoryFormat.dayTime(event.timestamp, now),
+                text = HistoryFormat.dayTime(event.timestamp, now, s = h),
                 style = type.footnote,
                 color = colors.ink2,
             )
@@ -726,7 +843,7 @@ private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
         ) {
             event.doseRate?.let {
                 DataItem(
-                    label = DoseFormat.rateUnitLabel(unit),
+                    label = DoseFormat.rateUnitLabel(unit, s = strings),
                     value = DoseFormat.rate(DoseUnits.rawToMicroSievertPerHour(it), unit),
                     valueColor = colors.warn,
                 )
@@ -757,12 +874,15 @@ private fun SavedSpectraCard(
     spectra: List<SpectrumSnapshotEntity>,
     onCompare: (Long, Long) -> Unit,
     onContinue: (Long) -> Unit,
+    /** Открыть снимок полноценным экраном Спектра. */
+    onOpen: (Long) -> Unit,
     selectionActive: Boolean = false,
     selected: Set<Long> = emptySet(),
     onToggle: (Long) -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -923,10 +1043,21 @@ private fun SavedSpectraCard(
                         color = colors.ink,
                     )
                     Text(
-                        text = HistoryFormat.dayTime(entity.timestamp, System.currentTimeMillis()) +
+                        text = HistoryFormat.dayTime(entity.timestamp, System.currentTimeMillis(), s = h) +
                             " · Δt " + SpectrumFormat.accumulationClock(entity.durationSeconds),
                         style = type.footnote,
                         color = colors.ink2,
+                    )
+                    // Первое действие — посмотреть сам спектр: кривая, пики,
+                    // нуклиды. Остальное — то, что делают с уже увиденным.
+                    AppButton(
+                        text = strings.openSnapshot,
+                        primary = true,
+                        onClick = {
+                            actionsFor = null
+                            onOpen(entity.id)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
                     )
                     AppButton(
                         text = strings.exportXml,
@@ -1015,6 +1146,7 @@ private fun SavedSpectrumRow(
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
 
@@ -1049,7 +1181,7 @@ private fun SavedSpectrumRow(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = HistoryFormat.dayTime(entity.timestamp, now),
+                text = HistoryFormat.dayTime(entity.timestamp, now, s = h),
                 style = type.footnote,
                 color = colors.ink2,
             )
@@ -1195,18 +1327,19 @@ private fun DeleteConfirmDialog(
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = HistoryDeletion.title(plan), style = type.title, color = colors.ink)
+                Text(text = HistoryDeletion.title(plan, h), style = type.title, color = colors.ink)
                 Text(
-                    text = HistoryDeletion.body(plan),
+                    text = HistoryDeletion.body(plan, h),
                     style = type.bodySmall,
                     color = colors.ink2,
                 )
                 Text(
-                    text = HistoryDeletion.keepsWording(plan),
+                    text = HistoryDeletion.keepsWording(plan, h),
                     style = type.footnote,
                     color = colors.muted,
                 )

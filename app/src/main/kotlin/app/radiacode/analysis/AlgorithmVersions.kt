@@ -40,8 +40,25 @@ object AlgorithmVersions {
      */
     const val PEAK_DETECTION = 2
 
-    /** Multi-line isotope hints ([IsotopeMatcher]). */
+    /**
+     * Multi-line isotope hints ([IsotopeMatcher]). С подключением движка
+     * доказательств ([PEAK_EVIDENCE]) экран Спектра его больше не показывает;
+     * версия остаётся 1, потому что сама математика матчера не менялась —
+     * старые сохранённые результаты продолжают честно ссылаться на неё.
+     */
     const val ISOTOPE_MATCH = 1
+
+    /**
+     * Движок спектральных доказательств
+     * ([app.radiacode.analysis.evidence.EvidenceEngine], ADR 006) — то, что
+     * теперь наполняет колонку «возможное совпадение» и справку нуклида.
+     * v1 = каскад «артефакты → z-совпадение энергии → набор линий → группы
+     * неразрешимости → отношения площадей → диагностика калибровки» с
+     * классификацией WEAK/SUPPORTED/AMBIGUOUS/CONTRADICTED. Заведена НОВАЯ
+     * константа, а не бамп [ISOTOPE_MATCH]: это другой алгоритм с другим
+     * выходом, и результат, посчитанный матчером, не «вторая версия» его.
+     */
+    const val PEAK_EVIDENCE = 1
 
     /** Snapshot comparator ([SpectrumCompare]): interval extraction + rate diff. */
     const val SPECTRUM_COMPARE = 1
@@ -129,6 +146,16 @@ object AlgorithmVersions {
      */
     const val ANOMALY_TEST_CANDIDATE = 1
 
+    /**
+     * Диагностика калибровки по природному фону
+     * ([app.radiacode.analysis.evidence.BackgroundCalibration]): отбор
+     * пригодных линий, измерение ширин, подгонка √(a+bE+cE²), σ_cal из
+     * остатков и относительный отклик по паре линий одного нуклида.
+     * Версия хранится вместе с ПРИНЯТОЙ моделью разрешения — по ней видно,
+     * какой математикой получены лежащие в настройках коэффициенты.
+     */
+    const val BACKGROUND_CALIBRATION = 1
+
     /** Stable storage/export keys → current version. Keys are a disk contract. */
     val all: Map<String, Int> = linkedMapOf(
         "baseline" to BASELINE,
@@ -136,6 +163,7 @@ object AlgorithmVersions {
         "network_identity" to NETWORK_IDENTITY,
         "peak_detection" to PEAK_DETECTION,
         "isotope_match" to ISOTOPE_MATCH,
+        "peak_evidence" to PEAK_EVIDENCE,
         "spectrum_compare" to SPECTRUM_COMPARE,
         "spectrum_merge" to SPECTRUM_MERGE,
         "radon_trend" to RADON_TREND,
@@ -152,6 +180,7 @@ object AlgorithmVersions {
         "hardness" to HARDNESS,
         "fingerprint" to FINGERPRINT,
         "anomaly_test_candidate" to ANOMALY_TEST_CANDIDATE,
+        "background_calibration" to BACKGROUND_CALIBRATION,
     )
 
     /**

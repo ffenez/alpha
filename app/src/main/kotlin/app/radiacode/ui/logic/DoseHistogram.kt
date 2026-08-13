@@ -1,5 +1,8 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
+
 import app.radiacode.analysis.AlgorithmVersions
 import kotlin.math.abs
 import kotlin.math.cbrt
@@ -20,14 +23,16 @@ enum class BinRule {
 }
 
 /**
- * Distribution of the visible window: how much measured time was spent at
- * each dose-rate level. This is the answer the time series alone cannot give
- * — «был ли выброс редким гостем или это новый уровень».
+ * Distribution of the visible window: how many of the instrument's readings
+ * landed at each dose-rate level. This is the answer the time series alone
+ * cannot give — «был ли выброс редким гостем или это новый уровень».
  *
- * Counts are **raw 1 Hz samples** per bin, i.e. measured seconds at the
- * device's nominal cadence, not columns — a bin's height is honest measurement
- * time. Values are the sub-bucket means of the window; at short windows a
- * sub-bucket is one second, so the bins then hold the raw samples themselves.
+ * Counts are **raw samples** per bin — readings the instrument actually sent,
+ * not columns and **not seconds of exposure**: the device writes about once a
+ * second, so with gaps the sum of the bins is smaller than the wall time of the
+ * window (coverage is counted separately, `coveredSeconds`). Values are the
+ * sub-bucket means of the window; at short windows a sub-bucket is one second,
+ * so the bins then hold the raw samples themselves.
  * [DoseHistograms.COUNT_AXIS_LABEL] is the exact wording of what is counted
  * (graph spec §14, §39).
  */
@@ -35,7 +40,7 @@ data class DoseHistogram(
     /** Left edge of bin 0, µSv/h. */
     val lowEdge: Float,
     val binWidth: Float,
-    /** Measured samples per bin. */
+    /** Instrument readings per bin (not seconds — the stream may have gaps). */
     val counts: IntArray,
     /** Bins overlapping the baseline P10–P90 band, or null when no baseline. */
     val baselineBins: IntRange?,
@@ -121,8 +126,9 @@ sealed interface DistributionState {
  *    not have; (c) the clamp and the snapping are **product UI heuristics**,
  *    chosen for readability on a phone, and are documented as such — no
  *    scientific claim rests on them.
- * 3. **Units.** x axis µSv/h; y axis counts of raw 1 Hz samples, i.e. measured
- *    seconds at the device's nominal cadence ([COUNT_AXIS_LABEL]).
+ * 3. **Units.** x axis µSv/h; y axis counts of raw samples — instrument
+ *    readings at its nominal ≈1 Hz cadence, which is not the same as seconds of
+ *    exposure once the stream has gaps ([COUNT_AXIS_LABEL]).
  * 4. **Reference.** Freedman, D. & Diaconis, P. (1981), *On the histogram as a
  *    density estimator: L₂ theory*, Z. Wahrscheinlichkeitstheorie verw. Gebiete
  *    57, 453–476. Graph spec §14 for the clamp/fallback requirement.
@@ -138,8 +144,8 @@ sealed interface DistributionState {
  *    keep transients discoverable (graph spec §21).
  * 7. **Tests.** `app/src/test/.../ui/logic/DoseHistogramTest.kt`.
  * 8. **Algorithm version.** [AlgorithmVersions.DOSE_HISTOGRAM].
- * 9. **User-facing meaning.** «Сколько измеренного времени окно провело на
- *    каждом уровне мощности дозы». Below [MIN_OBSERVATIONS] independent values
+ * 9. **User-facing meaning.** «Сколько показаний прибора пришлось на каждый
+ *    уровень мощности дозы». Below [MIN_OBSERVATIONS] independent values
  *    the honest answer is [INSUFFICIENT_TEXT] — not a prettier histogram.
  *
  * Pure JVM; no Android dependencies.
@@ -168,12 +174,23 @@ object DoseHistograms {
      */
     const val MIN_OBSERVATIONS = 20
 
-    /** Exact wording of the y axis (graph spec §39: say what is counted). */
-    const val COUNT_AXIS_LABEL = "секунд измерений (1 Гц)"
+    /**
+     * Exact wording of the y axis (graph spec §39: say what is counted).
+     *
+     * Константы остались русскими: их пинит `DoseHistogramTest`, и они же
+     * служат значением по умолчанию. Экран берёт подпись из каталога.
+     */
+    const val COUNT_AXIS_LABEL = "показаний прибора (≈1 в секунду)"
 
     const val INSUFFICIENT_TEXT = "недостаточно данных для распределения"
 
     const val NO_DATA_TEXT = "нет измерений в окне"
+
+    fun countAxisLabel(s: ChartAxisStrings = ChartAxisRu): String = s.histogramCountAxis
+
+    fun insufficientText(s: ChartAxisStrings = ChartAxisRu): String = s.histogramInsufficient
+
+    fun noDataText(s: ChartAxisStrings = ChartAxisRu): String = s.histogramNoData
 
     /**
      * Distribution of the sub-buckets whose start falls inside

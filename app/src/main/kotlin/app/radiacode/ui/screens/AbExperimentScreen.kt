@@ -50,6 +50,7 @@ import app.radiacode.data.export.ProcessingMetadata
 import app.radiacode.data.toEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.protocol.Spectrum
+import app.radiacode.service.AbRunRecorder
 import app.radiacode.service.ServiceStatus
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
@@ -62,6 +63,12 @@ import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.logic.Evidence
 import app.radiacode.ui.logic.ExperimentFormat
 import app.radiacode.ui.logic.HistoryFormat
+import app.radiacode.ui.text.ExperimentCatalogue
+import app.radiacode.ui.text.ExperimentStrings
+import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
+import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -70,7 +77,11 @@ import kotlinx.coroutines.launch
 
 /** Fixed run durations offered by the recorder; last option = manual stop. */
 private val RUN_DURATION_SECONDS = listOf(120L, 300L, 600L, 0L)
-private val RUN_DURATION_LABELS = listOf("2 мин", "5 мин", "10 мин", "вручную")
+
+/** Подписи считаются из самих длительностей — расходиться им негде. */
+private fun runDurationLabels(t: ExperimentStrings): List<String> = RUN_DURATION_SECONDS.map {
+    if (it == 0L) t.durationManual else t.minutes(it / 60)
+}
 
 /**
  * A/B эксперимент (спец §9, §16) — управляемый протокол: пользователь один
@@ -139,26 +150,26 @@ private fun ExperimentList(
     onOpen: (Long) -> Unit,
     onCreate: () -> Unit,
 ) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ExperimentCatalogue.of(LocalStrings.current.language)
     val experiments by graph.experimentRepository.recent().collectAsState(initial = emptyList())
 
     Screen {
-        Header(title = "A/B эксперимент", onBack = onBack)
+        Header(title = t.listTitle, back = t.back, onBack = onBack)
         ExperimentalBanner()
         AppButton(
-            text = "Новый эксперимент",
+            text = t.newExperiment,
             onClick = onCreate,
             modifier = Modifier.fillMaxWidth(),
         )
         if (experiments.isEmpty()) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(text = "экспериментов пока нет", style = type.bodySmall, color = colors.ink2)
+                    Text(text = t.emptyList, style = type.bodySmall, color = colors.ink2)
                     Text(
-                        text = "Эксперимент — два измерения в одинаковой геометрии: например, " +
-                            "объект у прибора и тот же прибор без объекта. Приложение сравнит " +
-                            "их по счёту, энергетическим окнам и спектру.",
+                        text = t.emptyHint,
                         style = type.bodySmall,
                         color = colors.muted,
                     )
@@ -182,7 +193,7 @@ private fun ExperimentList(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = ExperimentFormat.kindLabel(experiment.kind),
+                                    text = ExperimentFormat.kindLabel(experiment.kind, t),
                                     style = type.label,
                                     color = colors.ink,
                                     modifier = Modifier.weight(1f),
@@ -191,13 +202,14 @@ private fun ExperimentList(
                                     text = HistoryFormat.dayTime(
                                         experiment.createdAt,
                                         System.currentTimeMillis(),
-                                    ),
+                                        s = h,
+                            ),
                                     style = type.footnote,
                                     color = colors.ink2,
                                 )
                             }
                             Text(
-                                text = experiment.geometry.ifBlank { "геометрия не описана" },
+                                text = experiment.geometry.ifBlank { t.geometryUndescribedInList },
                                 style = type.valueSmall,
                                 color = colors.ink2,
                                 maxLines = 2,
@@ -220,6 +232,7 @@ private fun CreateExperiment(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ExperimentCatalogue.of(LocalStrings.current.language)
     val scope = rememberCoroutineScope()
 
     var kind by rememberSaveable { mutableStateOf(ExperimentEntity.KIND_BACKGROUND_VS_OBJECT) }
@@ -229,10 +242,10 @@ private fun CreateExperiment(
     val windowsRaw by graph.settings.energyWindowsRaw.collectAsState(initial = null)
 
     Screen {
-        Header(title = "Новый эксперимент", onBack = onCancel)
+        Header(title = t.newExperiment, back = t.back, onBack = onCancel)
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = "Сценарий", style = type.label, color = colors.ink)
+                Text(text = t.scenario, style = type.label, color = colors.ink)
                 ExperimentEntity.KINDS.forEach { option ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -248,14 +261,14 @@ private fun CreateExperiment(
                     ) {
                         RadioMark(kind == option)
                         Text(
-                            text = ExperimentFormat.kindLabel(option),
+                            text = ExperimentFormat.kindLabel(option, t),
                             style = type.label,
                             color = colors.ink,
                         )
                     }
                 }
                 Text(
-                    text = ExperimentFormat.kindHint(kind),
+                    text = ExperimentFormat.kindHint(kind, t),
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -264,29 +277,29 @@ private fun CreateExperiment(
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = "Геометрия", style = type.label, color = colors.ink)
+                Text(text = t.geometry, style = type.label, color = colors.ink)
                 Text(
-                    text = ExperimentFormat.GEOMETRY_PROMPT,
+                    text = t.geometryPrompt,
                     style = type.footnote,
                     color = colors.muted,
                 )
                 AppTextField(
                     value = geometry,
                     onValueChange = { geometry = it },
-                    placeholder = "например: образец на столе, прибор экраном вверх, 5 см",
+                    placeholder = t.geometryPlaceholder,
                 )
-                Text(text = "Заметка", style = type.label, color = colors.ink)
+                Text(text = t.note, style = type.label, color = colors.ink)
                 AppTextField(
                     value = note,
                     onValueChange = { note = it },
-                    placeholder = "что проверяем",
+                    placeholder = t.notePlaceholder,
                 )
             }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             AppButton(
-                text = "Создать",
+                text = t.create,
                 enabled = geometry.isNotBlank(),
                 onClick = {
                     scope.launch {
@@ -302,11 +315,10 @@ private fun CreateExperiment(
                 },
                 modifier = Modifier.weight(1f),
             )
-            AppButton(text = "Отмена", onClick = onCancel, modifier = Modifier.weight(1f))
+            AppButton(text = t.cancel, onClick = onCancel, modifier = Modifier.weight(1f))
         }
         Text(
-            text = "Геометрия сохраняется вместе с экспериментом и показывается перед " +
-                "каждым прогоном — без неё сравнение теряет смысл.",
+            text = t.geometryKeptNote,
             style = type.footnote,
             color = colors.muted,
         )
@@ -322,8 +334,10 @@ private fun ExperimentDetail(
     onBack: () -> Unit,
     onDeleted: () -> Unit,
 ) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ExperimentCatalogue.of(LocalStrings.current.language)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -371,7 +385,9 @@ private fun ExperimentDetail(
     }
     LaunchedEffect(recorderNotice) {
         recorderNotice?.let {
-            notice = it
+            notice = when (it) {
+                AbRunRecorder.Notice.RUN_WITHOUT_SPECTRUM -> t.runWithoutSpectrum
+            }
             graph.abRun.dismissNotice()
         }
     }
@@ -384,19 +400,19 @@ private fun ExperimentDetail(
         if (uri != null && content != null) {
             scope.launch {
                 notice = if (writeTextToUri(context, uri, content)) {
-                    "отчёт сохранён"
+                    t.reportSaved
                 } else {
-                    "отчёт не записался — попробуйте другую папку"
+                    t.reportFailed
                 }
             }
         }
     }
 
     Screen {
-        Header(title = "Эксперимент", onBack = onBack)
+        Header(title = t.detailTitle, back = t.back, onBack = onBack)
         if (current == null) {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "читаю эксперимент…", style = type.bodySmall, color = colors.muted)
+                Text(text = t.loading, style = type.bodySmall, color = colors.muted)
             }
             return@Screen
         }
@@ -407,17 +423,20 @@ private fun ExperimentDetail(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Chip(text = ExperimentFormat.kindLabel(current.kind), color = colors.dataText)
+                    Chip(
+                        text = ExperimentFormat.kindLabel(current.kind, t),
+                        color = colors.dataText,
+                    )
                     Spacer(Modifier.weight(1f))
                     Text(
-                        text = HistoryFormat.dayTime(current.createdAt, nowMillis),
+                        text = HistoryFormat.dayTime(current.createdAt, nowMillis, s = h),
                         style = type.footnote,
                         color = colors.ink2,
                     )
                 }
-                Text(text = "Геометрия", style = type.labelSmall, color = colors.ink2)
+                Text(text = t.geometry, style = type.labelSmall, color = colors.ink2)
                 Text(
-                    text = current.geometry.ifBlank { "не описана" },
+                    text = current.geometry.ifBlank { t.geometryUndescribed },
                     style = type.body,
                     color = colors.ink,
                 )
@@ -425,7 +444,7 @@ private fun ExperimentDetail(
                     Text(text = current.note, style = type.bodySmall, color = colors.ink2)
                 }
                 Text(
-                    text = ExperimentFormat.kindHint(current.kind),
+                    text = ExperimentFormat.kindHint(current.kind, t),
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -435,10 +454,10 @@ private fun ExperimentDetail(
         // --- runs ---
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(text = "Прогоны".uppercase(), style = type.labelSmall, color = colors.ink2)
+                Text(text = t.runs.uppercase(), style = type.labelSmall, color = colors.ink2)
                 if (runs.isEmpty()) {
                     Text(
-                        text = "прогонов пока нет — начните первый",
+                        text = t.runsEmpty,
                         style = type.bodySmall,
                         color = colors.muted,
                     )
@@ -474,24 +493,22 @@ private fun ExperimentDetail(
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 if (recordingRunId != null) {
                     Text(
-                        text = "идёт прогон · " +
-                            ExperimentFormat.duration((nowMillis - startedAt) / 1000L) +
-                            if (plannedSeconds > 0) {
-                                " из ${ExperimentFormat.duration(plannedSeconds)}"
-                            } else {
-                                ""
-                            },
+                        text = t.runInProgress(
+                            elapsed = ExperimentFormat.duration((nowMillis - startedAt) / 1000L, t),
+                            planned = plannedSeconds
+                                .takeIf { it > 0 }
+                                ?.let { ExperimentFormat.duration(it, t) },
+                        ),
                         style = type.label,
                         color = colors.ink,
                     )
                     Text(
-                        text = "Держите геометрию неизменной. Интервал исключён из обучения " +
-                            "обычного фона — эксперимент не должен становиться «новой нормой».",
+                        text = t.holdGeometryNote,
                         style = type.footnote,
                         color = colors.muted,
                     )
                     AppButton(
-                        text = "Остановить прогон",
+                        text = t.stopRun,
                         onClick = {
                             val runId = recordingRunId
                             if (runId != null) graph.abRun.stop()
@@ -502,15 +519,20 @@ private fun ExperimentDetail(
                     val nextIndex = runs.size
                     val nextLetter = ExperimentFormat.runLetter(nextIndex)
                     Text(
-                        text = "Прогон $nextLetter · " +
-                            ExperimentFormat.runRoleLabel(current.kind, nextIndex),
+                        text = t.runHeadline(
+                            letter = nextLetter,
+                            role = ExperimentFormat.runRoleLabel(current.kind, nextIndex, t),
+                        ),
                         style = type.label,
                         color = colors.ink,
                     )
                     if (nextIndex > 0) {
                         Text(
-                            text = "Повторите геометрию прогона A: " +
-                                current.geometry.ifBlank { "она не описана" },
+                            text = t.repeatGeometry(
+                                letter = ExperimentFormat.runLetter(0),
+                                geometry = current.geometry
+                                    .ifBlank { t.geometryUndescribedInline },
+                            ),
                             style = type.bodySmall,
                             color = colors.ink2,
                         )
@@ -519,7 +541,7 @@ private fun ExperimentDetail(
                         AppTextField(
                             value = distanceInput,
                             onValueChange = { distanceInput = it },
-                            placeholder = "расстояние, см",
+                            placeholder = t.distancePlaceholder,
                             numeric = true,
                         )
                     }
@@ -527,11 +549,11 @@ private fun ExperimentDetail(
                         AppTextField(
                             value = shieldingInput,
                             onValueChange = { shieldingInput = it },
-                            placeholder = "материал между объектом и прибором (пусто = без него)",
+                            placeholder = t.shieldingPlaceholder,
                         )
                     }
                     Segmented(
-                        options = RUN_DURATION_LABELS,
+                        options = runDurationLabels(t),
                         selectedIndex = durationIndex,
                         onSelect = {
                             durationIndex = it
@@ -540,7 +562,7 @@ private fun ExperimentDetail(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     AppButton(
-                        text = "Начать прогон $nextLetter",
+                        text = t.startRun(nextLetter),
                         enabled = connected && openRun == null,
                         onClick = {
                             scope.launch {
@@ -551,6 +573,9 @@ private fun ExperimentDetail(
                                         spectrum = it,
                                         accumulated = false,
                                         origin = SpectrumSnapshotEntity.ORIGIN_DERIVED,
+                                        // Метка ХРАНИТСЯ в базе и языку интерфейса не
+                                        // подчиняется: снимок, сделанный по-русски, иначе
+                                        // остался бы русским после смены языка.
                                         label = "A/B $nextLetter · старт",
                                         analysisMeta = startStamp(experimentId, nextLetter),
                                     ).id
@@ -577,20 +602,19 @@ private fun ExperimentDetail(
                     )
                     if (!connected) {
                         Text(
-                            text = "нет соединения с прибором — прогон записывать нечем",
+                            text = t.notConnected,
                             style = type.footnote,
                             color = colors.warn,
                         )
                     }
                     if (openRun != null && recordingRunId == null) {
                         Text(
-                            text = "прогон ${openRun.label} остался незавершённым (приложение " +
-                                "закрывали?) — завершите или удалите его",
+                            text = t.runUnfinished(openRun.label),
                             style = type.footnote,
                             color = colors.warn,
                         )
                         AppButton(
-                            text = "Завершить прогон ${openRun.label}",
+                            text = t.finishRun(openRun.label),
                             onClick = { graph.abRun.stop() },
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -600,10 +624,11 @@ private fun ExperimentDetail(
         }
 
         // --- comparison ---
-        val comparison = remember(runData, windowSpecs) {
+        // Каталог в ключе: после смены языка предупреждения обязаны пересобраться.
+        val comparison = remember(runData, windowSpecs, t) {
             val completed = runData.filter { it.endedAt != null }
             if (completed.size >= 2) {
-                AbExperiment.compare(completed[0], completed[1], windowSpecs)
+                AbExperiment.compare(completed[0], completed[1], windowSpecs, t)
             } else {
                 null
             }
@@ -613,7 +638,7 @@ private fun ExperimentDetail(
         } else {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "для сравнения нужно два завершённых прогона",
+                    text = t.needTwoRuns,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
@@ -626,7 +651,7 @@ private fun ExperimentDetail(
         }
         if (current.kind == ExperimentEntity.KIND_SHIELDING) {
             Text(
-                text = ExperimentFormat.SHIELDING_WARNING,
+                text = t.shieldingWarning,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -634,7 +659,7 @@ private fun ExperimentDetail(
 
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             AppButton(
-                text = "Отчёт в файл",
+                text = t.reportToFile,
                 enabled = runs.isNotEmpty(),
                 onClick = {
                     scope.launch {
@@ -659,7 +684,7 @@ private fun ExperimentDetail(
                 modifier = Modifier.weight(1f),
             )
             AppButton(
-                text = "Удалить",
+                text = t.delete,
                 onClick = { confirmDelete = true },
                 modifier = Modifier.weight(1f),
             )
@@ -673,16 +698,15 @@ private fun ExperimentDetail(
         Dialog(onDismissRequest = { confirmDelete = false }) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(text = "Удалить эксперимент?", style = type.title, color = colors.ink)
+                    Text(text = t.deleteTitle, style = type.title, color = colors.ink)
                     Text(
-                        text = "Прогоны и их результаты удалятся вместе с ним. Сырые " +
-                            "измерения и спектры прогонов останутся в базе.",
+                        text = t.deleteBody,
                         style = type.bodySmall,
                         color = colors.muted,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                         AppButton(
-                            text = "Удалить",
+                            text = t.delete,
                             onClick = {
                                 confirmDelete = false
                                 scope.launch {
@@ -691,7 +715,7 @@ private fun ExperimentDetail(
                                 }
                             },
                         )
-                        AppButton(text = "Отмена", onClick = { confirmDelete = false })
+                        AppButton(text = t.cancel, onClick = { confirmDelete = false })
                     }
                 }
             }
@@ -714,10 +738,10 @@ private fun Screen(content: @Composable androidx.compose.foundation.layout.Colum
 }
 
 @Composable
-private fun Header(title: String, onBack: () -> Unit) {
+private fun Header(title: String, back: String, onBack: () -> Unit) {
     val colors = LocalAppColors.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        AppButton(text = "← Назад", onClick = onBack)
+        AppButton(text = back, onClick = onBack)
         Spacer(Modifier.weight(1f))
         Chip(text = title, color = colors.ink)
     }
@@ -728,13 +752,14 @@ private fun Header(title: String, onBack: () -> Unit) {
 private fun ExperimentalBanner() {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ExperimentCatalogue.of(LocalStrings.current.language)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Chip(text = ExperimentFormat.EXPERIMENTAL_BADGE, color = colors.warn)
+                Chip(text = t.experimentalBadge, color = colors.warn)
             }
             Text(
-                text = ExperimentFormat.EXPERIMENTAL_NOTE,
+                text = t.experimentalNote,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -755,51 +780,57 @@ private fun RunRow(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ExperimentCatalogue.of(LocalStrings.current.language)
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "${run.label} · ${ExperimentFormat.runRoleLabel(kind, index)}",
+                text = "${run.label} · ${ExperimentFormat.runRoleLabel(kind, index, t)}",
                 style = type.label,
                 color = colors.ink,
                 modifier = Modifier.weight(1f),
             )
             if (recording) {
                 Text(
-                    text = "запись " + ExperimentFormat.duration(elapsedSeconds ?: 0L) +
-                        if (plannedSeconds > 0) {
-                            "/${ExperimentFormat.duration(plannedSeconds)}"
-                        } else {
-                            ""
-                        },
+                    text = t.recording(
+                        elapsed = ExperimentFormat.duration(elapsedSeconds ?: 0L, t),
+                        planned = plannedSeconds
+                            .takeIf { it > 0 }
+                            ?.let { ExperimentFormat.duration(it, t) },
+                    ),
                     style = type.footnote,
                     color = colors.ok,
                 )
             } else {
-                Chip(text = "удалить", color = colors.ink2, onClick = onDelete)
+                Chip(text = t.deleteRun, color = colors.ink2, onClick = onDelete)
             }
         }
         when {
             run.endedAt == null && !recording -> Text(
-                text = "не завершён",
+                text = t.runUnfinishedShort,
                 style = type.valueSmall,
                 color = colors.warn,
             )
             data != null -> {
                 Text(
                     text = buildString {
-                        append("Δt ").append(ExperimentFormat.duration(data.durationSeconds))
+                        append("Δt ").append(ExperimentFormat.duration(data.durationSeconds, t))
+                        append(" · ")
                         if (data.hasSpectrum) {
-                            append(" · спектр ").append(data.totalCounts).append(" имп")
+                            append(t.spectrumCounts(data.totalCounts.toString()))
                         } else {
-                            append(" · спектр не записан")
+                            append(t.spectrumMissing)
                         }
                         data.doseStats?.let {
-                            append(" · доза ср ")
-                            append(ExperimentFormat.decimal(it.meanMicroSvH))
-                            append(" мкЗв/ч, n=").append(it.sampleCount)
+                            append(" · ")
+                            append(
+                                t.doseMean(
+                                    value = ExperimentFormat.decimal(it.meanMicroSvH),
+                                    samples = it.sampleCount,
+                                ),
+                            )
                         }
                     },
                     style = type.valueSmall,
@@ -807,13 +838,13 @@ private fun RunRow(
                 )
                 data.distanceCm?.let {
                     Text(
-                        text = "расстояние " + ExperimentFormat.distance(it),
+                        text = t.distanceRow(ExperimentFormat.distance(it, t)),
                         style = type.footnote,
                         color = colors.ink2,
                     )
                 }
                 data.shieldingNote?.takeIf { it.isNotBlank() }?.let {
-                    Text(text = "материал: $it", style = type.footnote, color = colors.ink2)
+                    Text(text = t.shieldingRow(it), style = type.footnote, color = colors.ink2)
                 }
             }
         }
@@ -824,11 +855,12 @@ private fun RunRow(
 private fun ComparisonCards(comparison: AbExperiment.Comparison) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ExperimentCatalogue.of(LocalStrings.current.language)
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "Вывод".uppercase(), style = type.labelSmall, color = colors.ink2)
+                Text(text = t.conclusion.uppercase(), style = type.labelSmall, color = colors.ink2)
                 EvidenceTag(Evidence.STATISTICALLY_DETECTED, Modifier.padding(start = 6.dp))
             }
             Text(
@@ -836,6 +868,7 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
                     comparison.verdict,
                     comparison.a.label,
                     comparison.b.label,
+                    t,
                 ),
                 style = type.title,
                 color = when (comparison.verdict) {
@@ -844,8 +877,7 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
                 },
             )
             Text(
-                text = "Вердикт относится к различию двух измерений, а не к опасности и " +
-                    "не к тому, что именно найдено (спец §2).",
+                text = t.verdictScopeNote,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -855,16 +887,16 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth().padding(bottom = 3.dp)) {
-                AbHeader("показатель", 1.3f)
+                AbHeader(t.columnMetric, 1.3f)
                 AbHeader("A", 1f)
                 AbHeader("B", 1f)
                 AbHeader("z", 0.8f)
-                AbHeader("вывод", 1.5f)
+                AbHeader(t.columnVerdict, 1.5f)
             }
             AppDivider()
             comparison.doseRate?.let { dose ->
                 AbRow(
-                    label = "доза, мкЗв/ч",
+                    label = t.rowDose,
                     a = ExperimentFormat.decimal(dose.a.meanMicroSvH),
                     b = ExperimentFormat.decimal(dose.b.meanMicroSvH),
                     z = ExperimentFormat.zLabel(dose.z),
@@ -874,7 +906,7 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
             }
             comparison.totalCounts?.let { total ->
                 AbRow(
-                    label = "полный счёт, имп/с",
+                    label = t.rowTotalCounts,
                     a = ExperimentFormat.decimal(total.rateA),
                     b = ExperimentFormat.decimal(total.rateB),
                     z = ExperimentFormat.zLabel(total.z),
@@ -894,7 +926,7 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
             }
             comparison.spectrum?.let { spectrum ->
                 AbRow(
-                    label = "полный спектр",
+                    label = t.rowSpectrum,
                     a = "χ² ${ExperimentFormat.decimal(spectrum.chiSquare)}",
                     b = "ν ${spectrum.degreesOfFreedom}",
                     z = ExperimentFormat.zLabel(spectrum.z),
@@ -904,25 +936,24 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
             val method = comparison.totalCounts?.method ?: comparison.spectrum?.method
             if (method != null) {
                 Text(
-                    text = ExperimentFormat.methodExplanation(method),
+                    text = ExperimentFormat.methodExplanation(method, t),
                     style = type.footnote,
                     color = colors.muted,
                 )
             }
             comparison.totalCounts?.let { total ->
                 Text(
-                    text = "нетто = G − B·(t_G/t_B) = " +
-                        ExperimentFormat.signedCounts(total.net) +
-                        " ±" + ExperimentFormat.decimal(total.netSigma) + " имп " +
-                        "(σ по IAEA: √(G + B·(t_G/t_B)²))",
+                    text = t.netLine(
+                        net = ExperimentFormat.signedCounts(total.net),
+                        sigma = ExperimentFormat.decimal(total.netSigma),
+                    ),
                     style = type.footnote,
                     color = colors.muted,
                 )
             }
             comparison.doseRate?.let {
                 Text(
-                    text = "строка дозы — вспомогательная: секундные показания прибора " +
-                        "коррелированы, её неопределённость — оценка снизу",
+                    text = t.doseAuxNote,
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -938,11 +969,12 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
 private fun DistanceCard(series: List<AbExperiment.DistancePoint>) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = ExperimentCatalogue.of(LocalStrings.current.language)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Серия по расстоянию".uppercase(),
+                    text = t.distanceSeries.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
@@ -950,8 +982,8 @@ private fun DistanceCard(series: List<AbExperiment.DistancePoint>) {
             }
             Row(Modifier.fillMaxWidth()) {
                 AbHeader("r", 1f)
-                AbHeader("измерено, имп/с", 1.6f)
-                AbHeader("1/r² от первой", 1.4f)
+                AbHeader(t.columnMeasured, 1.6f)
+                AbHeader(t.columnInverseSquare, 1.4f)
             }
             AppDivider()
             series.forEachIndexed { index, point ->
@@ -959,15 +991,16 @@ private fun DistanceCard(series: List<AbExperiment.DistancePoint>) {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
                 ) {
-                    AbCell(ExperimentFormat.distance(point.distanceCm), 1f, colors.ink)
+                    AbCell(ExperimentFormat.distance(point.distanceCm, t), 1f, colors.ink)
+                    // Единица уже стоит в заголовке колонки — в ячейке она лишняя.
                     AbCell(
-                        ExperimentFormat.cpsWithSigma(point.netRateCps, point.sigmaCps)
-                            .removeSuffix(" имп/с"),
+                        ExperimentFormat.rateWithSigma(point.netRateCps, point.sigmaCps),
                         1.6f,
                         colors.ink,
                     )
                     AbCell(
-                        point.inverseSquareCps?.let { ExperimentFormat.decimal(it) } ?: "опора",
+                        point.inverseSquareCps?.let { ExperimentFormat.decimal(it) }
+                            ?: t.referencePoint,
                         1.4f,
                         colors.ink2,
                     )
@@ -975,7 +1008,7 @@ private fun DistanceCard(series: List<AbExperiment.DistancePoint>) {
                 if (index < series.size - 1) AppDivider()
             }
             Text(
-                text = ExperimentFormat.DISTANCE_WARNING,
+                text = t.distanceWarning,
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -995,7 +1028,10 @@ private fun AbRow(label: String, a: String, b: String, z: String, verdict: AbAna
         AbCell(b, 1f, colors.ink)
         AbCell(z, 0.8f, colors.ink)
         AbCell(
-            ExperimentFormat.verdictLabel(verdict),
+            ExperimentFormat.verdictLabel(
+                verdict,
+                ExperimentCatalogue.of(LocalStrings.current.language),
+            ),
             1.5f,
             when (verdict) {
                 AbAnalysis.Verdict.CONSISTENT -> colors.muted

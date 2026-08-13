@@ -5,12 +5,22 @@ import app.radiacode.baseline.AlarmThresholds
 import app.radiacode.baseline.BaselineState
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.ExclusionSummary
+import app.radiacode.ui.text.MonitorRu
+import app.radiacode.ui.text.MonitorStrings
 
-/** One line of the «Почему?» sheet: what it is, its value, how sure we are. */
+/**
+ * One line of the «Почему?» sheet: what it is, its value, how sure we are.
+ *
+ * [evidence] is `null` on the first level of disclosure (§21): the permanent
+ * «изм. · расч. · стат.» markers stood next to every value, so they stopped
+ * being read at all. Where the source of a number actually matters — inside
+ * «показать методику и расчёты» — the marker is still there and the legend
+ * under the sheet spells it out in words.
+ */
 data class WhyLine(
     val label: String,
     val value: String,
-    val evidence: Evidence,
+    val evidence: Evidence? = null,
     /** Optional half-sentence that keeps the line from being over-read. */
     val note: String? = null,
 )
@@ -51,30 +61,24 @@ object WhyExplain {
      * It names the historical P10–P90 of the profile and never calls it a norm
      * or a safe range: the band describes this place's own history.
      */
-    fun verdictExplanation(status: MonitorStatus): String = when (status) {
-        MonitorStatus.Unknown -> "Текущего измерения нет — сравнивать не с чем."
-        is MonitorStatus.Fixed ->
-            "Исторический P10–P90 профиля ещё не собран, поэтому сравнение идёт " +
-                "только с порогом тревоги L1."
-        is MonitorStatus.Usual ->
-            "Текущая мощность дозы находится внутри исторического P10–P90 профиля."
-        is MonitorStatus.AboveUsual ->
-            "Текущая мощность дозы держится выше исторического P10–P90 профиля."
-        is MonitorStatus.AboveThreshold ->
-            "Текущая мощность дозы выше порога тревоги, который вы задали. " +
-                "Тревога объявляется по величине И длительности, поэтому идёт отсчёт " +
-                "выдержки."
-        is MonitorStatus.Alert ->
-            "Превышение держится дольше заданного времени: это сравнение с порогом L1 " +
-                "и с историческим P10–P90 профиля, а не оценка опасности."
+    fun verdictExplanation(
+        status: MonitorStatus,
+        s: MonitorStrings = MonitorRu,
+    ): String = when (status) {
+        MonitorStatus.Unknown -> s.verdictNoReading
+        is MonitorStatus.Fixed -> s.verdictNoBand
+        is MonitorStatus.Usual -> s.verdictInsideBand
+        is MonitorStatus.AboveUsual -> s.verdictAboveBand
+        is MonitorStatus.AboveThreshold -> s.verdictAboveThreshold
+        is MonitorStatus.Alert -> s.verdictAlert
     }
 
 }
 
 /** «45 с» / «12 мин» / «3,5 ч» — compact duration for explanation text. */
-fun durationWording(seconds: Long): String = when {
-    seconds < 60 -> "$seconds с"
-    seconds < 3600 -> "${seconds / 60} мин"
+fun durationWording(seconds: Long, s: MonitorStrings = MonitorRu): String = when {
+    seconds < 60 -> s.secondsShort(seconds)
+    seconds < 3600 -> s.minutesShort(seconds / 60)
     else -> {
         val hours = seconds / 3600.0
         // Whole hours read as integers, same convention as the baseline wording.
@@ -83,6 +87,6 @@ fun durationWording(seconds: Long): String = when {
         } else {
             String.format(java.util.Locale.US, "%.1f", hours).replace('.', ',')
         }
-        "$text ч"
+        s.hoursShort(text)
     }
 }

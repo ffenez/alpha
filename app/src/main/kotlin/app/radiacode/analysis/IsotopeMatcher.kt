@@ -32,7 +32,17 @@ data class IsotopeHint(
  *    (Co-60, Bi-214, Tl-208), at least two of their lines matched somewhere
  *    in the spectrum — a lone 1173 keV bump is not «Co-60, medium»;
  *  - everything else is LOW.
+ *
+ * СНЯТ С ЭКРАНА: вердикты о кандидатах выносит движок доказательств
+ * ([app.radiacode.analysis.evidence.EvidenceEngine], ADR 006) через
+ * [app.radiacode.ui.logic.PeakEvidenceBridge]. Объект не удалён: его держат
+ * тесты, и математика v1 (`AlgorithmVersions.ISOTOPE_MATCH`) остаётся
+ * документированной для чтения старых результатов.
  */
+@Deprecated(
+    "Вердикты о кандидатах выносит движок доказательств: " +
+        "EvidenceEngine + PeakEvidenceBridge (ADR 006)",
+)
 object IsotopeMatcher {
 
     /** Analysis below this accumulation is noise-reading (screen gates on it). */
@@ -44,10 +54,16 @@ object IsotopeMatcher {
         lineEnergyKeV: Float,
         resolution662: Float = PeakDetection.RESOLUTION_662,
     ): Float =
-        max(0.02f * lineEnergyKeV, 0.5f * PeakDetection.fwhmKeV(lineEnergyKeV, resolution662))
+        max(
+            0.02f * lineEnergyKeV,
+            0.5f * PeakDetection.expectedFwhmKeV(lineEnergyKeV, resolution662),
+        )
 
     private fun tightToleranceKeV(lineEnergyKeV: Float, resolution662: Float): Float =
-        max(0.01f * lineEnergyKeV, 0.25f * PeakDetection.fwhmKeV(lineEnergyKeV, resolution662))
+        max(
+            0.01f * lineEnergyKeV,
+            0.25f * PeakDetection.expectedFwhmKeV(lineEnergyKeV, resolution662),
+        )
 
     /**
      * @param resolution662 разрешение ЭТОГО прибора: допуск на совпадение

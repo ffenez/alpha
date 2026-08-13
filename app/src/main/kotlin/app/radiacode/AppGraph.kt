@@ -1,5 +1,10 @@
 package app.radiacode
 
+import app.radiacode.data.export.CrashLog
+import java.io.File
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
 import android.content.Context
 import app.radiacode.data.AppSettings
 import app.radiacode.data.BaselineRepository
@@ -9,7 +14,10 @@ import app.radiacode.data.MeasurementRepository
 import app.radiacode.data.PreAggregateRepository
 import app.radiacode.data.ProfileRepository
 import app.radiacode.data.SessionRepository
+import app.radiacode.data.SpectrogramRepository
 import app.radiacode.data.TrackRepository
+import app.radiacode.analysis.evidence.AcceptedResolution
+import app.radiacode.analysis.evidence.ResolutionSource
 import app.radiacode.context.ContextController
 import app.radiacode.context.ContextHub
 import app.radiacode.context.WifiNetworkSource
@@ -23,6 +31,7 @@ import app.radiacode.service.AbRunRecorder
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.service.FastPollHub
 import app.radiacode.service.LocalBackgroundRecorder
+import app.radiacode.service.SpotMeasureRecorder
 import app.radiacode.service.ServiceStatus
 import app.radiacode.service.SpectrogramStore
 import app.radiacode.service.DeviceControlHub
@@ -34,16 +43,59 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 /**
  * Manual dependency graph (no DI framework, ADR 001). One instance per process,
  * shared by the service and (later) UI.
  */
-class AppGraph private constructor(context: Context) {
+class AppGraph private constructor(
+    context: Context,
+    databaseOverride: AppDatabase? = null,
+    settingsOverride: AppSettings? = null,
+    withCrashHandler: Boolean = true,
+) {
 
-    val database: AppDatabase by lazy { AppDatabase.build(context) }
+    /**
+     * Файл журнала падений в каталоге приложения (см. [CrashLog]).
+     *
+     * Обработчик ставится в init графа, а не в `Application`: своего
+     * `Application` у приложения нет, а граф создаётся первым обращением из
+     * активности и из службы — то есть до того, как что-либо успевает упасть
+     * по нашей вине.
+     */
+    val crashLogFile: File = File(context.filesDir, CrashLog.FILE_NAME)
 
-    val settings: AppSettings by lazy { AppSettings(context) }
+    init {
+        // Тестовый граф обработчик не ставит: Robolectric-прогон не должен
+        // перехватывать падения чужих тестов того же процесса.
+        if (withCrashHandler) installCrashHandler()
+    }
+
+    private fun installCrashHandler() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        // Свой обработчик НЕ подменяет системный: падение обязано остаться
+        // падением (иначе процесс останется в неопределённом состоянии), мы
+        // лишь записываем его для разбора и передаём дальше.
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching {
+                CrashLog.append(
+                    crashLogFile,
+                    CrashLog.entry(
+                        atMillis = System.currentTimeMillis(),
+                        stamp = CRASH_STAMP.format(java.time.Instant.now().atZone(ZoneId.systemDefault())),
+                        threadName = thread.name,
+                        error = error,
+                    ),
+                )
+            }
+            previous?.uncaughtException(thread, error)
+        }
+    }
+
+    val database: AppDatabase by lazy { databaseOverride ?: AppDatabase.build(context) }
+
+    val settings: AppSettings by lazy { settingsOverride ?: AppSettings(context) }
 
     val measurementRepository: MeasurementRepository by lazy {
         MeasurementRepository(
@@ -139,8 +191,17 @@ class AppGraph private constructor(context: Context) {
     /** Поиск asks for a shorter DATA_BUF poll period while it is on screen. */
     val fastPollHub: FastPollHub = FastPollHub()
 
-    /** In-memory спектрограмма ring (~2 ч), fed by the service's spectrum poll. */
-    val spectrogramStore: SpectrogramStore = SpectrogramStore()
+    /** Постоянная история спектрограммы (ADR 007): чтение окна и прореживание. */
+    val spectrogramRepository: SpectrogramRepository by lazy {
+        SpectrogramRepository(database.spectrogramDao())
+    }
+
+    /**
+     * Спектрограмма: кольцо для живого просмотра (~2 ч) плюс запись в базу.
+     * Наполняется опросом службы; после перезапуска процесса поднимает окно из
+     * базы, поэтому картинка не начинается с пустоты.
+     */
+    val spectrogramStore: SpectrogramStore by lazy { SpectrogramStore(spectrogramRepository) }
 
     /**
      * Process-lifetime scope for work that must outlive any screen. Never
@@ -167,6 +228,18 @@ class AppGraph private constructor(context: Context) {
                         ?.info?.serialNumber,
                 )
             },
+        )
+    }
+
+    /**
+     * Поиск → Наведение → «Замерить здесь». App-scoped by the same rule as
+     * [localBackground]: leaving the screen must not tear a running count.
+     */
+    val spotMeasure: SpotMeasureRecorder by lazy {
+        SpotMeasureRecorder(
+            scope = appScope,
+            samples = measurementRepository.latestSample(),
+            serviceRunning = serviceStatus.serviceRunning,
         )
     }
 
@@ -208,7 +281,35 @@ class AppGraph private constructor(context: Context) {
         settings.searchBackgroundRaw.map { BackgroundRecord.decode(it) }
     }
 
+    /**
+     * Единственный писатель [ResolutionSource]: принятая измеренная модель
+     * разрешения из настроек и серийник подключённого прибора. Держатель
+     * читают поиск пиков и допуски совпадения, и оба должны видеть одно и то
+     * же — поэтому подписка ровно одна и живёт в графе.
+     */
+    private fun watchResolutionModel() {
+        appScope.launch {
+            settings.measuredResolutionRaw.collect {
+                ResolutionSource.install(AcceptedResolution.decode(it))
+            }
+        }
+        appScope.launch {
+            serviceStatus.connection.collect { state ->
+                ResolutionSource.onDevice(
+                    (state as? ConnectionState.Connected)?.info?.serialNumber,
+                )
+            }
+        }
+    }
+
+    init {
+        watchResolutionModel()
+    }
+
     companion object {
+        private val CRASH_STAMP: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
+
         @Volatile
         private var instance: AppGraph? = null
 
@@ -216,5 +317,22 @@ class AppGraph private constructor(context: Context) {
             instance ?: synchronized(this) {
                 instance ?: AppGraph(context.applicationContext).also { instance = it }
             }
+
+        /**
+         * Тестовая фабрика (Robolectric-смоук): изолированный граф на
+         * in-memory БД и отдельном DataStore. НЕ трогает синглтон [get] —
+         * каждый тест получает свой граф и свою базу — и не ставит
+         * обработчик падений процесса. Продуктовый код через неё не ходит.
+         */
+        internal fun createForTest(
+            context: Context,
+            database: AppDatabase,
+            settings: AppSettings,
+        ): AppGraph = AppGraph(
+            context = context.applicationContext,
+            databaseOverride = database,
+            settingsOverride = settings,
+            withCrashHandler = false,
+        )
     }
 }

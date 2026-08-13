@@ -5,6 +5,8 @@ import app.radiacode.analysis.SpectrumEdge
 import app.radiacode.analysis.ShapeComparison
 import app.radiacode.analysis.ShapeVerdict
 import app.radiacode.analysis.SpectrogramSlice
+import app.radiacode.ui.text.SearchRu
+import app.radiacode.ui.text.SearchStrings
 
 /**
  * «Изменился не только счёт, но и форма спектра — открыть спектр?»
@@ -65,9 +67,9 @@ object SearchSpectrumHint {
     }
 
     /** The invitation itself; null unless the shapes really differ. */
-    fun invitation(comparison: ShapeComparison?): String? {
+    fun invitation(comparison: ShapeComparison?, t: SearchStrings = SearchRu): String? {
         if (comparison == null || comparison.verdict != ShapeVerdict.CHANGED) return null
-        return "Изменился не только счёт, но и форма спектра"
+        return t.shapeInvitation
     }
 
     /**
@@ -75,18 +77,13 @@ object SearchSpectrumHint {
      * including «данных мало» — a section that appears and disappears without
      * saying why is worse than one that admits it is waiting.
      */
-    fun note(comparison: ShapeComparison?): String? = when (comparison?.verdict) {
-        null -> null
-        ShapeVerdict.NOT_ENOUGH_DATA ->
-            "форма спектра: данных пока мало — ${ShapeChange.detail(comparison)}"
-        ShapeVerdict.CONSISTENT ->
-            "форма спектра не изменилась в пределах статистики счёта " +
-                "(${ShapeChange.detail(comparison)})"
-        ShapeVerdict.CHANGED ->
-            "разные спектры по составу, а не только по яркости " +
-                "(${ShapeChange.detail(comparison)}). Какой это нуклид — этот экран " +
-                "не решает: посмотрите пики на вкладке «Спектр»"
-    }
+    fun note(comparison: ShapeComparison?, t: SearchStrings = SearchRu): String? =
+        when (comparison?.verdict) {
+            null -> null
+            ShapeVerdict.NOT_ENOUGH_DATA -> t.shapeNotEnough(ShapeChange.detail(comparison))
+            ShapeVerdict.CONSISTENT -> t.shapeConsistent(ShapeChange.detail(comparison))
+            ShapeVerdict.CHANGED -> t.shapeChanged(ShapeChange.detail(comparison))
+        }
 
     private fun sum(slices: List<SpectrogramSlice>): DoubleArray? {
         if (slices.isEmpty()) return null

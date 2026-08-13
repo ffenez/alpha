@@ -1,5 +1,7 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.SearchRu
+import app.radiacode.ui.text.SearchStrings
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.sin
@@ -212,30 +214,23 @@ data class FeedbackState(
  */
 object FeedbackReason {
 
-    fun line(state: FeedbackState): String? = when {
-        state.mode == SearchFeedbackMode.OFF ->
-            "отклик выключен — сигнал виден только на экране"
-        !state.deviceConnected ->
-            "прибор не подключён — отклик появится после подключения"
-        !state.dataFresh ->
-            "нет данных с прибора — отклик молчит, пока поток не восстановится"
-        state.dndBlocked ->
-            "режим «не беспокоить» — звук и вибрация молчат, пока он включён"
-        state.usesSound && state.audioUnavailable ->
-            "звук не запустился — система не дала звуковой канал"
-        state.usesSound && state.volumeZero ->
-            "громкость мультимедиа на нуле — прибавьте громкость кнопкой"
+    fun line(state: FeedbackState, t: SearchStrings = SearchRu): String? = when {
+        state.mode == SearchFeedbackMode.OFF -> t.reasonOff
+        !state.deviceConnected -> t.reasonNoDevice
+        !state.dataFresh -> t.reasonNoData
+        state.dndBlocked -> t.reasonDnd
+        state.usesSound && state.audioUnavailable -> t.reasonNoAudio
+        state.usesSound && state.volumeZero -> t.reasonVolumeZero
         state.usesBackground && !state.backgroundRecorded ->
-            "фон не записан — ${channel(state.mode)} включится после записи фона"
+            t.reasonNoBackground(channel(state.mode, t))
         state.usesBackground && state.insideBackground ->
-            "счёт в пределах записанного фона — ${channel(state.mode)} появится, " +
-                "когда он станет выше"
+            t.reasonInsideBackground(channel(state.mode, t))
         else -> null
     }
 
-    private fun channel(mode: SearchFeedbackMode): String = when (mode) {
-        SearchFeedbackMode.TONE -> "тон"
-        SearchFeedbackMode.VIBRO -> "вибрация"
-        else -> "отклик"
+    private fun channel(mode: SearchFeedbackMode, t: SearchStrings): String = when (mode) {
+        SearchFeedbackMode.TONE -> t.channelTone
+        SearchFeedbackMode.VIBRO -> t.channelVibro
+        else -> t.channelFeedback
     }
 }

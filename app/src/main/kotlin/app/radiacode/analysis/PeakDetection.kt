@@ -1,5 +1,6 @@
 package app.radiacode.analysis
 
+import app.radiacode.analysis.evidence.ResolutionSource
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -16,6 +17,16 @@ data class Peak(
      * стандартная неопределённость нетто-площади (см. [PeakDetection]).
      */
     val significance: Float,
+    /**
+     * ИЗМЕРЕННАЯ ширина на половине высоты нетто-структуры, кэВ; null — не
+     * измерялась (пик собран вручную в тесте).
+     *
+     * Это не ожидаемая по модели разрешения ширина ([expectedFwhmKeV]), а то,
+     * что реально получилось на этих отсчётах: гейт формы всё равно требует
+     * её у каждого принятого пика, и прятать измеренное число от человека,
+     * который смотрит на пик, незачем.
+     */
+    val fwhmKeV: Float? = null,
 )
 
 /**
@@ -113,6 +124,22 @@ object PeakDetection {
     fun fwhmKeV(energyKeV: Float, resolution662: Float = RESOLUTION_662): Float =
         resolution662 * sqrt(662f * max(energyKeV, 1f))
 
+    /**
+     * Ожидаемая ширина, которой РУКОВОДСТВУЕТСЯ анализ: измеренная модель
+     * разрешения, если человек её принял на этом приборе
+     * ([app.radiacode.analysis.evidence.ResolutionSource]), иначе то же
+     * √E-приближение, что и раньше.
+     *
+     * Отдельно от [fwhmKeV] сознательно: приближение остаётся доступным как
+     * ЧИСТАЯ функция от одной вендорской точки — по нему считаются ROI
+     * радонового индикатора, и ряд, посчитанный вчера и сегодня, обязан
+     * оставаться сравнимым независимо от того, приняли ли модель между этими
+     * днями.
+     */
+    fun expectedFwhmKeV(energyKeV: Float, resolution662: Float = RESOLUTION_662): Float =
+        ResolutionSource.fwhmKeV(energyKeV.toDouble())?.toFloat()
+            ?: fwhmKeV(energyKeV, resolution662)
+
     /** Half the expected peak width in channels at [channel] (≥ 2). */
     fun halfWidthChannels(
         calibration: EnergyCalibration,
@@ -121,7 +148,7 @@ object PeakDetection {
     ): Int {
         val keVPerChannel = max(calibration.a1 + 2f * calibration.a2 * channel, 0.1f)
         val energy = calibration.energyAt(channel.toFloat())
-        return max(2, (fwhmKeV(energy, resolution662) / 2f / keVPerChannel).roundToInt())
+        return max(2, (expectedFwhmKeV(energy, resolution662) / 2f / keVPerChannel).roundToInt())
     }
 
     fun detect(
@@ -205,6 +232,9 @@ object PeakDetection {
                 energyKeV = calibration.energyAt(centroid),
                 netCounts = net,
                 significance = significance,
+                // Ширина канала на шкале меняется, поэтому каналы переводятся
+                // в кэВ производной калибровки в самом пике.
+                fwhmKeV = observedFwhm * max(calibration.a1 + 2f * calibration.a2 * i, 0.01f),
             )
         }
 
@@ -212,7 +242,7 @@ object PeakDetection {
         val accepted = mutableListOf<Peak>()
         for (peak in candidates.sortedByDescending { it.significance }) {
             val overlaps = accepted.any {
-                abs(it.energyKeV - peak.energyKeV) < fwhmKeV(peak.energyKeV)
+                abs(it.energyKeV - peak.energyKeV) < expectedFwhmKeV(peak.energyKeV, resolution662)
             }
             if (!overlaps) accepted += peak
         }

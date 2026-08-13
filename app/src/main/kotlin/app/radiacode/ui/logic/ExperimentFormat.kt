@@ -4,6 +4,9 @@ import app.radiacode.analysis.AbAnalysis
 import app.radiacode.analysis.EnergyWindowSpec
 import app.radiacode.analysis.EnergyWindows
 import app.radiacode.data.db.ExperimentEntity
+import app.radiacode.ui.text.ExperimentRu
+import app.radiacode.ui.text.ExperimentStrings
+import app.radiacode.ui.text.SpectrumRu
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -15,6 +18,15 @@ import kotlin.math.roundToInt
  * `strong evidence of change` and nothing else. A «% похожести» has no defined
  * statistical meaning until a metric is validated on RC-110 data, so it must
  * not exist anywhere in the UI — `ExperimentFormatTest` pins that.
+ *
+ * Каталог приходит ПАРАМЕТРОМ со значением по умолчанию `ExperimentRu`:
+ * эти функции вызывает и экран (там язык выбран человеком), и текстовый
+ * отчёт эксперимента, который от языка интерфейса зависеть не должен —
+ * его читают вместе с автором, а не только автор.
+ *
+ * Разделитель дроби остаётся запятой на любом языке: строки запинены
+ * тестами и не должны зависеть ни от локали телефона, ни от языка
+ * интерфейса (то же правило, что в [Uncertainty] и `SearchVerdict`).
  *
  * Pure JVM, tested.
  */
@@ -29,26 +41,33 @@ object ExperimentFormat {
         AbAnalysis.Verdict.STRONG_EVIDENCE_OF_CHANGE -> "strong evidence of change"
     }
 
-    fun verdictLabel(verdict: AbAnalysis.Verdict): String = when (verdict) {
-        AbAnalysis.Verdict.CONSISTENT -> "различий не видно"
-        AbAnalysis.Verdict.CHANGED -> "есть различие"
-        AbAnalysis.Verdict.STRONG_EVIDENCE_OF_CHANGE -> "сильные свидетельства различия"
+    fun verdictLabel(
+        verdict: AbAnalysis.Verdict,
+        s: ExperimentStrings = ExperimentRu,
+    ): String = when (verdict) {
+        AbAnalysis.Verdict.CONSISTENT -> s.verdictConsistent
+        AbAnalysis.Verdict.CHANGED -> s.verdictChanged
+        AbAnalysis.Verdict.STRONG_EVIDENCE_OF_CHANGE -> s.verdictStrongEvidence
     }
 
     /** Headline sentence: says what the verdict is *about*, never «опасно». */
-    fun verdictHeadline(verdict: AbAnalysis.Verdict, aLabel: String, bLabel: String): String =
-        when (verdict) {
-            AbAnalysis.Verdict.CONSISTENT ->
-                "Измерения $aLabel и $bLabel согласуются между собой"
-            AbAnalysis.Verdict.CHANGED ->
-                "Между $aLabel и $bLabel есть статистическое различие"
-            AbAnalysis.Verdict.STRONG_EVIDENCE_OF_CHANGE ->
-                "Между $aLabel и $bLabel сильные свидетельства различия"
-        }
+    fun verdictHeadline(
+        verdict: AbAnalysis.Verdict,
+        aLabel: String,
+        bLabel: String,
+        s: ExperimentStrings = ExperimentRu,
+    ): String = when (verdict) {
+        AbAnalysis.Verdict.CONSISTENT -> s.headlineConsistent(aLabel, bLabel)
+        AbAnalysis.Verdict.CHANGED -> s.headlineChanged(aLabel, bLabel)
+        AbAnalysis.Verdict.STRONG_EVIDENCE_OF_CHANGE -> s.headlineStrongEvidence(aLabel, bLabel)
+    }
 
-    fun methodLabel(method: AbAnalysis.Method): String = when (method) {
-        AbAnalysis.Method.POISSON_LIKELIHOOD_RATIO -> "Пуассон, отношение правдоподобия"
-        AbAnalysis.Method.CHI_SQUARE -> "χ²-подобный, z = нетто/σ"
+    fun methodLabel(
+        method: AbAnalysis.Method,
+        s: ExperimentStrings = ExperimentRu,
+    ): String = when (method) {
+        AbAnalysis.Method.POISSON_LIKELIHOOD_RATIO -> s.methodPoisson
+        AbAnalysis.Method.CHI_SQUARE -> s.methodChiSquare
     }
 
     fun methodShort(method: AbAnalysis.Method): String = when (method) {
@@ -57,51 +76,49 @@ object ExperimentFormat {
     }
 
     /** Why this statistic was chosen — the switch is a documented parameter. */
-    fun methodExplanation(method: AbAnalysis.Method): String = when (method) {
-        AbAnalysis.Method.POISSON_LIKELIHOOD_RATIO ->
-            "мало импульсов (< ${AbAnalysis.NORMAL_APPROX_MIN_COUNTS.toInt()} в прогоне) — " +
-                "использован пуассоновский критерий отношения правдоподобия"
-        AbAnalysis.Method.CHI_SQUARE ->
-            "импульсов достаточно (≥ ${AbAnalysis.NORMAL_APPROX_MIN_COUNTS.toInt()} в каждом " +
-                "прогоне) — использован χ²-подобный критерий z = нетто/σ"
+    fun methodExplanation(
+        method: AbAnalysis.Method,
+        s: ExperimentStrings = ExperimentRu,
+    ): String {
+        val minCounts = AbAnalysis.NORMAL_APPROX_MIN_COUNTS.toInt()
+        return when (method) {
+            AbAnalysis.Method.POISSON_LIKELIHOOD_RATIO -> s.methodExplanationPoisson(minCounts)
+            AbAnalysis.Method.CHI_SQUARE -> s.methodExplanationChiSquare(minCounts)
+        }
     }
 
     // --- kinds ---
 
-    fun kindLabel(kind: String): String = when (kind) {
-        ExperimentEntity.KIND_BACKGROUND_VS_OBJECT -> "Фон и объект"
-        ExperimentEntity.KIND_PLACE_VS_PLACE -> "Место и место"
-        ExperimentEntity.KIND_DISTANCE -> "Расстояние"
-        ExperimentEntity.KIND_SHIELDING -> "Экранирование"
+    fun kindLabel(kind: String, s: ExperimentStrings = ExperimentRu): String = when (kind) {
+        ExperimentEntity.KIND_BACKGROUND_VS_OBJECT -> s.kindBackgroundVsObject
+        ExperimentEntity.KIND_PLACE_VS_PLACE -> s.kindPlaceVsPlace
+        ExperimentEntity.KIND_DISTANCE -> s.kindDistance
+        ExperimentEntity.KIND_SHIELDING -> s.kindShielding
         else -> kind
     }
 
-    fun kindHint(kind: String): String = when (kind) {
-        ExperimentEntity.KIND_BACKGROUND_VS_OBJECT ->
-            "A — объект у детектора, B — тот же детектор без объекта. Геометрия " +
-                "должна быть одинаковой, иначе сравнивается не объект, а положение прибора."
-        ExperimentEntity.KIND_PLACE_VS_PLACE ->
-            "A и B — два места. Сравниваются измерения как они есть; вывод относится " +
-                "к этим двум измерениям, а не к местам вообще."
-        ExperimentEntity.KIND_DISTANCE ->
-            "Серия прогонов на известных расстояниях от объекта. Плюс, по возможности, " +
-                "прогон фона без объекта — без него дальние точки будут в основном фоном."
-        ExperimentEntity.KIND_SHIELDING ->
-            "A — без материала, B — с материалом, в остальном всё то же самое. " +
-                "Универсальных коэффициентов ослабления из такого опыта не выводится."
+    fun kindHint(kind: String, s: ExperimentStrings = ExperimentRu): String = when (kind) {
+        ExperimentEntity.KIND_BACKGROUND_VS_OBJECT -> s.hintBackgroundVsObject
+        ExperimentEntity.KIND_PLACE_VS_PLACE -> s.hintPlaceVsPlace
+        ExperimentEntity.KIND_DISTANCE -> s.hintDistance
+        ExperimentEntity.KIND_SHIELDING -> s.hintShielding
         else -> ""
     }
 
     /** Run labels of the scenario: what A and B mean here. */
-    fun runRoleLabel(kind: String, index: Int): String = when (kind) {
+    fun runRoleLabel(
+        kind: String,
+        index: Int,
+        s: ExperimentStrings = ExperimentRu,
+    ): String = when (kind) {
         ExperimentEntity.KIND_BACKGROUND_VS_OBJECT ->
-            if (index == 0) "объект" else "фон"
+            if (index == 0) s.roleObject else s.roleBackground
         ExperimentEntity.KIND_SHIELDING ->
-            if (index == 0) "без материала" else "с материалом"
+            if (index == 0) s.roleWithoutMaterial else s.roleWithMaterial
         ExperimentEntity.KIND_PLACE_VS_PLACE ->
-            if (index == 0) "место A" else "место B"
-        ExperimentEntity.KIND_DISTANCE -> "точка ${runLetter(index)}"
-        else -> "прогон ${runLetter(index)}"
+            s.rolePlace(runLetter(index))
+        ExperimentEntity.KIND_DISTANCE -> s.rolePoint(runLetter(index))
+        else -> s.roleRun(runLetter(index))
     }
 
     /** A, B, C… (Latin letters keep the report readable in any locale). */
@@ -109,41 +126,40 @@ object ExperimentFormat {
         if (index < 26) ('A' + index).toString() else "R${index + 1}"
 
     // --- mandated warnings (spec §16) ---
+    //
+    // Свойства, а не `const`: текст живёт в каталоге области, а отчёт
+    // эксперимента (`data/export/ExperimentReport`) читает русский вариант —
+    // файл экспорта не зависит от языка интерфейса.
 
-    const val DISTANCE_WARNING =
-        "Сравнение с идеализированной зависимостью 1/r² — только ориентир. Реальный " +
-            "источник не точечный, излучение рассеивается на воздухе и окружении, а фон " +
-            "с расстоянием не убывает вовсе. Совпадение с кривой не доказывает геометрию, " +
-            "расхождение не означает ошибку измерения."
+    val DISTANCE_WARNING: String get() = ExperimentRu.distanceWarning
 
-    const val SHIELDING_WARNING =
-        "Из этого опыта не выводятся коэффициенты ослабления материала: домашняя " +
-            "геометрия неконтролируема, спектр источника неизвестен, а рассеянное " +
-            "излучение приходит в детектор в обход материала."
+    val SHIELDING_WARNING: String get() = ExperimentRu.shieldingWarning
 
-    const val EXPERIMENTAL_BADGE = "экспериментальная функция"
+    val EXPERIMENTAL_BADGE: String get() = ExperimentRu.experimentalBadge
 
-    const val EXPERIMENTAL_NOTE =
-        "Функция экспериментальная: статистика реализована и проверена на синтетике, " +
-            "но пока не валидирована на реальных измерениях RC-110. Вердикт говорит о " +
-            "различии между двумя измерениями, а не об опасности и не о том, что найдено."
+    val EXPERIMENTAL_NOTE: String get() = ExperimentRu.experimentalNote
 
-    const val GEOMETRY_PROMPT =
-        "Опишите геометрию один раз: где лежит объект, на каком расстоянии и как " +
-            "повёрнут прибор. Это описание покажется при каждом следующем прогоне — " +
-            "повторить его точно и есть смысл A/B."
+    val GEOMETRY_PROMPT: String get() = ExperimentRu.geometryPrompt
 
     // --- numbers ---
 
     /** «12,3 имп/с» / «0,42 имп/с» — precision follows magnitude. */
-    fun cps(value: Double): String = "${decimal(value)} имп/с"
+    fun cps(value: Double, s: ExperimentStrings = ExperimentRu): String =
+        "${decimal(value)} ${s.countsPerSecond}"
 
-    fun cpsWithSigma(value: Double, sigma: Double): String =
-        "${decimal(value)} ±${decimal(sigma)} имп/с"
+    /** «12,3 ±0,4» — без единицы: её ставит колонка или вызывающий. */
+    fun rateWithSigma(value: Double, sigma: Double): String =
+        "${decimal(value)} ±${decimal(sigma)}"
+
+    fun cpsWithSigma(
+        value: Double,
+        sigma: Double,
+        s: ExperimentStrings = ExperimentRu,
+    ): String = "${rateWithSigma(value, sigma)} ${s.countsPerSecond}"
 
     /** Signed rate difference «+1,20 имп/с». */
-    fun signedCps(value: Double): String =
-        (if (value < 0) "−" else "+") + decimal(abs(value)) + " имп/с"
+    fun signedCps(value: Double, s: ExperimentStrings = ExperimentRu): String =
+        (if (value < 0) "−" else "+") + decimal(abs(value)) + " " + s.countsPerSecond
 
     fun signedCounts(value: Double): String =
         (if (value < 0) "−" else "+") + decimal(abs(value))
@@ -165,21 +181,27 @@ object ExperimentFormat {
         return String.format(Locale.US, "%.${digits}f", value).replace('.', ',')
     }
 
-    fun duration(seconds: Long): String {
-        if (seconds < 60) return "$seconds с"
+    fun duration(seconds: Long, s: ExperimentStrings = ExperimentRu): String {
+        if (seconds < 60) return s.seconds(seconds)
         val minutes = seconds / 60
         val rest = seconds % 60
-        return if (rest == 0L) "$minutes мин" else "$minutes мин $rest с"
+        return if (rest == 0L) s.minutes(minutes) else s.minutesSeconds(minutes, rest)
     }
 
-    fun distance(distanceCm: Float): String =
+    fun distance(distanceCm: Float, s: ExperimentStrings = ExperimentRu): String =
         if (distanceCm >= 100f) {
-            "${decimal(distanceCm / 100.0)} м"
+            s.meters(decimal(distanceCm / 100.0))
         } else {
-            "${distanceCm.roundToInt()} см"
+            s.centimeters(distanceCm.roundToInt())
         }
 
     // --- energy windows (spec §7) ---
+    //
+    // Окна показывает и экран Спектра (`EnergyWindowsSection`), который живёт
+    // в другой области перевода: подписи здесь числовые, а две оговорки ниже
+    // переехали в её каталог (`SpectrumStrings`). Здесь остались русские
+    // формы — их печатает ОТЧЁТ эксперимента, а отчёт не должен зависеть от
+    // языка интерфейса того, кто его снял.
 
     fun windowLabel(spec: EnergyWindowSpec): String =
         "${spec.startKeV.roundToInt()}–${spec.endKeV.roundToInt()}"
@@ -196,12 +218,7 @@ object ExperimentFormat {
     fun indexCaption(index: EnergyWindows.SpectralIndex): String =
         "R(${windowLabel(index.lowWindow)}) / R(${windowLabel(index.highWindow)})"
 
-    const val INDEX_NOTE =
-        "Спектральный индекс — описательная характеристика состава спектра, " +
-            "а не мера опасности. Границы окон — параметр анализа, а не физические " +
-            "категории излучения."
+    val INDEX_NOTE: String get() = SpectrumRu.indexNote
 
-    const val WINDOWS_EDGE_NOTE =
-        "Канал целиком относится к окну, если его центр попал внутрь: дробить счёт " +
-            "по краю нельзя — дробный счёт перестаёт быть пуассоновским."
+    val WINDOWS_EDGE_NOTE: String get() = SpectrumRu.windowsEdgeNote
 }

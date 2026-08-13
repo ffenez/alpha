@@ -1,5 +1,8 @@
 package app.radiacode.device
 
+import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.text.Strings
+
 /**
  * Модель прибора и её характеристики, от которых зависит обработка.
  *
@@ -32,7 +35,13 @@ package app.radiacode.device
 enum class DeviceModel(
     /** Как модель называется на экране. */
     val displayName: String,
-    /** Материал сцинтиллятора; null — неизвестен. */
+    /**
+     * Материал сцинтиллятора; null — неизвестен.
+     *
+     * Химическая формула («CsI(Tl)») языку интерфейса не подчиняется, а
+     * «органический пластик» это слова — поэтому у пластика формулы нет, и
+     * подпись собирает [crystalTitle].
+     */
     val crystal: String?,
     /** Нижняя граница энергетической шкалы, кэВ. */
     val minEnergyKeV: Float,
@@ -45,6 +54,8 @@ enum class DeviceModel(
     val resolution662: Float?,
     /** Чувствительность: имп/с на 1 мкЗв/ч по Cs-137; null — не опубликована. */
     val cpsPerMicroSvH: Float?,
+    /** У пластикового сцинтиллятора формулы нет — есть название материала. */
+    val organicPlastic: Boolean = false,
 ) {
     /** RadiaCode 101/102 — первые модели серии; параметры не опубликованы. */
     RC_101("RadiaCode-101", crystal = null, 20f, 3000f, null, null),
@@ -62,11 +73,15 @@ enum class DeviceModel(
      * указывает разрешение как «N/A», поэтому пики, нуклиды, спектрограмма и
      * жёсткость для него не считаются вовсе.
      */
-    ZERO("RadiaCode Zero", "органический пластик", 30f, 3000f, null, 16f),
+    ZERO("RadiaCode Zero", crystal = null, 30f, 3000f, null, 16f, organicPlastic = true),
 
     /** Прибор серии, который мы не опознали: работает на общих правилах. */
     UNKNOWN("RadiaCode", crystal = null, 20f, 3000f, null, null),
     ;
+
+    /** Подпись материала на языке интерфейса; null — материал неизвестен. */
+    fun crystalTitle(s: Strings = RuStrings): String? =
+        crystal ?: if (organicPlastic) s.crystalOrganicPlastic else null
 
     /** Считает ли прибор спектр по каналам (а не просто интенсивность). */
     val isSpectrometer: Boolean get() = this != ZERO

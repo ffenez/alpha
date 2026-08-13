@@ -1,5 +1,8 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.MapRu
+import app.radiacode.ui.text.MapStrings
+
 /**
  * Dark-theme filter for raster OSM tiles, as a 4×5 color matrix (the layout
  * `android.graphics.ColorMatrix` expects). Pure math so the result is
@@ -119,12 +122,17 @@ object TileStatus {
     /** No tile event at all for this long = something is wrong, say it. */
     const val STALL_MILLIS = 15_000L
 
-    fun line(loaded: Int, failed: Int, waitedMillis: Long): String = when {
+    fun line(
+        loaded: Int,
+        failed: Int,
+        waitedMillis: Long,
+        s: MapStrings = MapRu,
+    ): String = when {
         loaded == 0 && failed == 0 ->
-            if (waitedMillis < STALL_MILLIS) "тайлы: загружаются…" else "тайлы: не приходят"
-        loaded == 0 -> "тайлы: ошибка сети · неудачных $failed"
-        failed == 0 -> "тайлы: готово · $loaded"
-        else -> "тайлы: готово · $loaded · неудачных $failed"
+            if (waitedMillis < STALL_MILLIS) s.tilesLoading else s.tilesStalled
+        loaded == 0 -> s.tilesNetworkError(failed)
+        failed == 0 -> s.tilesReady(loaded)
+        else -> s.tilesReadyWithFailures(loaded, failed)
     }
 
     /**
@@ -132,10 +140,14 @@ object TileStatus {
      * every app a revocable «Сеть» permission, and a denied one looks exactly
      * like this — a map that never paints.
      */
-    fun networkHint(loaded: Int, failed: Int, waitedMillis: Long): String? =
+    fun networkHint(
+        loaded: Int,
+        failed: Int,
+        waitedMillis: Long,
+        s: MapStrings = MapRu,
+    ): String? =
         if (loaded == 0 && (failed > 0 || waitedMillis >= STALL_MILLIS)) {
-            "тайлы не загрузились — проверьте доступ приложения к сети " +
-                "(GrapheneOS: разрешение «Сеть»)"
+            s.tilesNetworkHint
         } else {
             null
         }

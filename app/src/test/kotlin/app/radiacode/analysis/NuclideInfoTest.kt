@@ -1,6 +1,8 @@
 package app.radiacode.analysis
 
+import app.radiacode.analysis.evidence.DataSource
 import app.radiacode.ui.logic.NuclideCard
+import app.radiacode.ui.text.NuclideRu
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -103,36 +105,28 @@ class NuclideInfoTest {
             }
         }
 
-        // The standing texts may say «обнаружение» only to deny it.
-        (listOf(NuclideCard.FRAMING, NuclideCard.LIMITS, NuclideCard.SOURCE)).forEach { text ->
-            (forbidden - "обнаружен").forEach { word ->
-                assertTrue(
-                    !text.lowercase().contains(word),
-                    "запрещённая формулировка «$word» в: $text",
-                )
-            }
-        }
     }
 
     @Test
-    fun `the framing repeats that a match is not a detection`() {
-        assertTrue(
-            NuclideCard.FRAMING.contains("возможное совпадение ≠ обнаружение"),
-            NuclideCard.FRAMING,
-        )
-        assertTrue(NuclideCard.FRAMING.contains("справка о нуклиде"), NuclideCard.FRAMING)
+    fun `the standing texts of the card carry the ceiling, not a finding`() {
+        // Потолок формулировок держит статусный блок: «возможное совпадение»
+        // и ни одного слова о находке.
+        assertEquals("ВОЗМОЖНОЕ СОВПАДЕНИЕ", NuclideRu.statusPossibleMatch)
+        assertTrue(!NuclideRu.statusPossibleMatch.lowercase().contains("обнаруж"))
     }
 
     @Test
     fun `the card states what one spectrum on this device cannot do`() {
-        assertTrue(NuclideCard.LIMITS.contains("не определяет нуклид"), NuclideCard.LIMITS)
-        assertTrue(NuclideCard.LIMITS.contains("калибровк"), NuclideCard.LIMITS)
+        assertTrue(NuclideRu.limits.contains("не идентифицирует нуклид"), NuclideRu.limits)
+        assertTrue(NuclideRu.limits.contains("калибровк"), NuclideRu.limits)
     }
 
     @Test
     fun `the numbers are attributed to their evaluated source`() {
-        assertTrue(NuclideCard.SOURCE.contains("IAEA"), NuclideCard.SOURCE)
-        assertTrue(NuclideCard.SOURCE.contains("NuDat"), NuclideCard.SOURCE)
+        // Источник хранится в самих линиях, а не в одной подписи внизу карточки.
+        assertTrue(NuclideInfoLibrary.ALL.all { nuclide -> nuclide.lines.all { it.source == DataSource.ENSDF } })
+        assertTrue(NuclideRu.sourceEnsdf.contains("IAEA"), NuclideRu.sourceEnsdf)
+        assertTrue(NuclideRu.sourceEnsdf.contains("NuDat"), NuclideRu.sourceEnsdf)
     }
 
     @Test

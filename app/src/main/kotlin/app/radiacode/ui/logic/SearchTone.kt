@@ -1,5 +1,9 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.text.SearchRu
+import app.radiacode.ui.text.SearchStrings
+import app.radiacode.ui.text.Strings
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.ln
@@ -16,6 +20,8 @@ import kotlin.math.sin
  * each other, not options to combine.
  */
 enum class SearchFeedbackMode(val id: String, val label: String) {
+    // `label` остаётся русским: его печатает отладочный отчёт, который не
+    // зависит от языка интерфейса. Подпись на экране — [title].
     /** Nothing: the screen is the only channel. */
     OFF("off", "нет"),
 
@@ -27,6 +33,14 @@ enum class SearchFeedbackMode(val id: String, val label: String) {
 
     /** The same signal without sound: pulse cadence follows the ratio. */
     VIBRO("vibro", "вибро");
+
+    /** Подпись сегмента на языке интерфейса. */
+    fun title(s: Strings = RuStrings): String = when (this) {
+        OFF -> s.modeOff
+        CLICKS -> s.modeClicks
+        TONE -> s.modeTone
+        VIBRO -> s.modeVibro
+    }
 
     companion object {
         fun of(id: String?): SearchFeedbackMode? = entries.firstOrNull { it.id == id }
@@ -98,8 +112,8 @@ object SearchTone {
     }
 
     /** «≈ 640 Гц» for the screen; null when the tone is silent. */
-    fun pitchLabel(ratio: Double?): String? =
-        frequencyHz(ratio)?.let { "≈ ${it.roundToInt()} Гц" }
+    fun pitchLabel(ratio: Double?, t: SearchStrings = SearchRu): String? =
+        frequencyHz(ratio)?.let { t.pitch(it.roundToInt()) }
 }
 
 /**
@@ -203,9 +217,9 @@ object SearchVibro {
     }
 
     /** «пульс каждые 0,4 с» for the screen; null when silent. */
-    fun cadenceLabel(ratio: Double?): String? {
+    fun cadenceLabel(ratio: Double?, t: SearchStrings = SearchRu): String? {
         val interval = intervalMillis(ratio) ?: return null
         val seconds = interval / 1000.0
-        return "пульс каждые ${String.format(Locale.US, "%.1f", seconds).replace('.', ',')} с"
+        return t.cadence(String.format(Locale.US, "%.1f", seconds).replace('.', ','))
     }
 }

@@ -1,6 +1,8 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.analysis.CountWindow
+import app.radiacode.ui.text.SearchRu
+import app.radiacode.ui.text.SearchStrings
 import kotlin.math.sqrt
 
 /**
@@ -183,13 +185,13 @@ object LocalBackgroundMachine {
     }
 
     /** One honest line naming what actually happened. */
-    fun abortWording(aborted: LocalBackground.Aborted): String = when (aborted.reason) {
-        BackgroundAbort.STREAM_LOST ->
-            "замер фона прерван: поток данных пропал на ${aborted.collected} " +
-                "из ${aborted.target} с — среднее по неполному интервалу не сохранено"
+    fun abortWording(
+        aborted: LocalBackground.Aborted,
+        t: SearchStrings = SearchRu,
+    ): String = when (aborted.reason) {
+        BackgroundAbort.STREAM_LOST -> t.abortStreamLost(aborted.collected, aborted.target)
         BackgroundAbort.SERVICE_RESTARTED ->
-            "замер фона прерван: измерение перезапустилось на ${aborted.collected} " +
-                "из ${aborted.target} с — в интервале дыра, среднее не сохранено"
+            t.abortServiceRestarted(aborted.collected, aborted.target)
     }
 }
 

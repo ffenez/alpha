@@ -1,5 +1,8 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
+
 import kotlin.math.max
 
 /**
@@ -17,15 +20,21 @@ enum class DoseReference {
 }
 
 /** «выше порога L1» / «выше исторического P90 профиля» — the reference, named. */
-fun referenceWording(reference: DoseReference): String = when (reference) {
-    DoseReference.ALARM_L1 -> "выше порога L1"
-    DoseReference.BASELINE_P90 -> "выше исторического P90 профиля"
+fun referenceWording(
+    reference: DoseReference,
+    s: ChartAxisStrings = ChartAxisRu,
+): String = when (reference) {
+    DoseReference.ALARM_L1 -> s.aboveL1
+    DoseReference.BASELINE_P90 -> s.aboveProfileP90
 }
 
 /** Short form for narrow labels; still names the denominator. */
-fun referenceWordingShort(reference: DoseReference): String = when (reference) {
-    DoseReference.ALARM_L1 -> "> L1"
-    DoseReference.BASELINE_P90 -> "> P90 профиля"
+fun referenceWordingShort(
+    reference: DoseReference,
+    s: ChartAxisStrings = ChartAxisRu,
+): String = when (reference) {
+    DoseReference.ALARM_L1 -> s.aboveL1Short
+    DoseReference.BASELINE_P90 -> s.aboveProfileP90Short
 }
 
 /**
@@ -39,9 +48,12 @@ fun referenceWordingShort(reference: DoseReference): String = when (reference) {
  * названием min/max внутри колонки и не используется как классификация
  * аномальности.
  */
-fun markerWording(reference: DoseReference): String = when (reference) {
-    DoseReference.ALARM_L1 -> "максимум интервала выше порога L1"
-    DoseReference.BASELINE_P90 -> "максимум интервала выше P90 профиля"
+fun markerWording(
+    reference: DoseReference,
+    s: ChartAxisStrings = ChartAxisRu,
+): String = when (reference) {
+    DoseReference.ALARM_L1 -> s.markerAboveL1
+    DoseReference.BASELINE_P90 -> s.markerAboveProfileP90
 }
 
 /** A stretch of the window that stayed above a named reference (§20). */

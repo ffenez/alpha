@@ -82,7 +82,6 @@ interface Strings {
     val hardness: String
     val trendPerHour: String
     val doseToday: String
-    val whyThisConclusion: String
     val placeFingerprint: String
 
     // --- настройки: корень ---
@@ -118,7 +117,7 @@ interface Strings {
     val statusAboveThresholdShort: String
     val statusAlert: String
 
-    /** «порог L1 0,30 мкЗв/ч · исторический диапазон профиля ещё не собран». */
+    /** «порог L1 0,30 мкЗв/ч · обычный диапазон профиля ещё не собран». */
     fun detailNoBaseline(threshold: String): String
 
     /** «P10–P90: 0,09–0,14 мкЗв/ч · наблюдений: 26 ч». */
@@ -191,8 +190,6 @@ interface Strings {
     // --- Спектр ---
     val spectrumAccumulating: String
     val spectrumContinuation: String
-    val spectrogramEntry: String
-    val radonEntry: String
     val formatUnsupportedTitle: String
     fun formatUnsupportedBody(version: Int): String
     val spectrumReading: String
@@ -212,12 +209,6 @@ interface Strings {
     val sumShown: String
     val noLiveAccumulation: String
     val continuationWarning: String
-    val spectrumInfoTitle: String
-    val spectrumInfoAxes: String
-    val spectrumInfoSignificance: String
-    val spectrumInfoCandidate: String
-    val spectrumInfoScales: String
-    val spectrumInfoGestures: String
     val scaleLinear: String
     val scalePower: String
     val scaleLog: String
@@ -233,15 +224,11 @@ interface Strings {
     val notEnoughForPeaks: String
     val noPeaksFound: String
     val peakTableCaveat: String
-    val recordBackground: String
-    val save: String
     val reset: String
     val resetSpectrumTitle: String
     val resetSpectrumBody: String
     val cancel: String
     fun edgeCounts(counts: String): String
-    fun rangeWhole(range: String): String
-    fun rangeDraggable(range: String): String
     val noSpectrumBackground: String
 
 
@@ -286,6 +273,13 @@ interface Strings {
     val pickTwoToCompare: String
     val pickTwoOrMoreToMerge: String
     val snapshotOpensActions: String
+
+    /** История → снимок: открыть его на полном экране Спектра. */
+    val openSnapshot: String
+
+    /** Заголовок выбора второго снимка для сравнения. */
+    val chooseSnapshotToCompare: String
+
     fun mergeAction(count: Int): String
     fun mergedSaved(label: String): String
     val mergeImpossible: String
@@ -300,6 +294,39 @@ interface Strings {
     // --- «Почему такой вывод» ---
     val evidenceLegend: String
     val nowSection: String
+
+    /** «Обычный диапазон здесь» — пара к «Сейчас» над шкалой P10–P90. */
+    val usualRangeHere: String
+
+    /** Обязательная оговорка первого уровня: это отличие от СВОЕГО фона. */
+    val notASafetyConclusion: String
+
+    /** Первый уровень: сколько данных стоит за сравнением. */
+    val dataVolume: String
+    val usedForComparison: String
+    val suitableMeasurements: String
+
+    /** «Измерений: 1 800» — честная подпись: это показания, а не секунды. */
+    val measurementsCount: String
+    val measurementsCountNote: String
+
+    /** Третий уровень: MAD, минутные интервалы, формулы. */
+    val calculationsSection: String
+    val countIsNotDose: String
+
+    /** Чья это погрешность рядом с дозой — и чем она не является. */
+    val deviceErrorNote: String
+    val deviceErrorBudget: String
+
+    /** Положение человеческими словами (первый уровень). */
+    val insideUsualRange: String
+    val aboveUsualRange: String
+    val belowUsualRange: String
+
+    /** Спектральное сравнение одной фразой, без χ² и z. */
+    val spectralComparedPlain: String
+    val spectralTooLittlePlain: String
+    val shapeStatistics: String
     val poissonNote: String
     val dataSection: String
     val profile: String
@@ -320,6 +347,9 @@ interface Strings {
     val median: String
     val madNote: String
     val usableData: String
+
+    /** Критерии отбора — там же, где число (§3: «критерии — в подробностях»). */
+    val usableDataNote: String
     val minuteBuckets: String
     val honestN: String
     val notEnoughData: String
@@ -328,6 +358,10 @@ interface Strings {
     val updatingNote: String
     val notUpdatingNote: String
     val state: String
+
+    /** Второй уровень (§12): заголовок разбора исключений и его строки. */
+    val excludedSection: String
+    val excludedNow: String
     val excludedFromStatistics: String
     val statisticsState: String
     val quarantineNote: String
@@ -347,8 +381,6 @@ interface Strings {
     val noChangeDetected: String
     val changeDetected: String
     val spectralNoReference: String
-    fun spectralTooLittle(detail: String): String
-    fun spectralCompared(detail: String): String
     val spectralComparison: String
 
 
@@ -379,6 +411,40 @@ interface Strings {
     val translationNote: String
     val skinTitle: String
     val skinNote: String
+    val skinTerminal: String
+    val skinEightBit: String
+    val themeSystem: String
+    val themeDark: String
+    val themeLight: String
+
+    /** Уровень сигнала найденного прибора: «−72 дБм». */
+    fun signalDbm(value: Int): String
+
+    /** «от 0,30 мкЗв/ч или 2× к P90 профиля, держится 2 мин». */
+    fun alarmPreset(level: String, factor: String, held: String): String
+
+    /** Режим отклика Поиска в сегменте Настроек: нет · клики · тон · вибро. */
+    /** Материал сцинтиллятора, у которого нет химической формулы. */
+    /** Масштаб интерфейса: заголовок раздела, два ползунка и подпись. */
+    /** Хранение сырых измерений: заголовок, варианты и пояснение. */
+    val retentionTitle: String
+    val retentionKeepAll: String
+    fun retentionDays(days: Int): String
+    val retentionNote: String
+
+    val scaleTitle: String
+    val scaleNote: String
+    val scaleFont: String
+    val scaleElements: String
+    fun scalePercent(percent: Int): String
+    val scaleReset: String
+
+    val crystalOrganicPlastic: String
+
+    val modeOff: String
+    val modeClicks: String
+    val modeTone: String
+    val modeVibro: String
     val themeTitle: String
     val themeNote: String
     val alarmsIntro: String
@@ -441,11 +507,25 @@ interface Strings {
     val temperature: String
     val stream: String
     val streamActive: String
+
+    /** Состояние потока (`ui/logic/StreamState`): одна строка на состояние. */
+    fun streamNoNewData(seconds: Long): String
+    val streamReconnecting: String
+    val streamLost: String
+    val streamNoDataYet: String
+    fun lastMeasurementAgo(seconds: Long): String
     val unitsTitle: String
     val unitMicroSv: String
     val unitMicroSvNote: String
     val unitMicroR: String
     val unitMicroRNote: String
+
+    /**
+     * Накопленная доза — своя единица, а не «мкЗв/ч» без «/ч»: обрезать
+     * суффикс у переведённой строки нельзя, у «µSv/h» и «мкЗв/ч» он разный.
+     */
+    val unitDoseMicroSv: String
+    val unitDoseMicroR: String
     val unitsNote: String
     val interfaceTitle: String
     val tabsNote: String
@@ -476,6 +556,10 @@ interface Strings {
     val deviceSignalsNote: String
     val deviceSound: String
     val deviceVibro: String
+    val deviceSignalsUnknownNote: String
+    val deviceSignalsOfflineNote: String
+    /** «медиана 0,12 · P25–P75 … · MAD … · n 26 минутных интервалов». */
+    fun baselineStats(median: String, iqr: String, mad: String, buckets: Int): String
     val stateUnknown: String
     val stateOnByApp: String
     val stateOffByApp: String
@@ -493,7 +577,7 @@ interface Strings {
 fun Strings.allTexts(): List<String> = listOf(
     tabHome, tabSearch, tabSpectrum, tabMap, tabHistory, back, close, settings,
     connected, connecting, reconnecting, serviceOff, noLink, noData,
-    doseRate, countRate, hardness, trendPerHour, doseToday, whyThisConclusion, placeFingerprint,
+    doseRate, countRate, hardness, trendPerHour, doseToday, placeFingerprint,
     groupMeasurement, groupApp, groupOther,
     settingsAlarms, settingsAlarmsSub, settingsProfiles, settingsProfilesSub,
     settingsNotifications, settingsNotificationsSub, settingsView, settingsViewSub,
@@ -516,23 +600,24 @@ fun Strings.allTexts(): List<String> = listOf(
     searchExcessExplained("4 с", null), searchDeficitExplained("4 с", null),
     ratioToBackground("1,8", null), confidenceInterval(95, "1,5", "2,2"),
     deviceSignals, deviceSignalsNote, deviceSound, deviceVibro,
+    deviceSignalsUnknownNote, deviceSignalsOfflineNote,
+    baselineStats("0,12", "0,11–0,14", "0,01", 26),
     stateUnknown, stateOnByApp, stateOffByApp, on, off,
     onboardingBrand, onboardingConnectTitle, onboardingConnectBody, onboardingPermissions,
     onboardingBluetoothDenied, retry, start, onboardingBackgroundTitle, onboardingBackgroundBody,
     onboardingBatteryNote, later, allow, onboardingScanTitle, scanning, onboardingScanBody,
     onboardingScanFailed, connecting2, connect,
-    spectrumAccumulating, spectrumContinuation, spectrogramEntry, radonEntry,
+    spectrumAccumulating, spectrumContinuation,
     formatUnsupportedTitle, formatUnsupportedBody(2), spectrumReading, noInstrumentLink,
     spectrumAfterConnect, exportFailedTitle, exportFailedBody, importAction, exportXml,
     exportN42, exportFormatsNote, savedToPrefix, continuationTitle, disable,
     snapshotDeltaPrefix, sumImpossible("—"), sumShown, noLiveAccumulation,
-    continuationWarning, spectrumInfoTitle, spectrumInfoAxes, spectrumInfoSignificance,
-    spectrumInfoCandidate, spectrumInfoScales, spectrumInfoGestures,
+    continuationWarning,
     scaleLinear, scalePower, scaleLog, powerDegree(2), spectrumModeRaw,
     spectrumModeMinusBackground, smoothing, energyRanges, peakTableEnergy, peakTableNet,
     peakTableSignificance, peakTableCandidate, notEnoughForPeaks, noPeaksFound,
-    peakTableCaveat, recordBackground, save, reset, resetSpectrumTitle, resetSpectrumBody,
-    cancel, edgeCounts("8 421"), rangeWhole("20–3000"), rangeDraggable("100–1500"),
+    peakTableCaveat, reset, resetSpectrumTitle, resetSpectrumBody,
+    cancel, edgeCounts("8 421"),
     noSpectrumBackground,
     sessionsCount(12), selectAll, clearAll, selectedCount(3), readingJournal, noSessionsYet,
     sessionExplained, showMore, accumulatedDose, calculatedTag, partialDayNote,
@@ -541,19 +626,28 @@ fun Strings.allTexts(): List<String> = listOf(
     noSamplesInSession, profileEllipsis, sessionProfileTitle, sessionProfileBody("12:00"),
     deviation, excursionPoint, usually, fileSaved, spectraTitle, compare, merge,
     markForDeletion, pickTwoToCompare, pickTwoOrMoreToMerge, snapshotOpensActions,
+    openSnapshot, chooseSnapshotToCompare,
     mergeAction(2), mergedSaved("x"), mergeImpossible, compareWithAnother,
     continueAccumulation, continueAccumulationNote, importedTag, backgroundTag, delete,
-    evidenceLegend, nowSection, poissonNote, dataSection, profile, outsideProfile,
+    evidenceLegend, nowSection, usualRangeHere, notASafetyConclusion,
+    dataVolume, usedForComparison, suitableMeasurements,
+    measurementsCount, measurementsCountNote, calculationsSection, countIsNotDose,
+    deviceErrorNote, deviceErrorBudget,
+    insideUsualRange, aboveUsualRange, belowUsualRange,
+    spectralComparedPlain, spectralTooLittlePlain, shapeStatistics,
+    poissonNote, dataSection, profile, outsideProfile,
     comparisonSection, historicalRange, notCollectedYet, comparisonRuns,
     withThresholdL1("0,30"), thresholdIsNotSafety, currentValue, position, bandExplained,
     belowP10, aboveP90, insideBand, profileStatistics, median, madNote, usableData,
+    usableDataNote,
     minuteBuckets, honestN, notEnoughData, updating, temporarilyNotUpdating, updatingNote,
-    notUpdatingNote, state, excludedFromStatistics, statisticsState, quarantineNote,
+    notUpdatingNote, state, excludedSection, excludedNow, excludedFromStatistics,
+    statisticsState, quarantineNote,
     howDetected, absoluteThresholdL1, relativeCriterion, timesProfileP90("×2"),
     minimumDuration, shorterNotAnnounced, returnCriterion, backBelowThreshold,
     exclusionAfterEvent, fromEndOfDeviation, criteriaNote, notEvaluated,
     notEnoughStatistics, noChangeDetected, changeDetected, spectralNoReference,
-    spectralTooLittle("—"), spectralCompared("—"), spectralComparison,
+    spectralComparison,
     searchFeedbackTitle, feedbackOnScreenOnly, feedbackClicks,
     feedbackTone, feedbackVibro, energyTone,
     energyToneNote, alarmTitle, archiveSaved,
@@ -561,7 +655,12 @@ fun Strings.allTexts(): List<String> = listOf(
     debugBundleNote, whatIsWrong, whatIsWrongHint,
     saveDebugArchive, notConnected, measurementsCounted,
     no, notRecorded, notCreated,
-    translationNote, skinTitle, skinNote,
+    translationNote, skinTitle, skinNote, skinTerminal, skinEightBit,
+    themeSystem, themeDark, themeLight,
+    signalDbm(-72), alarmPreset("0,30", "2", held(minutes(2))),
+    retentionTitle, retentionKeepAll, retentionDays(90), retentionNote,
+    scaleTitle, scaleNote, scaleFont, scaleElements, scalePercent(100), scaleReset,
+    crystalOrganicPlastic, modeOff, modeClicks, modeTone, modeVibro,
     themeTitle, themeNote, alarmsIntro,
     nowLabel, usuallyHere, thresholdL1,
     noBandToCompare, sensitivityNormal, sensitivityHigh,
@@ -581,9 +680,10 @@ fun Strings.allTexts(): List<String> = listOf(
     modelLabel, serialNumber, firmware,
     bluetoothConnected, bluetoothConnecting, bluetoothNoLink,
     serviceStopped, instrumentBattery, temperature,
-    stream, streamActive, unitsTitle,
+    stream, streamActive, streamNoNewData(8), streamReconnecting, streamLost,
+    streamNoDataYet, lastMeasurementAgo(120), unitsTitle,
     unitMicroSv, unitMicroSvNote, unitMicroR,
-    unitMicroRNote, unitsNote, interfaceTitle,
+    unitMicroRNote, unitDoseMicroSv, unitDoseMicroR, unitsNote, interfaceTitle,
     tabsNote, alwaysVisible, atLeastOneTab,
     monitorBlocksNote, blockTrend, blockDoseToday,
     blockCountChart, blockHardnessChart, blockStats,

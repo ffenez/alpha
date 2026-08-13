@@ -37,6 +37,12 @@ import app.radiacode.ui.components.StatusRow
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.durationWording
+import app.radiacode.ui.text.FingerprintCatalogue
+import app.radiacode.ui.text.FingerprintStrings
+import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
+import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -64,8 +70,11 @@ private data class FingerprintModel(
  */
 @Composable
 fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = FingerprintCatalogue.of(strings.language)
     val scope = rememberCoroutineScope()
 
     val activeProfile by graph.profileRepository.activeProfile().collectAsState(initial = null)
@@ -74,7 +83,9 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
 
     var model by remember { mutableStateOf<FingerprintModel?>(null) }
     var reload by remember { mutableIntStateOf(0) }
-    LaunchedEffect(activeProfile?.id, baselineState, reload) {
+    // Язык — ключ пересчёта: числа те же, но вердикты и причины собираются
+    // текстом, и после переключения языка модель обязана собраться заново.
+    LaunchedEffect(activeProfile?.id, baselineState, reload, t) {
         while (true) {
             val profile = activeProfile
             model = if (profile == null) {
@@ -86,9 +97,10 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
                     comparison = Fingerprint.compare(
                         window = repository.window(profile.id),
                         reference = repository.reference(profile.id),
+                        s = t,
                     ),
                     reference = repository.entity(profile.id),
-                    maturity = repository.maturity(profile.id, baselineState),
+                    maturity = repository.maturity(profile.id, baselineState, t),
                     baselineActive = baselineState is BaselineState.Active,
                 )
             }
@@ -104,16 +116,15 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← Назад", onClick = onBack)
+            AppButton(text = "← ${strings.back}", onClick = onBack)
             Spacer(Modifier.weight(1f))
-            Chip(text = "Отпечаток места", color = colors.ink)
         }
 
         val current = model
         if (current == null) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "сначала выберите профиль на Главной — отпечаток принадлежит месту",
+                    text = t.chooseProfileFirst,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
@@ -125,18 +136,18 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(
-                    text = current.profileName ?: "Без профиля",
+                    text = current.profileName ?: strings.noProfile,
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
                 StatusRow(
-                    text = Fingerprint.headline(current.comparison),
+                    text = Fingerprint.headline(current.comparison, t),
                     color = if (current.comparison.anyChanged) colors.warn else colors.ok,
                 )
-                Fingerprint.hardnessLine(current.comparison)?.let {
+                Fingerprint.hardnessLine(current.comparison, t)?.let {
                     Text(text = it, style = type.footnote, color = colors.muted)
                 }
-                Text(text = Fingerprint.CAVEAT, style = type.footnote, color = colors.muted)
+                Text(text = t.caveat, style = type.footnote, color = colors.muted)
             }
         }
 
@@ -151,13 +162,13 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = verdict.dimension.title,
+                                text = verdict.dimension.title(t),
                                 style = type.label,
                                 color = colors.ink,
                             )
                             Spacer(Modifier.weight(1f))
                             Text(
-                                text = stateLabel(verdict.state),
+                                text = stateLabel(verdict.state, t),
                                 style = type.value,
                                 color = stateColor(verdict.state),
                             )
@@ -169,7 +180,7 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
                         )
                         verdict.changePercent?.let {
                             Text(
-                                text = if (it >= 0) "+$it % к эталону" else "$it % к эталону",
+                                text = t.changeToReference(it),
                                 style = type.footnote,
                                 color = colors.ink2,
                             )
@@ -182,12 +193,15 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
         // --- эталон
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = "Эталон".uppercase(), style = type.labelSmall, color = colors.ink2)
+                Text(
+                    text = t.referenceSection.uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                )
                 val reference = current.reference
                 if (reference == null) {
                     Text(
-                        text = "ещё не создан — приложение создаст его само, когда у места " +
-                            "наберётся достаточно пригодных измерений и спектра",
+                        text = t.referenceNotCreatedYet,
                         style = type.bodySmall,
                         color = colors.ink2,
                     )
@@ -196,23 +210,26 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
                     }
                 } else {
                     Text(
-                        text = "создан ${HistoryFormat.dayTime(reference.createdAt, System.currentTimeMillis())} · " +
-                            "накопление ${durationWording(reference.accumulatedSeconds)} · " +
-                            "спектр ${durationWording(reference.spectrumSeconds)}",
+                        text = t.referenceCreated(
+                            day = HistoryFormat.dayTime(
+                                reference.createdAt,
+                                System.currentTimeMillis(),
+                                s = h,
+                            ),
+                            accumulated = durationWording(reference.accumulatedSeconds),
+                            spectrum = durationWording(reference.spectrumSeconds),
+                        ),
                         style = type.bodySmall,
                         color = colors.ink2,
                     )
                     Text(
-                        text = "Текущий профиль обновляется автоматически и отвечает на вопрос " +
-                            "«что обычно здесь сейчас». Эталон заморожен и отвечает на вопрос " +
-                            "«как здесь было тогда» — поэтому постепенное изменение обстановки " +
-                            "видно как расхождение между ними.",
+                        text = t.referenceFrozenExplanation,
                         style = type.footnote,
                         color = colors.muted,
                     )
                 }
                 AppButton(
-                    text = if (reference == null) "Создать эталон сейчас" else "Обновить эталон",
+                    text = if (reference == null) t.createReference else t.updateReference,
                     onClick = {
                         val profileId = activeProfile?.id
                         val baseline = (baselineState as? BaselineState.Active)?.baseline
@@ -231,8 +248,7 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
-                    text = "Обновление нужно после ремонта, переезда или смены прибора: " +
-                        "прежний эталон останется в истории места.",
+                    text = t.updateReferenceNote,
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -241,11 +257,11 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
     }
 }
 
-private fun stateLabel(state: FingerprintState): String = when (state) {
-    FingerprintState.SAME -> "отличий не найдено"
-    FingerprintState.CHANGED -> "отличается"
-    FingerprintState.NOT_ENOUGH_DATA -> "мало данных"
-    FingerprintState.NOT_EVALUATED -> "не оценивалось"
+private fun stateLabel(state: FingerprintState, t: FingerprintStrings): String = when (state) {
+    FingerprintState.SAME -> t.stateSame
+    FingerprintState.CHANGED -> t.stateChanged
+    FingerprintState.NOT_ENOUGH_DATA -> t.stateNotEnoughData
+    FingerprintState.NOT_EVALUATED -> t.stateNotEvaluated
 }
 
 @Composable

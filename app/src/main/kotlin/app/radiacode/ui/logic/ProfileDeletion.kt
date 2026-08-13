@@ -1,6 +1,8 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.data.db.ProfileEntity
+import app.radiacode.ui.text.MonitorRu
+import app.radiacode.ui.text.MonitorStrings
 
 /**
  * Why a profile may not be deleted. The reason is part of the contract: a
@@ -90,25 +92,19 @@ sealed interface ProfileDeletion {
         }
 
         /** One honest line naming the actual obstacle. */
-        fun blockedWording(blocked: Blocked): String = when (blocked.reason) {
-            ProfileDeletionBlock.UNKNOWN ->
-                "профиль уже удалён"
-            ProfileDeletionBlock.LAST_LIVE_PROFILE ->
-                "это последний профиль — измерениям нужен хотя бы один, " +
-                    "создайте другой и удалите этот"
+        fun blockedWording(
+            blocked: Blocked,
+            s: MonitorStrings = MonitorRu,
+        ): String = when (blocked.reason) {
+            ProfileDeletionBlock.UNKNOWN -> s.deleteBlockedUnknown
+            ProfileDeletionBlock.LAST_LIVE_PROFILE -> s.deleteBlockedLastLive
             ProfileDeletionBlock.HAS_CHILDREN ->
-                "сначала удалите вложенные профили: " +
-                    blocked.children.joinToString(", ")
-            ProfileDeletionBlock.REQUIRED_ROLE ->
-                "в этот профиль автоматика складывает измерения, когда знакомого места " +
-                    "нет — удалить его нельзя, приложение создало бы его заново. " +
-                    "Профиль можно переименовать или заархивировать"
+                s.deleteBlockedHasChildren(blocked.children.joinToString(", "))
+            ProfileDeletionBlock.REQUIRED_ROLE -> s.deleteBlockedRequiredRole
         }
 
         /** Confirmation text: says out loud that measurements survive. */
-        fun confirmWording(profileName: String): String =
-            "Удалить профиль «$profileName»? Его измерения останутся в журнале — " +
-                "они потеряют привязку к профилю, но не удаляются. " +
-                "Обычный фон, накопленный этим профилем, пропадёт вместе с ним."
+        fun confirmWording(profileName: String, s: MonitorStrings = MonitorRu): String =
+            s.deleteConfirm(profileName)
     }
 }

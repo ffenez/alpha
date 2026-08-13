@@ -32,8 +32,10 @@ import app.radiacode.ui.components.NavBar
 import app.radiacode.ui.logic.NavConfig
 import app.radiacode.ui.screens.AbExperimentScreen
 import app.radiacode.ui.logic.ChartMetric
+import app.radiacode.ui.logic.ChartRange
 import app.radiacode.ui.screens.FingerprintScreen
 import app.radiacode.ui.screens.HistoryScreen
+import app.radiacode.ui.logic.SpectrumViewOptions
 import app.radiacode.ui.screens.LiveChartScreen
 import app.radiacode.ui.screens.MapScreen
 import app.radiacode.ui.screens.MonitorScreen
@@ -61,6 +63,7 @@ private sealed interface RememberedDevice {
  */
 /** Что именно показано сейчас — ключ перехода между экранами. */
 private data class ScreenKey(
+    val spectrumSnapshotId: Long?,
     val settings: Boolean,
     val fingerprint: Boolean,
     val spectrogram: Boolean,
@@ -121,6 +124,33 @@ private fun MainScaffold(graph: AppGraph) {
     // или жёсткость — экран и жесты одни и те же.
     var chartMetricId by rememberSaveable { mutableStateOf(ChartMetric.DOSE.id) }
     var showLiveChart by rememberSaveable { mutableStateOf(false) }
+    // Полноэкранный график, открытый для ДИАПАЗОНА сессии: границы живут
+    // здесь, потому что экран графика один и тот же, а край времени у него
+    // может быть либо «сейчас», либо конец этой сессии.
+    var chartRangeFrom by rememberSaveable { mutableStateOf<Long?>(null) }
+    var chartRangeTo by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Снимок спектра из Истории, открытый на просмотр.
+    var spectrumSnapshotId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Полноэкранный спектр (тап по самому графику). Состояние живёт здесь по
+    // той же причине, что и у полноэкранного графика: поле обязано рисоваться
+    // ПОВЕРХ таб-бара, а не полосой над ним. Вместе с флагом уезжает и вид, в
+    // котором по графику тапнули, — иначе полный экран подменил бы картинку.
+    var fullSpectrum by rememberSaveable { mutableStateOf(false) }
+    var fullSpectrumMinusBackground by rememberSaveable { mutableStateOf(false) }
+    var fullSpectrumSmoothing by rememberSaveable { mutableStateOf(false) }
+    var fullSpectrumFromKeV by rememberSaveable { mutableStateOf(0f) }
+    var fullSpectrumToKeV by rememberSaveable { mutableStateOf(0f) }
+    // Отметка линии — часть того же вида: её поставили, чтобы рассмотреть место
+    // на шкале, и полный экран открывают ровно за этим.
+    var fullSpectrumHighlightKeV by rememberSaveable { mutableStateOf(0f) }
+    val openFullSpectrum: (SpectrumViewOptions) -> Unit = { options ->
+        fullSpectrumMinusBackground = options.minusBackground
+        fullSpectrumSmoothing = options.smoothing
+        fullSpectrumFromKeV = options.startKeV
+        fullSpectrumToKeV = options.endKeV
+        fullSpectrumHighlightKeV = options.highlightKeV
+        fullSpectrum = true
+    }
     var showSpectrogram by rememberSaveable { mutableStateOf(false) }
     var showExperiments by rememberSaveable { mutableStateOf(false) }
     var showRadon by rememberSaveable { mutableStateOf(false) }
@@ -131,14 +161,16 @@ private fun MainScaffold(graph: AppGraph) {
     var continueSpectrumId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     BackHandler(
-        enabled = showSettings || showLiveChart || showSpectrogram || showRadon ||
+        enabled = showSettings || showLiveChart || fullSpectrum || showSpectrogram || showRadon ||
             showExperiments || showFingerprint || sessionDetailId != null ||
-            trackMapSessionId != null,
+            trackMapSessionId != null || spectrumSnapshotId != null,
     ) {
         when {
             showSettings -> showSettings = false
+            fullSpectrum -> fullSpectrum = false
             showFingerprint -> showFingerprint = false
             showLiveChart -> showLiveChart = false
+            spectrumSnapshotId != null -> spectrumSnapshotId = null
             showSpectrogram -> showSpectrogram = false
             showRadon -> showRadon = false
             showExperiments -> showExperiments = false
@@ -150,11 +182,37 @@ private fun MainScaffold(graph: AppGraph) {
     // The fullscreen chart is the one screen that owns the whole display: it
     // renders above the tab bar (and handles its own system-bar insets), so
     // the plot really does fill the screen instead of a strip in the middle.
+    // Полноэкранный спектр — тот же приём, что у полноэкранного графика:
+    // экран владеет дисплеем целиком. Данные берёт ТОТ ЖЕ `SpectrumScreen`
+    // (снимок из Истории или живое накопление), поэтому источник спектра
+    // выбирается одним правилом на оба режима.
+    if (fullSpectrum) {
+        SpectrumScreen(
+            graph = graph,
+            snapshotId = spectrumSnapshotId,
+            continueSnapshotId = continueSpectrumId,
+            fullscreenOptions = SpectrumViewOptions(
+                minusBackground = fullSpectrumMinusBackground,
+                smoothing = fullSpectrumSmoothing,
+                startKeV = fullSpectrumFromKeV,
+                endKeV = fullSpectrumToKeV,
+                highlightKeV = fullSpectrumHighlightKeV,
+            ),
+            onCloseFullscreen = { fullSpectrum = false },
+        )
+        return
+    }
+
     if (showLiveChart) {
+        val from = chartRangeFrom
+        val to = chartRangeTo
         LiveChartScreen(
             graph = graph,
             onBack = { showLiveChart = false },
             metric = ChartMetric.of(chartMetricId),
+            // Диапазон есть — график стоит на прошлом; нет — едет за живым
+            // краем. Экран один, различается только край.
+            range = if (from != null && to != null) ChartRange(from, to) else null,
         )
         return
     }
@@ -173,6 +231,7 @@ private fun MainScaffold(graph: AppGraph) {
             // внутри не анимируются никогда (см. ui/theme/Motion.kt).
             AnimatedContent(
                 targetState = ScreenKey(
+                    spectrumSnapshotId = spectrumSnapshotId,
                     settings = showSettings,
                     fingerprint = showFingerprint,
                     spectrogram = showSpectrogram,
@@ -197,6 +256,14 @@ private fun MainScaffold(graph: AppGraph) {
             // иначе уходящий кадр перерисовался бы уже новым экраном.
             when {
                 key.settings -> SettingsScreen(graph, onBack = { showSettings = false })
+                // Снимок спектра открывается ТЕМ ЖЕ экраном Спектра — поверх
+                // вкладок, чтобы «назад» возвращало в Историю, а не на вкладку.
+                key.spectrumSnapshotId != null -> SpectrumScreen(
+                    graph = graph,
+                    snapshotId = key.spectrumSnapshotId,
+                    onBack = { spectrumSnapshotId = null },
+                    onOpenFullscreen = openFullSpectrum,
+                )
                 key.fingerprint -> FingerprintScreen(
                     graph = graph,
                     onBack = { showFingerprint = false },
@@ -217,6 +284,12 @@ private fun MainScaffold(graph: AppGraph) {
                     sessionId = key.detailId,
                     onBack = { sessionDetailId = null },
                     onOpenTrack = { trackMapSessionId = key.detailId },
+                    onOpenChart = { from, to ->
+                        chartMetricId = ChartMetric.DOSE.id
+                        chartRangeFrom = from
+                        chartRangeTo = to
+                        showLiveChart = true
+                    },
                 )
                 else -> when (key.tab) {
                     AppTab.HOME -> MonitorScreen(
@@ -224,10 +297,15 @@ private fun MainScaffold(graph: AppGraph) {
                         onOpenSettings = { showSettings = true },
                         onOpenChart = {
                             chartMetricId = ChartMetric.DOSE.id
+                            // С Главной график живой: диапазон снимается.
+                            chartRangeFrom = null
+                            chartRangeTo = null
                             showLiveChart = true
                         },
                         onOpenMetricChart = { metric ->
                             chartMetricId = metric.id
+                            chartRangeFrom = null
+                            chartRangeTo = null
                             showLiveChart = true
                         },
                     )
@@ -250,11 +328,13 @@ private fun MainScaffold(graph: AppGraph) {
                         onOpenExperiments = { showExperiments = true },
                         continueSnapshotId = continueSpectrumId,
                         onStopContinuation = { continueSpectrumId = null },
+                        onOpenFullscreen = openFullSpectrum,
                     )
                     AppTab.MAP -> MapScreen(graph)
                     AppTab.HISTORY -> HistoryScreen(
                         graph = graph,
                         onOpenSession = { sessionDetailId = it },
+                        onOpenSpectrum = { spectrumSnapshotId = it },
                         onContinueSpectrum = {
                             continueSpectrumId = it
                             tab = AppTab.SPECTRUM
@@ -275,6 +355,7 @@ private fun MainScaffold(graph: AppGraph) {
                 showExperiments = false
                 sessionDetailId = null
                 trackMapSessionId = null
+                spectrumSnapshotId = null
                 tab = it
             },
         )

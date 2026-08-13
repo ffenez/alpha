@@ -1,5 +1,7 @@
 package app.radiacode.analysis
 
+import app.radiacode.ui.text.SpectrumRu
+import app.radiacode.ui.text.SpectrumStrings
 import kotlin.math.ceil
 import kotlin.math.sqrt
 
@@ -214,24 +216,23 @@ object EnergyWindows {
     // --- editing / storage of the bounds (they are analysis parameters) ---
 
     /** Refusal reason for a proposed window set, or null when it is usable. */
-    fun validate(specs: List<EnergyWindowSpec>): String? {
-        if (specs.isEmpty()) return "нужно хотя бы одно окно"
+    fun validate(specs: List<EnergyWindowSpec>, s: SpectrumStrings = SpectrumRu): String? {
+        if (specs.isEmpty()) return s.windowsNeedOne
         for (spec in specs) {
             if (!spec.startKeV.isFinite() || !spec.endKeV.isFinite()) {
-                return "границы окна должны быть числами"
+                return s.windowBoundsNotNumbers
             }
             if (spec.startKeV < MIN_BOUND_KEV || spec.endKeV > MAX_BOUND_KEV) {
-                return "границы окон должны лежать в диапазоне прибора " +
-                    "${MIN_BOUND_KEV.toInt()}–${MAX_BOUND_KEV.toInt()} кэВ"
+                return s.windowBoundsOutOfRange(MIN_BOUND_KEV.toInt(), MAX_BOUND_KEV.toInt())
             }
             if (spec.widthKeV < MIN_WIDTH_KEV) {
-                return "окно уже ${MIN_WIDTH_KEV.toInt()} кэВ — это меньше разрешения прибора"
+                return s.windowTooNarrow(MIN_WIDTH_KEV.toInt())
             }
         }
         val sorted = specs.sortedBy { it.startKeV }
         for (i in 1 until sorted.size) {
             if (sorted[i].startKeV < sorted[i - 1].endKeV) {
-                return "окна пересекаются — импульс попал бы в два окна сразу"
+                return s.windowsOverlap
             }
         }
         return null

@@ -1,5 +1,8 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
+
 import app.radiacode.analysis.AlgorithmVersions
 import app.radiacode.analysis.quantiles.KllSketch
 import app.radiacode.data.JsonMap
@@ -123,13 +126,18 @@ object QuantilePaths {
 object QuantileMetadata {
 
     /** «KLL k=128 · v1» — the short form shown next to an approximate number. */
-    fun label(method: QuantileMethod, k: Int = KllSketch.DEFAULT_K): String = when (method) {
-        QuantileMethod.EXACT_RAW -> "точные порядковые статистики сырых отсчётов"
-        QuantileMethod.KLL_SKETCH ->
-            "KLL-скетч, k=$k, v${AlgorithmVersions.QUANTILE_SKETCH}, ошибка ранга ≈ " +
-                errorPercentLabel(k)
-        QuantileMethod.SUB_BUCKET_MEANS ->
-            "оценка по средним под-корзин — без доказанной границы ошибки"
+    fun label(
+        method: QuantileMethod,
+        k: Int = KllSketch.DEFAULT_K,
+        s: ChartAxisStrings = ChartAxisRu,
+    ): String = when (method) {
+        QuantileMethod.EXACT_RAW -> s.quantilesExact
+        QuantileMethod.KLL_SKETCH -> s.quantilesSketch(
+            k = k,
+            version = AlgorithmVersions.QUANTILE_SKETCH,
+            rankError = errorPercentLabel(k),
+        )
+        QuantileMethod.SUB_BUCKET_MEANS -> s.quantilesEstimate
     }
 
     /** «≈ 1,8 %» — the nominal rank error of the sketch for an accuracy k. */

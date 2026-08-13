@@ -1,9 +1,24 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.analysis.quantiles.KllSketch
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
+import app.radiacode.ui.text.ChartTextRu
+import app.radiacode.ui.text.ChartTextStrings
 
-/** Раздел справки о графике: заголовок и несколько коротких абзацев. */
-data class ChartInfoSection(val title: String, val lines: List<String>)
+/**
+ * Раздел справки о графике: заголовок, короткие абзацы и второй уровень.
+ *
+ * [lines] отвечают на вопрос «что я вижу и что это значит» — их читают все.
+ * [details] раскрываются по «Подробнее» и называют статистику своими именами
+ * (P50, P25–P75, метод квантилей, оговорки об экспозиции): математика не
+ * исчезает, она лежит на шаг глубже.
+ */
+data class ChartInfoSection(
+    val title: String,
+    val lines: List<String>,
+    val details: List<String> = emptyList(),
+)
 
 /**
  * Справка «как читать этот график» — то, что раньше лежало полосой мелкого
@@ -18,6 +33,12 @@ data class ChartInfoSection(val title: String, val lines: List<String>)
  * Содержимое зависит от того, что сейчас на экране: про полосу профиля не
  * пишется, когда её нет, про маркеры — когда их нет, а про метод квантилей
  * говорится тот, которым посчитано ЭТО окно.
+ *
+ * Справка построена ДВУМЯ УРОВНЯМИ (14.md): [ChartInfoSection.lines] отвечают
+ * «что я вижу и что это значит», [ChartInfoSection.details] — «как это
+ * называется и как посчитано». Математика не убрана, она на шаг глубже:
+ * P50 и P25–P75 не исчезли из справки, они просто не первое, что человек
+ * читает про линию на графике.
  */
 object ChartInfo {
 
@@ -29,97 +50,76 @@ object ChartInfo {
         method: QuantileMethod,
         logScale: Boolean,
         logDropped: Int,
+        /** Открыт фиксированный диапазон из Истории, а не живой край. */
+        historical: Boolean = false,
+        s: ChartTextStrings = ChartTextRu,
+        axis: ChartAxisStrings = ChartAxisRu,
     ): List<ChartInfoSection> {
         val sections = mutableListOf<ChartInfoSection>()
 
-        val anatomy = mutableListOf(
-            "Ось значений подогнана к наблюдаемым данным, а не к нулю: показаны те " +
-                "уровни, на которых прибор реально был. Порог тревоги входит в кадр, " +
-                "только когда данные к нему подходят; далёкий порог обозначен " +
-                "указателем у верхней кромки.",
-            "Линия — медиана интервала (Q50): половина отсчётов интервала выше неё, " +
-                "половина ниже.",
-            "Две полосы вокруг линии — Q25–Q75 и Q10–Q90. Это наблюдаемый разброс самих " +
-                "измерений, а не погрешность прибора и не доверительный интервал.",
-        )
+        // Порядок — от того, на что человек смотрит, к тому, чем это
+        // нарисовано: линия → полосы → пропуски → устройство оси.
+        val anatomy = mutableListOf(s.anatomyMedianLine, s.anatomyEnvelopes)
         if (metric == ChartMetric.HARDNESS) {
-            anatomy += "Отношение берётся по каждому отсчёту, а не делением средних " +
-                "интервала: среднее отношений и отношение средних — разные числа."
+            anatomy += s.anatomyHardnessRatio
         }
-        anatomy += "Пропуски не соединяются линией: если прибор молчал, на этом месте " +
-            "штриховка, а не прямая от точки до точки."
+        anatomy += s.anatomyGaps
+        anatomy += s.anatomyAxis
         // Оговорки самой ВЕЛИЧИНЫ переехали сюда с карточки Главной: они
         // обязаны существовать там, где величину показывают, но постоянного
         // места под миниатюрой не заслуживают — их читают один раз.
-        anatomy += ChartMetrics.footnotes(metric)
-        sections += ChartInfoSection("Что нарисовано", anatomy)
+        anatomy += ChartMetrics.footnotes(metric, axis)
+        sections += ChartInfoSection(
+            title = s.sectionAnatomy,
+            lines = anatomy,
+            details = listOf(s.anatomyMedianDetail, s.anatomyEnvelopesDetail),
+        )
 
         val references = mutableListOf<String>()
-        references += if (hasBaselineBand) {
-            "Серая полоса с пунктиром — исторический диапазон P10–P90 этого профиля. " +
-                "Это статистика места, а не норматив."
+        references += if (hasBaselineBand) s.referenceProfileBand else s.referenceProfileBandMissing
+        references += if (ChartMetrics.showsAlarmLevel(metric)) {
+            s.referenceAlarmLine
         } else {
-            "Исторический диапазон профиля ещё не собран, поэтому серой полосы нет."
+            s.referenceAlarmAbsent
         }
-        if (ChartMetrics.showsAlarmLevel(metric)) {
-            references += "Красный пунктир — ваш порог тревоги L1. Если он выше кадра, у " +
-                "верхней кромки стоит указатель с его значением."
-        } else {
-            references += "Порога тревоги на этом графике нет: он задан в единицах дозы."
-        }
-        if (hasExtremeMarkers) {
-            references += "▲ над полем — максимум интервала, оказавшийся выше названной " +
-                "величины: залитый — выше порога L1, контурный — выше P90 профиля. Это " +
-                "сравнение, а не признак аномалии: выше P90 по определению лежит около " +
-                "10 % пригодных исторических измерений этого места. Нажмите на " +
-                "треугольник — откроется карточка с обоими числами и точным временем."
-        }
-        if (hasEpisodes) {
-            references += "Вертикальные полосы — эпизоды из журнала событий; подпись " +
-                "называет, чего именно они выше, и их расчётную длительность."
-        }
-        sections += ChartInfoSection("С чем сравнивается", references)
+        if (hasExtremeMarkers) references += s.referenceMarkers
+        if (hasEpisodes) references += s.referenceEpisodes
+        sections += ChartInfoSection(s.sectionReferences, references)
 
         val numbers = mutableListOf<String>()
-        numbers += when (method) {
-            QuantileMethod.EXACT_RAW ->
-                "Квантили точные: считаются по всем сырым отсчётам окна."
-            QuantileMethod.KLL_SKETCH ->
-                "Квантили приближённые: окно длинное, и они собраны из почасовых сжатых " +
-                    "выжимок распределения. Ошибка ранга ≈ " +
-                    QuantileMetadata.errorPercentLabel(KllSketch.DEFAULT_K) + "."
-            QuantileMethod.SUB_BUCKET_MEANS ->
-                "Квантили — грубая оценка по средним под-интервалов: сжатые выжимки для " +
-                    "этого периода ещё строятся. У этой оценки нет доказанной границы " +
-                    "ошибки, и она заменится точной, как только предварительный расчёт " +
-                    "дойдёт до этих часов."
-        }
-        numbers += "n — число сырых отсчётов, а не колонок: прибор пишет раз в секунду, " +
-            "поэтому n это ещё и секунды измерений в окне."
-        if (logScale) {
-            numbers += if (logDropped > 0) {
-                "Шкала логарифмическая: интервалов с нулём не показано — $logDropped. " +
-                    "Ноль на такой шкале не существует, и рисовать его на месте " +
-                    "наименьшего значения было бы неправдой."
-            } else {
-                "Шкала логарифмическая: равные расстояния означают равные отношения, " +
-                    "а не равные разности."
+        val numberDetails = mutableListOf<String>()
+        val rankError = QuantileMetadata.errorPercentLabel(KllSketch.DEFAULT_K)
+        // Первый уровень говорит, ОТКУДА взяты числа и насколько им можно
+        // верить; как именно они посчитаны — под «Подробнее».
+        when (method) {
+            QuantileMethod.EXACT_RAW -> {
+                numbers += s.quantilesExact
+                numberDetails += s.quantilesExactDetail
+            }
+            QuantileMethod.KLL_SKETCH -> {
+                numbers += s.quantilesSketch(rankError)
+                numberDetails += s.quantilesSketchDetail(rankError)
+            }
+            QuantileMethod.SUB_BUCKET_MEANS -> {
+                numbers += s.quantilesSubBucketMeans
+                numberDetails += s.quantilesSubBucketMeansDetail
             }
         }
-        ChartMetrics.spanLimitNote(metric)?.let { numbers += it }
-        sections += ChartInfoSection("Откуда числа", numbers)
-
-        val gestures = mutableListOf(
-            "Щипок — масштаб времени, перетаскивание — сдвиг окна.",
-            "Долгое нажатие ставит курсор: он показывает интервал, его медиану, " +
-                "разброс, мин/макс со временем и сравнение с профилем.",
-        )
-        if (hasExtremeMarkers) {
-            gestures += "Нажатие на треугольник над полем открывает ту же карточку сразу " +
-                "на этом интервале."
+        numbers += s.sampleCountNote
+        numberDetails += s.sampleCountDetail
+        // Исторический кадр не догоняет «сейчас»: об этом говорится там же, где
+        // объясняется, откуда взяты числа.
+        if (historical) numbers += s.historicalRangeNote
+        if (logScale) {
+            numbers += if (logDropped > 0) s.logScaleDroppedNote(logDropped) else s.logScaleNote
         }
-        gestures += "Двойное нажатие возвращает выбранное окно к живому краю."
-        sections += ChartInfoSection("Жесты", gestures)
+        ChartMetrics.spanLimitNote(metric, axis)?.let { numbers += it }
+        sections += ChartInfoSection(s.sectionNumbers, numbers, numberDetails)
+
+        val gestures = mutableListOf(s.gestureZoomPan, s.gestureCursor)
+        if (hasExtremeMarkers) gestures += s.gestureMarkerTap
+        gestures += if (historical) s.gestureDoubleTapRange else s.gestureDoubleTap
+        sections += ChartInfoSection(s.sectionGestures, gestures)
         return sections
     }
 }

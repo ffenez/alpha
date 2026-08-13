@@ -4,6 +4,10 @@ import app.radiacode.analysis.FingerprintComparison
 import app.radiacode.analysis.FingerprintDimension
 import app.radiacode.analysis.FingerprintState
 import app.radiacode.baseline.Admission
+import app.radiacode.baseline.wording
+import app.radiacode.ui.text.MonitorCatalogue
+import app.radiacode.ui.text.MonitorRu
+import app.radiacode.ui.text.MonitorStrings
 import app.radiacode.ui.text.RuStrings
 import app.radiacode.ui.text.Strings
 import app.radiacode.baseline.Baseline
@@ -22,6 +26,8 @@ enum class WhyTone { OK, ATTENTION, ALARM, UNKNOWN }
 data class WhyScale(
     val lowLabel: String,
     val highLabel: String,
+    /** Медиана профиля — средняя засечка шкалы «P10 · медиана · P90». */
+    val medianLabel: String,
     val currentLabel: String,
     /** 0 = at P10, 1 = at P90; outside the band it clamps and [outside] is set. */
     val position: Float,
@@ -48,6 +54,7 @@ data class WhyScale(
             return WhyScale(
                 lowLabel = DoseFormat.rate(low, unit),
                 highLabel = DoseFormat.rate(high, unit),
+                medianLabel = DoseFormat.rate(baseline.doseMedianMicroSvH, unit),
                 currentLabel = DoseFormat.rate(currentMicroSvH, unit),
                 position = raw.coerceIn(0f, 1f),
                 outside = currentMicroSvH < low || currentMicroSvH > high,
@@ -56,24 +63,41 @@ data class WhyScale(
     }
 }
 
-/** One block of the sheet; [advanced] blocks live behind «Показать расчёты». */
+/**
+ * Глубина, на которой лежит блок (14.md: «математику не убирать, а разложить
+ * по глубине»).
+ *
+ *  - [PLAIN] — что я вижу и что это значит;
+ *  - [METHOD] — медиана, P10–P90, статистика профиля, принцип сравнения;
+ *  - [EXPERT] — MAD, χ², z, число корзин, формулы, точные пороги.
+ *
+ * Уровни — это порядок раскрытия, а не порядок важности: ни одно число не
+ * исчезает, оно переезжает глубже.
+ */
+enum class WhyLevel { PLAIN, METHOD, EXPERT }
+
+/** One block of the sheet; см. [WhyLevel] — на каком раскрытии он показан. */
 data class WhySection(
     val title: String,
     val lines: List<WhyLine>,
     /** Paragraph under the numbers that keeps them from being over-read. */
     val note: String? = null,
-    val advanced: Boolean = false,
+    val level: WhyLevel = WhyLevel.PLAIN,
     val tone: WhyTone = WhyTone.UNKNOWN,
-)
+) {
+    /** Всё, что лежит за первым раскрытием, — «показать методику и расчёты». */
+    val advanced: Boolean get() = level != WhyLevel.PLAIN
+}
 
 /**
  * The whole «Почему такой вывод» sheet as data (why-spec §13, §18).
  *
  * The order is the audit trail of a human conclusion: **вывод → непосредственное
  * доказательство → статистическая основа → состояние профиля → критерии
- * алгоритма**. Numbers that only a researcher needs (MAD, buckets, thresholds)
- * are marked [WhySection.advanced] and stay folded until asked for — the spec
- * is explicit that the screen must not open with MAD and quarantine.
+ * алгоритма**, разложенный по трём уровням глубины ([WhyLevel], 14.md):
+ * человеческий → научный → экспертный. Ни одно число не пропадает при
+ * переезде вглубь: MAD, число корзин, χ² и z по-прежнему на экране, но за
+ * двумя раскрытиями, а не в первой же строке.
  */
 data class WhyReport(
     val status: String,
@@ -87,8 +111,16 @@ data class WhyReport(
     val scale: WhyScale?,
     val sections: List<WhySection>,
     val legend: String,
+    /**
+     * Обязательная оговорка первого уровня: вывод описывает отличие от
+     * СВОЕГО обычного фона, а не радиационную безопасность.
+     */
+    val caveat: String = "",
 ) {
-    val hasAdvanced: Boolean get() = sections.any { it.advanced }
+    fun sections(level: WhyLevel): List<WhySection> = sections.filter { it.level == level }
+
+    val hasAdvanced: Boolean get() = sections.any { it.level == WhyLevel.METHOD }
+    val hasExpert: Boolean get() = sections.any { it.level == WhyLevel.EXPERT }
 }
 
 /**
@@ -109,22 +141,26 @@ object WhyReportBuilder {
      */
     private var s: Strings = RuStrings
 
+    /** Каталог этой области — рядом с общим, по тому же языку. */
+    private var m: MonitorStrings = MonitorRu
+
     /** Пояснение меток достоверности — на языке интерфейса. */
     fun legend(strings: Strings = RuStrings): String = strings.evidenceLegend
 
     fun build(input: WhyInput, strings: Strings = RuStrings): WhyReport {
         s = strings
+        m = MonitorCatalogue.of(strings.language)
         val baseline = (input.baselineState as? BaselineState.Active)?.baseline
         val unit = input.unit
         val current = input.doseRateMicroSvH
         return WhyReport(
-            status = statusHeadline(input.status),
+            status = statusHeadline(input.status, s),
             tone = toneOf(input.status),
-            sentence = WhyExplain.verdictExplanation(input.status),
-            nowValue = current?.let { DoseFormat.rateWithUnit(it, unit) },
+            sentence = WhyExplain.verdictExplanation(input.status, m),
+            nowValue = current?.let { DoseFormat.rateWithUnit(it, unit, s = s) },
             usualValue = baseline?.let {
                 "${DoseFormat.range(it.doseLowMicroSvH, it.doseHighMicroSvH, unit)} " +
-                    DoseFormat.rateUnitLabel(unit)
+                    DoseFormat.rateUnitLabel(unit, s = s)
             },
             scale = if (baseline != null && current != null) {
                 WhyScale.of(current, baseline, unit)
@@ -132,14 +168,22 @@ object WhyReportBuilder {
                 null
             },
             sections = buildList {
+                // Первый уровень: что сейчас, с чем сравнили, сколько данных,
+                // что со спектром — и в каком состоянии сама статистика.
                 add(nowSection(input))
                 add(comparisonSection(input, baseline))
-                if (baseline != null) add(statisticsSection(baseline, unit))
+                if (baseline != null) add(dataVolumeSection(baseline))
                 add(stateSection(input))
-                add(criteriaSection(input))
                 add(spectralSection(input.fingerprint))
+                // Второй: что исключено, статистика профиля, критерии алгоритма.
+                exclusionsSection(input)?.let { add(it) }
+                if (baseline != null) add(statisticsSection(input, baseline, unit))
+                add(criteriaSection(input))
+                // Третий: MAD, корзины, формулы, χ² и z.
+                add(calculationsSection(input, baseline, unit))
             },
             legend = legend(s),
+            caveat = s.notASafetyConclusion,
         )
     }
 
@@ -162,30 +206,29 @@ object WhyReportBuilder {
                 WhyLine(
                     label = s.doseRate,
                     value = input.doseRateMicroSvH
-                        ?.let { DoseFormat.rateWithUnit(it, input.unit) } ?: "—",
-                    evidence = Evidence.MEASURED,
+                        ?.let { DoseFormat.rateWithUnit(it, input.unit, s = s) } ?: "—",
+                    // Чья это погрешность — говорится там же, где её видно:
+                    // ± приходит ОТ ПРИБОРА и относится к этому показанию.
+                    note = s.deviceErrorNote,
                 ),
             )
             add(
                 WhyLine(
                     label = s.countRate,
                     value = input.cps?.let { Uncertainty.cpsWithSigma(it) } ?: "—",
-                    evidence = Evidence.MEASURED,
-                    note = s.poissonNote,
+                    note = s.countIsNotDose,
                 ),
             )
             add(
                 WhyLine(
                     label = s.dataSection,
                     value = freshnessLabel(input.freshness),
-                    evidence = Evidence.MEASURED,
                 ),
             )
             add(
                 WhyLine(
                     label = s.profile,
                     value = input.profileName ?: s.outsideProfile,
-                    evidence = Evidence.MEASURED,
                     note = input.contextWording,
                 ),
             )
@@ -203,15 +246,13 @@ object WhyReportBuilder {
                     WhyLine(
                         label = s.historicalRange,
                         value = s.notCollectedYet,
-                        evidence = Evidence.STATISTICALLY_DETECTED,
-                        note = learning?.let { shortfallWording(it) },
+                        note = learning?.let { shortfallWording(it, m) },
                     ),
                     WhyLine(
                         label = s.comparisonRuns,
                         value = s.withThresholdL1(
-                            DoseFormat.rateWithUnit(input.thresholds.l1MicroSvH, input.unit),
+                            DoseFormat.rateWithUnit(input.thresholds.l1MicroSvH, input.unit, s = s),
                         ),
-                        evidence = Evidence.CALCULATED,
                     ),
                 ),
                 note = s.thresholdIsNotSafety,
@@ -223,23 +264,22 @@ object WhyReportBuilder {
             title = s.comparisonSection,
             lines = listOf(
                 WhyLine(
-                    label = "P10–P90",
+                    // Человеческое имя диапазона: P10–P90 стоит на шкале и во
+                    // втором уровне, где рядом объяснено, что это такое.
+                    label = s.usualRangeHere,
                     value = DoseFormat.range(
                         baseline.doseLowMicroSvH,
                         baseline.doseHighMicroSvH,
                         unit,
-                    ) + " " + DoseFormat.rateUnitLabel(unit),
-                    evidence = Evidence.STATISTICALLY_DETECTED,
+                    ) + " " + DoseFormat.rateUnitLabel(unit, s = s),
                 ),
                 WhyLine(
                     label = s.currentValue,
-                    value = current?.let { DoseFormat.rateWithUnit(it, unit) } ?: "—",
-                    evidence = Evidence.MEASURED,
+                    value = current?.let { DoseFormat.rateWithUnit(it, unit, s = s) } ?: "—",
                 ),
                 WhyLine(
                     label = s.position,
                     value = positionWording(current, baseline),
-                    evidence = Evidence.CALCULATED,
                 ),
             ),
             note = s.bandExplained,
@@ -248,21 +288,50 @@ object WhyReportBuilder {
 
     private fun positionWording(current: Float?, baseline: Baseline): String = when {
         current == null -> "—"
+        current < baseline.doseLowMicroSvH -> s.belowUsualRange
+        current > baseline.doseHighMicroSvH -> s.aboveUsualRange
+        else -> s.insideUsualRange
+    }
+
+    /** То же положение P-нотацией — для второго уровня. */
+    private fun positionNotation(current: Float?, baseline: Baseline): String = when {
+        current == null -> "—"
         current < baseline.doseLowMicroSvH -> s.belowP10
         current > baseline.doseHighMicroSvH -> s.aboveP90
         else -> s.insideBand
     }
 
+    // ------------------------------------------------- §4a «Сколько данных»
+
+    /**
+     * Объём данных — первый уровень: «достаточно ли этого, чтобы вообще
+     * сравнивать» человек спрашивает раньше, чем «как посчитана медиана».
+     */
+    private fun dataVolumeSection(baseline: Baseline): WhySection = WhySection(
+        title = s.dataVolume,
+        lines = listOf(
+            WhyLine(
+                label = s.usedForComparison,
+                value = durationWording(baseline.accumulatedSeconds, m),
+                note = s.suitableMeasurements,
+            ),
+        ),
+    )
+
     // ----------------------------------------- §5 «Статистика профиля»
 
-    private fun statisticsSection(baseline: Baseline, unit: DoseUnitSetting): WhySection =
+    private fun statisticsSection(
+        input: WhyInput,
+        baseline: Baseline,
+        unit: DoseUnitSetting,
+    ): WhySection =
         WhySection(
             title = s.profileStatistics,
-            advanced = true,
+            level = WhyLevel.METHOD,
             lines = listOf(
                 WhyLine(
                     label = s.median,
-                    value = DoseFormat.rateWithUnit(baseline.doseMedianMicroSvH, unit),
+                    value = DoseFormat.rateWithUnit(baseline.doseMedianMicroSvH, unit, s = s),
                     evidence = Evidence.STATISTICALLY_DETECTED,
                 ),
                 WhyLine(
@@ -275,12 +344,6 @@ object WhyReportBuilder {
                     evidence = Evidence.STATISTICALLY_DETECTED,
                 ),
                 WhyLine(
-                    label = "MAD",
-                    value = DoseFormat.rateWithUnit(baseline.doseMadMicroSvH, unit),
-                    evidence = Evidence.STATISTICALLY_DETECTED,
-                    note = s.madNote,
-                ),
-                WhyLine(
                     label = "P10–P90",
                     value = DoseFormat.range(
                         baseline.doseLowMicroSvH,
@@ -289,16 +352,29 @@ object WhyReportBuilder {
                     ),
                     evidence = Evidence.STATISTICALLY_DETECTED,
                 ),
+                // То же утверждение, что на первом уровне, но точной нотацией:
+                // человеку — «внутри обычного диапазона», здесь — «внутри
+                // P10–P90», и видно, о каких именно порядковых статистиках речь.
                 WhyLine(
-                    label = s.usableData,
-                    value = durationWording(baseline.accumulatedSeconds),
+                    label = s.position,
+                    value = positionNotation(input.doseRateMicroSvH, baseline),
                     evidence = Evidence.CALCULATED,
                 ),
+                // «Пригодных данных» ничего не объясняло без критерия
+                // пригодности — критерий стоит здесь же, строкой ниже (§3).
                 WhyLine(
-                    label = s.minuteBuckets,
-                    value = "${baseline.bucketCount}",
+                    label = s.usableData,
+                    value = durationWording(baseline.accumulatedSeconds, m),
                     evidence = Evidence.CALCULATED,
-                    note = s.honestN,
+                    note = s.usableDataNote,
+                ),
+                // n называется тем, что оно есть: показаниями прибора. Равным
+                // секундам экспозиции оно не является — при пропусках их меньше.
+                WhyLine(
+                    label = s.measurementsCount,
+                    value = SpectrumFormat.groupThousands(baseline.sampleCount),
+                    evidence = Evidence.CALCULATED,
+                    note = s.measurementsCountNote,
                 ),
             ),
         )
@@ -313,36 +389,64 @@ object WhyReportBuilder {
             updating -> s.updating
             else -> s.temporarilyNotUpdating
         }
+        // §12: на первом уровне — ОДНО состояние и одно «зачем». Внутренние
+        // причины («недавно было отклонение уровня 36 ч», «показание слишком
+        // неточное 1 с») выглядели как основной показатель прибора; они целы,
+        // но лежат уровнем глубже — в «Что исключено из статистики».
         val explanation = when {
-            learning != null -> shortfallWording(learning)
+            learning != null -> shortfallWording(learning, m)
             updating -> s.updatingNote
             else -> s.notUpdatingNote
         }
+        return WhySection(
+            // Not «Статистика профиля»: that heading belongs to the numbers
+            // above, and two identical headings in one sheet is one heading
+            // too many.
+            title = s.statisticsState,
+            lines = listOf(WhyLine(label = s.state, value = headline)),
+            note = explanation,
+            tone = when {
+                learning != null -> WhyTone.ATTENTION
+                updating -> WhyTone.OK
+                else -> WhyTone.ATTENTION
+            },
+        )
+    }
+
+    /**
+     * Второй уровень §12: что именно исключено, по каким причинам и надолго ли.
+     * Ни одно число не потеряно — «карантин 36 ч» просто перестал быть первым,
+     * что человек читает о своём приборе.
+     */
+    private fun exclusionsSection(input: WhyInput): WhySection? {
         val exclusions = input.exclusions
+        val current = (input.admission as? Admission.Excluded)?.reason
+        if (exclusions.isEmpty() && current == null) return null
         val lines = buildList {
-            add(
-                WhyLine(
-                    label = s.state,
-                    value = headline,
-                    evidence = Evidence.CALCULATED,
-                    note = (input.admission as? Admission.Excluded)?.reason?.label,
-                ),
-            )
+            if (current != null) {
+                add(
+                    WhyLine(
+                        label = s.excludedNow,
+                        value = current.wording(m),
+                        evidence = Evidence.CALCULATED,
+                    ),
+                )
+            }
             if (exclusions.isNotEmpty()) {
                 add(
                     WhyLine(
                         label = s.excludedFromStatistics,
-                        value = durationWording(exclusions.sumOf { it.seconds }),
+                        value = durationWording(exclusions.sumOf { it.seconds }, m),
                         evidence = Evidence.CALCULATED,
                     ),
                 )
-                // Reasons as separate lines: «карантин» without a reason is not
-                // an explanation (§6).
+                // Reasons as separate lines: a bare total says nothing about
+                // what the statistics refused, or why (§6).
                 exclusions.sortedByDescending { it.seconds }.forEach {
                     add(
                         WhyLine(
-                            label = it.reason.label,
-                            value = durationWording(it.seconds),
+                            label = it.reason.wording(m),
+                            value = durationWording(it.seconds, m),
                             evidence = Evidence.CALCULATED,
                         ),
                     )
@@ -350,23 +454,10 @@ object WhyReportBuilder {
             }
         }
         return WhySection(
-            // Not «Статистика профиля»: that heading belongs to the numbers
-            // above, and two identical headings in one sheet is one heading
-            // too many.
-            title = s.statisticsState,
+            title = s.excludedSection,
+            level = WhyLevel.METHOD,
             lines = lines,
-            // The quarantine paragraph is shown where it explains something —
-            // otherwise it is a warning about a situation the user is not in.
-            note = if (exclusions.isEmpty() && updating) {
-                explanation
-            } else {
-                explanation + " " + quarantineWording(s)
-            },
-            tone = when {
-                learning != null -> WhyTone.ATTENTION
-                updating -> WhyTone.OK
-                else -> WhyTone.ATTENTION
-            },
+            note = quarantineWording(s),
         )
     }
 
@@ -384,11 +475,11 @@ object WhyReportBuilder {
         val unit = input.unit
         return WhySection(
             title = s.howDetected,
-            advanced = true,
+            level = WhyLevel.METHOD,
             lines = listOf(
                 WhyLine(
                     label = s.absoluteThresholdL1,
-                    value = DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit),
+                    value = DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit, s = s),
                     evidence = Evidence.CALCULATED,
                 ),
                 WhyLine(
@@ -398,7 +489,7 @@ object WhyReportBuilder {
                 ),
                 WhyLine(
                     label = s.minimumDuration,
-                    value = durationWording(thresholds.persistenceSeconds.toLong()),
+                    value = durationWording(thresholds.persistenceSeconds.toLong(), m),
                     evidence = Evidence.CALCULATED,
                     note = s.shorterNotAnnounced,
                 ),
@@ -409,12 +500,66 @@ object WhyReportBuilder {
                 ),
                 WhyLine(
                     label = s.exclusionAfterEvent,
-                    value = durationWording(BaselineAdmission.QUARANTINE_MILLIS / 1000),
+                    value = durationWording(BaselineAdmission.QUARANTINE_MILLIS / 1000, m),
                     evidence = Evidence.CALCULATED,
                     note = s.fromEndOfDeviation,
                 ),
             ),
             note = s.criteriaNote,
+        )
+    }
+
+    // ------------------------------- третий уровень: «Расчёты и формулы»
+
+    /**
+     * Экспертный уровень (14.md): MAD с формулой, число корзин, пуассоновская
+     * 1σ, бюджет неопределённости дозы и статистика сравнения формы спектра
+     * (χ² по корзинам и z). Ни одно из этих чисел не исчезло с экрана — они
+     * просто лежат на два раскрытия глубже.
+     */
+    private fun calculationsSection(
+        input: WhyInput,
+        baseline: Baseline?,
+        unit: DoseUnitSetting,
+    ): WhySection {
+        val shape = input.fingerprint?.of(FingerprintDimension.SPECTRUM)
+        return WhySection(
+            title = s.calculationsSection,
+            level = WhyLevel.EXPERT,
+            lines = buildList {
+                if (baseline != null) {
+                    add(
+                        WhyLine(
+                            label = "MAD",
+                            value = DoseFormat.rateWithUnit(
+                                baseline.doseMadMicroSvH,
+                                unit,
+                                s = s,
+                            ),
+                            evidence = Evidence.STATISTICALLY_DETECTED,
+                            note = s.madNote,
+                        ),
+                    )
+                    add(
+                        WhyLine(
+                            label = s.minuteBuckets,
+                            value = "${baseline.bucketCount}",
+                            evidence = Evidence.CALCULATED,
+                            note = s.honestN,
+                        ),
+                    )
+                }
+                if (shape != null && shape.state != FingerprintState.NOT_EVALUATED) {
+                    add(
+                        WhyLine(
+                            label = s.shapeStatistics,
+                            value = shape.detail,
+                            evidence = Evidence.STATISTICALLY_DETECTED,
+                        ),
+                    )
+                }
+            },
+            note = s.poissonNote + " " + s.deviceErrorBudget,
         )
     }
 
@@ -433,13 +578,12 @@ object WhyReportBuilder {
             FingerprintState.SAME -> s.noChangeDetected
             FingerprintState.CHANGED -> s.changeDetected
         }
+        // Первый уровень говорит ОДНОЙ фразой, что сравнивается и с чем;
+        // «χ² по 677 корзинам, z = 1,7» живёт в «Расчётах и формулах».
         val note = when (shape?.state) {
-            null, FingerprintState.NOT_EVALUATED ->
-                s.spectralNoReference
-            FingerprintState.NOT_ENOUGH_DATA ->
-                s.spectralTooLittle(shape.detail)
-            else ->
-                s.spectralCompared(shape.detail)
+            null, FingerprintState.NOT_EVALUATED -> s.spectralNoReference
+            FingerprintState.NOT_ENOUGH_DATA -> s.spectralTooLittlePlain
+            else -> s.spectralComparedPlain
         }
         return WhySection(
             title = s.spectralComparison,
@@ -447,7 +591,6 @@ object WhyReportBuilder {
                 WhyLine(
                     label = s.state,
                     value = value,
-                    evidence = Evidence.STATISTICALLY_DETECTED,
                 ),
             ),
             note = note,
@@ -470,6 +613,8 @@ object WhyReportBuilder {
  * обычный фон», and this sheet may not suggest a model that is being trained
  * (§6 — «не использовать слова "обучение", "учится"»).
  */
-fun shortfallWording(state: BaselineState.Learning): String =
-    "${durationWording(state.accumulatedSeconds)} из минимально необходимых " +
-        durationWording(state.requiredSeconds)
+fun shortfallWording(state: BaselineState.Learning, s: MonitorStrings = MonitorRu): String =
+    s.ofMinimumRequired(
+        durationWording(state.accumulatedSeconds, s),
+        durationWording(state.requiredSeconds, s),
+    )

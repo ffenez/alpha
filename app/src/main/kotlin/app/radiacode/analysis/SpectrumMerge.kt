@@ -1,5 +1,8 @@
 package app.radiacode.analysis
 
+import app.radiacode.ui.text.SpectrumRu
+import app.radiacode.ui.text.SpectrumStrings
+
 /**
  * Channel-wise merge of spectrum snapshots (История «объединить», Спектр
  * «продолжить накопление»). Counts add per channel, accumulation times add —
@@ -35,16 +38,15 @@ object SpectrumMerge {
         data class Invalid(val reason: String) : Outcome
     }
 
-    fun merge(inputs: List<Input>): Outcome {
+    fun merge(inputs: List<Input>, s: SpectrumStrings = SpectrumRu): Outcome {
         if (inputs.size < 2) {
-            return Outcome.Invalid("для объединения нужно минимум два снимка")
+            return Outcome.Invalid(s.mergeNeedsTwo)
         }
         val base = inputs.maxBy { it.durationSeconds }
         for (input in inputs) {
             if (input.counts.size != base.counts.size) {
                 return Outcome.Invalid(
-                    "у снимков разное число каналов (${input.counts.size} и " +
-                        "${base.counts.size}) — объединить нельзя",
+                    s.mergeChannelMismatch(input.counts.size, base.counts.size),
                 )
             }
             val delta = SpectrumCompare.calibrationDeltaKeV(
@@ -54,9 +56,11 @@ object SpectrumMerge {
             )
             if (delta > SpectrumCompare.CALIBRATION_TOLERANCE_KEV) {
                 return Outcome.Invalid(
-                    "калибровки «${input.name}» и «${base.name}» расходятся на " +
-                        "${"%.1f".format(delta)} кэВ — сумма размажет пики; " +
-                        "для таких снимков используйте сравнение скоростей счёта",
+                    s.mergeCalibrationMismatch(
+                        input.name,
+                        base.name,
+                        "%.1f".format(delta),
+                    ),
                 )
             }
         }

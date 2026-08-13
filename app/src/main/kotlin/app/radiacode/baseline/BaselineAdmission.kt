@@ -1,39 +1,58 @@
 package app.radiacode.baseline
 
+import app.radiacode.ui.text.MonitorRu
+import app.radiacode.ui.text.MonitorStrings
+
 /**
  * Why an interval was kept out of the baseline statistics (spec §4.2).
  *
  * [storageKey] is what lands in `samples.baselineExcluded`; it is a stable
- * on-disk contract — never rename a key, add a new one instead. [label] is the
- * short user-facing wording (История rows, «Почему?» sheet).
+ * on-disk contract — never rename a key, add a new one instead. The short
+ * user-facing wording (История rows, «Почему?» sheet) lives in the language
+ * catalogue: ключ хранится на диске и не зависит от языка, а подпись
+ * показывается человеку и обязана быть на языке интерфейса.
  */
-enum class BaselineExclusion(val storageKey: String, val label: String) {
+enum class BaselineExclusion(val storageKey: String) {
     /** Condition 1: the profile has baseline learning switched off. */
-    LEARNING_OFF("learning_off", "обучение выключено у профиля"),
+    LEARNING_OFF("learning_off"),
 
     /** Condition 2: the context is not confidently known (Wi-Fi just vanished). */
-    CONTEXT_UNCERTAIN("context_uncertain", "место не подтверждено"),
+    CONTEXT_UNCERTAIN("context_uncertain"),
 
     /** Condition 3: the measurement stream is not fresh (spec §21). */
-    STREAM_STALE("stream_stale", "поток данных прерван"),
+    STREAM_STALE("stream_stale"),
 
     /** Condition 4: Поиск / source / A-B experiment is running (spec §18). */
-    EXPERIMENT("experiment", "идёт Поиск или эксперимент"),
+    EXPERIMENT("experiment"),
 
     /** Condition 5: quarantine window after a detected deviation episode. */
-    QUARANTINE("quarantine", "карантин после отклонения"),
+    QUARANTINE("quarantine"),
 
     /** Condition 6: the measurement statistics are unusable. */
-    STATISTICS_UNUSABLE("statistics_unusable", "измерение непригодно по статистике"),
+    STATISTICS_UNUSABLE("statistics_unusable"),
 
     /** Condition 7: the user froze the baseline manually. */
-    MANUAL_FREEZE("manual_freeze", "обычный фон заморожен вручную"),
+    MANUAL_FREEZE("manual_freeze"),
     ;
+
+    /** Русская подпись по умолчанию; на языке интерфейса — [wording]. */
+    val label: String get() = wording()
 
     companion object {
         fun fromStorage(key: String?): BaselineExclusion? =
             key?.let { stored -> entries.firstOrNull { it.storageKey == stored } }
     }
+}
+
+/** Короткая причина словами человека — без слов «baseline» и «обучение». */
+fun BaselineExclusion.wording(s: MonitorStrings = MonitorRu): String = when (this) {
+    BaselineExclusion.LEARNING_OFF -> s.exclusionLearningOff
+    BaselineExclusion.CONTEXT_UNCERTAIN -> s.exclusionContextUncertain
+    BaselineExclusion.STREAM_STALE -> s.exclusionStreamStale
+    BaselineExclusion.EXPERIMENT -> s.exclusionExperiment
+    BaselineExclusion.QUARANTINE -> s.exclusionQuarantine
+    BaselineExclusion.STATISTICS_UNUSABLE -> s.exclusionStatisticsUnusable
+    BaselineExclusion.MANUAL_FREEZE -> s.exclusionManualFreeze
 }
 
 /** Verdict of [BaselineAdmission]. */

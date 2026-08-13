@@ -53,6 +53,11 @@ import app.radiacode.ui.components.SpectrumChartSpec
 import app.radiacode.ui.logic.CompareFormat
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.SpectrumFormat
+import app.radiacode.ui.text.CompareCatalogue
+import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
+import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -76,6 +81,8 @@ fun SpectrumCompareScreen(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = CompareCatalogue.of(strings.language)
 
     BackHandler { onBack() }
 
@@ -95,18 +102,17 @@ fun SpectrumCompareScreen(
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← Назад", onClick = onBack)
+            AppButton(text = "← ${strings.back}", onClick = onBack)
             Spacer(Modifier.weight(1f))
-            Chip(text = "Сравнение", color = colors.ink)
         }
 
         val p = pair
         when {
             missing -> Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "снимки не найдены", style = type.bodySmall, color = colors.muted)
+                Text(text = t.snapshotsMissing, style = type.bodySmall, color = colors.muted)
             }
             p == null -> Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "читаю снимки…", style = type.bodySmall, color = colors.muted)
+                Text(text = t.snapshotsReading, style = type.bodySmall, color = colors.muted)
             }
             else -> CompareContent(graph, p.first, p.second)
         }
@@ -127,11 +133,12 @@ private fun CompareContent(
     second: SpectrumSnapshotEntity,
 ) {
     var mode by rememberSaveable { mutableIntStateOf(0) }
+    val t = CompareCatalogue.of(LocalStrings.current.language)
 
     PairCard(first, second)
 
     Segmented(
-        options = listOf("A−B интервал", "Скорости счёта"),
+        options = listOf(t.modeInterval, t.modeRates),
         selectedIndex = mode,
         onSelect = { mode = it },
         modifier = Modifier.fillMaxWidth(),
@@ -157,6 +164,7 @@ private fun PairCard(first: SpectrumSnapshotEntity, second: SpectrumSnapshotEnti
 
 @Composable
 private fun PairRow(marker: String, entity: SpectrumSnapshotEntity) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
@@ -173,7 +181,7 @@ private fun PairRow(marker: String, entity: SpectrumSnapshotEntity) {
                 maxLines = 1,
             )
             Text(
-                text = HistoryFormat.dayTime(entity.timestamp, now) +
+                text = HistoryFormat.dayTime(entity.timestamp, now, s = h) +
                     " · Δt " + SpectrumFormat.accumulationClock(entity.durationSeconds),
                 style = type.footnote,
                 color = colors.ink2,
@@ -192,6 +200,8 @@ private fun IntervalSection(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = CompareCatalogue.of(strings.language)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -202,11 +212,10 @@ private fun IntervalSection(
     when (outcome) {
         is SpectrumCompare.IntervalOutcome.Invalid -> Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text("Интервал вычесть нельзя", style = type.title, color = colors.ink)
+                Text(t.intervalImpossible, style = type.title, color = colors.ink)
                 Text(text = outcome.reason, style = type.body, color = colors.ink2)
                 Text(
-                    text = "Этот режим — для двух снимков одного непрерывного накопления: " +
-                        "позднее минус раннее даёт спектр только за промежуток между ними.",
+                    text = t.intervalImpossibleHint,
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -226,14 +235,18 @@ private fun IntervalSection(
                 if (uri != null && content != null) {
                     scope.launch {
                         exportNote = if (writeTextToUri(context, uri, content)) {
-                            "файл сохранён"
+                            strings.fileSaved
                         } else {
-                            "файл не записался — попробуйте другую папку"
+                            t.fileNotWritten
                         }
                     }
                 }
             }
 
+            // Метка СОЗНАТЕЛЬНО без языка интерфейса: она уезжает в базу
+            // (`spectra.label`) и в экспорт XML, поэтому снимок, сохранённый
+            // по-русски, обязан остаться собой после смены языка — иначе
+            // одна и та же строка означала бы разное в разных сеансах.
             val label = "Интервал A−B · Δt " +
                 SpectrumFormat.accumulationClock(outcome.durationSeconds)
             val totalCounts = outcome.counts.sumOf { it.toLong() }
@@ -242,7 +255,7 @@ private fun IntervalSection(
                 Chip(text = SpectrumFormat.accumulationChip(outcome.durationSeconds, totalCounts))
                 Spacer(Modifier.weight(1f))
                 Segmented(
-                    options = listOf("Лог", "Лин"),
+                    options = listOf(strings.scaleLog, strings.scaleLinear),
                     selectedIndex = if (logScale) 0 else 1,
                     onSelect = { logScale = it == 0 },
                     modifier = Modifier.weight(0.9f),
@@ -275,7 +288,7 @@ private fun IntervalSection(
                         ),
                     )
                     Text(
-                        text = "спектр за интервал между снимками · кэВ по горизонтали",
+                        text = t.intervalChartCaption,
                         style = type.footnote,
                         color = colors.muted,
                         modifier = Modifier.padding(horizontal = Dimens.space1),
@@ -294,7 +307,7 @@ private fun IntervalSection(
 
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 AppButton(
-                    text = "Экспорт XML",
+                    text = strings.exportXml,
                     onClick = {
                         pendingExport = RcXml.write(intervalResultData(outcome, label))
                         exportLauncher.launch(
@@ -304,7 +317,7 @@ private fun IntervalSection(
                     modifier = Modifier.weight(1f),
                 )
                 AppButton(
-                    text = "Сохранить снимок",
+                    text = t.saveSnapshot,
                     onClick = {
                         scope.launch {
                             graph.measurementRepository.saveSpectrum(
@@ -331,7 +344,7 @@ private fun IntervalSection(
                                     ),
                                 ),
                             )
-                            savedNote = "снимок «$label» сохранён — он появился в списке спектров"
+                            savedNote = t.snapshotSaved(label)
                         }
                     },
                     enabled = savedNote == null,
@@ -377,6 +390,8 @@ private fun intervalResultData(
 private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshotEntity) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = CompareCatalogue.of(strings.language)
 
     val aInput = remember(first.id) { first.toCompareInput() }
     val outcome = remember(first.id, second.id) {
@@ -386,7 +401,7 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
     when (outcome) {
         is SpectrumCompare.RateOutcome.Invalid -> Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text("Сравнить скорости нельзя", style = type.title, color = colors.ink)
+                Text(t.ratesImpossible, style = type.title, color = colors.ink)
                 Text(text = outcome.reason, style = type.body, color = colors.ink2)
             }
         }
@@ -425,13 +440,13 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                         modifier = Modifier.padding(horizontal = Dimens.space1),
                     ) {
                         Text(
-                            text = "A и B к одному времени накопления".uppercase(),
+                            text = t.chartPairTitle.uppercase(),
                             style = type.labelSmall,
                             color = colors.ink2,
                             modifier = Modifier.weight(1f),
                         )
                         Segmented(
-                            options = listOf("Лог", "Лин"),
+                            options = listOf(strings.scaleLog, strings.scaleLinear),
                             selectedIndex = if (logScale) 0 else 1,
                             onSelect = { logScale = it == 0 },
                             modifier = Modifier.weight(0.6f),
@@ -451,7 +466,7 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                         ),
                     )
                     Text(
-                        text = "бирюзовая линия — A · серая — B, приведённый к времени A",
+                        text = t.chartPairCaption,
                         style = type.footnote,
                         color = colors.muted,
                         modifier = Modifier.padding(horizontal = Dimens.space1),
@@ -471,7 +486,7 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
             Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     Text(
-                        text = "Разность скоростей A−B, имп/с".uppercase(),
+                        text = t.chartDiffTitle.uppercase(),
                         style = type.labelSmall,
                         color = colors.ink2,
                         modifier = Modifier.padding(horizontal = Dimens.space1),
@@ -484,8 +499,7 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                         ),
                     )
                     Text(
-                        text = "полосы — ±1σ и ±2σ Пуассона (σ = √N с приведением к имп/с): " +
-                            "линия внутри полос — различие не отличимо от шума",
+                        text = t.chartDiffCaption,
                         style = type.footnote,
                         color = colors.muted,
                         modifier = Modifier.padding(horizontal = Dimens.space1),
@@ -501,10 +515,10 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth().padding(bottom = 5.dp)) {
-                            CompareHeader("кэВ", 1.1f)
-                            CompareHeader("Δ имп/с", 1f)
-                            CompareHeader("z", 0.8f)
-                            CompareHeader("вывод", 1.6f)
+                            CompareHeader(t.columnEnergy, 1.1f)
+                            CompareHeader(t.columnDiff, 1f)
+                            CompareHeader(t.columnZ, 0.8f)
+                            CompareHeader(t.columnVerdict, 1.6f)
                         }
                         AppDivider()
                         verdicts.forEachIndexed { index, verdict ->
@@ -520,7 +534,7 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                                 CompareCell(CompareFormat.cps(verdict.diffCps), 1f, colors.ink)
                                 CompareCell(CompareFormat.zLabel(verdict.z), 0.8f, colors.ink)
                                 CompareCell(
-                                    CompareFormat.verdictLabel(verdict.verdict),
+                                    CompareFormat.verdictLabel(verdict.verdict, t),
                                     1.6f,
                                     when (verdict.verdict) {
                                         SpectrumCompare.Verdict.NOISE -> colors.muted
@@ -532,10 +546,7 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                             if (index < verdicts.size - 1) AppDivider()
                         }
                         Text(
-                            text = "z — разность скоростей диапазона, делённая на её " +
-                                "собственную неопределённость (σ разности, обе стороны " +
-                                "пуассоновские); |z| < 2 — неотличимо от шума, ≥ 4 — " +
-                                "устойчивое различие",
+                            text = t.zExplanation,
                             style = type.footnote,
                             color = colors.muted,
                         )

@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.radiacode.data.db.ProfileEntity
 import app.radiacode.ui.logic.ProfileTree
+import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.MonitorCatalogue
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppColors
@@ -58,6 +60,8 @@ fun ProfilePickerDialog(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = MonitorCatalogue.of(strings.language)
     var newName by remember { mutableStateOf("") }
     var adding by remember { mutableStateOf(false) }
     val visible = ProfileTree.visible(profiles)
@@ -65,9 +69,9 @@ fun ProfilePickerDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text("Профиль измерения", style = type.title, color = colors.ink)
+                Text(t.pickerTitle, style = type.title, color = colors.ink)
                 Text(
-                    text = "У каждого профиля свой обычный фон. Сейчас: $contextWording.",
+                    text = t.pickerSubtitle(contextWording),
                     style = type.bodySmall,
                     color = colors.muted,
                 )
@@ -86,7 +90,7 @@ fun ProfilePickerDialog(
 
                 if (manual) {
                     AppButton(
-                        text = "Вернуться к авто",
+                        text = t.pickerReturnToAuto,
                         onClick = {
                             onReturnToAuto()
                             onDismiss()
@@ -94,8 +98,7 @@ fun ProfilePickerDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
-                        text = "Автоматически профиль выбирается по знакомой сети Wi-Fi. " +
-                            "Геолокация для этого не нужна.",
+                        text = t.pickerAutoNote,
                         style = type.footnote,
                         color = colors.muted,
                     )
@@ -105,11 +108,11 @@ fun ProfilePickerDialog(
                     AppTextField(
                         value = newName,
                         onValueChange = { newName = it },
-                        placeholder = "название профиля",
+                        placeholder = strings.profileNameHint,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                         AppButton(
-                            text = "Добавить",
+                            text = strings.add,
                             primary = true,
                             enabled = newName.isNotBlank(),
                             onClick = {
@@ -118,10 +121,10 @@ fun ProfilePickerDialog(
                                 adding = false
                             },
                         )
-                        AppButton(text = "Отмена", onClick = { adding = false })
+                        AppButton(text = strings.cancel, onClick = { adding = false })
                     }
                 } else {
-                    AppButton(text = "+ Новый профиль", onClick = { adding = true })
+                    AppButton(text = t.pickerNewProfile, onClick = { adding = true })
                 }
             }
         }

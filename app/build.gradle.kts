@@ -13,11 +13,11 @@ android {
         applicationId = "app.radiacode"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        versionCode = 3
         // Стадия разработки — в ИМЕНИ приложения («Alpha»), поэтому в номере
         // версии её нет: один факт живёт в одном месте, иначе подпись под
         // иконкой читалась бы как «Alpha 0.1.0-alpha».
-        versionName = "0.1.0"
+        versionName = "0.2.1"
 
         // Под иконкой — только имя: версия там ничего не решает, а место на
         // домашнем экране узкое, и длинная подпись обрезается. Номер версии
@@ -45,6 +45,14 @@ android {
         // Нужен, чтобы тест мог сверить номер версии сборки со списком
         // обновлений: два источника одного факта обязаны совпадать.
         buildConfig = true
+    }
+
+    testOptions {
+        unitTests {
+            // Robolectric-смоук (app/src/test/.../smoke) рисует настоящие
+            // экраны: ему нужны ресурсы APK (шрифты, строки, иконки).
+            isIncludeAndroidResources = true
+        }
     }
 }
 
@@ -83,6 +91,41 @@ dependencies {
     // exported schema JSON (app/schemas) — no instrumentation needed.
     testImplementation(libs.sqlite.jdbc)
     testImplementation(libs.org.json)
+    // Robolectric smoke: every screen opens on a simulated device — the class
+    // of defects invisible to plain JVM tests (Android XML parser quirks,
+    // nested scroll measurement, NaN reaching a Canvas). See
+    // app/src/test/kotlin/app/radiacode/smoke.
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    // debug-, а не testImplementation: Robolectric читает манифест debug-сборки,
+    // и ComponentActivity для createComposeRule обязана быть объявлена именно там.
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+// Смоук гоняется ОТДЕЛЬНО от быстрых JVM-тестов: Robolectric поднимает целый
+// Android-класслоадер, и его минуты не должны стоять на пути секундных тестов.
+// `./gradlew :app:smokeTest` — только смоук; обычный `test` его исключает.
+val smokeRequested = gradle.startParameter.taskNames.any {
+    it.substringAfterLast(":") == "smokeTest"
+}
+tasks.withType<Test>().configureEach {
+    filter {
+        isFailOnNoMatchingTests = false
+        if (smokeRequested) {
+            includeTestsMatching("app.radiacode.smoke.*")
+        } else {
+            excludeTestsMatching("app.radiacode.smoke.*")
+        }
+    }
+    // Robolectric + Compose + native graphics не живут в дефолтных 512 МБ.
+    if (smokeRequested) maxHeapSize = "4g"
+}
+
+tasks.register("smokeTest") {
+    group = "verification"
+    description = "Robolectric smoke: every screen opens and does not crash."
+    dependsOn("testDebugUnitTest")
 }
 
 // Repo convention: the fresh debug APK always lands in <repo>/apk/app-debug.apk.

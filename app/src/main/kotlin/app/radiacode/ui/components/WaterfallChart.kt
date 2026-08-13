@@ -74,6 +74,8 @@ data class WaterfallSpec(
     val stripValues: List<Float?> = emptyList(),
     /** Подпись мини-графика под картой: что за величина и в чём. */
     val stripLabel: String = "",
+    /** Единица оси энергии: подпись приходит с экрана вместе с его языком. */
+    val energyUnit: String = "кэВ",
 )
 
 private const val STRIP_GAP_DP = 4
@@ -225,7 +227,7 @@ fun WaterfallChart(
         // «кэВ ↑ · время →» под графиком повторяла то, что и так видно по
         // числам 50/100/300 слева и по времени снизу.
         drawText(
-            textLayoutResult = textMeasurer.measure("кэВ", axisStyle),
+            textLayoutResult = textMeasurer.measure(spec.energyUnit, axisStyle),
             color = colors.muted,
             topLeft = Offset(0f, 0f),
         )

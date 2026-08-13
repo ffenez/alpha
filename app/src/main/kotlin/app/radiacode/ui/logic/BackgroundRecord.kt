@@ -5,6 +5,10 @@ import app.radiacode.analysis.CountWindow
 import app.radiacode.analysis.Dispersion
 import app.radiacode.analysis.RateComparison
 import app.radiacode.data.JsonMap
+import app.radiacode.ui.text.BackgroundCardRu
+import app.radiacode.ui.text.BackgroundCardStrings
+import app.radiacode.ui.text.SearchRu
+import app.radiacode.ui.text.SearchStrings
 
 /**
  * The recorded background of Поиск, **with everything needed to judge it**
@@ -161,19 +165,25 @@ data class BackgroundRecord(
     }
 }
 
-/** How the background *recording* went — a property of the measurement. */
-enum class BackgroundQuality(val label: String) {
-    GOOD("хорошее"),
+/**
+ * How the background *recording* went — a property of the measurement.
+ *
+ * Подпись живёт в каталоге области ([SearchBaseline.qualityLabel]), а не в
+ * самом перечислении: качество замера читает человек, а язык интерфейса
+ * выбирается в настройках.
+ */
+enum class BackgroundQuality {
+    GOOD,
 
     /** The run ended before its target length. */
-    SHORT("неполное"),
+    SHORT,
 
     /** The stream lost time inside the averaging interval. */
-    GAPPY("с пропусками потока"),
+    GAPPY,
 
     /** The readings scattered wider than counting statistics — the instrument
      *  was probably moving, or the field was not steady. */
-    RESTLESS("прибор не был неподвижен"),
+    RESTLESS,
 }
 
 /** Whether a stored background may still be used as the reference right now. */
@@ -194,6 +204,31 @@ enum class BackgroundCheck {
 }
 
 /**
+ * Карточка записанного фона в том виде, в каком её читает человек (ТЗ §10).
+ *
+ * Модель, а не набор строк в композиции: что стоит на рабочем экране, а что
+ * уехало на второй уровень, — это решение, и оно проверяется тестом, а не
+ * взглядом на вёрстку.
+ */
+data class BackgroundCardModel(
+    /** Главная строка: «Фон: 24,1 имп/с» либо «Фон не записан». */
+    val level: String,
+    /** «Записан в 15:04 · измерение 45 с»; null — записи ещё нет. */
+    val basis: String?,
+    /** Одна строка с НАЗВАННОЙ причиной непригодности; null — фон годится. */
+    val reason: String?,
+    /** Подпись кнопки: «Обновить фон» либо «Замерить фон · 45 с». */
+    val action: String,
+    /** Кнопка ведущая, только пока сравнивать не с чем. */
+    val actionPrimary: Boolean,
+    /** Второй уровень («i»): полное объяснение причины и параметры замера. */
+    val details: List<String>,
+) {
+    /** Фон пригоден: карточка не спорит с человеком и ничего не требует. */
+    val usable: Boolean get() = reason == null
+}
+
+/**
  * What Поиск does on open (redesign §5, §9): a usable background means the
  * search starts immediately, anything else means *proposing* a 45 s
  * measurement — never demanding one, and never starting one by itself while
@@ -202,37 +237,107 @@ enum class BackgroundCheck {
 object SearchBaseline {
 
     /** One line naming why a re-measurement is being proposed. */
-    fun proposal(check: BackgroundCheck, record: BackgroundRecord?): String? = when (check) {
+    fun proposal(
+        check: BackgroundCheck,
+        record: BackgroundRecord?,
+        t: SearchStrings = SearchRu,
+    ): String? = when (check) {
         BackgroundCheck.USABLE -> null
         // Приложение не знает, что человек делал эти полчаса, и не должно
         // сочинять за него сценарий: оно называет факт и условие сравнения.
-        BackgroundCheck.AGED ->
-            "Фон записан больше получаса назад. Сравнение верно, только если " +
-                "условия измерения не изменились."
-        BackgroundCheck.PROFILE_CHANGED ->
-            "Фон записан в другом профиле" +
-                (record?.profileName?.let { " («$it»)" } ?: "") +
-                " — сравнивать текущий счёт с ним нельзя."
-        BackgroundCheck.DEVICE_CHANGED ->
-            "Фон записан другим прибором — у другого детектора своя скорость счёта."
+        BackgroundCheck.AGED -> t.proposalAged
+        BackgroundCheck.PROFILE_CHANGED -> t.proposalProfileChanged(record?.profileName)
+        BackgroundCheck.DEVICE_CHANGED -> t.proposalDeviceChanged
         BackgroundCheck.LOW_QUALITY -> when (record?.quality) {
-            BackgroundQuality.SHORT ->
-                "Замер фона не был закончен — точка сравнения неполная."
-            BackgroundQuality.GAPPY ->
-                "В интервале замера фона были пропуски потока — интервал с дырой."
-            BackgroundQuality.RESTLESS ->
-                "Во время замера фона показания разбрасывало сильнее счётной " +
-                    "статистики — похоже, прибор двигался. Замерьте стоя неподвижно."
-            else -> "Записанный фон непригоден как точка сравнения."
+            BackgroundQuality.SHORT -> t.proposalShort
+            BackgroundQuality.GAPPY -> t.proposalGappy
+            BackgroundQuality.RESTLESS -> t.proposalRestless
+            else -> t.proposalUnusable
         }
     }
 
     /** Short status of the stored reference for the background card. */
-    fun statusLine(check: BackgroundCheck): String = when (check) {
-        BackgroundCheck.USABLE -> "пригоден"
-        BackgroundCheck.AGED -> "устарел"
-        BackgroundCheck.PROFILE_CHANGED -> "другой профиль"
-        BackgroundCheck.DEVICE_CHANGED -> "другой прибор"
-        BackgroundCheck.LOW_QUALITY -> "качество замера"
+    fun statusLine(check: BackgroundCheck, t: SearchStrings = SearchRu): String = when (check) {
+        BackgroundCheck.USABLE -> t.statusUsable
+        BackgroundCheck.AGED -> t.statusAged
+        BackgroundCheck.PROFILE_CHANGED -> t.statusProfileChanged
+        BackgroundCheck.DEVICE_CHANGED -> t.statusDeviceChanged
+        BackgroundCheck.LOW_QUALITY -> t.statusLowQuality
     }
+
+    /**
+     * Короткая карточка записанного фона (ТЗ §10).
+     *
+     * Первый уровень отвечает на три вопроса и молчит обо всём остальном:
+     * какой фон записан, когда и как долго его мерили, и — если он больше не
+     * годится — ОДНОЙ строкой, что именно с ним не так. Абзац, объясняющий
+     * почему, никуда не делся: он лежит в [BackgroundCardModel.details] и
+     * показывается под «i».
+     *
+     * @param rateText готовое число скорости счёта (форматирование единиц —
+     *   дело экрана, а не этой функции)
+     * @param timeOfDay момент записи в часовом поясе пользователя
+     */
+    fun card(
+        record: BackgroundRecord?,
+        check: BackgroundCheck,
+        rateText: String,
+        timeOfDay: String,
+        targetSeconds: Int,
+        c: BackgroundCardStrings = BackgroundCardRu,
+        t: SearchStrings = SearchRu,
+    ): BackgroundCardModel {
+        if (record == null) {
+            return BackgroundCardModel(
+                level = c.noRecord,
+                basis = null,
+                reason = null,
+                action = c.measure(targetSeconds),
+                actionPrimary = true,
+                details = listOf(c.noRecordHint(targetSeconds)),
+            )
+        }
+        val quality = record.quality
+        val reason = when (check) {
+            BackgroundCheck.USABLE -> null
+            BackgroundCheck.AGED -> c.agedLine
+            BackgroundCheck.PROFILE_CHANGED -> c.profileChangedLine(record.profileName)
+            BackgroundCheck.DEVICE_CHANGED -> c.deviceChangedLine
+            BackgroundCheck.LOW_QUALITY -> when (quality) {
+                BackgroundQuality.SHORT -> c.shortLine
+                BackgroundQuality.GAPPY -> c.gappyLine
+                BackgroundQuality.RESTLESS -> c.restlessLine
+                BackgroundQuality.GOOD -> c.agedLine
+            }
+        }
+        return BackgroundCardModel(
+            level = c.level(rateText),
+            basis = c.recordedAt(timeOfDay, record.window.seconds.toInt()),
+            reason = reason,
+            action = c.refresh,
+            // Пока фон годится, работа человека — ходить с прибором, а не
+            // нажимать эту кнопку.
+            actionPrimary = check != BackgroundCheck.USABLE,
+            details = listOfNotNull(
+                // Развёрнутое объяснение причины — тот же текст, что и раньше,
+                // но уровнем ниже.
+                proposal(check, record, t),
+                t.backgroundDetail(
+                    samples = record.window.samples,
+                    seconds = record.window.seconds.toInt(),
+                    quality = qualityLabel(quality, t),
+                    profile = record.profileName,
+                ),
+            ),
+        )
+    }
+
+    /** Как называется качество самого замера — свойство записи, не излучения. */
+    fun qualityLabel(quality: BackgroundQuality, t: SearchStrings = SearchRu): String =
+        when (quality) {
+            BackgroundQuality.GOOD -> t.qualityGood
+            BackgroundQuality.SHORT -> t.qualityShort
+            BackgroundQuality.GAPPY -> t.qualityGappy
+            BackgroundQuality.RESTLESS -> t.qualityRestless
+        }
 }

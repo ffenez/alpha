@@ -55,8 +55,9 @@ data class SearchChartSpec(
     val baseline: Float? = null,
     /** «фон 25,5» — the line is never drawn without saying what it is. */
     val baselineLabel: String? = null,
-    val xStartLabel: String = "−60 с",
-    val xEndLabel: String = "сейчас",
+    /** Подписи оси времени приходят с экрана — они на языке интерфейса. */
+    val xStartLabel: String,
+    val xEndLabel: String,
     /** Named marker over the confirmed stretch, e.g. «устойчиво ×1,8». */
     val excursionLabel: String? = null,
 )

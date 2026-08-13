@@ -183,7 +183,9 @@ class DoseHistogramTest {
         assertTrue(labels.all { it.first in 0f..1f })
         assertTrue(labels.first().second >= h.lowEdge)
         assertTrue(labels.last().second <= h.binHigh(h.binCount - 1))
-        // The y axis names raw 1 Hz samples, never «частота» or a density.
-        assertEquals("секунд измерений (1 Гц)", DoseHistograms.COUNT_AXIS_LABEL)
+        // Ось Y считает ПОКАЗАНИЯ прибора, а не секунды экспозиции: при
+        // пропусках это разные числа, и подпись обязана называть то, что
+        // реально суммируется (`a.sampleCount`). Никакой «частоты» и плотности.
+        assertEquals("показаний прибора (≈1 в секунду)", DoseHistograms.COUNT_AXIS_LABEL)
     }
 }

@@ -91,6 +91,9 @@ class RadiaCodeDevice(
 
     @Volatile
     private var connection: DeviceConnection? = null
+
+    /** Измеренная поправка часов прибора текущей сессии (см. [DeviceConnection]). */
+    val clockCorrectionMillis: Long get() = connection?.clockCorrectionMillis ?: 0L
     private var job: Job? = null
     private var sessionEstablished = false
 
@@ -110,7 +113,21 @@ class RadiaCodeDevice(
         _connectionState.value = ConnectionState.Disconnected
     }
 
-    suspend fun readSpectrum(): Spectrum = requireConnection().readSpectrum()
+    /**
+     * Объём ответов со спектром за всё время жизни объекта, байт — счётчик
+     * эфира для отладочного отчёта (ADR 007). Переподключение его не сбрасывает.
+     */
+    @Volatile
+    var spectrumPayloadBytes: Long = 0L
+        private set
+
+    suspend fun readSpectrum(): Spectrum {
+        val connection = requireConnection()
+        val before = connection.spectrumPayloadBytes
+        val spectrum = connection.readSpectrum()
+        spectrumPayloadBytes += connection.spectrumPayloadBytes - before
+        return spectrum
+    }
 
     suspend fun readAccumSpectrum(): Spectrum = requireConnection().readAccumSpectrum()
 

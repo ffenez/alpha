@@ -1,5 +1,9 @@
 package app.radiacode.data
 
+import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.theme.UiScale
+import app.radiacode.ui.text.Strings
+
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -112,6 +116,18 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
+     * Какой вопрос экран Поиска задаёт (`ui/logic/SearchMode`): «Наведение» или
+     * «Проверка». Запоминается, потому что режим выбирают под задачу дня, а не
+     * под сеанс: человек, который ходит с прибором, не должен переключать
+     * экран каждый раз заново. Пустое значение = «Проверка», прежнее поведение.
+     */
+    val searchMode: Flow<String?> = dataStore.data.map { it[SEARCH_MODE] }
+
+    suspend fun setSearchMode(id: String) {
+        dataStore.edit { it[SEARCH_MODE] = id }
+    }
+
+    /**
      * «Показать расчёты» in the «Почему такой вывод» sheet stays where the user
      * left it (why-spec §11): someone who always opens the numbers should stop
      * having to open them.
@@ -121,6 +137,38 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
 
     suspend fun setWhyCalculationsExpanded(expanded: Boolean) {
         dataStore.edit { it[WHY_EXPANDED] = expanded }
+    }
+
+    /**
+     * Пользовательский масштаб интерфейса, %: отдельно текст, отдельно
+     * элементы (см. [app.radiacode.ui.theme.UiScale]). Значение с диска
+     * зажимается в допустимые границы при чтении: настройка на диске — не
+     * гарантия, а версия приложения могла границы изменить.
+     */
+    val fontScalePercent: Flow<Int> =
+        dataStore.data.map { UiScale.clampFont(it[FONT_SCALE] ?: UiScale.DEFAULT_PERCENT) }
+
+    val elementScalePercent: Flow<Int> =
+        dataStore.data.map { UiScale.clampElement(it[ELEMENT_SCALE] ?: UiScale.DEFAULT_PERCENT) }
+
+    suspend fun setFontScalePercent(percent: Int) {
+        dataStore.edit { it[FONT_SCALE] = UiScale.clampFont(percent) }
+    }
+
+    suspend fun setElementScalePercent(percent: Int) {
+        dataStore.edit { it[ELEMENT_SCALE] = UiScale.clampElement(percent) }
+    }
+
+    /**
+     * Блок «Спектральные диапазоны» на Спектре остаётся там, где его оставили.
+     * Свёрнут по умолчанию: границы — параметр анализа, и разворачивает их
+     * тот, кому они нужны, а не каждый, кто открыл спектр.
+     */
+    val spectralRangesExpanded: Flow<Boolean> =
+        dataStore.data.map { it[SPECTRAL_RANGES_EXPANDED] ?: false }
+
+    suspend fun setSpectralRangesExpanded(expanded: Boolean) {
+        dataStore.edit { it[SPECTRAL_RANGES_EXPANDED] = expanded }
     }
 
     /**
@@ -154,6 +202,25 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
      * Дизайн-язык тёмный по природе, но выбор — за человеком, который держит
      * прибор на солнце.
      */
+    /**
+     * Принятая измеренная модель разрешения
+     * ([app.radiacode.analysis.evidence.AcceptedResolution]) — плоская строка
+     * `a=…;b=…;c=…;serial=…`. Пусто = модель не принята, работает
+     * √E-приближение. Хранится сырой: декодирует её чистый JVM-код, который
+     * тестируется без Android.
+     */
+    val measuredResolutionRaw: Flow<String?> =
+        dataStore.data.map { it[MEASURED_RESOLUTION] }
+
+    /** `null` — вернуть приближение (человек нажал «Вернуть приближение»). */
+    suspend fun setMeasuredResolutionRaw(encoded: String?) {
+        dataStore.edit { prefs ->
+            if (encoded == null) prefs.remove(MEASURED_RESOLUTION) else {
+                prefs[MEASURED_RESOLUTION] = encoded
+            }
+        }
+    }
+
     /** Язык интерфейса; `system` = язык телефона. */
     val language: Flow<AppLanguage> =
         dataStore.data.map { AppLanguage.of(it[LANGUAGE]) }
@@ -328,6 +395,26 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         dataStore.edit { it[MAP_TRACK_SCOPE] = scope.name }
     }
 
+    /**
+     * Как часто служба спрашивает у прибора спектр, когда экран закрыт
+     * (ADR 007). Открытый Спектр или Спектрограмма всегда дают 5 с — там виден
+     * эффект, и правило одно, а не «если экран давно не открывали».
+     */
+    /** Срез сырых измерений по возрасту, дней; 0 = хранить всё (умолчание). */
+    val rawRetentionDays: Flow<Int> =
+        dataStore.data.map { RawRetention.sanitize(it[RAW_RETENTION_DAYS] ?: RawRetention.KEEP_ALL_DAYS) }
+
+    suspend fun setRawRetentionDays(days: Int) {
+        dataStore.edit { it[RAW_RETENTION_DAYS] = RawRetention.sanitize(days) }
+    }
+
+    val spectrumPollPolicy: Flow<SpectrumPollPolicy> =
+        dataStore.data.map { SpectrumPollPolicy.of(it[SPECTRUM_POLL_POLICY]) }
+
+    suspend fun setSpectrumPollPolicy(policy: SpectrumPollPolicy) {
+        dataStore.edit { it[SPECTRUM_POLL_POLICY] = policy.id }
+    }
+
     /** Optional Монитор blocks; hero value, status and chart are fixed. */
     val monitorBlocks: Flow<MonitorBlocks> = dataStore.data.map { prefs ->
         MonitorBlocks(
@@ -372,13 +459,19 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val SEARCH_FEEDBACK_MODE = stringPreferencesKey("search_feedback_mode")
         private val SEARCH_SOUND_FLAVOUR = stringPreferencesKey("search_sound_flavour")
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")
+        private val SEARCH_MODE = stringPreferencesKey("search_mode")
         private val WHY_EXPANDED = booleanPreferencesKey("why_calculations_expanded")
+        private val FONT_SCALE = intPreferencesKey("ui_font_scale_pct")
+        private val ELEMENT_SCALE = intPreferencesKey("ui_element_scale_pct")
+        private val SPECTRAL_RANGES_EXPANDED =
+            booleanPreferencesKey("spectral_ranges_expanded")
         private val THEME = stringPreferencesKey("theme")
         private val LANGUAGE = stringPreferencesKey("language")
         private val SKIN = stringPreferencesKey("skin")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")
+        private val MEASURED_RESOLUTION = stringPreferencesKey("measured_resolution")
         private val CHART_SPANS = stringPreferencesKey("chart_spans")
 
         /** «dose:21600000,cps:3600000» — плоский формат, читается тестом. */
@@ -412,6 +505,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val MONITOR_SHOW_HARDNESS_CHART =
             booleanPreferencesKey("monitor_show_hardness_chart")
         private val MAP_TRACK_SCOPE = stringPreferencesKey("map_track_scope")
+        private val SPECTRUM_POLL_POLICY = stringPreferencesKey("spectrum_poll_policy")
+        private val RAW_RETENTION_DAYS = intPreferencesKey("raw_retention_days")
     }
 }
 
@@ -471,8 +566,54 @@ enum class ThemeSetting(val id: String, val label: String) {
     LIGHT("light", "Светлая"),
     ;
 
+    /**
+     * Подпись на экране — из каталога. Поле [label] осталось русским
+     * НАМЕРЕННО: его печатает отладочный отчёт, который не зависит от языка
+     * интерфейса того, кто его снял.
+     */
+    fun title(s: Strings = RuStrings): String = when (this) {
+        SYSTEM -> s.themeSystem
+        DARK -> s.themeDark
+        LIGHT -> s.themeLight
+    }
+
     companion object {
         fun of(id: String?): ThemeSetting = entries.firstOrNull { it.id == id } ?: SYSTEM
+    }
+}
+
+/**
+ * Частота опроса спектра в фоне — ЯВНАЯ политика (ADR 007), а не догадка
+ * приложения о том, нужна ли сейчас история.
+ *
+ * Ступень названа своим ЧИСЛОМ: «5 с», «30 с», «10 мин». Прилагательное рядом
+ * (подробно/обычно/экономно) — подпись, а не имя: от «сбалансированного» режима
+ * нельзя узнать, какой интервал получит история.
+ *
+ * Открытый экран Спектра или Спектрограммы всегда даёт 5 с независимо от
+ * политики: наблюдатель объявлен явно ([app.radiacode.service.SpectrumHub]),
+ * и это единственное исключение — скрытых правил вида «если экран давно не
+ * открывали» здесь нет.
+ */
+enum class SpectrumPollPolicy(val id: String, val intervalMillis: Long) {
+    EVERY_5_S("5s", 5_000L),
+    EVERY_30_S("30s", 30_000L),
+    EVERY_10_MIN("10m", 600_000L),
+    ;
+
+    companion object {
+        /**
+         * По умолчанию 30 с: пятнадцатиминутное окно картинки получает
+         * ≈30 колонок вместо одной-двух, и это в 20 раз меньше запросов, чем
+         * подробный режим.
+         */
+        val DEFAULT = EVERY_30_S
+
+        fun of(id: String?): SpectrumPollPolicy = entries.firstOrNull { it.id == id } ?: DEFAULT
+
+        /** Интервал опроса при данной политике и числе наблюдателей экрана. */
+        fun intervalMillis(policy: SpectrumPollPolicy, watchers: Int): Long =
+            if (watchers > 0) EVERY_5_S.intervalMillis else policy.intervalMillis
     }
 }
 

@@ -74,7 +74,7 @@ class HistoryFormatTest {
             ),
         )
         assertEquals(
-            "в обычный фон: частично · вне обучения 10 мин — карантин после отклонения",
+            "в обычный фон: частично · вне обучения 10 мин — недавно было отклонение уровня",
             line,
         )
     }
@@ -100,9 +100,23 @@ class HistoryFormatTest {
         )
     }
 
+    /**
+     * ТЗ §13: под проекцией остаётся ОДНО короткое предупреждение. Сокращается
+     * перечисление того, что не входит, а не сам отказ — и отказ обязан
+     * оставаться отказом на первом уровне, без «i».
+     */
+    @Test
+    fun `the short caveat keeps the refusal on the first level`() {
+        val short = HistoryFormat.doseProjectionCaveatShort()
+        assertTrue(short.contains("не годовая эффективная доза"), short)
+        assertTrue(short.contains("внешнего гамма-фона"), short)
+        assertFalse(short.contains("радон"), "перечень уехал в справку: $short")
+        assertTrue(short.length < HistoryFormat.doseProjectionCaveat().length, short)
+    }
+
     @Test
     fun `dose projection caveat lists what is not included`() {
-        val caveat = HistoryFormat.DOSE_PROJECTION_CAVEAT
+        val caveat = HistoryFormat.doseProjectionCaveat()
         assertTrue(caveat.contains("не годовая эффективная доза"))
         assertTrue(caveat.contains("радон"))
         assertTrue(caveat.contains("внутреннее"))

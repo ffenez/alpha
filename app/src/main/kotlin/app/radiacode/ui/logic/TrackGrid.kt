@@ -1,5 +1,7 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.MapRu
+import app.radiacode.ui.text.MapStrings
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.cos
@@ -317,16 +319,16 @@ object TrackGrid {
     }
 
     /** «20 м» / «1,5 км» for the legend line «клетка ≈ …». */
-    fun formatCellSize(meters: Double): String = when {
+    fun formatCellSize(meters: Double, s: MapStrings = MapRu): String = when {
         meters >= 1_000 -> {
             val km = meters / 1000
             if (km >= 10) {
-                String.format(Locale.US, "%.0f км", km)
+                String.format(Locale.US, "%.0f", km) + " " + s.unitKilometers
             } else {
-                String.format(Locale.US, "%.1f км", km).replace('.', ',')
+                String.format(Locale.US, "%.1f", km).replace('.', ',') + " " + s.unitKilometers
             }
         }
-        meters >= 1 -> String.format(Locale.US, "%.0f м", meters)
-        else -> String.format(Locale.US, "%.1f м", meters).replace('.', ',')
+        meters >= 1 -> String.format(Locale.US, "%.0f", meters) + " " + s.unitMeters
+        else -> String.format(Locale.US, "%.1f", meters).replace('.', ',') + " " + s.unitMeters
     }
 }

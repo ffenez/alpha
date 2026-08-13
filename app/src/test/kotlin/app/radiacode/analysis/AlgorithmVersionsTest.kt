@@ -30,6 +30,9 @@ class AlgorithmVersionsTest {
         // и добавлена проверка ширины структуры — числа изменились осознанно.
         assertEquals(2, AlgorithmVersions.PEAK_DETECTION)
         assertEquals(1, AlgorithmVersions.ISOTOPE_MATCH)
+        // v1 движка доказательств: экран Спектра перешёл на него, ISOTOPE_MATCH
+        // не бампается — математика матчера не менялась, он только снят с экрана.
+        assertEquals(1, AlgorithmVersions.PEAK_EVIDENCE)
         assertEquals(1, AlgorithmVersions.SPECTRUM_COMPARE)
         assertEquals(1, AlgorithmVersions.SPECTRUM_MERGE)
         assertEquals(1, AlgorithmVersions.RADON_TREND)
@@ -46,6 +49,7 @@ class AlgorithmVersionsTest {
         assertEquals(1, AlgorithmVersions.SHAPE_CHANGE)
         assertEquals(1, AlgorithmVersions.HARDNESS)
         assertEquals(1, AlgorithmVersions.FINGERPRINT)
+        assertEquals(1, AlgorithmVersions.BACKGROUND_CALIBRATION)
     }
 
     @Test
@@ -68,6 +72,14 @@ class AlgorithmVersionsTest {
         assertEquals(AlgorithmVersions.HARDNESS, Hardness.ALGORITHM_VERSION)
         assertEquals(AlgorithmVersions.FINGERPRINT, Fingerprint.ALGORITHM_VERSION)
         assertEquals(
+            AlgorithmVersions.BACKGROUND_CALIBRATION,
+            app.radiacode.analysis.evidence.BackgroundCalibration.ALGORITHM_VERSION,
+        )
+        assertEquals(
+            AlgorithmVersions.PEAK_EVIDENCE,
+            app.radiacode.analysis.evidence.EvidenceEngine.ALGORITHM_VERSION,
+        )
+        assertEquals(
             AlgorithmVersions.SEARCH_LADDER,
             app.radiacode.ui.logic.SearchLadder.ALGORITHM_VERSION,
         )
@@ -86,6 +98,7 @@ class AlgorithmVersionsTest {
             "network_identity",
             "peak_detection",
             "isotope_match",
+            "peak_evidence",
             "spectrum_compare",
             "spectrum_merge",
             "radon_trend",
@@ -102,6 +115,7 @@ class AlgorithmVersionsTest {
             "shape_change",
             "hardness",
             "fingerprint",
+            "background_calibration",
         )
         assertEquals(expected, AlgorithmVersions.all.keys)
         assertTrue(AlgorithmVersions.all.values.all { it >= 1 })

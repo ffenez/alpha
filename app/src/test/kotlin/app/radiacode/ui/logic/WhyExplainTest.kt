@@ -29,7 +29,7 @@ class WhyExplainTest {
     @Test
     fun `verdict repeats the main screen headline verbatim`() {
         assertEquals(
-            "В обычном диапазоне этого профиля",
+            "Показания обычны для этого места",
             statusHeadline(MonitorStatus.Usual(baseline)),
         )
         assertEquals(
@@ -38,15 +38,21 @@ class WhyExplainTest {
         )
     }
 
+    /**
+     * 14.md: первая фраза человеческая — «диапазон, в котором обычно находятся
+     * измерения этого места», а не «исторический P10–P90 профиля». Сама
+     * нотация никуда не делась: она подписывает шкалу и второй уровень.
+     */
     @Test
     fun `the verdict says what it was compared with`() {
         assertEquals(
-            "Текущая мощность дозы находится внутри исторического P10–P90 профиля.",
+            "Текущее значение попадает в диапазон, в котором обычно находятся измерения " +
+                "этого места.",
             WhyExplain.verdictExplanation(MonitorStatus.Usual(baseline)),
         )
         assertTrue(
             WhyExplain.verdictExplanation(MonitorStatus.AboveUsual(baseline, 300))
-                .contains("P10–P90 профиля"),
+                .contains("держится выше диапазона"),
         )
         val forbidden = listOf("норма", "безопас", "допустим")
         for (status in listOf(

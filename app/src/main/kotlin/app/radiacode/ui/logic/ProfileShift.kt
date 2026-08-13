@@ -2,6 +2,8 @@ package app.radiacode.ui.logic
 
 import app.radiacode.baseline.Baseline
 import app.radiacode.data.JsonMap
+import app.radiacode.ui.text.MonitorRu
+import app.radiacode.ui.text.MonitorStrings
 
 /**
  * «Уровень изменился надолго» (why-spec §7).
@@ -54,25 +56,25 @@ object ProfileShift {
         return true
     }
 
-    const val TITLE = "Уровень изменился надолго"
+    fun title(s: MonitorStrings = MonitorRu): String = s.shiftTitle
 
-    fun sentence(profileName: String?): String {
-        val name = profileName?.let { "профиля «$it»" } ?: "профиля"
-        return "Показания устойчиво отличаются от исторического диапазона $name. " +
-            "Возможно, изменилось место прибора или сама обстановка."
-    }
+    fun sentence(profileName: String?, s: MonitorStrings = MonitorRu): String =
+        s.shiftSentence(profileName)
 
     /**
      * What each answer does, said before it is given — the update is not
      * reversible by the app, so it may not be a surprise.
      */
-    const val EXPLANATION =
-        "«Обновить профиль» начнёт новый период: прежний диапазон сохранится в истории, " +
-            "а обычный диапазон будет считаться заново с этого момента. Сырые измерения " +
-            "не меняются и не удаляются."
+    fun explanation(s: MonitorStrings = MonitorRu): String = s.shiftExplanation
 
-    const val UPDATE_ACTION = "Обновить профиль"
-    const val KEEP_ACTION = "Оставить как есть"
+    fun updateAction(s: MonitorStrings = MonitorRu): String = s.shiftUpdateAction
+    fun keepAction(s: MonitorStrings = MonitorRu): String = s.shiftKeepAction
+
+    /** Русские варианты по умолчанию — для вызовов без каталога языка. */
+    val TITLE: String get() = title()
+    val EXPLANATION: String get() = explanation()
+    val UPDATE_ACTION: String get() = updateAction()
+    val KEEP_ACTION: String get() = keepAction()
 }
 
 /**

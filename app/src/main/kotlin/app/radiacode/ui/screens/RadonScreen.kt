@@ -36,6 +36,12 @@ import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.logic.HistoryFormat
+import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
+import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.SessionRadonCatalogue
+import app.radiacode.ui.text.SessionRadonStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -72,6 +78,8 @@ private data class RadonModel(
 fun RadonScreen(graph: AppGraph, onBack: () -> Unit) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = SessionRadonCatalogue.of(strings.language)
 
     BackHandler { onBack() }
 
@@ -94,13 +102,13 @@ fun RadonScreen(graph: AppGraph, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← Назад", onClick = onBack)
+            AppButton(text = "← ${strings.back}", onClick = onBack)
             Spacer(Modifier.weight(1f))
-            Chip(text = "Радон", color = colors.ink)
+            Chip(text = t.radonTag, color = colors.ink)
         }
 
         Segmented(
-            options = listOf("24 ч", "7 д"),
+            options = listOf(t.window24h, t.window7d),
             selectedIndex = windowIndex,
             onSelect = { windowIndex = it },
         )
@@ -108,38 +116,32 @@ fun RadonScreen(graph: AppGraph, onBack: () -> Unit) {
         val m = model
         when {
             !loaded -> Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "читаю снимки спектра…", style = type.bodySmall, color = colors.muted)
+                Text(text = t.readingSnapshots, style = type.bodySmall, color = colors.muted)
             }
             m == null || m.hours.isEmpty() -> Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     Text(
-                        text = "данных пока нет",
+                        text = t.noRadonDataYet,
                         style = type.bodySmall,
                         color = colors.ink2,
                     )
                     Text(
-                        text = "Индикатор строится по снимкам спектра: пока прибор " +
-                            "подключён, они пишутся автоматически (раз в ~10 мин, чаще " +
-                            "при открытом Спектре). Первые точки появятся через час-два " +
-                            "измерения.",
+                        text = t.radonEmptyExplained,
                         style = type.bodySmall,
                         color = colors.muted,
                     )
                 }
             }
-            else -> RadonContent(m)
+            else -> RadonContent(m, t)
         }
 
         Text(
-            text = "Относительный индикатор радоновых продуктов распада — net-скорость " +
-                "счёта в окнах Bi-214 (609 кэВ) и Pb-214 (352 кэВ). Это не концентрация " +
-                "радона в Бк/м³: прибор не откалиброван по объёмной активности.",
+            text = t.radonCaveat,
             style = type.footnote,
             color = colors.muted,
         )
         Text(
-            text = "Проверка: проветрите помещение и наблюдайте спад — продукты распада " +
-                "радона вымываются воздухообменом за десятки минут.",
+            text = t.ventilationCheck,
             style = type.footnote,
             color = colors.muted,
         )
@@ -147,7 +149,8 @@ fun RadonScreen(graph: AppGraph, onBack: () -> Unit) {
 }
 
 @Composable
-private fun RadonContent(m: RadonModel) {
+private fun RadonContent(m: RadonModel, t: SessionRadonStrings) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
 
@@ -155,17 +158,17 @@ private fun RadonContent(m: RadonModel) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Индикатор по часам".uppercase(),
+                    text = t.hourlyTitle.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
                 Spacer(Modifier.weight(1f))
-                Text(text = "имп/с в ROI", style = type.footnote, color = colors.muted)
+                Text(text = t.roiRateUnit, style = type.footnote, color = colors.muted)
             }
             val dataMax = m.columns.filterNotNull().maxOrNull()
             if (dataMax == null || dataMax <= 0f) {
                 Text(
-                    text = "в выбранном окне измерений не было",
+                    text = t.noMeasurementsInWindow,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
@@ -175,13 +178,13 @@ private fun RadonContent(m: RadonModel) {
                         values = m.columns,
                         yMax = dataMax * 1.25f,
                         refLine = m.median,
-                        xStartLabel = edgeLabel(m.fromMillis, m.toMillis),
-                        xEndLabel = "сейчас",
+                        xStartLabel = edgeLabel(m.fromMillis, m.toMillis, h),
+                        xEndLabel = t.now,
                     ),
                     height = 80.dp,
                 )
                 Text(
-                    text = "пунктир — медиана окна · пропуски — часы без измерений",
+                    text = t.radonChartNote,
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -190,11 +193,11 @@ private fun RadonContent(m: RadonModel) {
                 cells = listOf(
                     StatCell(
                         m.current?.let { rate(it.rateCps) } ?: "—",
-                        "сейчас",
+                        t.now,
                     ),
-                    StatCell(m.median?.let { rate(it) } ?: "—", "медиана"),
-                    StatCell(relativeLabel(m.current?.rateCps, m.median), "к медиане"),
-                    StatCell("${m.hours.size}", "часов данных"),
+                    StatCell(m.median?.let { rate(it) } ?: "—", t.statMedian),
+                    StatCell(relativeLabel(m.current?.rateCps, m.median), t.toMedian),
+                    StatCell("${m.hours.size}", t.hoursOfData),
                 ),
             )
             Row(
@@ -202,26 +205,28 @@ private fun RadonContent(m: RadonModel) {
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
             ) {
                 val (label, color) = when (m.trend) {
-                    RadonTrend.Trend.RISING -> "↗ растёт" to colors.warn
-                    RadonTrend.Trend.FALLING -> "↘ спадает" to colors.ok
+                    RadonTrend.Trend.RISING -> t.trendRising to colors.warn
+                    RadonTrend.Trend.FALLING -> t.trendFalling to colors.ok
                     // Правило сравнивает проекцию наклона с разбросом: оно
                     // может НЕ найти направления, но не может доказать
                     // постоянство. «Стабильно» утверждало бы второе.
-                    RadonTrend.Trend.FLAT -> "— направление не выделено" to colors.ink2
-                    RadonTrend.Trend.UNKNOWN -> "тренд: мало данных" to colors.muted
+                    RadonTrend.Trend.FLAT -> t.trendFlat to colors.ink2
+                    RadonTrend.Trend.UNKNOWN -> t.trendUnknown to colors.muted
                 }
                 Chip(text = label, color = color)
                 Text(
-                    text = "тренд последних 6 часов",
+                    text = t.trendWindow,
                     style = type.footnote,
                     color = colors.muted,
                 )
             }
             m.current?.let { current ->
                 Text(
-                    text = "текущая точка: ${rate(current.rateCps)} ± " +
-                        "${rate(current.sigmaCps)} имп/с (1σ) за " +
-                        HistoryFormat.duration(current.seconds),
+                    text = t.currentPoint(
+                        rate = rate(current.rateCps),
+                        sigma = rate(current.sigmaCps),
+                        duration = HistoryFormat.duration(current.seconds, s = h),
+                    ),
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -238,11 +243,15 @@ private fun relativeLabel(current: Float?, median: Float?): String {
     return "×" + String.format(Locale.US, "%.1f", current / median).replace('.', ',')
 }
 
-private fun edgeLabel(fromMillis: Long, toMillis: Long): String =
+private fun edgeLabel(
+    fromMillis: Long,
+    toMillis: Long,
+    h: HistoryStrings = HistoryRu,
+): String =
     if (toMillis - fromMillis <= 25 * RadonTrend.HOUR_MILLIS) {
         Instant.ofEpochMilli(fromMillis).atZone(ZoneId.systemDefault()).format(HH_MM)
     } else {
-        HistoryFormat.day(fromMillis)
+        HistoryFormat.day(fromMillis, s = h)
     }
 
 private suspend fun loadRadon(graph: AppGraph, days: Int): RadonModel {

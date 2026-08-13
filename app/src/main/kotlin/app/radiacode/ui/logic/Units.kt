@@ -1,6 +1,8 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.data.DoseUnitSetting
+import app.radiacode.ui.text.RuStrings
+import app.radiacode.ui.text.Strings
 import java.util.Locale
 
 /**
@@ -22,12 +24,12 @@ object DoseFormat {
     fun rate(microSvH: Float, unit: DoseUnitSetting): String =
         format(rateValue(microSvH, unit), unit)
 
-    fun rateWithUnit(microSvH: Float, unit: DoseUnitSetting): String =
-        "${rate(microSvH, unit)} ${rateUnitLabel(unit)}"
+    fun rateWithUnit(microSvH: Float, unit: DoseUnitSetting, s: Strings = RuStrings): String =
+        "${rate(microSvH, unit)} ${rateUnitLabel(unit, s)}"
 
-    fun rateUnitLabel(unit: DoseUnitSetting): String = when (unit) {
-        DoseUnitSetting.MICRO_SIEVERT -> "мкЗв/ч"
-        DoseUnitSetting.MICRO_ROENTGEN -> "мкР/ч"
+    fun rateUnitLabel(unit: DoseUnitSetting, s: Strings = RuStrings): String = when (unit) {
+        DoseUnitSetting.MICRO_SIEVERT -> s.unitMicroSv
+        DoseUnitSetting.MICRO_ROENTGEN -> s.unitMicroR
     }
 
     /** Accumulated dose (µSv stored) in the display unit. */
@@ -37,12 +39,12 @@ object DoseFormat {
             format((microSv * MICRO_R_PER_MICRO_SV).toFloat(), unit)
     }
 
-    fun doseWithUnit(microSv: Double, unit: DoseUnitSetting): String =
-        "${dose(microSv, unit)} ${doseUnitLabel(unit)}"
+    fun doseWithUnit(microSv: Double, unit: DoseUnitSetting, s: Strings = RuStrings): String =
+        "${dose(microSv, unit)} ${doseUnitLabel(unit, s)}"
 
-    fun doseUnitLabel(unit: DoseUnitSetting): String = when (unit) {
-        DoseUnitSetting.MICRO_SIEVERT -> "мкЗв"
-        DoseUnitSetting.MICRO_ROENTGEN -> "мкР"
+    fun doseUnitLabel(unit: DoseUnitSetting, s: Strings = RuStrings): String = when (unit) {
+        DoseUnitSetting.MICRO_SIEVERT -> s.unitDoseMicroSv
+        DoseUnitSetting.MICRO_ROENTGEN -> s.unitDoseMicroR
     }
 
     /**
@@ -52,7 +54,11 @@ object DoseFormat {
      * A projected year written as «1234,56» would claim a precision the
      * assumption «rate stays the same» cannot carry.
      */
-    fun doseCoarseWithUnit(microSv: Double, unit: DoseUnitSetting): String {
+    fun doseCoarseWithUnit(
+        microSv: Double,
+        unit: DoseUnitSetting,
+        s: Strings = RuStrings,
+    ): String {
         val value = when (unit) {
             DoseUnitSetting.MICRO_SIEVERT -> microSv
             DoseUnitSetting.MICRO_ROENTGEN -> microSv * MICRO_R_PER_MICRO_SV
@@ -63,7 +69,7 @@ object DoseFormat {
             value >= 10.0 -> String.format(Locale.US, "%.1f", value).replace('.', ',')
             else -> String.format(Locale.US, "%.2f", value).replace('.', ',')
         }
-        return "$text ${doseUnitLabel(unit)}"
+        return "$text ${doseUnitLabel(unit, s)}"
     }
 
     /** Thousands grouped with a non-breaking-ish space: 12340 → «12 340». */
@@ -85,7 +91,11 @@ object DoseFormat {
      * человек, перепроверив на калькуляторе, получал 1 400 вместо 1 360 и был
      * прав. Три знака после запятой возвращают согласованность.
      */
-    fun rateBasisWithUnit(microSvH: Double, unit: DoseUnitSetting): String {
+    fun rateBasisWithUnit(
+        microSvH: Double,
+        unit: DoseUnitSetting,
+        s: Strings = RuStrings,
+    ): String {
         val value = when (unit) {
             DoseUnitSetting.MICRO_SIEVERT -> microSvH
             DoseUnitSetting.MICRO_ROENTGEN -> microSvH * MICRO_R_PER_MICRO_SV
@@ -95,7 +105,7 @@ object DoseFormat {
             DoseUnitSetting.MICRO_ROENTGEN -> 1
         }
         val text = String.format(Locale.US, "%.${digits}f", value).replace('.', ',')
-        return "$text ${rateUnitLabel(unit)}"
+        return "$text ${rateUnitLabel(unit, s)}"
     }
 
     /** «0,09–0,14» — the baseline typical band, values in the display unit. */

@@ -1,8 +1,12 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.analysis.EnergyWindow
+import app.radiacode.analysis.EnergyWindowSpec
+import app.radiacode.analysis.EnergyWindows
 import app.radiacode.analysis.HintConfidence
 import app.radiacode.analysis.IsotopeHint
+import app.radiacode.ui.text.SpectrumRu
+import app.radiacode.ui.text.SpectrumStrings
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -23,20 +27,59 @@ object SpectrumFormat {
     }
 
     /** Visible-range indicator: «0–3072 кэВ». */
-    fun windowLabel(window: EnergyWindow): String =
-        "${window.startKeV.roundToInt()}–${window.endKeV.roundToInt()} кэВ"
+    fun windowLabel(window: EnergyWindow, s: SpectrumStrings = SpectrumRu): String =
+        "${window.startKeV.roundToInt()}–${window.endKeV.roundToInt()} ${s.unitKeV}"
 
-    fun confidenceLabel(confidence: HintConfidence): String = when (confidence) {
-        HintConfidence.LOW -> "низкая"
-        HintConfidence.MEDIUM -> "средняя"
+    // --- спектральные диапазоны (спец §7) ---
+
+    /** Ячейка диапазона: «100–300» (кэВ названы в шапке колонки). */
+    fun rangeLabel(spec: EnergyWindowSpec): String =
+        "${spec.startKeV.roundToInt()}–${spec.endKeV.roundToInt()}"
+
+    /**
+     * Скорость счёта с её пуассоновской неопределённостью: «12,71 ± 0,04».
+     * σ здесь — стандартная неопределённость СКОРОСТИ СЧЁТА, σ_R = √C/t
+     * ([EnergyWindows]), поэтому в шапке колонки стоит «с⁻¹ ± σ», а не «±Σ»:
+     * Σ читается как сумма и величиной не является.
+     */
+    fun rangeRate(window: EnergyWindows.WindowResult): String =
+        "${ExperimentFormat.decimal(window.rateCps)} ± ${ExperimentFormat.decimal(window.sigmaCps)}"
+
+    /** Доля диапазона в спектре: «52 %». */
+    fun rangeShare(window: EnergyWindows.WindowResult): String =
+        "${(window.fraction * 100).roundToInt()} %"
+
+    /** Спектральное отношение со своей неопределённостью: «17,15 ± 0,04». */
+    fun ratioValue(index: EnergyWindows.SpectralIndex): String =
+        "${ExperimentFormat.decimal(index.value)} ± ${ExperimentFormat.decimal(index.sigma)}"
+
+    /** Отношение без неопределённости — для свёрнутой сводки блока: «17,15». */
+    fun ratioShort(index: EnergyWindows.SpectralIndex): String =
+        ExperimentFormat.decimal(index.value)
+
+    /** Реально покрытый диапазон каналов: «99,8–299,5». */
+    fun rangeCovered(window: EnergyWindows.WindowResult): String =
+        "${oneDecimal(window.coveredStartKeV)}–${oneDecimal(window.coveredEndKeV)}"
+
+    private fun oneDecimal(value: Float): String =
+        String.format(Locale.US, "%.1f", value).replace('.', ',')
+
+    @Deprecated("Экран читает движок доказательств: см. matchCell/matchNotes")
+    fun confidenceLabel(
+        confidence: HintConfidence,
+        s: SpectrumStrings = SpectrumRu,
+    ): String = when (confidence) {
+        HintConfidence.LOW -> s.confidenceLow
+        HintConfidence.MEDIUM -> s.confidenceMedium
     }
 
     /** «также похоже: I-131» — alternative candidates for the same peak. */
-    fun hintAlternatives(hint: IsotopeHint): String? =
+    @Deprecated("Экран читает движок доказательств: см. matchNotes")
+    fun hintAlternatives(hint: IsotopeHint, s: SpectrumStrings = SpectrumRu): String? =
         if (hint.alternatives.isEmpty()) {
             null
         } else {
-            "также похоже: ${hint.alternatives.joinToString(", ")}"
+            s.alsoResembles(hint.alternatives.joinToString(", "))
         }
 
     /** Peak-table energy cell: «661,9» (keV, one decimal, comma). */
@@ -60,40 +103,108 @@ object SpectrumFormat {
      * natural lines read «Bi-214 · природный», the rest carry their
      * confidence: «Cs-137 · средняя ур.».
      */
-    fun candidateCell(hint: IsotopeHint): String =
+    @Suppress("DEPRECATION")
+    @Deprecated("Экран читает движок доказательств: см. matchCell")
+    fun candidateCell(hint: IsotopeHint, s: SpectrumStrings = SpectrumRu): String =
         if (hint.natural) {
-            "${hint.isotope} · природный"
+            s.candidateNatural(hint.isotope)
         } else {
-            "${hint.isotope} · ${confidenceLabel(hint.confidence)} ур."
+            s.candidateConfidence(hint.isotope, confidenceLabel(hint.confidence, s))
+        }
+
+    /**
+     * Ячейка «возможное совпадение» из вердикта движка (ADR 006). Текст никогда
+     * не утверждает обнаружение: заголовок колонки уже говорит «возможное», а
+     * кандидат носит счёт совпавших линий вместо шкалы уверенности.
+     */
+    fun matchCell(match: PeakMatch, s: SpectrumStrings = SpectrumRu): String = when (match) {
+        PeakMatch.None -> "—"
+        // Противоречащий кандидат в колонке НЕ показывается — прочерк,
+        // пометка уходит в детали строки ([matchNotes]).
+        is PeakMatch.Contradicted -> "—"
+        is PeakMatch.AmbiguousGroup -> match.nuclides.joinToString(" / ")
+        is PeakMatch.Candidate ->
+            if (match.natural) {
+                s.candidateNatural(match.nuclide)
+            } else {
+                s.candidateLines(match.nuclide, match.matchedLines)
+            }
+        is PeakMatch.Artifact -> when (match.kind) {
+            ArtifactKind.ANNIHILATION -> s.artifactAnnihilation
+            ArtifactKind.SINGLE_ESCAPE, ArtifactKind.DOUBLE_ESCAPE -> s.artifactEscape
+            ArtifactKind.SUM -> s.artifactSum
+            ArtifactKind.BACKSCATTER -> s.artifactBackscatter
+        }
+    }
+
+    /**
+     * Детали строки пика: пометка противоречия, группа неразрешимости или
+     * механизм артефакта. Пустой список — деталей нет.
+     */
+    fun matchNotes(match: PeakMatch, s: SpectrumStrings = SpectrumRu): List<String> =
+        when (match) {
+            PeakMatch.None -> emptyList()
+            is PeakMatch.Contradicted ->
+                listOf(s.contradictedNote(match.nuclides.joinToString(" / ")))
+            is PeakMatch.AmbiguousGroup ->
+                listOf(s.ambiguityNote(match.nuclides.joinToString(" / ")))
+            is PeakMatch.Candidate ->
+                if (match.rivals.isEmpty()) {
+                    emptyList()
+                } else {
+                    listOf(
+                        s.ambiguityNote(
+                            (listOf(match.nuclide) + match.rivals).joinToString(" / "),
+                        ),
+                    )
+                }
+            is PeakMatch.Artifact -> buildList {
+                add(
+                    when (match.kind) {
+                        ArtifactKind.ANNIHILATION -> s.artifactAnnihilationNote
+                        ArtifactKind.SINGLE_ESCAPE ->
+                            s.artifactEscapeNote(energyCell(match.parentKeV ?: 0f), "511")
+                        ArtifactKind.DOUBLE_ESCAPE ->
+                            s.artifactEscapeNote(energyCell(match.parentKeV ?: 0f), "1022")
+                        ArtifactKind.SUM -> s.artifactSumNote(
+                            energyCell(match.sumFirstKeV ?: 0f),
+                            energyCell(match.sumSecondKeV ?: 0f),
+                            match.cascadeNuclide.orEmpty(),
+                        )
+                        ArtifactKind.BACKSCATTER -> s.artifactBackscatterNote
+                    },
+                )
+                if (match.compatibleNuclides.isNotEmpty()) {
+                    add(s.artifactCompatibleNote(match.compatibleNuclides.joinToString(", ")))
+                }
+            }
         }
 
     /** Header chip: «Δt 12:34 · 184 302 имп». */
-    fun accumulationChip(durationSeconds: Long, totalCounts: Long): String =
-        "Δt ${accumulationClock(durationSeconds)} · ${groupThousands(totalCounts)} имп"
+    fun accumulationChip(
+        durationSeconds: Long,
+        totalCounts: Long,
+        s: SpectrumStrings = SpectrumRu,
+    ): String =
+        "Δt ${accumulationClock(durationSeconds)} · ${groupThousands(totalCounts)} ${s.unitCounts}"
 
     /**
      * Calibration footnote: «калибровка: E = −5,6 + 2,41·ch + 4,1·10⁻⁴·ch² ·
      * 1024 канала». Coefficients as the device reports them; a2 in
      * superscript scientific notation.
      */
-    fun calibrationLine(a0: Float, a1: Float, a2: Float, channelCount: Int): String {
+    fun calibrationLine(
+        a0: Float,
+        a1: Float,
+        a2: Float,
+        channelCount: Int,
+        s: SpectrumStrings = SpectrumRu,
+    ): String {
         val a0Text = String.format(Locale.US, "%.1f", a0)
             .replace('.', ',').replace("-", "−")
         val a1Term = signedTerm(a1, String.format(Locale.US, "%.2f", Math.abs(a1)))
         val a2Term = signedTerm(a2, scientific(Math.abs(a2).toDouble()))
-        return "калибровка: E = $a0Text$a1Term·ch$a2Term·ch² · " +
-            "$channelCount ${channelsPlural(channelCount)}"
-    }
-
-    private fun channelsPlural(count: Int): String {
-        val mod100 = count % 100
-        val mod10 = count % 10
-        return when {
-            mod100 in 11..14 -> "каналов"
-            mod10 == 1 -> "канал"
-            mod10 in 2..4 -> "канала"
-            else -> "каналов"
-        }
+        return s.calibrationLine("$a0Text$a1Term·ch$a2Term·ch²", s.channels(channelCount))
     }
 
     private fun signedTerm(value: Float, absText: String): String =

@@ -43,17 +43,11 @@ class DebugBundleTest {
     }
 
     @Test
-    fun `the manifest says what is inside and what is not`() {
-        val manifest = DebugBundle.manifest(entries, appVersion = "0.1.0-alpha", stamp = "T0")
-        for (entry in entries) {
-            assertTrue(manifest.contains(entry.name), manifest)
-        }
-        assertTrue(manifest.contains("0.1.0-alpha"), manifest)
-        // Спектры внутри есть — и человек обязан узнать об этом из самого
-        // файла, а не постфактум.
+    fun `the privacy note names what the archive does and does not contain`() {
+        // README из архива убран, но оговорка живёт на экране создания архива
+        // и обязана называть обе стороны: спектры внутри ЕСТЬ, координат НЕТ.
         assertTrue(DebugBundle.PRIVACY_NOTE.contains("спектры"), DebugBundle.PRIVACY_NOTE)
         assertTrue(DebugBundle.PRIVACY_NOTE.contains("НЕТ координат"), DebugBundle.PRIVACY_NOTE)
-        assertTrue(manifest.contains(DebugBundle.PRIVACY_NOTE))
     }
 
     @Test

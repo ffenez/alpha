@@ -136,5 +136,8 @@ val DoseRampColors = listOf(
  */
 fun Modifier.chartField(): Modifier = composed {
     val colors = LocalAppColors.current
-    background(colors.chartField, RoundedCornerShape(Dimens.radiusChip))
+    // Радиус берётся из МЕТРИК ОФОРМЛЕНИЯ, а не из [Dimens]: в «8-bit» углы
+    // нулевые, и поле графика со скруглением 9 dp было единственным местом,
+    // где скин не доезжал до картинки.
+    background(colors.chartField, RoundedCornerShape(LocalAppMetrics.current.radiusChip))
 }

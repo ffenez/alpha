@@ -1,5 +1,8 @@
 package app.radiacode.analysis
 
+import app.radiacode.ui.text.ExperimentRu
+import app.radiacode.ui.text.ExperimentStrings
+
 /**
  * Assembly layer over [AbAnalysis]: turns two (or more) recorded runs into the
  * bundle the A/B screen shows and the report exports — dose rate, total CPS,
@@ -56,18 +59,18 @@ object AbExperiment {
         a: RunData,
         b: RunData,
         windowSpecs: List<EnergyWindowSpec> = EnergyWindows.DEFAULTS,
+        s: ExperimentStrings = ExperimentRu,
     ): Comparison {
         val warnings = mutableListOf<String>()
         val doseRate = AbAnalysis.compareDoseRates(a.doseStats, b.doseStats)
         if (doseRate == null) {
-            warnings += "мощность дозы не сравнивалась: в одном из прогонов нет измерений " +
-                "(прибор был отключён?)"
+            warnings += s.warnDoseMissing
         }
 
         val aCounts = a.counts
         val bCounts = b.counts
         if (aCounts == null || bCounts == null || !a.hasSpectrum || !b.hasSpectrum) {
-            warnings += "спектр не сравнивался: в одном из прогонов он не записан"
+            warnings += s.warnSpectrumMissing
             return Comparison(
                 a = a,
                 b = b,
@@ -82,7 +85,7 @@ object AbExperiment {
         }
 
         val total = AbAnalysis.compareCounts(
-            label = "полный счёт",
+            label = s.totalCountLabel,
             a = AbAnalysis.Counting(a.totalCounts.toDouble(), a.durationSeconds.toDouble()),
             b = AbAnalysis.Counting(b.totalCounts.toDouble(), b.durationSeconds.toDouble()),
         )
@@ -97,8 +100,7 @@ object AbExperiment {
             if (delta > SpectrumCompare.CALIBRATION_TOLERANCE_KEV) {
                 // Rebinning would make fractional, non-Poisson counts; refusing
                 // is the honest answer (same rule as SpectrumMerge).
-                warnings += "калибровки прогонов расходятся на ${"%.1f".format(delta)} кэВ — " +
-                    "поканальное сравнение и окна не считались, сравнивается только полный счёт"
+                warnings += s.warnCalibrationApart("%.1f".format(delta))
             } else {
                 windows = AbAnalysis.compareWindows(
                     aCounts = aCounts,
@@ -117,7 +119,7 @@ object AbExperiment {
                 )
             }
         } else if (aCounts.size != bCounts.size) {
-            warnings += "у прогонов разное число каналов — поканальное сравнение невозможно"
+            warnings += s.warnChannelCount
         }
 
         val countingVerdicts = buildList {

@@ -1,5 +1,7 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.MapRu
+import app.radiacode.ui.text.MapStrings
 import java.util.Locale
 
 /**
@@ -63,26 +65,30 @@ object MyPosition {
      * already says it (no permission → rationale card, providers off → the
      * «GPS выключен» chip) — the same fact is never stated twice.
      */
-    fun chipText(state: PositionState, fix: PositionFix?, nowMillis: Long): String? =
+    fun chipText(
+        state: PositionState,
+        fix: PositionFix?,
+        nowMillis: Long,
+        s: MapStrings = MapRu,
+    ): String? =
         when (state) {
             PositionState.NO_PERMISSION, PositionState.PROVIDER_OFF -> null
-            PositionState.WAITING_FIX -> "жду сигнал GPS"
+            PositionState.WAITING_FIX -> s.waitingGps
             PositionState.FIXED -> {
                 val current = fix ?: return null
                 if (isStale(current, nowMillis)) {
-                    "я · фикс " + HistoryFormat.duration(
-                        (nowMillis - current.timeMillis) / 1000,
-                    ) + " назад"
+                    s.fixAgo(HistoryFormat.duration((nowMillis - current.timeMillis) / 1000))
                 } else {
-                    "я · " + accuracy(current.accuracyMeters)
+                    s.meWithAccuracy(accuracy(current.accuracyMeters, s))
                 }
             }
         }
 
     /** «±12 м»; providers that report no accuracy get «точность неизвестна». */
-    fun accuracy(meters: Float): String = when {
-        meters <= 0f || !meters.isFinite() -> "точность неизвестна"
-        meters < 10f -> String.format(Locale.US, "±%.1f м", meters).replace('.', ',')
-        else -> String.format(Locale.US, "±%.0f м", meters)
+    fun accuracy(meters: Float, s: MapStrings = MapRu): String = when {
+        meters <= 0f || !meters.isFinite() -> s.accuracyUnknown
+        meters < 10f ->
+            String.format(Locale.US, "±%.1f", meters).replace('.', ',') + " " + s.unitMeters
+        else -> String.format(Locale.US, "±%.0f", meters) + " " + s.unitMeters
     }
 }

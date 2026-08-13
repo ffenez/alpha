@@ -1,5 +1,7 @@
 package app.radiacode.analysis
 
+import app.radiacode.ui.text.SpectrumRu
+import app.radiacode.ui.text.SpectrumStrings
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -84,17 +86,18 @@ object SpectrumCompare {
      * Later minus earlier of the same accumulation. Order is determined by
      * live time (the accumulation clock), not by the pick order.
      */
-    fun extractInterval(first: Input, second: Input): IntervalOutcome {
+    fun extractInterval(
+        first: Input,
+        second: Input,
+        s: SpectrumStrings = SpectrumRu,
+    ): IntervalOutcome {
         if (first.counts.size != second.counts.size) {
             return IntervalOutcome.Invalid(
-                "у снимков разное число каналов (${first.counts.size} и " +
-                    "${second.counts.size}) — это не одно накопление",
+                s.intervalChannelMismatch(first.counts.size, second.counts.size),
             )
         }
         if (first.durationSeconds == second.durationSeconds) {
-            return IntervalOutcome.Invalid(
-                "у снимков одинаковое время накопления — между ними нет интервала",
-            )
+            return IntervalOutcome.Invalid(s.intervalSameDuration)
         }
         val later = if (first.durationSeconds > second.durationSeconds) first else second
         val earlier = if (later === first) second else first
@@ -103,8 +106,7 @@ object SpectrumCompare {
             calibrationDeltaKeV(later.calibration, earlier.calibration, later.counts.size)
         if (calibrationDelta > CALIBRATION_TOLERANCE_KEV) {
             return IntervalOutcome.Invalid(
-                "калибровки энергии различаются на ${"%.1f".format(calibrationDelta)} кэВ — " +
-                    "снимки не из одного накопления, используйте сравнение скоростей",
+                s.intervalCalibrationMismatch("%.1f".format(calibrationDelta)),
             )
         }
 
@@ -116,16 +118,12 @@ object SpectrumCompare {
             counts += diff
         }
         if (violations > 0) {
-            return IntervalOutcome.Invalid(
-                "в $violations каналах счёт позднего снимка меньше раннего — " +
-                    "накопление сбрасывалось между снимками, вычесть интервал нельзя",
-            )
+            return IntervalOutcome.Invalid(s.intervalNegativeChannels(violations))
         }
 
         val warnings = mutableListOf<String>()
         if (later.timestampMillis < earlier.timestampMillis) {
-            warnings += "порядок сохранения снимков не совпадает с порядком накопления — " +
-                "проверьте, те ли снимки выбраны"
+            warnings += s.intervalOrderWarning
         }
 
         val deltaSeconds = later.durationSeconds - earlier.durationSeconds
@@ -137,8 +135,7 @@ object SpectrumCompare {
         if (later.timestampMillis >= earlier.timestampMillis &&
             abs(wallSeconds - deltaSeconds) > slack
         ) {
-            warnings += "между снимками прошло ${wallSeconds} с по часам, а накопления — " +
-                "$deltaSeconds с: измерение прерывалось, интервал в часах шире Δt"
+            warnings += s.intervalWallClockWider(wallSeconds, deltaSeconds)
         }
 
         // Seconds → millis exactly once, explicitly: Δt·1000.
@@ -176,25 +173,19 @@ object SpectrumCompare {
     }
 
     /** Rate difference A−B of two independent measurements, on A's grid. */
-    fun compareRates(a: Input, b: Input): RateOutcome {
+    fun compareRates(a: Input, b: Input, s: SpectrumStrings = SpectrumRu): RateOutcome {
         if (a.durationSeconds <= 0 || b.durationSeconds <= 0) {
-            return RateOutcome.Invalid(
-                "у одного из снимков нулевое время накопления — скорость счёта не определена",
-            )
+            return RateOutcome.Invalid(s.ratesZeroDuration)
         }
         if (a.counts.size != b.counts.size) {
-            return RateOutcome.Invalid(
-                "у снимков разное число каналов (${a.counts.size} и ${b.counts.size})",
-            )
+            return RateOutcome.Invalid(s.ratesChannelMismatch(a.counts.size, b.counts.size))
         }
 
         val warnings = mutableListOf<String>()
         val delta = calibrationDeltaKeV(a.calibration, b.calibration, a.counts.size)
         val resampled = delta > CALIBRATION_TOLERANCE_KEV
         val bCounts: DoubleArray = if (resampled) {
-            warnings += "калибровки различаются на ${"%.1f".format(delta)} кэВ — счёт B " +
-                "пересчитан на энергетическую сетку A (перераспределение по перекрытию " +
-                "бинов); погрешность после пересчёта приближённая"
+            warnings += s.ratesResampled("%.1f".format(delta))
             resample(b.counts, b.calibration, a.calibration, a.counts.size)
         } else {
             DoubleArray(b.counts.size) { b.counts[it].toDouble() }

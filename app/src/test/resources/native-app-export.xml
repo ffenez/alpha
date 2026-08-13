@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResultDataFile xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <FormatVersion>120920</FormatVersion>
+  <ResultDataList>
+    <ResultData>
+      <DeviceConfigReference>
+        <Name>RadiaCode-101</Name>
+      </DeviceConfigReference>
+      <SampleInfo>
+        <Name><![CDATA[Проба с длинным именем]]></Name>
+        <Note><![CDATA[]]></Note>
+      </SampleInfo>
+      <BackgroundSpectrumFile><![CDATA[Фон]]></BackgroundSpectrumFile>
+
+       <StartTime>2026-07-15T00:04:03</StartTime>
+ <EndTime>2026-07-25T00:05:14</EndTime>
+
+ <EnergySpectrum>
+  <NumberOfChannels>10</NumberOfChannels>
+  <ChannelPitch>1</ChannelPitch>
+  <SpectrumName><![CDATA[Проба]]></SpectrumName>
+  <Comment></Comment>
+  <SerialNumber>RC-101-000000</SerialNumber>
+  <EnergyCalibration>
+    <PolynomialOrder>2</PolynomialOrder>
+    <Coefficients>
+      <Coefficient>-1.3376397</Coefficient>
+      <Coefficient>2.81</Coefficient>
+      <Coefficient>4.887E-4</Coefficient>
+    </Coefficients>
+  </EnergyCalibration>
+  <MeasurementTime>864071</MeasurementTime>
+  <LiveTime>863909.9</LiveTime>
+  <Spectrum>
+    <DataPoint>0</DataPoint>
+    <DataPoint>0</DataPoint>
+    <DataPoint>0</DataPoint>
+    <DataPoint>443</DataPoint>
+    <DataPoint>7116</DataPoint>
+    <DataPoint>31262</DataPoint>
+    <DataPoint>612</DataPoint>
+    <DataPoint>120</DataPoint>
+    <DataPoint>44</DataPoint>
+    <DataPoint>7</DataPoint>
+  </Spectrum>
+ </EnergySpectrum>
+
+ <BackgroundEnergySpectrum>
+  <NumberOfChannels>10</NumberOfChannels>
+  <ChannelPitch>1</ChannelPitch>
+  <SpectrumName><![CDATA[Фон]]></SpectrumName>
+  <Comment></Comment>
+  <SerialNumber>RC-101-000000</SerialNumber>
+  <EnergyCalibration>
+    <PolynomialOrder>2</PolynomialOrder>
+    <Coefficients>
+      <Coefficient>-1.3376397</Coefficient>
+      <Coefficient>2.81</Coefficient>
+      <Coefficient>4.887E-4</Coefficient>
+    </Coefficients>
+  </EnergyCalibration>
+  <MeasurementTime>794449</MeasurementTime>
+  <LiveTime>794438.56</LiveTime>
+  <Spectrum>
+    <DataPoint>0</DataPoint>
+    <DataPoint>0</DataPoint>
+    <DataPoint>0</DataPoint>
+    <DataPoint>50</DataPoint>
+    <DataPoint>900</DataPoint>
+    <DataPoint>3100</DataPoint>
+    <DataPoint>80</DataPoint>
+    <DataPoint>20</DataPoint>
+    <DataPoint>6</DataPoint>
+    <DataPoint>1</DataPoint>
+  </Spectrum>
+ </BackgroundEnergySpectrum>
+      <Visible>true</Visible>
+      <PulseCollection>
+        <Pulses></Pulses>
+      </PulseCollection>
+    </ResultData>
+  </ResultDataList>
+</ResultDataFile>

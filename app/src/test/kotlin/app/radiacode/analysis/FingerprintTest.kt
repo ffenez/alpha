@@ -165,8 +165,8 @@ class FingerprintTest {
 
     @Test
     fun `no wording promises a place, a cause or a danger`() {
-        val texts = FingerprintDimension.entries.map { it.title } + listOf(
-            Fingerprint.CAVEAT,
+        val texts = FingerprintDimension.entries.map { it.title() } + listOf(
+            Fingerprint.caveat(),
             Fingerprint.headline(Fingerprint.compare(window(doseMedian = 0.30f), reference())),
             Fingerprint.hardnessLine(
                 Fingerprint.compare(window(doseMedian = 0.30f), reference()),
@@ -187,8 +187,8 @@ class FingerprintTest {
                 assertTrue(!word.containsMatchIn(lower), "«$word» in: $text")
             }
         }
-        assertTrue(Fingerprint.CAVEAT.contains("не доказывает"), Fingerprint.CAVEAT)
-        assertTrue(Fingerprint.CAVEAT.contains("не называет причину"), Fingerprint.CAVEAT)
+        assertTrue(Fingerprint.caveat().contains("не доказывает"), Fingerprint.caveat())
+        assertTrue(Fingerprint.caveat().contains("не называет причину"), Fingerprint.caveat())
     }
 
     @Test

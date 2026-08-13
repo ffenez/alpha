@@ -2,6 +2,40 @@ package app.radiacode.data.export
 
 import app.radiacode.analysis.AlgorithmVersions
 
+/**
+ * Цена частоты опроса спектра, ИЗМЕРЕННАЯ (ADR 007), а не выведенная из числа
+ * опросов: запросы считает служба, байты — приёмник ответа.
+ *
+ * Эти три числа существуют затем, чтобы предупреждение про батарею писалось
+ * ПОСЛЕ измерения, а не до него: из частоты расход энергии не выводится — он
+ * зависит от размера ответа, интервала BLE-соединения и числа пробуждений.
+ * Поэтому в отчёте лежат факты (запросов, байт, время работы), а вывод про
+ * батарею не делается вовсе.
+ */
+data class SpectrumTraffic(
+    /** Выбранная ступень частоты, [app.radiacode.data.SpectrumPollPolicy.id]. */
+    val policy: String,
+    val requests: Long,
+    /** Байты полезной нагрузки ответов со спектром (без BLE-обвязки). */
+    val payloadBytes: Long,
+    /** Сколько работает служба; 0 — не работает, тогда «в час» не считается. */
+    val serviceUptimeMillis: Long,
+    /** Срезов спектрограммы в базе. */
+    val storedSlices: Int,
+) {
+    private val hours: Double get() = serviceUptimeMillis / 3_600_000.0
+
+    /** Запросов в час; null — служба работала слишком мало, чтобы делить. */
+    fun requestsPerHour(): Double? = if (hours >= MIN_HOURS) requests / hours else null
+
+    fun bytesPerHour(): Double? = if (hours >= MIN_HOURS) payloadBytes / hours else null
+
+    companion object {
+        /** Ниже минуты работы частное — шум деления, а не скорость. */
+        const val MIN_HOURS = 1.0 / 60
+    }
+}
+
 /** Снимок состояния приложения для отладочного отчёта. */
 data class DebugSnapshot(
     val appVersion: String,
@@ -27,6 +61,11 @@ data class DebugSnapshot(
     /** Здоровье потока: пропуски seq в DATA_BUF и число переподключений. */
     val seqGapTotal: Int,
     val reconnectCount: Int,
+    /** Жив ли цикл перечитывания графиков Главной (полевой случай «замерли»). */
+    val chartsRefreshedAgoSeconds: Long?,
+    val chartsRefreshCount: Int,
+    /** Насколько эмпирическая база `+128 с` была стянута измерением, мс. */
+    val clockCorrectionMillis: Long,
     val serviceRunning: Boolean,
     val connection: String,
     /** Последнее показание: мощность дозы мкЗв/ч, счёт с⁻¹, возраст в секундах. */
@@ -64,6 +103,11 @@ data class DebugSnapshot(
     val searchFeedbackMode: String,
     val searchBackgroundWording: String,
     val fingerprintWording: String,
+    /**
+     * Опрос спектра: частота, объём и время работы (ADR 007). Значение по
+     * умолчанию — «нечего сказать»: раздел просто не печатается.
+     */
+    val spectrumTraffic: SpectrumTraffic? = null,
 )
 
 /**
@@ -152,7 +196,13 @@ object DebugReport {
 
         appendLine("## Поток")
         appendLine("пропусков seq в DATA_BUF: ${snapshot.seqGapTotal}")
+        appendLine("поправка часов прибора: ${snapshot.clockCorrectionMillis / 1000} с")
         appendLine("переподключений за сеанс: ${snapshot.reconnectCount}")
+        appendLine(
+            "графики Главной обновлялись: " + (
+                snapshot.chartsRefreshedAgoSeconds?.let { "${it} с назад" } ?: "ни разу"
+                ) + " · всего обновлений: ${snapshot.chartsRefreshCount}",
+        )
         appendLine()
 
         appendLine("## Данные")
@@ -162,6 +212,21 @@ object DebugReport {
         appendLine("минутных агрегатов: ${snapshot.minuteStatCount}")
         appendLine("часовых скетчей: ${snapshot.hourSketchCount}")
         appendLine()
+
+        snapshot.spectrumTraffic?.let { traffic ->
+            appendLine("## Опрос спектра")
+            appendLine("политика частоты: ${traffic.policy}")
+            appendLine("время работы службы: ${traffic.serviceUptimeMillis / 1000L} с")
+            appendLine("запросов спектра: ${traffic.requests}${perHour(traffic.requestsPerHour())}")
+            appendLine(
+                "байт ответов: ${traffic.payloadBytes}" +
+                    perHour(traffic.bytesPerHour()),
+            )
+            appendLine("срезов спектрограммы в базе: ${traffic.storedSlices}")
+            // Расход батареи из этих чисел НЕ выводится: он зависит от
+            // интервала BLE-соединения и числа пробуждений, которых здесь нет.
+            appendLine()
+        }
 
         appendLine("## Настройки")
         appendLine("единицы: ${snapshot.doseUnit}")
@@ -174,6 +239,10 @@ object DebugReport {
         appendLine("## Версии алгоритмов")
         for ((name, version) in AlgorithmVersions.all) appendLine("$name: v$version")
     }
+
+    /** «(≈120 в час)» либо пусто: слишком короткая работа частного не даёт. */
+    private fun perHour(value: Double?): String =
+        value?.let { " (≈${String.format(java.util.Locale.US, "%.0f", it)} в час)" } ?: ""
 
     private fun since(millis: Long?, nowMillis: Long, stamp: (Long) -> String): String {
         if (millis == null) return "нет"

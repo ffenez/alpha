@@ -95,12 +95,75 @@ class DeviceConnectionTest {
         assertEquals(1, result.records.size)
         assertEquals(0, result.seqGaps)
         val rt = result.records[0] as RealTimeData
-        assertEquals(now + 128_000 - 2_500, rt.timestampMillis)
+        // Пин ОБНОВЛЁН осознанно: раньше метка была now+125,5 с — на две
+        // минуты В БУДУЩЕМ, и это был не тест, а слепок дефекта (полевой отчёт
+        // показывал «возраст показания: −96 с»). Запись не может прийти
+        // раньше, чем сделана, поэтому база стягивается измерением: новейшая
+        // запись ответа прибивается к часам телефона.
+        assertEquals(now, rt.timestampMillis)
+        assertEquals(-(128_000L - 2_500L), conn.clockCorrectionMillis)
         assertEquals(12.5f, rt.countRate)
         assertEquals(0.0005f, rt.doseRate)
         assertEquals(1.5f, rt.countRateErr)
         assertEquals(2.0f, rt.doseRateErr)
     }
+
+    @Test
+    fun `a single stale buffered record does not move the base`() = runTest {
+        val fake = FakeRadiaCode()
+        // Первый ответ: свежая запись с завышенной базой — поправка измеряется.
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 1, tsOffset10ms = 0, countRate = 10f, doseRate = 0.0004f,
+        )
+        // Второй ответ: запись из БУФЕРА, на 40 с старше. РАЗОВОЕ отставание —
+        // честная задержка переноса, и «чинить» его нельзя: база не двигается
+        // (вверх она идёт только по минимуму окна, см. следующий тест).
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 2, tsOffset10ms = -4_000, countRate = 10f, doseRate = 0.0004f,
+        )
+        val (conn, _) = establish(fake)
+
+        conn.readDataBuf()
+        val corrected = conn.clockCorrectionMillis
+        assertEquals(-128_000L, corrected)
+
+        val second = conn.readDataBuf()
+        assertEquals(corrected, conn.clockCorrectionMillis)
+        assertEquals(now - 40_000, second.records[0].timestampMillis)
+    }
+
+    @Test
+    fun `an over-correction from a buffered record heals itself`() = runTest {
+        // Полевой дефект: первый ответ принёс запись из буфера с большим
+        // смещением, односторонний храповик вычел лишнее — и дальше метки
+        // оседали на десятки секунд в прошлом навсегда: зелёный кружок связи,
+        // «нет новых данных · 31 с» и графики с постоянным отставанием.
+        val fake = FakeRadiaCode()
+        // Первая запись опережает базу ещё на 30 с сверх 128 — вычтется 158 с.
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 1, tsOffset10ms = 3_000, countRate = 10f, doseRate = 0.0004f,
+        )
+        // Дальше идут нормальные свежие записи: относительно съехавшей базы
+        // каждая выглядит старой на 30 с.
+        repeat(DeviceConnection.LAG_WINDOW_RESPONSES) {
+            fake.dataBufPayloads += realTimeDataRecord(
+                seq = 2 + it, tsOffset10ms = 0, countRate = 10f, doseRate = 0.0004f,
+            )
+        }
+        val (conn, _) = establish(fake)
+
+        conn.readDataBuf()
+        assertEquals(-158_000L, conn.clockCorrectionMillis)
+
+        // Окно ответов накапливается, и база поднимается обратно.
+        var last = 0L
+        repeat(DeviceConnection.LAG_WINDOW_RESPONSES) {
+            last = conn.readDataBuf().records[0].timestampMillis
+        }
+        assertEquals(-128_000L, conn.clockCorrectionMillis)
+        assertEquals(now, last)
+    }
+
 
     @Test
     fun `reads and decodes a v1 spectrum`() = runTest {

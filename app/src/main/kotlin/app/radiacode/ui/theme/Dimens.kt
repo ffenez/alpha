@@ -25,4 +25,14 @@ object Dimens {
 
     /** Minimum touch target (field use: thumb, gloves). */
     val touchTarget = 48.dp
+
+    /**
+     * Границы встроенного поля спектра. Само поле — доля высоты экрана
+     * ([app.radiacode.ui.logic.SpectrumPlot.fieldHeightDp]): спектр это главная
+     * картинка вкладки, и на большом экране ей положено больше высоты, чем
+     * фиксированные 170 dp. Границы держат края: на мелком экране поле не
+     * съедает таблицу пиков, на планшете не растягивается на всю страницу.
+     */
+    val spectrumFieldMin = 200.dp
+    val spectrumFieldMax = 320.dp
 }

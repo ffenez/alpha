@@ -13,6 +13,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -25,10 +29,13 @@ import app.radiacode.ui.logic.WhyInput
 import app.radiacode.ui.logic.WhyLine
 import app.radiacode.ui.logic.WhyReport
 import app.radiacode.ui.logic.WhyReportBuilder
+import app.radiacode.ui.logic.WhyLevel
 import app.radiacode.ui.logic.WhyScale
 import app.radiacode.ui.logic.WhySection
 import app.radiacode.ui.logic.WhyTone
 import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.MonitorCatalogue
+import app.radiacode.ui.text.MonitorStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -37,10 +44,12 @@ import app.radiacode.ui.theme.LocalAppTypography
  * «Почему такой вывод» (why-spec).
  *
  * The order is the audit trail of the conclusion — **вывод → доказательство →
- * статистика → состояние профиля → критерии алгоритма** — and the research
- * numbers (MAD, buckets, thresholds) stay folded behind «Показать расчёты»
- * until asked for. The choice is remembered, so a person who always opens them
- * stops having to.
+ * статистика → состояние профиля → критерии алгоритма** — разложенный по трём
+ * уровням (14.md): первый экран отвечает «что это значит», «Показать методику
+ * и расчёты» открывает статистику профиля и критерии, а внутри неё «Показать
+ * технические параметры» — MAD, число корзин, формулы, χ² и z. Выбор второго
+ * уровня запоминается, так что человек, который всегда его открывает,
+ * перестаёт это делать.
  *
  * The sheet renders a [WhyReport]; it holds no wording of its own, because
  * every phrase here is pinned by `WhyReportTest`.
@@ -58,12 +67,17 @@ fun WhySheet(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    val report = WhyReportBuilder.build(input, LocalStrings.current)
+    val strings = LocalStrings.current
+    val t = MonitorCatalogue.of(strings.language)
+    val report = WhyReportBuilder.build(input, strings)
+    // Экспертный уровень НЕ запоминается: методику открывают, чтобы читать её
+    // дальше, а формулы — чтобы посмотреть один раз.
+    var expert by rememberSaveable { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = "Почему такой вывод", style = type.label, color = colors.ink2)
+                Text(text = t.whyTitle, style = type.label, color = colors.ink2)
 
                 // --- the answer, then the evidence for it (§2)
                 StatusRow(text = report.status, color = toneColor(report.tone))
@@ -72,7 +86,11 @@ fun WhySheet(
                 if (report.nowValue != null || report.usualValue != null) {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "Сейчас", style = type.labelSmall, color = colors.muted)
+                            Text(
+                                text = strings.nowSection,
+                                style = type.labelSmall,
+                                color = colors.muted,
+                            )
                             Text(
                                 text = report.nowValue ?: "—",
                                 style = type.value,
@@ -81,12 +99,12 @@ fun WhySheet(
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = "Обычно здесь",
+                                text = strings.usualRangeHere,
                                 style = type.labelSmall,
                                 color = colors.muted,
                             )
                             Text(
-                                text = report.usualValue ?: "диапазон ещё не собран",
+                                text = report.usualValue ?: t.bandNotCollected,
                                 style = type.value,
                                 color = colors.ink,
                             )
@@ -101,7 +119,17 @@ fun WhySheet(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(Dimens.space3),
                 ) {
-                    report.sections.filter { !it.advanced }.forEach { SectionBlock(it) }
+                    report.sections(WhyLevel.PLAIN).forEach { SectionBlock(it) }
+
+                    // Оговорка стоит на ПЕРВОМ уровне и до кнопки «показать
+                    // методику»: она про смысл вывода, а не про его расчёт.
+                    if (report.caveat.isNotBlank()) {
+                        Text(
+                            text = report.caveat,
+                            style = type.footnote,
+                            color = colors.ink2,
+                        )
+                    }
 
                     if (offerProfileShift) {
                         ProfileShiftBlock(
@@ -111,22 +139,42 @@ fun WhySheet(
                         )
                     }
 
+                    // Второй уровень — методика; выбор запоминается.
                     if (report.hasAdvanced) {
                         Chip(
-                            text = if (expanded) "Скрыть расчёты" else "Показать расчёты",
+                            text = if (expanded) t.hideCalculations else t.showCalculations,
                             color = colors.dataText,
                             onClick = { onExpandedChange(!expanded) },
                         )
                         if (expanded) {
-                            report.sections.filter { it.advanced }.forEach { SectionBlock(it) }
+                            report.sections(WhyLevel.METHOD).forEach { SectionBlock(it) }
+                            // Легенда меток стоит там же, где сами метки: на
+                            // первом уровне их нет, и расшифровка отсутствующих
+                            // подписей была бы объяснением пустого места.
+                            Text(
+                                text = report.legend,
+                                style = type.footnote,
+                                color = colors.muted,
+                            )
+                            // Третий уровень живёт ВНУТРИ второго: формулы,
+                            // MAD, χ² и z нужны реже, чем сама методика.
+                            if (report.hasExpert) {
+                                Chip(
+                                    text = if (expert) t.hideExpert else t.showExpert,
+                                    color = colors.ink2,
+                                    onClick = { expert = !expert },
+                                )
+                                if (expert) {
+                                    report.sections(WhyLevel.EXPERT).forEach { SectionBlock(it) }
+                                }
+                            }
                         }
                     }
                 }
 
                 AppDivider()
-                Text(text = report.legend, style = type.footnote, color = colors.muted)
                 AppButton(
-                    text = "Понятно",
+                    text = t.gotIt,
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -144,6 +192,7 @@ fun WhySheet(
 private fun BandScale(scale: WhyScale, tone: Color) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Canvas(modifier = Modifier.fillMaxWidth().height(22.dp)) {
             val trackY = size.height / 2f
@@ -167,16 +216,28 @@ private fun BandScale(scale: WhyScale, tone: Color) {
             drawCircle(color = colors.surface, radius = radius + 2f, center = Offset(x, trackY))
             drawCircle(color = tone, radius = radius, center = Offset(x, trackY))
         }
+        // Засечки шкалы — P10 · медиана · P90: через них человек постепенно
+        // и понимает статистику. Само текущее значение подписано парой
+        // «Сейчас ↔ Обычный диапазон здесь» над шкалой и не дублируется.
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(text = "P10 ${scale.lowLabel}", style = type.axis, color = colors.muted)
             Spacer(Modifier.weight(1f))
             Text(
-                text = if (scale.outside) "${scale.currentLabel} — вне диапазона" else scale.currentLabel,
+                text = "${strings.median.lowercase()} ${scale.medianLabel}",
                 style = type.axis,
-                color = colors.ink2,
+                color = colors.muted,
             )
             Spacer(Modifier.weight(1f))
             Text(text = "P90 ${scale.highLabel}", style = type.axis, color = colors.muted)
+        }
+        // Точка на краю обязана себя назвать: иначе «вне диапазона» читается
+        // как «ровно на границе».
+        if (scale.outside) {
+            Text(
+                text = MonitorCatalogue.of(strings.language).outsideBand(scale.currentLabel),
+                style = type.axis,
+                color = colors.ink2,
+            )
         }
     }
 }
@@ -194,23 +255,24 @@ private fun ProfileShiftBlock(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t: MonitorStrings = MonitorCatalogue.of(LocalStrings.current.language)
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-        StatusRow(text = ProfileShift.TITLE, color = colors.warn)
+        StatusRow(text = ProfileShift.title(t), color = colors.warn)
         Text(
-            text = ProfileShift.sentence(profileName),
+            text = ProfileShift.sentence(profileName, t),
             style = type.bodySmall,
             color = colors.ink2,
         )
-        Text(text = ProfileShift.EXPLANATION, style = type.footnote, color = colors.muted)
+        Text(text = ProfileShift.explanation(t), style = type.footnote, color = colors.muted)
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             AppButton(
-                text = ProfileShift.UPDATE_ACTION,
+                text = ProfileShift.updateAction(t),
                 onClick = onUpdate,
                 primary = true,
                 modifier = Modifier.weight(1f),
             )
             AppButton(
-                text = ProfileShift.KEEP_ACTION,
+                text = ProfileShift.keepAction(t),
                 onClick = onKeep,
                 modifier = Modifier.weight(1f),
             )
@@ -267,7 +329,10 @@ internal fun WhyRow(line: WhyLine) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text = line.label, style = type.bodySmall, color = colors.ink2)
             Spacer(Modifier.weight(1f))
-            EvidenceTag(line.evidence, Modifier.padding(end = 6.dp))
+            // Метки нет на первом уровне (§21): там она висела у каждой строки
+            // и переставала читаться. Глубже, где источник числа и есть предмет
+            // разговора, она остаётся — вместе с легендой под шторкой.
+            line.evidence?.let { EvidenceTag(it, Modifier.padding(end = 6.dp)) }
             Text(text = line.value, style = type.value, color = colors.ink)
         }
         line.note?.let {

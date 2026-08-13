@@ -80,6 +80,11 @@ import app.radiacode.ui.map.TileStats
 import app.radiacode.ui.map.TrackMapView
 import app.radiacode.ui.map.anyLocationProviderEnabled
 import app.radiacode.ui.map.rememberMyPosition
+import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.HistoryRu
+import app.radiacode.ui.text.HistoryStrings
+import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.MapCatalogue
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.DoseRampColors
@@ -183,8 +188,10 @@ private data class GridData(
 @OptIn(FlowPreview::class)
 @Composable
 fun MapScreen(graph: AppGraph) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val context = LocalContext.current
     val colors = LocalAppColors.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
     val uiScope = rememberCoroutineScope()
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     val recording by graph.serviceStatus.trackRecording.collectAsState()
@@ -340,7 +347,7 @@ fun MapScreen(graph: AppGraph) {
         ) {
             if (hasRecordings) {
                 Segmented(
-                    options = listOf("Эта запись", "Все записи"),
+                    options = listOf(t.scopeCurrent, t.scopeAll),
                     selectedIndex = if (scope == MapTrackScope.ALL) 1 else 0,
                     onSelect = {
                         setScope(if (it == 1) MapTrackScope.ALL else MapTrackScope.CURRENT)
@@ -348,12 +355,12 @@ fun MapScreen(graph: AppGraph) {
                     modifier = Modifier.width(210.dp),
                 )
             } else {
-                Chip(text = "Карта", color = colors.ink)
+                Chip(text = t.mapTitle, color = colors.ink)
             }
             Spacer(Modifier.weight(1f))
             if (!gpsEnabled) {
                 Chip(
-                    text = "GPS выключен",
+                    text = t.gpsOff,
                     color = colors.warn,
                     dot = colors.warn,
                     onClick = {
@@ -370,7 +377,7 @@ fun MapScreen(graph: AppGraph) {
                 scope == MapTrackScope.CURRENT && recording == null &&
                 d != null && d.hasTrack && d.startedAt != null
             ) {
-                Chip(text = "последняя · " + HistoryFormat.dayTime(d.startedAt, nowMillis))
+                Chip(text = t.lastRecording(HistoryFormat.dayTime(d.startedAt, nowMillis, s = h)))
             }
         }
 
@@ -406,8 +413,9 @@ fun MapScreen(graph: AppGraph) {
                 val active = recording
                 if (active != null) {
                     Chip(
-                        text = "запись · " +
-                            HistoryFormat.duration((nowMillis - active.startedAt) / 1000),
+                        text = t.recordingFor(
+                            HistoryFormat.duration((nowMillis - active.startedAt) / 1000, s = h),
+                        ),
                         color = colors.ok,
                         dot = colors.ok,
                     )
@@ -423,13 +431,13 @@ fun MapScreen(graph: AppGraph) {
             d != null && d.hasTrack && d.points.isNotEmpty() -> RouteSummaryCard(
                 data = d,
                 unit = unit,
-                title = if (recording != null) "Мой маршрут" else "Маршрут",
+                title = if (recording != null) t.routeMine else t.route,
             )
         }
 
         if (justStopped && scope == MapTrackScope.CURRENT) {
             AppButton(
-                text = "Показать все записи",
+                text = t.showAllRecordings,
                 onClick = { setScope(MapTrackScope.ALL) },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -440,12 +448,12 @@ fun MapScreen(graph: AppGraph) {
                 onRequest = { permissionLauncher.launch(arrayOf(FINE_LOCATION, COARSE_LOCATION)) },
             )
             recording != null -> AppButton(
-                text = "Остановить запись",
+                text = t.stopRecording,
                 onClick = { stopTrackRecording(context) },
                 modifier = Modifier.fillMaxWidth(),
             )
             else -> AppButton(
-                text = "Начать запись маршрута",
+                text = t.startRecording,
                 onClick = { startTrackRecording(context) },
                 primary = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -463,6 +471,7 @@ fun MapScreen(graph: AppGraph) {
 fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
     var metricIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -498,16 +507,16 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← Назад", onClick = onBack)
+            AppButton(text = t.back, onClick = onBack)
             Spacer(Modifier.weight(1f))
-            Chip(text = "Трек сессии", color = colors.ink)
+            Chip(text = t.sessionTrack, color = colors.ink)
         }
 
         val d = data
         if (d != null && !d.hasTrack) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "трек в этой сессии не записан",
+                    text = t.noTrackInSession,
                     style = type.bodySmall,
                     color = colors.muted,
                 )
@@ -531,7 +540,7 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             if (d != null && d.points.isNotEmpty()) {
-                RouteSummaryCard(data = d, unit = unit, title = "Маршрут")
+                RouteSummaryCard(data = d, unit = unit, title = t.route)
             }
         }
     }
@@ -559,6 +568,7 @@ private fun TrackMapCard(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
 
     val render = remember(data, metric) {
         val points = data?.points.orEmpty()
@@ -629,15 +639,17 @@ private fun TrackMapCard(
         ) {
             recordingChips()
             if (grid == null && render.distanceMeters > 0) {
-                Chip(text = TrackMap.formatDistance(render.distanceMeters))
+                Chip(text = TrackMap.formatDistance(render.distanceMeters, t))
             }
             if (grid != null && !grid.isEmpty) {
                 Chip(
-                    text = HistoryFormat.count(grid.pointCount) + " точек · " +
-                        HistoryFormat.count(grid.cells.size) + " клеток",
+                    text = t.pointsAndCells(
+                        HistoryFormat.count(grid.pointCount),
+                        HistoryFormat.count(grid.cells.size),
+                    ),
                 )
             }
-            MyPosition.chipText(positionState, position, nowMillis)?.let { text ->
+            MyPosition.chipText(positionState, position, nowMillis, t)?.let { text ->
                 Chip(
                     text = text,
                     color = if (positionState == PositionState.WAITING_FIX) {
@@ -651,9 +663,9 @@ private fun TrackMapCard(
             // Honest tile state, always visible: «загружаются…» while the
             // first tiles are on their way, a count once they arrive, and a
             // named cause when nothing ever comes.
-            val hint = TileStatus.networkHint(tiles.loaded, tiles.failed, waitedMillis)
+            val hint = TileStatus.networkHint(tiles.loaded, tiles.failed, waitedMillis, t)
             Chip(
-                text = TileStatus.line(tiles.loaded, tiles.failed, waitedMillis),
+                text = TileStatus.line(tiles.loaded, tiles.failed, waitedMillis, t),
                 color = if (hint != null) colors.warn else colors.ink2,
                 dot = if (hint != null) colors.warn else null,
             )
@@ -674,13 +686,13 @@ private fun TrackMapCard(
             modifier = Modifier.align(Alignment.TopEnd).padding(Dimens.space2),
         ) {
             if (MyPosition.markerVisible(positionState, position)) {
-                Chip(text = "⌖ я", onClick = { followTick++ })
+                Chip(text = t.centerOnMe, onClick = { followTick++ })
             }
             if (grid == null && render.bounds != null) {
-                Chip(text = "⌖ маршрут", onClick = { recenterTick++ })
+                Chip(text = t.centerOnRoute, onClick = { recenterTick++ })
             }
             if (grid != null && initialBounds != null) {
-                Chip(text = "⌖ всё", onClick = { recenterTick++ })
+                Chip(text = t.centerOnAll, onClick = { recenterTick++ })
             }
         }
 
@@ -691,7 +703,7 @@ private fun TrackMapCard(
             modifier = Modifier.align(Alignment.BottomEnd).padding(Dimens.space2),
         ) {
             Segmented(
-                options = listOf("Доза", "CPS"),
+                options = listOf(t.metricDose, t.metricCps),
                 selectedIndex = metricIndex,
                 onSelect = onMetricSelect,
                 modifier = Modifier.width(150.dp),
@@ -705,13 +717,11 @@ private fun TrackMapCard(
                     // cell means before its colors mean anything.
                     caption = grid?.let {
                         val sparse = it.cells.count { cell -> cell.count < MIN_CONFIDENT_POINTS }
-                        "клетка ≈ " + TrackGrid.formatCellSize(it.cellMeters) + " · медиана" +
-                            if (sparse > 0) {
-                                " · бледные клетки ($sparse) — меньше " +
-                                    "$MIN_CONFIDENT_POINTS точек"
-                            } else {
-                                ""
-                            }
+                        listOfNotNull(
+                            t.cellSize(TrackGrid.formatCellSize(it.cellMeters, t)),
+                            t.median,
+                            if (sparse > 0) t.paleCells(sparse, MIN_CONFIDENT_POINTS) else null,
+                        ).joinToString(" · ")
                     },
                 )
             }
@@ -782,20 +792,23 @@ private fun legendLabel(value: Float, metric: TrackMetric, unit: DoseUnitSetting
 
 @Composable
 private fun TrackPointCard(info: MapTapInfo.TrackPoint, unit: DoseUnitSetting) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
+    val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
             Text(
-                text = "Точка маршрута".uppercase(),
+                text = t.trackPoint.uppercase(),
                 style = type.overline,
                 color = colors.muted,
             )
             Text(
                 text = listOfNotNull(
-                    info.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit) },
+                    info.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit, s = strings) },
                     info.cps?.let { TrackMap.formatCps(it) + " CPS" },
-                    HistoryFormat.dayTime(info.timestamp, System.currentTimeMillis()),
+                    HistoryFormat.dayTime(info.timestamp, System.currentTimeMillis(), s = h),
                 ).joinToString(" · "),
                 style = type.value,
                 color = colors.ink,
@@ -807,34 +820,41 @@ private fun TrackPointCard(info: MapTapInfo.TrackPoint, unit: DoseUnitSetting) {
 /** Tap on an aggregated cell: what was measured there, robustly. */
 @Composable
 private fun CellCard(info: MapTapInfo.Cell, metric: TrackMetric, unit: DoseUnitSetting) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = MapCatalogue.of(strings.language)
     val cell = info.cell
     val now = System.currentTimeMillis()
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
             Text(
-                text = ("клетка ≈ " + TrackGrid.formatCellSize(info.cellMeters)).uppercase(),
+                text = t.cellSize(TrackGrid.formatCellSize(info.cellMeters, t)).uppercase(),
                 style = type.overline,
                 color = colors.muted,
             )
             Text(
-                text = metricWithUnit(cell.median, metric, unit) + " · медиана",
+                text = t.medianValue(metricWithUnit(strings, cell.median, metric, unit)),
                 style = type.value,
                 color = colors.ink,
             )
             Text(
-                text = "P10–P90 " + legendLabel(cell.p10, metric, unit) + "–" +
-                    legendLabel(cell.p90, metric, unit) +
-                    " · мин " + legendLabel(cell.minValue, metric, unit) +
-                    " · макс " + legendLabel(cell.maxValue, metric, unit),
+                text = t.cellSpread(
+                    p10 = legendLabel(cell.p10, metric, unit),
+                    p90 = legendLabel(cell.p90, metric, unit),
+                    min = legendLabel(cell.minValue, metric, unit),
+                    max = legendLabel(cell.maxValue, metric, unit),
+                ),
                 style = type.footnote,
                 color = colors.ink2,
             )
             Text(
-                text = HistoryFormat.count(cell.count) + " точек · " +
-                    HistoryFormat.dayTime(cell.fromMillis, now) + " → " +
-                    HistoryFormat.dayTime(cell.toMillis, now) + " · расчёт",
+                text = t.cellCoverage(
+                    points = HistoryFormat.count(cell.count),
+                    from = HistoryFormat.dayTime(cell.fromMillis, now, s = h),
+                    to = HistoryFormat.dayTime(cell.toMillis, now, s = h),
+                ),
                 style = type.footnote,
                 color = colors.muted,
             )
@@ -848,8 +868,11 @@ private data class HotspotExtras(val cps: Float?, val dwellSeconds: Long?)
 
 @Composable
 private fun HotspotCard(graph: AppGraph, info: MapTapInfo.Hotspot, unit: DoseUnitSetting) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
+    val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
 
     var extras by remember(info) { mutableStateOf<HotspotExtras?>(null) }
     LaunchedEffect(info) {
@@ -874,29 +897,29 @@ private fun HotspotCard(graph: AppGraph, info: MapTapInfo.Hotspot, unit: DoseUni
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
             Text(
-                text = "Точка превышения".uppercase(),
+                text = t.excursionPoint.uppercase(),
                 style = type.overline,
                 color = colors.crit,
             )
             Text(
                 text = listOfNotNull(
-                    info.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit) },
+                    info.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit, s = strings) },
                     extras?.cps?.let { TrackMap.formatCps(it) + " CPS" },
-                    HistoryFormat.dayTime(info.timestamp, System.currentTimeMillis()),
+                    HistoryFormat.dayTime(info.timestamp, System.currentTimeMillis(), s = h),
                 ).joinToString(" · "),
                 style = type.value,
                 color = colors.ink,
             )
             info.typicalMicroSvH?.let {
                 Text(
-                    text = "обычно здесь " + DoseFormat.rateWithUnit(it, unit),
+                    text = t.usuallyHere(DoseFormat.rateWithUnit(it, unit, s = strings)),
                     style = type.footnote,
                     color = colors.ink2,
                 )
             }
             extras?.dwellSeconds?.let { dwell ->
                 Text(
-                    text = "показания устойчивы ${HistoryFormat.duration(dwell)} · расчёт",
+                    text = t.steadyReadings(HistoryFormat.duration(dwell, s = h)),
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -911,8 +934,10 @@ private const val DWELL_WINDOW_MILLIS = 10L * 60_000
 
 @Composable
 private fun RouteSummaryCard(data: TrackData, unit: DoseUnitSetting, title: String) {
+    val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
     val summary = remember(data) { TrackMap.summary(data.points) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
@@ -924,7 +949,7 @@ private fun RouteSummaryCard(data: TrackData, unit: DoseUnitSetting, title: Stri
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = DoseFormat.rateUnitLabel(unit),
+                    text = DoseFormat.rateUnitLabel(unit, s = strings),
                     style = type.footnote,
                     color = colors.muted,
                 )
@@ -933,14 +958,14 @@ private fun RouteSummaryCard(data: TrackData, unit: DoseUnitSetting, title: Stri
                 cells = listOf(
                     StatCell(
                         summary.avgDoseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
-                        "ср",
+                        t.statAvg,
                     ),
                     StatCell(
                         summary.maxDoseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
-                        "макс",
+                        t.statMax,
                     ),
-                    StatCell(HistoryFormat.count(summary.pointCount), "точек"),
-                    StatCell(HistoryFormat.count(data.hotspots.size), "меток"),
+                    StatCell(HistoryFormat.count(summary.pointCount), t.statPoints),
+                    StatCell(HistoryFormat.count(data.hotspots.size), t.statMarkers),
                 ),
             )
         }
@@ -959,20 +984,23 @@ private fun AreaSummaryCard(
     unit: DoseUnitSetting,
     nowMillis: Long,
 ) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
+    val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "В этом виде".uppercase(),
+                    text = t.inThisView.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = if (metric == TrackMetric.DOSE) {
-                        DoseFormat.rateUnitLabel(unit)
+                        DoseFormat.rateUnitLabel(unit, s = strings)
                     } else {
                         "CPS"
                     },
@@ -984,30 +1012,30 @@ private fun AreaSummaryCard(
                 cells = listOf(
                     StatCell(
                         grid.stats?.let { legendLabel(it.median, metric, unit) } ?: "—",
-                        "медиана",
+                        t.statMedian,
                     ),
                     StatCell(
                         grid.maxValue?.let { legendLabel(it, metric, unit) } ?: "—",
-                        "макс",
+                        t.statMax,
                     ),
-                    StatCell(HistoryFormat.count(grid.pointCount), "точек"),
-                    StatCell(HistoryFormat.count(grid.cells.size), "клеток"),
+                    StatCell(HistoryFormat.count(grid.pointCount), t.statPoints),
+                    StatCell(HistoryFormat.count(grid.cells.size), t.statCells),
                 ),
             )
             val period = if (grid.firstTime != null && grid.lastTime != null) {
-                "записи с " + HistoryFormat.dayTime(grid.firstTime, nowMillis) +
-                    " по " + HistoryFormat.dayTime(grid.lastTime, nowMillis)
+                t.recordedFromTo(
+                    from = HistoryFormat.dayTime(grid.firstTime, nowMillis, s = h),
+                    to = HistoryFormat.dayTime(grid.lastTime, nowMillis, s = h),
+                )
             } else {
                 null
             }
             Text(
                 text = listOfNotNull(
                     period,
-                    "только фиксы точнее " +
-                        TrackGrid.MAX_ACCURACY_METERS.toInt() + " м",
+                    t.onlyAccurateFixes(TrackGrid.MAX_ACCURACY_METERS.toInt()),
                     if (grid.partial) {
-                        "картинка построена по " + HistoryFormat.count(grid.stats?.count ?: 0) +
-                            " точкам — приблизьте карту"
+                        t.builtFromPoints(HistoryFormat.count(grid.stats?.count ?: 0))
                     } else {
                         null
                     },
@@ -1027,28 +1055,25 @@ private fun AreaSummaryCard(
 private fun MapEmptyState(scope: MapTrackScope, recording: Boolean, hasRecordings: Boolean) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
     val title: String
     val body: String
     when {
         recording -> {
-            title = "Жду первые точки"
-            body = "Запись идёт. Точки появятся, как только GPS даст координаты."
+            title = t.emptyWaitingTitle
+            body = t.emptyWaitingBody
         }
         scope == MapTrackScope.ALL -> {
-            title = "Здесь записей нет"
-            body = "В этом районе ничего не записано. Отдалите карту, чтобы увидеть " +
-                "остальные записи, или начните новую."
+            title = t.emptyAreaTitle
+            body = t.emptyAreaBody
         }
         hasRecordings -> {
-            title = "В этой записи нет точек"
-            body = "След пишется только во время записи. Переключитесь на «все записи», " +
-                "чтобы увидеть накопленную карту."
+            title = t.emptyTrackTitle
+            body = t.emptyTrackBody
         }
         else -> {
-            title = "Маршрутов пока нет"
-            body = "След пишется только во время записи: пока она не включена, " +
-                "координаты не сохраняются. Начните запись — маршрут окрасится " +
-                "мощностью дозы, устойчивые превышения станут метками."
+            title = t.emptyNoTracksTitle
+            body = t.emptyNoTracksBody
         }
     }
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1068,24 +1093,21 @@ private fun MapEmptyState(scope: MapTrackScope, recording: Boolean, hasRecording
 private fun LocationPermissionCard(onRequest: () -> Unit) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Text(
-                text = "Для карты и записи маршрута нужна геолокация",
+                text = t.locationTitle,
                 style = type.label,
                 color = colors.ink,
             )
             Text(
-                text = "Координаты нужны, чтобы показать вас на карте и привязать точки " +
-                    "трека. Они сохраняются только на этом телефоне и никуда не " +
-                    "отправляются, а запрашиваются лишь пока открыта карта или идёт " +
-                    "запись. Если запрос не показывается — включите доступ в " +
-                    "настройках Android.",
+                text = t.locationBody,
                 style = type.bodySmall,
                 color = colors.ink2,
             )
             AppButton(
-                text = "Разрешить геолокацию",
+                text = t.locationAllow,
                 onClick = onRequest,
                 primary = true,
                 modifier = Modifier.align(Alignment.End),
@@ -1115,11 +1137,12 @@ private fun stopTrackRecording(context: Context) {
 }
 
 private fun metricWithUnit(
+    strings: app.radiacode.ui.text.Strings,
     value: Float,
     metric: TrackMetric,
     unit: DoseUnitSetting,
 ): String = when (metric) {
-    TrackMetric.DOSE -> DoseFormat.rateWithUnit(value, unit)
+    TrackMetric.DOSE -> DoseFormat.rateWithUnit(value, unit, s = strings)
     TrackMetric.CPS -> TrackMap.formatCps(value) + " CPS"
 }
 
