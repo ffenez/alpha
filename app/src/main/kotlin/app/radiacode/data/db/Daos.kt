@@ -120,6 +120,10 @@ interface SampleDao {
      * `id` монотонен по вставке, поэтому «последнее показание» здесь означает
      * ровно то, что сказано, при любой поправке часов.
      */
+    /** Начало истории измерений; null — измерений нет вовсе. */
+    @Query("SELECT MIN(timestamp) FROM samples")
+    suspend fun earliestTimestamp(): Long?
+
     @Query("SELECT * FROM samples ORDER BY id DESC LIMIT 1")
     fun observeLatest(): Flow<SampleEntity?>
 

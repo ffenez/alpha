@@ -232,10 +232,16 @@ internal fun buildFrame(
             // На пустом окне фона нет вовсе: зебра — это опора для глаза
             // ВНУТРИ данных, а на чистом поле она читается как ошибка рендера
             // и спорит с самим сообщением «измерений нет».
+            // Зебра — опора для глаза ВНУТРИ измеренного времени, и дальше него
+            // не идёт: залитые часы там, где прибор не писал, выглядели как
+            // полноценная часть истории, то есть маскировали её отсутствие.
             timeBands = if (visible.isEmpty()) {
                 emptyList()
             } else {
-                ChartBackground.bands(window.fromMillis, window.toMillis)
+                ChartBackground.bands(
+                    fromMillis = maxOf(window.fromMillis, visible.first().startMillis),
+                    toMillis = minOf(window.toMillis, visible.last().endMillis),
+                )
             },
             rawSamples = rawDots,
             endpointAlert = endpointAlert,

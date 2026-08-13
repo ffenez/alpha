@@ -271,8 +271,15 @@ fun MonitorScreen(
             val now = System.currentTimeMillis()
             val outcome = runCatching {
                 val loadedCharts = withContext(Dispatchers.IO) {
+                    // Выбранная ступень — максимум, а не обещание, что данные за
+                    // неё есть: окно подтягивается к первому измерению и растёт
+                    // вместе с историей. Один запрос по индексу на весь проход.
+                    val earliest = graph.measurementRepository.earliestSampleMillis()
                     chartMetrics.associateWith { metric ->
-                        val window = ChartMetrics.startWindow(metric, savedSpans, now)
+                        val window = ChartWindows.limitedByHistory(
+                            ChartMetrics.startWindow(metric, savedSpans, now),
+                            earliest,
+                        )
                         LoadedChart(window, loadSnapshot(graph, window, metric))
                     }
                 }

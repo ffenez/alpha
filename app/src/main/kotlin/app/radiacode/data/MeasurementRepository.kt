@@ -230,6 +230,9 @@ class MeasurementRepository(
 
     fun samples(from: Long, to: Long): Flow<List<SampleEntity>> = sampleDao.observeRange(from, to)
 
+    /** Начало истории измерений; null — измерений нет вовсе. */
+    suspend fun earliestSampleMillis(): Long? = sampleDao.earliestTimestamp()
+
     /** Разовое чтение диапазона — для экспорта, которому поток не нужен. */
     suspend fun samplesList(from: Long, to: Long): List<SampleEntity> =
         sampleDao.rangeList(from, to)

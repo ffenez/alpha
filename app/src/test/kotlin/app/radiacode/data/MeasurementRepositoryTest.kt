@@ -44,6 +44,8 @@ internal class FakeSampleDao : SampleDao {
     }
     override fun observeLatest(): Flow<SampleEntity?> = flowOf(inserted.lastOrNull())
     override fun observeRange(from: Long, to: Long): Flow<List<SampleEntity>> = flowOf(emptyList())
+    override suspend fun earliestTimestamp(): Long? = inserted.minOfOrNull { it.timestamp }
+
     override suspend fun rangeList(from: Long, to: Long): List<SampleEntity> =
         inserted.filter { it.timestamp in from..to }.sortedBy { it.timestamp }
     override suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()

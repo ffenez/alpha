@@ -90,6 +90,47 @@ object ChartWindows {
         return ChartWindow(window.fromMillis - pad, maxOf(to, window.toMillis))
     }
 
+    /**
+     * Окно, укороченное до фактически накопленной истории.
+     *
+     * ## Зачем
+     *
+     * Выбранная ступень — это МАКСИМУМ, а не обещание, что данные за неё есть.
+     * Сразу после установки (или после чистки журнала) шестичасовое окно
+     * рисовало пять с половиной пустых часов, а всё накопленное сжималось в
+     * несколько пикселей у правого края. Хуже того, у дозы это меняло САМ ПУТЬ
+     * ЧТЕНИЯ: окно длиннее шести часов уходит на почасовые скетчи (ADR 004), и
+     * вся короткая история складывалась в ОДНУ часовую колонку — то есть в одну
+     * точку, тогда как счёт и жёсткость, у которых длинного пути нет, честно
+     * показывали ряд. Один и тот же поток измерений выглядел на трёх карточках
+     * по-разному.
+     *
+     * Поэтому левый край подтягивается к первому измерению, а правый остаётся
+     * «сейчас»: окно растёт вместе с историей и, дорастя до ступени,
+     * превращается в скользящее.
+     *
+     * @param earliestMillis момент первого измерения; null — измерений нет,
+     *   окно остаётся как выбрано (рисовать нечего в любом случае).
+     * @param minSpanMillis нижняя граница: одно измерение не должно давать
+     *   вырожденное окно нулевой ширины.
+     */
+    fun limitedByHistory(
+        window: ChartWindow,
+        earliestMillis: Long?,
+        minSpanMillis: Long = MIN_HISTORY_SPAN_MILLIS,
+    ): ChartWindow {
+        if (earliestMillis == null || earliestMillis <= window.fromMillis) return window
+        val from = minOf(earliestMillis, window.toMillis - minSpanMillis)
+        return ChartWindow(from, window.toMillis)
+    }
+
+    /**
+     * Самое узкое окно, которое имеет смысл рисовать.
+     * **Инженерный параметр**: минута — первая ступень лестницы и шестьдесят
+     * записей прибора; уже неё график перестаёт быть графиком.
+     */
+    const val MIN_HISTORY_SPAN_MILLIS = 60_000L
+
     /** True when [window] is fully inside an already-loaded [loaded] range. */
     fun covers(loaded: ChartWindow, window: ChartWindow): Boolean =
         loaded.fromMillis <= window.fromMillis && loaded.toMillis >= window.toMillis

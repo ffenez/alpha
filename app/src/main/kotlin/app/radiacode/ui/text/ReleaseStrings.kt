@@ -79,6 +79,8 @@ object ReleaseRu : ReleaseStrings {
         "Спектр называет родство кандидатов: Pb-214 и Bi-214 — дочерние " +
             "продукты радона, один ряд распада.",
         "Измерения сессии сохраняются в CSV, трек — в GPX.",
+        "График строится с первых секунд: окно подтягивается к накопленной " +
+            "истории, а не открывается пустыми шестью часами.",
         "Появилась настройка «После перезагрузки» (Прибор): продолжать " +
             "измерение после включения телефона, по умолчанию выключено.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
@@ -247,6 +249,8 @@ object ReleaseEn : ReleaseStrings {
         "The spectrum names the kinship of its candidates: Pb-214 and Bi-214 " +
             "are radon daughters from one decay chain.",
         "Session measurements export to CSV and a track to GPX.",
+        "A chart builds from the first seconds: the window follows the history " +
+            "collected instead of opening on six empty hours.",
         "New setting «After a restart» (Instrument): keep measuring once the " +
             "phone boots, off by default.",
         "The state of the stream is stated once for every element of the " +

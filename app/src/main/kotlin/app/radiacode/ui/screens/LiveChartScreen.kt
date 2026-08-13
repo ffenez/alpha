@@ -237,9 +237,16 @@ fun LiveChartScreen(
         // окно живого экрана к нему отношения не имеет.
         if (historical) return@LaunchedEffect
         if (spanRestored) return@LaunchedEffect
-        if (metric.id !in savedSpans) return@LaunchedEffect
         spanRestored = true
-        window = ChartMetrics.startWindow(metric, savedSpans, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        // Ступень — максимум, а не обещание, что данные за неё есть: окно
+        // открытия подтягивается к первому измерению. Только ОТКРЫТИЕ: дальше
+        // окном распоряжаются жесты и лестница, и подтягивать его на каждом
+        // щипке значило бы отбирать у человека управление.
+        window = ChartWindows.limitedByHistory(
+            ChartMetrics.startWindow(metric, savedSpans, now),
+            graph.measurementRepository.earliestSampleMillis(),
+        )
     }
     // Лестница следует за окном, а не наоборот: щипок меняет окно плавно, и
     // подсвеченный чип обязан говорить правду о том, что на экране.
