@@ -3,6 +3,7 @@ package app.radiacode.data.export
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import app.radiacode.service.StreamTrace
 
 /**
  * Отчёт нужен ровно для разбора наблюдений «поставил порог, а на экране
@@ -112,6 +113,45 @@ class DebugReportTest {
      * байты и время работы; вывода про батарею в нём нет, потому что из этих
      * чисел он не следует.
      */
+    @Test
+    fun `the exchange trace tells a dead stream from one that is not being written`() {
+        // Полевой случай, который трижды чинился по рассуждению вместо
+        // наблюдения: «нет новых данных · 29 с» при зелёном кружке связи. На
+        // экране «записи не пришли» и «пришли, но не записались» неразличимы.
+        val report = DebugReport.build(
+            snapshot.copy(
+                streamTicks = listOf(
+                    StreamTrace.Tick(
+                        atMillis = snapshot.nowMillis - 2_000,
+                        records = 1,
+                        newestAgeMillis = 29_000,
+                        correctionMillis = -158_000,
+                        inserted = 0,
+                        dropped = 1,
+                    ),
+                    StreamTrace.Tick(
+                        atMillis = snapshot.nowMillis - 1_000,
+                        records = 0,
+                        newestAgeMillis = null,
+                        correctionMillis = -158_000,
+                        inserted = 0,
+                        dropped = 0,
+                    ),
+                ),
+            ),
+            stamp = { "13.08.2026 11:40:36" },
+        )
+
+        assertTrue(report.contains("## Такты обмена"), report)
+        // Обе величины, ради которых трасса и заведена.
+        assertTrue(report.contains("29000 мс"), report)
+        assertTrue(report.contains("0/1"), report)
+        // Молча отброшенные строки названы числом, а не следом в тактах.
+        assertTrue(report.contains("записей отброшено при вставке: 1"), report)
+        // Пустой ответ — штатное состояние, и он назван словами.
+        assertTrue(report.contains("нет записей"), report)
+    }
+
     @Test
     fun `the spectrum traffic section reports measurements, not a battery verdict`() {
         val withTraffic = DebugReport.build(

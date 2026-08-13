@@ -29,7 +29,19 @@ import kotlin.test.assertTrue
 /** Shared by [ExperimentRepositoryTest] — same package, same fakes. */
 internal class FakeSampleDao : SampleDao {
     val inserted = mutableListOf<SampleEntity>()
-    override suspend fun insertAll(samples: List<SampleEntity>) { inserted += samples }
+
+    /** Метки, которые «уже заняты»: фейк повторяет уникальный индекс базы. */
+    val occupiedTimestamps = mutableSetOf<Long>()
+
+    override suspend fun insertAll(samples: List<SampleEntity>): List<Long> = samples.map {
+        if (!occupiedTimestamps.add(it.timestamp)) {
+            // -1 = строка ОТБРОШЕНА уникальным индексом, ровно как в Room.
+            -1L
+        } else {
+            inserted += it
+            inserted.size.toLong()
+        }
+    }
     override fun observeLatest(): Flow<SampleEntity?> = flowOf(inserted.lastOrNull())
     override fun observeRange(from: Long, to: Long): Flow<List<SampleEntity>> = flowOf(emptyList())
     override suspend fun rangeList(from: Long, to: Long): List<SampleEntity> =
@@ -154,6 +166,25 @@ class MeasurementRepositoryTest {
         spectrumDao = spectrumDao,
         clock = { 123_456L },
     )
+
+    @Test
+    fun `a record whose timestamp is taken is reported as dropped, not as written`() = runTest {
+        // Полевой случай: «нет новых данных · 29 с» при зелёном кружке связи.
+        // Уникальный индекс `samples.timestamp` отбрасывает строку молча — до
+        // этого счётчика отброс был не отличим от записи ни на экране, ни в
+        // логах, и три захода на починку шли по рассуждению вместо наблюдения.
+        val at = 1_700_000_000_000L
+
+        val first = repository.record(listOf(RealTimeData(at, 0, 10f, 1f, 0.0004f, 2f, 0, 0)))
+        assertEquals(1, first.inserted)
+        assertEquals(0, first.dropped)
+
+        val second = repository.record(listOf(RealTimeData(at, 0, 25f, 1f, 0.0006f, 2f, 0, 0)))
+        assertEquals(0, second.inserted)
+        assertEquals(1, second.dropped)
+        // И само измерение действительно потеряно — счётчик не «на всякий случай».
+        assertEquals(1, sampleDao.inserted.size)
+    }
 
     @Test
     fun `routes DATA_BUF record types to their tables`() = runTest {

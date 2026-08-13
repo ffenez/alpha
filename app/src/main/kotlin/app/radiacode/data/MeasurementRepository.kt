@@ -38,20 +38,33 @@ class MeasurementRepository(
      * whether it may feed the baseline statistics — raw values are stored
      * either way (spec §4.2, §22).
      */
+    /**
+     * @param inserted сколько строк реально добавилось в `samples`.
+     * @param dropped сколько отброшено уникальным индексом по `timestamp`.
+     */
+    data class RecordOutcome(val inserted: Int, val dropped: Int)
+
     suspend fun record(
         records: List<DataBufRecord>,
         profileId: Long? = null,
         admission: (RealTimeData) -> String? = { null },
-    ) {
+    ): RecordOutcome {
         val samples = records.filterIsInstance<RealTimeData>()
             .map { it.toEntity(profileId, admission(it)) }
-        if (samples.isNotEmpty()) sampleDao.insertAll(samples)
+        var inserted = 0
+        var dropped = 0
+        if (samples.isNotEmpty()) {
+            val ids = sampleDao.insertAll(samples)
+            inserted = ids.count { it != -1L }
+            dropped = ids.size - inserted
+        }
 
         val rare = records.filterIsInstance<RareData>().map { it.toEntity() }
         if (rare.isNotEmpty()) rareDataDao.insertAll(rare)
 
         val events = records.filterIsInstance<Event>().map { it.toEntity() }
         if (events.isNotEmpty()) eventDao.insertAll(events)
+        return RecordOutcome(inserted = inserted, dropped = dropped)
     }
 
     /**

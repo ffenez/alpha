@@ -1,6 +1,7 @@
 package app.radiacode.data.export
 
 import app.radiacode.analysis.AlgorithmVersions
+import app.radiacode.service.StreamTrace
 
 /**
  * Цена частоты опроса спектра, ИЗМЕРЕННАЯ (ADR 007), а не выведенная из числа
@@ -61,6 +62,14 @@ data class DebugSnapshot(
     /** Здоровье потока: пропуски seq в DATA_BUF и число переподключений. */
     val seqGapTotal: Int,
     val reconnectCount: Int,
+    /**
+     * Покадровая трасса обмена, свежие такты последними.
+     *
+     * Существует ради одного полевого случая: «нет новых данных · N с» при
+     * зелёном кружке связи. На экране «записи не пришли» и «пришли, но не
+     * записались» выглядят одинаково, а различаются только здесь.
+     */
+    val streamTicks: List<StreamTrace.Tick> = emptyList(),
     /** Жив ли цикл перечитывания графиков Главной (полевой случай «замерли»). */
     val chartsRefreshedAgoSeconds: Long?,
     val chartsRefreshCount: Int,
@@ -198,12 +207,28 @@ object DebugReport {
         appendLine("пропусков seq в DATA_BUF: ${snapshot.seqGapTotal}")
         appendLine("поправка часов прибора: ${snapshot.clockCorrectionMillis / 1000} с")
         appendLine("переподключений за сеанс: ${snapshot.reconnectCount}")
+        val dropped = snapshot.streamTicks.sumOf { it.dropped }
+        appendLine("записей отброшено при вставке: $dropped")
         appendLine(
             "графики Главной обновлялись: " + (
                 snapshot.chartsRefreshedAgoSeconds?.let { "${it} с назад" } ?: "ни разу"
                 ) + " · всего обновлений: ${snapshot.chartsRefreshCount}",
         )
         appendLine()
+
+        if (snapshot.streamTicks.isNotEmpty()) {
+            appendLine("## Такты обмена")
+            appendLine("время · записей · возраст новейшей · поправка · записано/отброшено")
+            for (tick in snapshot.streamTicks) {
+                val age = tick.newestAgeMillis?.let { "${it} мс" } ?: "нет записей"
+                appendLine(
+                    stamp(tick.atMillis) + " · " + tick.records + " · " + age +
+                        " · " + tick.correctionMillis / 1000 + " с · " +
+                        tick.inserted + "/" + tick.dropped,
+                )
+            }
+            appendLine()
+        }
 
         appendLine("## Данные")
         appendLine("измерений: ${snapshot.sampleCount}")

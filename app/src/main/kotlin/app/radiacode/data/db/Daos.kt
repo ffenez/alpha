@@ -97,8 +97,13 @@ data class ExclusionCount(val reason: String, val samples: Int)
 interface SampleDao {
 
     /** IGNORE + unique timestamp index deduplicates reconnect overlap. */
+    /**
+     * @return rowid каждой строки; **-1 означает, что строка ОТБРОШЕНА**
+     *   уникальным индексом по `timestamp`. Возврат нужен именно ради этого:
+     *   до него отброс был не отличим от записи ни на экране, ни в логах.
+     */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertAll(samples: List<SampleEntity>)
+    suspend fun insertAll(samples: List<SampleEntity>): List<Long>
 
     /**
      * Последнее ЗАПИСАННОЕ показание — по порядку вставки, а не по метке времени.

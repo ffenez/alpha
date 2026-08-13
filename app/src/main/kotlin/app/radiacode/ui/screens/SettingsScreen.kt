@@ -639,6 +639,7 @@ private suspend fun buildDebugReport(
         spectrumSeconds = spectrum?.durationSeconds,
         seqGapTotal = graph.serviceStatus.seqGapTotal,
         reconnectCount = graph.serviceStatus.reconnectCount,
+        streamTicks = graph.streamTrace.snapshot(),
         chartsRefreshedAgoSeconds = graph.serviceStatus.chartsRefreshedAtMillis
             ?.let { (now - it) / 1000L },
         chartsRefreshCount = graph.serviceStatus.chartsRefreshCount,

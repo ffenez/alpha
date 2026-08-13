@@ -519,9 +519,23 @@ class MeasurementService : Service() {
         deviceJobs += scope.launch {
             newDevice.records.collect { records ->
                 val now = System.currentTimeMillis()
-                graph.measurementRepository.record(records, activeProfileId) { sample ->
+                val outcome = graph.measurementRepository.record(records, activeProfileId) { sample ->
                     admissionOf(sample, now).storageKey
                 }
+                // Покадровая трасса обмена — единственное, что отличает
+                // «записи не пришли» от «пришли, но не записались»; на экране
+                // обе беды выглядят как «нет новых данных · N с».
+                graph.streamTrace.add(
+                    StreamTrace.Tick(
+                        atMillis = now,
+                        records = records.size,
+                        newestAgeMillis = records.maxOfOrNull { it.timestampMillis }
+                            ?.let { now - it },
+                        correctionMillis = newDevice.clockCorrectionMillis,
+                        inserted = outcome.inserted,
+                        dropped = outcome.dropped,
+                    ),
+                )
             }
         }
         deviceJobs += scope.launch {
