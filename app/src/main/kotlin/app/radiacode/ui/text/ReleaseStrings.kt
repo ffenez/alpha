@@ -57,6 +57,8 @@ object ReleaseRu : ReleaseStrings {
             "измерения, и продолжается сама, когда данные пошли снова.",
         "Пропали серые полосы на графике мощности дозы: приложение точнее " +
             "определяет часы прибора и больше не теряет свежие записи.",
+        "Показания больше не «залипают» после подключения: экран показывает " +
+            "последнее пришедшее измерение, а не самое позднее по метке времени.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
             "пока данные идут, о разрыве не говорится ничего.",
         "С миниатюр графиков убраны единицы — их называет заголовок карточки.",
@@ -195,6 +197,8 @@ object ReleaseEn : ReleaseStrings {
             "ended, and continues on its own once data comes back.",
         "The grey stripes on the dose-rate chart are gone: the app measures " +
             "the instrument's clock more carefully and no longer drops fresh records.",
+        "Readings no longer stick after connecting: the screen shows the last " +
+            "measurement that arrived, not the one with the latest timestamp.",
         "The state of the stream is stated once for every element of the " +
             "screen: while data keeps coming, nothing is said about a break.",
         "The units are gone from the chart thumbnails — the card title names them.",

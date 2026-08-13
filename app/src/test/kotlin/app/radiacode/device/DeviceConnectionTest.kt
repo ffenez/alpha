@@ -133,11 +133,13 @@ class DeviceConnectionTest {
     }
 
     @Test
-    fun `an over-correction from a buffered record heals itself`() = runTest {
+    fun `an over-correction from a buffered record heals in seconds`() = runTest {
         // Полевой дефект: первый ответ принёс запись из буфера с большим
-        // смещением, односторонний храповик вычел лишнее — и дальше метки
-        // оседали на десятки секунд в прошлом навсегда: зелёный кружок связи,
-        // «нет новых данных · 31 с» и графики с постоянным отставанием.
+        // смещением, база уехала вниз — и дальше метки оседали в прошлом:
+        // зелёный кружок связи, «нет новых данных · 31 с» и графики с
+        // постоянным отставанием. Прежний односторонний храповик не поднимался
+        // вовсе, min-фильтр по десяти ответам поднимался ~25 с — столько же
+        // экран говорил «нет данных». Теперь на это уходит пара ответов.
         val fake = FakeRadiaCode()
         // Первая запись опережает базу ещё на 30 с сверх 128 — вычтется 158 с.
         fake.dataBufPayloads += realTimeDataRecord(
@@ -145,9 +147,9 @@ class DeviceConnectionTest {
         )
         // Дальше идут нормальные свежие записи: относительно съехавшей базы
         // каждая выглядит старой на 30 с.
-        repeat(DeviceConnection.LAG_WINDOW_RESPONSES) {
+        repeat(3) {
             fake.dataBufPayloads += realTimeDataRecord(
-                seq = 2 + it, tsOffset10ms = 0, countRate = 10f, doseRate = 0.0004f,
+                seq = 2 + it, tsOffset10ms = (it + 1) * 100, countRate = 10f, doseRate = 0.0004f,
             )
         }
         val (conn, _) = establish(fake)
@@ -155,13 +157,39 @@ class DeviceConnectionTest {
         conn.readDataBuf()
         assertEquals(-158_000L, conn.clockCorrectionMillis)
 
-        // Окно ответов накапливается, и база поднимается обратно.
-        var last = 0L
-        repeat(DeviceConnection.LAG_WINDOW_RESPONSES) {
-            last = conn.readDataBuf().records[0].timestampMillis
+        // Одного измерения мало — иначе буферная запись увела бы базу сама.
+        conn.readDataBuf()
+        assertEquals(-158_000L, conn.clockCorrectionMillis)
+
+        // Второе подтверждает отставание, и база встаёт на место: новейшая
+        // запись ответа снова получает метку «сейчас» (часы в тесте стоят, а
+        // смещения записей растут — отсюда поправка −130 с, а не −128 с).
+        val healed = conn.readDataBuf()
+        assertEquals(-130_000L, conn.clockCorrectionMillis)
+        assertEquals(now, healed.records.maxOf { it.timestampMillis })
+    }
+
+    @Test
+    fun `a stalled instrument does not drag the time base forward`() = runTest {
+        // Прибор перестал писать: его последняя запись стареет с каждым
+        // ответом. Это простой ПОТОКА, а не уход часов — поднимать по нему базу
+        // означало бы штамповать старое показание сегодняшним временем.
+        val fake = FakeRadiaCode()
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 1, tsOffset10ms = 0, countRate = 10f, doseRate = 0.0004f,
+        )
+        val (conn, _) = establish(fake)
+        conn.readDataBuf()
+        val corrected = conn.clockCorrectionMillis
+
+        // Тот же ответ повторяется: новейшая запись не продвинулась.
+        repeat(5) {
+            fake.dataBufPayloads += realTimeDataRecord(
+                seq = 1, tsOffset10ms = 0, countRate = 10f, doseRate = 0.0004f,
+            )
+            conn.readDataBuf()
         }
-        assertEquals(-128_000L, conn.clockCorrectionMillis)
-        assertEquals(now, last)
+        assertEquals(corrected, conn.clockCorrectionMillis)
     }
 
 

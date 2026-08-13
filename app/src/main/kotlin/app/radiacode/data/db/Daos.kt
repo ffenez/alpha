@@ -100,7 +100,22 @@ interface SampleDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(samples: List<SampleEntity>)
 
-    @Query("SELECT * FROM samples ORDER BY timestamp DESC LIMIT 1")
+    /**
+     * Последнее ЗАПИСАННОЕ показание — по порядку вставки, а не по метке времени.
+     *
+     * Разница не косметическая. Метки записей стоят на базе времени прибора, а
+     * она ИЗМЕРЯЕТСЯ по ходу сеанса (`DeviceConnection.clockCorrectionMillis`) и
+     * может уехать назад. После такого сдвига свежие записи получают метки
+     * МЕНЬШЕ уже лежащих в таблице, и `ORDER BY timestamp DESC` продолжает
+     * отдавать давнюю строку с самой большой меткой. Полевая картина этого
+     * дефекта: зелёный кружок связи, «нет новых данных · 30 с · 31 с» и живые
+     * значения, которые обновляются рывками, — экран показывал не последнее
+     * показание, а рекорд по метке.
+     *
+     * `id` монотонен по вставке, поэтому «последнее показание» здесь означает
+     * ровно то, что сказано, при любой поправке часов.
+     */
+    @Query("SELECT * FROM samples ORDER BY id DESC LIMIT 1")
     fun observeLatest(): Flow<SampleEntity?>
 
     @Query("SELECT * FROM samples WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
@@ -469,7 +484,8 @@ interface RareDataDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(entries: List<RareDataEntity>)
 
-    @Query("SELECT * FROM rare_data ORDER BY timestamp DESC LIMIT 1")
+    /** По порядку вставки — по той же причине, что у `SampleDao.observeLatest`. */
+    @Query("SELECT * FROM rare_data ORDER BY id DESC LIMIT 1")
     fun observeLatest(): Flow<RareDataEntity?>
 
     @Query("SELECT * FROM rare_data WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
