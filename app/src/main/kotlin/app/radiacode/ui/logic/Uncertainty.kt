@@ -28,6 +28,14 @@ object Uncertainty {
     fun cpsWithSigma(cps: Float): String =
         "${num1(cps)} ±${num1(cpsSigma(cps))} с⁻¹"
 
+    /**
+     * То же без единицы — для плитки, у которой единица стоит в подписи.
+     *
+     * «СЧЁТ, с⁻¹» над «23,7 ±4,9 с⁻¹» называло единицу дважды в одном
+     * элементе шириной в треть экрана.
+     */
+    fun cpsWithSigmaBare(cps: Float): String = "${num1(cps)} ±${num1(cpsSigma(cps))}"
+
     /** «±3,6 с⁻¹ (1σ Пуассон)» — the Search hero subtitle. */
     fun cpsSigmaLine(cps: Float): String = "±${num1(cpsSigma(cps))} с⁻¹ (1σ Пуассон)"
 

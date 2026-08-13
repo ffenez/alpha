@@ -756,14 +756,22 @@ private fun HeroCard(
                 // «вывод должен быть проверяем» осталось — изменилось место:
                 // на Главной эта строка висела всегда, а читается один раз.
                 // `statusDetail` жив и используется шторкой и отчётом.
-                (baselineState as? BaselineState.Learning)?.let { learning ->
-                    Text(
-                        text = learningWording(learning),
-                        style = type.footnote,
-                        color = colors.muted,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                // «Изучаю обычный фон — 0 ч из 3» и «этот профиль не собирает
+                // обычный фон» стояли рядом и противоречили друг другу: у
+                // профиля с выключенным обучением прогресс не может идти. Об
+                // объёме говорит только тот, кто его набирает.
+                val learningOff = admission is Admission.Excluded &&
+                    admission.reason == BaselineExclusion.LEARNING_OFF
+                (baselineState as? BaselineState.Learning)
+                    ?.takeIf { !learningOff }
+                    ?.let { learning ->
+                        Text(
+                            text = learningWording(learning),
+                            style = type.footnote,
+                            color = colors.muted,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                 // Пополняется ли статистика прямо сейчас — вопрос, который
                 // человек задаёт, глядя на объём истории. Молчание означало
                 // «да», и это было незаметно; теперь ответ есть в обе стороны.
@@ -790,7 +798,7 @@ private fun HeroCard(
                 add(
                     HeroTile(
                         label = t.countTile,
-                        value = cps?.let { Uncertainty.cpsWithSigma(it) } ?: "—",
+                        value = cps?.let { Uncertainty.cpsWithSigmaBare(it) } ?: "—",
                     ),
                 )
                 if (blocks.trend) {
@@ -806,7 +814,7 @@ private fun HeroCard(
                             note = when {
                                 trend == null -> null
                                 slope != null -> trendWindowLabel?.let { t.overWindow(it) }
-                                else -> TrendFit.unavailableNote(trend)
+                                else -> TrendFit.unavailableShort(trend)
                             },
                         ),
                     )

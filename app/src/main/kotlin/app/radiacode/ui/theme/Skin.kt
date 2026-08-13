@@ -107,7 +107,7 @@ val EightBitDarkColors = AppColors(
     onData = Color(0xFF06231F),
     chartField = Color(0xFF080C08),
     chartGrid = Color(0xFF25391F),
-    chartZebra = Color(0x14FFFFFF),
+    chartZebra = Color(0x0AFFFFFF),
     chartBeyondData = Color(0x1F000000),
 )
 
@@ -129,6 +129,6 @@ val EightBitLightColors = AppColors(
     onData = Color(0xFFF4F2D8),
     chartField = Color(0xFFDCDAB8),
     chartGrid = Color(0xFFA8A688),
-    chartZebra = Color(0x12000000),
+    chartZebra = Color(0x08000000),
     chartBeyondData = Color(0x1A000000),
 )

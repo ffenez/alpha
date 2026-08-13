@@ -95,7 +95,6 @@ object EnStrings : Strings {
 
     override fun agoSeconds(value: Long) = "$value s ago"
 
-    override fun interruptedAgo(value: Long) = "interrupted $value s ago"
 
     override val streamRunning = "stream running"
 

@@ -47,7 +47,10 @@ fun freshnessChipLabel(freshness: Freshness, s: Strings = RuStrings): String? = 
     is Freshness.Fresh ->
         if (freshness.ageSeconds <= FRESH_NOW_SECONDS) null
         else s.agoSeconds(freshness.ageSeconds)
-    is Freshness.Stale -> s.interruptedAgo(freshness.ageSeconds)
+    // «Прервано» звучит как аварийный обрыв сессии и для обычной задержки
+    // телеметрии слишком драматично. Экран говорит то же, что Главная: данных
+    // нет столько-то. Одна формулировка на всё приложение.
+    is Freshness.Stale -> s.streamNoNewData(freshness.ageSeconds)
 }
 
 /**

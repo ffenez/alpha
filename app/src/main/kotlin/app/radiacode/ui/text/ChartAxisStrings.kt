@@ -57,6 +57,10 @@ interface ChartAxisStrings {
     // ------------------------------------------------------------- тренд
     val trendUnavailable: String
     fun needBins(need: Int, have: Int): String
+
+    /** Компактно для плитки: без внутренних чисел алгоритма. */
+    val notEnoughData: String
+    fun needShort(need: String): String
     fun needSpan(need: String, have: String): String
 
     // -------------------------------------------------- метод квантилей
@@ -125,6 +129,8 @@ object ChartAxisRu : ChartAxisStrings {
     override val trendUnavailable = "тренд недоступен"
 
     override fun needBins(need: Int, have: Int) = "нужно $need интервалов · есть $have"
+    override val notEnoughData = "мало данных"
+    override fun needShort(need: String) = "нужно $need"
 
     override fun needSpan(need: String, have: String) =
         "нужно $need измерений · есть $have"
@@ -198,6 +204,8 @@ object ChartAxisEn : ChartAxisStrings {
     override val trendUnavailable = "trend unavailable"
 
     override fun needBins(need: Int, have: Int) = "$need intervals needed · $have present"
+    override val notEnoughData = "not enough data"
+    override fun needShort(need: String) = "$need needed"
 
     override fun needSpan(need: String, have: String) =
         "$need of measurements needed · $have present"
@@ -230,6 +238,7 @@ fun ChartAxisStrings.allTexts(): List<String> = listOf(
     profileP90Explained, profileMedianExplained, atMoment("12:30"),
     atInterval("12:30", "12:35"),
     trendUnavailable, needBins(12, 3), needSpan("10 мин", "4 мин"),
+    notEnoughData, needShort("10 мин"),
     quantilesExact, quantilesSketch(128, 1, "1,2 %"), quantilesEstimate,
     histogramCountAxis, histogramInsufficient, histogramNoData,
     coverage("47 мин", "6 ч"),

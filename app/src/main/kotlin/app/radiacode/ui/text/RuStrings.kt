@@ -87,7 +87,6 @@ object RuStrings : Strings {
 
     override fun agoSeconds(value: Long) = "$value с назад"
 
-    override fun interruptedAgo(value: Long) = "прервано $value с назад"
 
     override val streamRunning = "поток идёт"
 

@@ -48,7 +48,9 @@ class FreshnessTest {
         assertEquals(null, freshnessChipLabel(Freshness.Fresh(0)))
         assertEquals(null, freshnessChipLabel(Freshness.Fresh(FRESH_NOW_SECONDS)))
         assertEquals("5 с назад", freshnessChipLabel(Freshness.Fresh(5)))
-        assertEquals("прервано 30 с назад", freshnessChipLabel(Freshness.Stale(30)))
+        // «Прервано» звучало как аварийный обрыв сессии — для обычной задержки
+        // телеметрии это неправда. Одна формулировка на всё приложение.
+        assertEquals("нет новых данных · 30 с", freshnessChipLabel(Freshness.Stale(30)))
         assertEquals("нет данных", freshnessChipLabel(Freshness.NoData))
     }
 }

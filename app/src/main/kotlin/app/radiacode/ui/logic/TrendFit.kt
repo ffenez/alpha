@@ -218,6 +218,25 @@ object TrendFit {
     }
 
     /**
+     * То же, но для ПЛИТКИ: одна строка, которая обязана поместиться целиком.
+     *
+     * Полный вариант («нужно 12 интервалов · есть 3») в плитке обрезался до
+     * «нужно 12» — внутреннее число алгоритма без единицы, загадка на экране.
+     * Число интервалов человеку не говорит ничего и здесь не называется вовсе;
+     * недостающее ВРЕМЯ назвать можно, оно измеримо часами на стене.
+     */
+    fun unavailableShort(
+        availability: TrendAvailability,
+        s: ChartAxisStrings = ChartAxisRu,
+        h: HistoryStrings = HistoryRu,
+    ): String? = when (availability) {
+        is TrendAvailability.Ready -> null
+        is TrendAvailability.TooFewBins -> s.notEnoughData
+        is TrendAvailability.TooShort ->
+            s.needShort(HistoryFormat.duration(MIN_SPAN_MILLIS / 1000, h))
+    }
+
+    /**
      * Same fit for a column array whose bins are evenly spaced by
      * [bucketMillis] (the Monitor hour chart): nulls are gaps, the time of a
      * bin is its centre.

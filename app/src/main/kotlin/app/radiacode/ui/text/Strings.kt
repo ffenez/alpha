@@ -141,7 +141,6 @@ interface Strings {
 
     // --- свежесть потока ---
     fun agoSeconds(value: Long): String
-    fun interruptedAgo(value: Long): String
     val streamRunning: String
     fun updatedAgo(value: Long): String
     val streamInterruptedFor: String
@@ -592,7 +591,7 @@ fun Strings.allTexts(): List<String> = listOf(
     detailAlert(referenceThreshold("0,30"), held(seconds(45))),
     referenceProfileBand("0,09–0,14", "мкЗв/ч"),
     held(seconds(45)), seconds(45), minutes(4), hoursMinutes(1, 12),
-    agoSeconds(5), interruptedAgo(30), updatedAgo(7),
+    agoSeconds(5), updatedAgo(7),
     searchNoBackground, searchWaiting, searchNoExcess, searchSmallChange,
     searchConfirmedExcess, searchConfirmedDeficit,
     countRising, countFalling, countSteady, directionOverLast(10),

@@ -72,6 +72,10 @@ object ReleaseRu : ReleaseStrings {
             "выглядело как обрыв графика при работающем приборе.",
         "Линия больше не обрывается посреди поля из-за секундного дрожания " +
             "потока, а одиночное измерение рисуется точкой.",
+        "График больше не говорит «нет измерений», когда они есть: на длинных " +
+            "окнах свежая колонка отбрасывалась целиком.",
+        "На пустом графике убраны фоновые полосы, а единица больше не " +
+            "накладывается на отметку порога.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
             "пока данные идут, о разрыве не говорится ничего.",
         "Нажатия на кнопки самого прибора больше не обрывают связь: занятый " +
@@ -231,6 +235,10 @@ object ReleaseEn : ReleaseStrings {
             "used to look like the chart breaking while the instrument worked.",
         "The line no longer breaks mid-field over a second of jitter, and a " +
             "lone measurement is drawn as a dot.",
+        "The chart no longer claims «no measurements» when there are some: on " +
+            "long windows the freshest column was dropped whole.",
+        "An empty chart loses its background stripes, and the unit no longer " +
+            "overlaps the threshold marker.",
         "The state of the stream is stated once for every element of the " +
             "screen: while data keeps coming, nothing is said about a break.",
         "Pressing the buttons on the instrument itself no longer drops the " +
