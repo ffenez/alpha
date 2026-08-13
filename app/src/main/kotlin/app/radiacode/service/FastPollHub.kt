@@ -6,26 +6,28 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 /**
- * Poll-cadence bridge between the Поиск screen and [MeasurementService], in
- * the same refcount shape as [SpectrumHub]: the screen calls [attach] while
- * it is on top, the service picks the DATA_BUF poll period from the watcher
- * count. UI never touches the device layer directly.
+ * Poll-cadence bridge between the UI and [MeasurementService], in the same
+ * refcount shape as [SpectrumHub]: экран на переднем плане вызывает [attach],
+ * служба выбирает период опроса DATA_BUF по числу наблюдателей. UI никогда не
+ * трогает слой прибора напрямую.
  *
- * **What faster polling actually buys — and what it does not.** The RadiaCode
- * produces roughly one RealTimeData record per second on its own. Polling the
- * device buffer twice a second does NOT produce two measurements per second;
- * it halves the *pickup* delay — the time a finished record sits in the
- * device buffer before we read it — from ~0.5 s on average to ~0.25 s. When
- * sweeping a surface looking for a source, that lag is the difference between
- * the clicks rising over the spot and rising a step past it. Any wording
- * shown to the user must say this and must not promise «2 измерения в секунду».
+ * **Что даёт частый опрос — и чего он не даёт.** RadiaCode сам пишет примерно
+ * одну запись RealTimeData в секунду. Опрос четыре раза в секунду НЕ даёт
+ * четырёх измерений в секунду; он сокращает ЗАДЕРЖКУ ПОДБОРА — время, которое
+ * готовая запись лежит в буфере прибора, пока мы её не прочли, — со средних
+ * ~0,5 с до ~0,125 с. Это и есть «данные сразу»: быстрее прибора приложение
+ * показать не может, но и ждать своей очереди запись больше не будет. Любая
+ * формулировка в UI обязана говорить именно это и не обещать «4 измерения в
+ * секунду».
  *
- * Costs are bounded by design: the fast rate applies only while the Поиск
- * screen is resumed (background and other tabs stay at 1 Hz), the poll loop
- * is strictly sequential on the single-in-flight `ProtocolClient` (a tick
- * cannot start before the previous read returned, so nothing queues up), and
- * an empty DATA_BUF reply — normal at 2 Hz, since records appear ~1 Hz — is
- * an ordinary no-op, not an error and not a sequence gap.
+ * **Быстро — пока на приложение смотрят.** Прежде частый опрос просил только
+ * Поиск, а на Главной значение обновлялось с задержкой до секунды сверх
+ * приборной. Теперь наблюдателя ставит само окно приложения: экран виден —
+ * опрашиваем часто, ушли в фон или погасили экран — возвращаемся к 1 Гц.
+ * Расходы ограничены по построению: цикл опроса строго последовательный на
+ * однозапросном `ProtocolClient` (тик не начинается, пока не вернулся
+ * предыдущий, поэтому запросы не копятся), а пустой ответ DATA_BUF — норма
+ * при частом опросе, а не сбой и не пропуск seq.
  */
 class FastPollHub {
 
@@ -44,8 +46,12 @@ class FastPollHub {
         /** Ordinary cadence: one poll per produced record. */
         const val NORMAL_INTERVAL_MILLIS = 1_000L
 
-        /** Поиск cadence: same records, half the pickup delay. */
-        const val FAST_INTERVAL_MILLIS = 500L
+        /**
+         * Foreground cadence: те же записи, задержка подбора вчетверо меньше.
+         * Совпадает с полом `RadiaCodeDevice.MIN_POLL_INTERVAL_MILLIS`: чаще
+         * опрашивать бессмысленно, запись всё равно появляется раз в секунду.
+         */
+        const val FAST_INTERVAL_MILLIS = 250L
 
         /** Pure: any watcher means fast, none means back to 1 Hz. */
         fun intervalMillis(watchers: Int): Long =

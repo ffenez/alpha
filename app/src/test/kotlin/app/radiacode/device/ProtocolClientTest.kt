@@ -1,9 +1,7 @@
 package app.radiacode.device
 
 import app.radiacode.protocol.Command
-import app.radiacode.protocol.ProtocolException
 import app.radiacode.protocol.ResponseAssembler
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.test.runTest
@@ -69,75 +67,57 @@ class ProtocolClientTest {
     }
 
     @Test
-    fun `throws when the mismatch retry also mismatches, exactly one retry`() = runTest {
+    fun `a foreign frame is skipped, not treated as a broken exchange`() = runTest {
+        // Полевой дефект: нажатие кнопок на самом приборе обрывало связь в
+        // приложении. Канал уведомлений один на всё, и кадр, которого мы не
+        // заказывали, считался ошибкой протокола — сессия падала и
+        // пересобиралась с паузой. Чужой кадр не ошибка: ждём свой ответ.
         val link = CapturingLink()
         val client = ProtocolClient(link)
-        link.onRequest = { _ ->
+        link.onRequest = { request ->
             client.onNotification(Wire.frame(byteArrayOf(0x0A, 0, 0, 0x7F)))
-        }
-
-        assertFailsWith<ProtocolException> { client.execute(Command.GET_STATUS) }
-        // Bounded: the original attempt plus a single retry.
-        assertEquals(2, link.completedRequests.size)
-    }
-
-    @Test
-    fun `recovers from a header mismatch by retrying once with a fresh seq`() = runTest {
-        val link = CapturingLink()
-        val client = ProtocolClient(link)
-        var attempt = 0
-        link.onRequest = { request ->
-            attempt++
-            if (attempt == 1) {
-                client.onNotification(Wire.frame(byteArrayOf(0x0A, 0, 0, 0x7F)))
-            } else {
-                client.onNotification(Wire.frame(request.copyOfRange(0, 4) + byteArrayOf(5)))
-            }
-        }
-
-        val startedAt = testScheduler.currentTime
-        val reader = client.execute(Command.GET_STATUS)
-
-        assertContentEquals(byteArrayOf(5), reader.bytes())
-        assertEquals(2, link.completedRequests.size)
-        // The retry is a fresh request: new sequence number in the header echo.
-        assertTrue(link.completedRequests[0][3] != link.completedRequests[1][3])
-        // Backoff before the retry lets stale BLE traffic land first.
-        assertTrue(
-            testScheduler.currentTime - startedAt >=
-                ProtocolClient.MISMATCH_RETRY_BACKOFF_MILLIS,
-        )
-    }
-
-    @Test
-    fun `pending stale responses are flushed before the mismatch retry`() = runTest {
-        val link = CapturingLink()
-        val client = ProtocolClient(link)
-        var attempt = 0
-        link.onRequest = { request ->
-            attempt++
-            if (attempt == 1) {
-                // Two stale frames: the first triggers the mismatch, the second
-                // must be drained — otherwise the retry would consume it.
-                client.onNotification(Wire.frame(byteArrayOf(0x0A, 0, 0, 0x7F)))
-                client.onNotification(Wire.frame(byteArrayOf(0x0B, 0, 0, 0x7E)))
-            } else {
-                client.onNotification(Wire.frame(request.copyOfRange(0, 4) + byteArrayOf(42)))
-            }
+            client.onNotification(Wire.frame(request.copyOfRange(0, 4) + byteArrayOf(42)))
         }
 
         val reader = client.execute(Command.GET_STATUS)
+
         assertContentEquals(byteArrayOf(42), reader.bytes())
+        // Повтора не потребовалось: запрос ушёл ровно один раз.
+        assertEquals(1, link.completedRequests.size)
+        assertEquals(1, client.unmatchedFrames)
     }
 
     @Test
-    fun `times out when no response arrives`() = runTest {
+    fun `a burst of foreign frames does not consume the answer`() = runTest {
+        val link = CapturingLink()
+        val client = ProtocolClient(link)
+        link.onRequest = { request ->
+            repeat(5) { i ->
+                client.onNotification(Wire.frame(byteArrayOf(0x0A, 0, 0, (0x70 + i).toByte())))
+            }
+            client.onNotification(Wire.frame(request.copyOfRange(0, 4) + byteArrayOf(7)))
+        }
+
+        val reader = client.execute(Command.GET_STATUS)
+
+        assertContentEquals(byteArrayOf(7), reader.bytes())
+        assertEquals(5, client.unmatchedFrames)
+    }
+
+    @Test
+    fun `a timeout is a fact about the device, not a cancellation`() = runTest {
+        // Тип имеет значение: `TimeoutCancellationException` — наследник
+        // `CancellationException`, и вызывающий код читал один медленный ответ
+        // как «нас отменили». Цикл связи заканчивался НАВСЕГДА вместо
+        // переподключения — прибор «отваливался» до перезапуска службы.
         val link = CapturingLink()
         val client = ProtocolClient(link)
 
         val startedAt = testScheduler.currentTime
-        assertFailsWith<TimeoutCancellationException> { client.execute(Command.GET_STATUS) }
+        val failure = assertFailsWith<DeviceTimeoutException> { client.execute(Command.GET_STATUS) }
+
         assertEquals(12_000, testScheduler.currentTime - startedAt)
+        assertTrue(failure !is kotlinx.coroutines.CancellationException)
     }
 
     @Test
@@ -146,7 +126,7 @@ class ProtocolClientTest {
         val client = ProtocolClient(link)
 
         // First request times out; its response arrives too late.
-        assertFailsWith<TimeoutCancellationException> { client.execute(Command.GET_STATUS) }
+        assertFailsWith<DeviceTimeoutException> { client.execute(Command.GET_STATUS) }
         val lateRequest = link.completedRequests.removeAt(0)
         client.onNotification(Wire.frame(lateRequest.copyOfRange(0, 4) + byteArrayOf(1)))
 

@@ -30,6 +30,7 @@ import app.radiacode.device.RadiaCodeScanner
 import app.radiacode.service.AbRunRecorder
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.service.FastPollHub
+import app.radiacode.service.SearchPresenceHub
 import app.radiacode.service.LocalBackgroundRecorder
 import app.radiacode.service.SpotMeasureRecorder
 import app.radiacode.service.ServiceStatus
@@ -190,6 +191,9 @@ class AppGraph private constructor(
 
     /** Поиск asks for a shorter DATA_BUF poll period while it is on screen. */
     val fastPollHub: FastPollHub = FastPollHub()
+
+    /** Открыт ли Поиск (эксперимент), отдельно от частоты опроса. */
+    val searchPresenceHub: SearchPresenceHub = SearchPresenceHub()
 
     /** Постоянная история спектрограммы (ADR 007): чтение окна и прореживание. */
     val spectrogramRepository: SpectrogramRepository by lazy {

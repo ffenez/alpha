@@ -17,6 +17,17 @@ class Request(val bytes: ByteArray, val header: ByteArray) {
      * @param response complete response body (without the u32 length prefix),
      *                 as emitted by [ResponseAssembler].
      */
+    /**
+     * Is this response the answer to THIS request?
+     *
+     * Ответы прибора приходят по общему каналу уведомлений, и в нём может
+     * оказаться чужой кадр — хвост прежнего обмена или ответ на команду,
+     * отправленную не нами. Проверка отделена от разбора, чтобы клиент мог
+     * ПРОПУСТИТЬ чужой кадр и дождаться своего, а не рвать сессию.
+     */
+    fun matches(response: ByteArray): Boolean =
+        response.size >= 4 && response.copyOfRange(0, 4).contentEquals(header)
+
     fun matchResponse(response: ByteArray): BytesReader {
         if (response.size < 4) {
             throw ProtocolException("Response too short: ${response.size} bytes")

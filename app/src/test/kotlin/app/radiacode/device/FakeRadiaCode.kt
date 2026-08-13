@@ -99,10 +99,23 @@ class FakeDeviceLink(private val fake: FakeRadiaCode) : DeviceLink {
 
     override val notifications = MutableSharedFlow<ByteArray>(replay = 64, extraBufferCapacity = 64)
 
+    /**
+     * Сколько следующих ответов проглотить, не отправляя.
+     * Так выглядит занятый прибор: человек нажимает кнопки на его экране, и
+     * ответ на наш запрос не приходит вовсе.
+     */
+    var swallowNextResponses = 0
+
     override suspend fun write(chunk: ByteArray) {
         check(chunk.size <= ProtocolClient.CHUNK_SIZE) { "chunk of ${chunk.size} bytes" }
         chunkSizes += chunk.size
         for (request in requestAssembler.feed(chunk)) {
+            // Проглоченный запрос не РАЗБИРАЕТСЯ вовсе: занятый прибор не
+            // тратит на него свой буфер, и очередь ответов остаётся ждать.
+            if (swallowNextResponses > 0) {
+                swallowNextResponses -= 1
+                continue
+            }
             notifications.emit(fake.respond(request))
         }
     }

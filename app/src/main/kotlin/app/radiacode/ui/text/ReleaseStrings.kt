@@ -61,6 +61,10 @@ object ReleaseRu : ReleaseStrings {
             "последнее пришедшее измерение, а не самое позднее по метке времени.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
             "пока данные идут, о разрыве не говорится ничего.",
+        "Нажатия на кнопки самого прибора больше не обрывают связь: занятый " +
+            "прибор пропускает опрос, и приложение просто ждёт следующий.",
+        "Данные подхватываются быстрее: пока приложение на экране, буфер " +
+            "прибора читается четыре раза в секунду вместо одного.",
         "С миниатюр графиков убраны единицы — их называет заголовок карточки.",
     )
 
@@ -201,6 +205,10 @@ object ReleaseEn : ReleaseStrings {
             "measurement that arrived, not the one with the latest timestamp.",
         "The state of the stream is stated once for every element of the " +
             "screen: while data keeps coming, nothing is said about a break.",
+        "Pressing the buttons on the instrument itself no longer drops the " +
+            "connection: a busy instrument skips a poll and the app waits for the next one.",
+        "Data is picked up sooner: while the app is on screen the instrument's " +
+            "buffer is read four times a second instead of once.",
         "The units are gone from the chart thumbnails — the card title names them.",
     )
 

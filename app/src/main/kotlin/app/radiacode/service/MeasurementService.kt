@@ -245,7 +245,7 @@ class MeasurementService : Service() {
         scope.launch {
             // Поиск on screen = an experiment (spec §18): its interval must
             // never teach the baseline, and the user must see why.
-            graph.fastPollHub.watchers.collect { watchers ->
+            graph.searchPresenceHub.watchers.collect { watchers ->
                 graph.serviceStatus.onExperiment(
                     ServiceStatus.SOURCE_SEARCH,
                     if (watchers > 0) texts.searchSource else null,
@@ -606,9 +606,9 @@ class MeasurementService : Service() {
             }
         }
         deviceJobs += scope.launch {
-            // Поиск on screen → shorter DATA_BUF period. Same records, half
-            // the pickup delay; see FastPollHub for why that is not «2 Hz
-            // measurements».
+            // Приложение на экране → короткий период DATA_BUF. Те же записи,
+            // вчетверо меньше задержка подбора; почему это не «4 измерения в
+            // секунду» — в KDoc FastPollHub.
             graph.fastPollHub.watchers.collect { watchers ->
                 newDevice.pollIntervalMillis = FastPollHub.intervalMillis(watchers)
             }

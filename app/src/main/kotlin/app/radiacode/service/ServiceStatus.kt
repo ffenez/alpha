@@ -182,7 +182,7 @@ class ServiceStatus {
     }
 
     companion object {
-        /** Поиск screen (FastPollHub watcher count). */
+        /** Поиск screen (SearchPresenceHub watcher count). */
         const val SOURCE_SEARCH = "search"
 
         /** A/B experiment run in progress. */

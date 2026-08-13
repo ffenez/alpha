@@ -2,6 +2,7 @@ package app.radiacode.device
 
 import app.radiacode.protocol.DataBufRecord
 import app.radiacode.protocol.Event
+import app.radiacode.protocol.ProtocolException
 import app.radiacode.protocol.RareData
 import app.radiacode.protocol.RealTimeData
 import app.radiacode.protocol.Spectrum
@@ -83,6 +84,15 @@ class RadiaCodeDevice(
     private val _records = MutableSharedFlow<List<DataBufRecord>>(extraBufferCapacity = 64)
     /** Every decoded DATA_BUF batch, for persistence. */
     val records: SharedFlow<List<DataBufRecord>> = _records.asSharedFlow()
+
+    /**
+     * Осечки чтения DATA_BUF за всё время жизни объекта — счётчик для
+     * отладочного отчёта. Пережитая осечка не видна на экране (она и не должна
+     * быть видна), но именно по этому числу разбирается «показания идут рывками».
+     */
+    @Volatile
+    var readFailures: Int = 0
+        private set
 
     /** Cumulative DATA_BUF sequence gaps this device object observed (diagnostics). */
     @Volatile
@@ -188,17 +198,43 @@ class RadiaCodeDevice(
         backoff.reset()
         sessionEstablished = true
 
+        // Осечка одного чтения — не потеря связи. Прибор занят своим экраном
+        // (человек нажимает на нём кнопки), эфир мешает, ответ опоздал — всё
+        // это лечится следующим тиком, а разрыв сессии стоит переподключения
+        // с паузой и разрывом в записи. Сессию заканчивает только связь: либо
+        // сам линк (awaitDisconnect), либо череда осечек подряд.
+        var consecutiveFailures = 0
         while (true) {
             val startedAt = clock()
-            val result = conn.readDataBuf()
-            if (result.seqGaps > 0) seqGapTotal += result.seqGaps
-            dispatch(result.records)
+            try {
+                val result = conn.readDataBuf()
+                if (result.seqGaps > 0) seqGapTotal += result.seqGaps
+                dispatch(result.records)
+                consecutiveFailures = 0
+            } catch (e: DeviceTimeoutException) {
+                consecutiveFailures = noteReadFailure(e, consecutiveFailures)
+            } catch (e: ProtocolException) {
+                consecutiveFailures = noteReadFailure(e, consecutiveFailures)
+            }
             // Strictly sequential: the next read starts only after this one
             // returned, so a faster cadence cannot pile requests up. An empty
             // reply (no new records yet) is normal and costs one round trip.
             val elapsed = clock() - startedAt
             delay((pollIntervalMillis - elapsed).coerceAtLeast(0))
         }
+    }
+
+    /**
+     * Считает осечку чтения и решает, жива ли ещё сессия.
+     * @return число осечек подряд; [MAX_CONSECUTIVE_READ_FAILURES] подряд
+     *   означают, что прибор перестал отвечать, и сессию пора пересобрать.
+     */
+    private fun noteReadFailure(e: Exception, soFar: Int): Int {
+        val failures = soFar + 1
+        readFailures += 1
+        lastFailure = "${e::class.simpleName}: ${e.message.orEmpty()}".trim(':', ' ')
+        if (failures >= MAX_CONSECUTIVE_READ_FAILURES) throw e
+        return failures
     }
 
     private suspend fun dispatch(records: List<DataBufRecord>) {
@@ -221,5 +257,13 @@ class RadiaCodeDevice(
          * without lowering the pickup delay any further.
          */
         const val MIN_POLL_INTERVAL_MILLIS = 250L
+
+        /**
+         * Сколько чтений подряд должны сорваться, чтобы пересобрать сессию.
+         * **Инженерный параметр**: пять при опросе 1–4 раза в секунду — это
+         * секунды терпения, дольше любой занятости прибора и заметно короче
+         * паузы, после которой человек сам поймёт, что связи нет.
+         */
+        const val MAX_CONSECUTIVE_READ_FAILURES = 5
     }
 }

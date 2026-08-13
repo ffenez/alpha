@@ -190,13 +190,13 @@ fun SearchScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    // Поиск asks the service for a shorter DATA_BUF poll while it is on
-    // screen: the same ~1 Hz records, picked up about twice as fast.
+    // Пока Поиск на экране, его измерения — эксперимент и не учат обычный
+    // фон места (спец §18). Частота опроса здесь ни при чём: её держит окно
+    // приложения целиком.
     DisposableEffect(resumed) {
-        if (resumed) graph.fastPollHub.attach()
-        onDispose { if (resumed) graph.fastPollHub.detach() }
+        if (resumed) graph.searchPresenceHub.attach()
+        onDispose { if (resumed) graph.searchPresenceHub.detach() }
     }
-
     val soundMode = mode == SearchFeedbackMode.CLICKS || mode == SearchFeedbackMode.TONE
     val clickerActive = soundMode && resumed
     // Silence must be explainable: these are polled once a second so the

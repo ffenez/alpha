@@ -67,6 +67,46 @@ class RadiaCodeDeviceTest {
     }
 
     @Test
+    fun `a busy instrument does not cost the session`() = runTest {
+        // Полевой дефект: нажатие кнопок на самом приборе обрывало связь в
+        // приложении. Прибор занят своим экраном и не отвечает на один-два
+        // опроса — это осечка чтения, а не потеря связи; разрыв сессии стоил
+        // бы паузы переподключения и дыры в записи.
+        val fake = FakeRadiaCode()
+        val factory = FakeLinkFactory(fake)
+        val device = RadiaCodeDevice("AA:BB", factory, clock = { 1_000_000L + testScheduler.currentTime })
+
+        device.start(backgroundScope)
+        device.connectionState.first { it is ConnectionState.Connected }
+
+        factory.links[0].swallowNextResponses = RadiaCodeDevice.MAX_CONSECUTIVE_READ_FAILURES - 1
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 0, tsOffset10ms = 0, countRate = 9f, doseRate = 0.0005f,
+        )
+
+        // Поток возобновляется сам, на том же линке.
+        assertEquals(9f, device.realTimeData.first().countRate)
+        assertIs<ConnectionState.Connected>(device.connectionState.value)
+        assertEquals(1, factory.links.size)
+        assertEquals(RadiaCodeDevice.MAX_CONSECUTIVE_READ_FAILURES - 1, device.readFailures)
+    }
+
+    @Test
+    fun `an instrument that stopped answering gets a fresh session`() = runTest {
+        val fake = FakeRadiaCode()
+        val factory = FakeLinkFactory(fake)
+        val device = RadiaCodeDevice("AA:BB", factory)
+
+        device.start(backgroundScope)
+        device.connectionState.first { it is ConnectionState.Connected }
+
+        factory.links[0].swallowNextResponses = RadiaCodeDevice.MAX_CONSECUTIVE_READ_FAILURES
+        device.connectionState.first { it is ConnectionState.Reconnecting }
+        device.connectionState.first { it is ConnectionState.Connected }
+        assertEquals(2, factory.links.size)
+    }
+
+    @Test
     fun `backoff grows while connection attempts keep failing`() = runTest {
         val fake = FakeRadiaCode()
         val factory = FakeLinkFactory(fake)

@@ -22,6 +22,24 @@ import app.radiacode.ui.theme.UiScale
 
 /** Single activity; all screens are Compose under [AppRoot]. */
 class MainActivity : ComponentActivity() {
+
+    /**
+     * Пока на приложение смотрят — прибор опрашивается часто.
+     *
+     * Наблюдатель ставится здесь, а не на экране: «данные без задержки» нужны
+     * везде, где показывают живое значение, а не только в Поиске. В фоне и при
+     * погашенном экране служба возвращается к 1 Гц — смотреть некому.
+     */
+    override fun onStart() {
+        super.onStart()
+        AppGraph.get(this).fastPollHub.attach()
+    }
+
+    override fun onStop() {
+        AppGraph.get(this).fastPollHub.detach()
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)

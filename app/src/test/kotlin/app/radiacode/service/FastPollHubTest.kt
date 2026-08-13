@@ -69,8 +69,14 @@ class FastPollHubTest {
     }
 
     @Test
-    fun `the fast period is shorter but not below the device record rate`() {
-        assertEquals(500L, FastPollHub.FAST_INTERVAL_MILLIS)
+    fun `the fast period matches the device floor and no faster`() {
+        // Быстрее пола опроса смысла нет: запись всё равно появляется раз в
+        // секунду, а лишние запросы — только эфир и батарея.
+        assertEquals(250L, FastPollHub.FAST_INTERVAL_MILLIS)
+        assertEquals(
+            app.radiacode.device.RadiaCodeDevice.MIN_POLL_INTERVAL_MILLIS,
+            FastPollHub.FAST_INTERVAL_MILLIS,
+        )
         assertEquals(1_000L, FastPollHub.NORMAL_INTERVAL_MILLIS)
     }
 }
