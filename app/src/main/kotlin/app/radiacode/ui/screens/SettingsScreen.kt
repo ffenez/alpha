@@ -641,6 +641,7 @@ private suspend fun buildDebugReport(
         seqGapTotal = graph.serviceStatus.seqGapTotal,
         reconnectCount = graph.serviceStatus.reconnectCount,
         streamTicks = graph.streamTrace.snapshot(),
+        chartPasses = graph.chartTrace.snapshot(),
         chartsRefreshedAgoSeconds = graph.serviceStatus.chartsRefreshedAtMillis
             ?.let { (now - it) / 1000L },
         chartsRefreshCount = graph.serviceStatus.chartsRefreshCount,

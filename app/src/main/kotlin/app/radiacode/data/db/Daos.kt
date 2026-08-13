@@ -93,6 +93,13 @@ data class RangeStats(
  */
 data class ExclusionCount(val reason: String, val samples: Int)
 
+/** Сколько измерений в окне и их края — вход трассы конвейера графика. */
+data class RangeCensus(
+    val count: Int,
+    val minTimestamp: Long?,
+    val maxTimestamp: Long?,
+)
+
 @Dao
 interface SampleDao {
 
@@ -123,6 +130,19 @@ interface SampleDao {
     /** Начало истории измерений; null — измерений нет вовсе. */
     @Query("SELECT MIN(timestamp) FROM samples")
     suspend fun earliestTimestamp(): Long?
+
+    /**
+     * Что лежит в окне ДО всякой обработки — первый этап трассы конвейера.
+     * Три индексных агрегата одним запросом.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) AS count, MIN(timestamp) AS minTimestamp,
+               MAX(timestamp) AS maxTimestamp
+        FROM samples WHERE timestamp BETWEEN :from AND :to
+        """,
+    )
+    suspend fun rangeCensus(from: Long, to: Long): RangeCensus
 
     @Query("SELECT * FROM samples ORDER BY id DESC LIMIT 1")
     fun observeLatest(): Flow<SampleEntity?>

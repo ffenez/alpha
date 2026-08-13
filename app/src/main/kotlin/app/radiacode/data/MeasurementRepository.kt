@@ -8,6 +8,7 @@ import app.radiacode.data.db.EventEntity
 import app.radiacode.data.db.RareDataDao
 import app.radiacode.data.db.RareDataEntity
 import app.radiacode.data.db.SampleDao
+import app.radiacode.data.db.RangeCensus
 import app.radiacode.data.db.SampleEntity
 import app.radiacode.data.db.SpectrumDao
 import app.radiacode.data.db.SpectrumMetaRow
@@ -232,6 +233,10 @@ class MeasurementRepository(
 
     /** Начало истории измерений; null — измерений нет вовсе. */
     suspend fun earliestSampleMillis(): Long? = sampleDao.earliestTimestamp()
+
+    /** Что лежит в окне до всякой обработки — вход трассы конвейера графика. */
+    suspend fun rangeCensus(from: Long, to: Long): RangeCensus =
+        sampleDao.rangeCensus(from, to)
 
     /** Разовое чтение диапазона — для экспорта, которому поток не нужен. */
     suspend fun samplesList(from: Long, to: Long): List<SampleEntity> =

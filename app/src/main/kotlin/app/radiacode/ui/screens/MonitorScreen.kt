@@ -110,6 +110,7 @@ import app.radiacode.ui.logic.ChartMetrics
 import app.radiacode.ui.logic.coverageWording
 import app.radiacode.ui.logic.ChartSnapshot
 import app.radiacode.ui.logic.ChartWindow
+import app.radiacode.ui.logic.ChartTrace
 import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.ui.logic.TrendPoint
 import kotlinx.coroutines.Dispatchers
@@ -280,7 +281,37 @@ fun MonitorScreen(
                             ChartMetrics.startWindow(metric, savedSpans, now),
                             earliest,
                         )
-                        LoadedChart(window, loadSnapshot(graph, window, metric))
+                        val snapshot = loadSnapshot(graph, window, metric)
+                        // Трасса конвейера: три среза ОДНОГО окна — база,
+                        // снимок, кадр. По картинке нельзя сказать, на каком
+                        // этапе исчезают точки, а чинить последний этап по
+                        // догадке — способ починить не то.
+                        val census = graph.measurementRepository.rangeCensus(
+                            window.fromMillis,
+                            window.toMillis,
+                        )
+                        val visible = snapshot.buckets.filter {
+                            it.endMillis > window.fromMillis && it.startMillis < window.toMillis
+                        }
+                        graph.chartTrace.add(
+                            ChartTrace.Pass(
+                                atMillis = System.currentTimeMillis(),
+                                metric = metric.id,
+                                nowMillis = now,
+                                windowStart = window.fromMillis,
+                                windowEnd = window.toMillis,
+                                roomCount = census.count,
+                                roomMin = census.minTimestamp,
+                                roomMax = census.maxTimestamp,
+                                snapshotBuckets = snapshot.buckets.size,
+                                snapshotMin = snapshot.buckets.firstOrNull()?.startMillis,
+                                snapshotMax = snapshot.buckets.lastOrNull()?.endMillis,
+                                frameBuckets = visible.size,
+                                frameMin = visible.firstOrNull()?.startMillis,
+                                frameMax = visible.lastOrNull()?.endMillis,
+                            ),
+                        )
+                        LoadedChart(window, snapshot)
                     }
                 }
                 val loadedTrend = withContext(Dispatchers.IO) {
@@ -977,15 +1008,10 @@ private fun MetricChartCard(
                     style = type.label,
                     color = colors.ink,
                 )
-                // Единица названа ОДИН раз и здесь: заголовок «МОЩНОСТЬ ДОЗЫ»
-                // сам по себе не говорит, в чём числа на оси, а вторая
-                // подпись над полем повторяла бы его.
-                Spacer(Modifier.width(Dimens.space2))
-                Text(
-                    text = ChartMetrics.unitLabel(metric, unit),
-                    style = type.footnote,
-                    color = colors.muted,
-                )
+                // Единицы в шапке нет: величина названа заголовком, а числа
+                // на оси значений сами показывают порядок. Подпись «мкЗв/ч»
+                // рядом с «МОЩНОСТЬ ДОЗЫ» была шумом — как и «(мкрем/ч)/(имп/с)»
+                // рядом с «ЖЁСТКОСТЬ», где она к тому же длиннее заголовка.
                 Spacer(Modifier.weight(1f))
                 // Tap affordance: the card opens the fullscreen live chart.
                 Text(text = "⤢", style = type.label, color = colors.ink2)

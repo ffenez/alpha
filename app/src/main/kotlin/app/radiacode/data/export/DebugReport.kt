@@ -2,6 +2,7 @@ package app.radiacode.data.export
 
 import app.radiacode.analysis.AlgorithmVersions
 import app.radiacode.service.StreamTrace
+import app.radiacode.ui.logic.ChartTrace
 
 /**
  * Цена частоты опроса спектра, ИЗМЕРЕННАЯ (ADR 007), а не выведенная из числа
@@ -70,6 +71,11 @@ data class DebugSnapshot(
      * записались» выглядят одинаково, а различаются только здесь.
      */
     val streamTicks: List<StreamTrace.Tick> = emptyList(),
+    /**
+     * Трасса конвейера графика, свежие проходы последними: на каком этапе
+     * исчезают точки — в базе, в снимке, в кадре или уже ниже кадра.
+     */
+    val chartPasses: List<ChartTrace.Pass> = emptyList(),
     /** Жив ли цикл перечитывания графиков Главной (полевой случай «замерли»). */
     val chartsRefreshedAgoSeconds: Long?,
     val chartsRefreshCount: Int,
@@ -225,6 +231,33 @@ object DebugReport {
                     stamp(tick.atMillis) + " · " + tick.records + " · " + age +
                         " · " + tick.correctionMillis / 1000 + " с · " +
                         tick.inserted + "/" + tick.dropped,
+                )
+            }
+            appendLine()
+        }
+
+        if (snapshot.chartPasses.isNotEmpty()) {
+            appendLine("## Конвейер графика")
+            appendLine("время · величина · окно · Room · снимок · кадр · вывод")
+            for (pass in snapshot.chartPasses) {
+                val verdict = when (ChartTrace.verdict(pass)) {
+                    ChartTrace.Verdict.NO_DATA_IN_ROOM -> "нет данных в базе"
+                    ChartTrace.Verdict.LOST_IN_SNAPSHOT -> "потеря в запросе/окне"
+                    ChartTrace.Verdict.LOST_IN_FRAME -> "потеря в свёртке/отборе"
+                    ChartTrace.Verdict.FRAME_COMPLETE -> {
+                        val lag = ChartTrace.frameLagMillis(pass)
+                        if (lag != null && lag > 0) "кадр полон · отставание ${lag / 1000} с"
+                        else "кадр полон"
+                    }
+                }
+                appendLine(
+                    stamp(pass.atMillis) + " · " + pass.metric +
+                        " · " + (pass.windowEnd - pass.windowStart) / 1000 + " с" +
+                        " · " + pass.roomCount + " строк" +
+                        (pass.roomMax?.let { " (край −${(pass.nowMillis - it) / 1000} с)" } ?: "") +
+                        " · " + pass.snapshotBuckets + " кол." +
+                        " · " + pass.frameBuckets + " кол." +
+                        " · " + verdict,
                 )
             }
             appendLine()

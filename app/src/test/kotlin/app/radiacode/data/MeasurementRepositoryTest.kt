@@ -9,6 +9,7 @@ import app.radiacode.data.db.RangeStats
 import app.radiacode.data.db.RareDataDao
 import app.radiacode.data.db.RareDataEntity
 import app.radiacode.data.db.SampleDao
+import app.radiacode.data.db.RangeCensus
 import app.radiacode.data.db.SampleEntity
 import app.radiacode.data.db.SpectrumDao
 import app.radiacode.data.db.SpectrumMetaRow
@@ -45,6 +46,15 @@ internal class FakeSampleDao : SampleDao {
     override fun observeLatest(): Flow<SampleEntity?> = flowOf(inserted.lastOrNull())
     override fun observeRange(from: Long, to: Long): Flow<List<SampleEntity>> = flowOf(emptyList())
     override suspend fun earliestTimestamp(): Long? = inserted.minOfOrNull { it.timestamp }
+
+    override suspend fun rangeCensus(from: Long, to: Long): RangeCensus {
+        val window = inserted.filter { it.timestamp in from..to }
+        return RangeCensus(
+            count = window.size,
+            minTimestamp = window.minOfOrNull { it.timestamp },
+            maxTimestamp = window.maxOfOrNull { it.timestamp },
+        )
+    }
 
     override suspend fun rangeList(from: Long, to: Long): List<SampleEntity> =
         inserted.filter { it.timestamp in from..to }.sortedBy { it.timestamp }

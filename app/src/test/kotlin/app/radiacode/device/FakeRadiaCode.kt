@@ -149,3 +149,14 @@ fun realTimeDataRecord(
         Wire.f32(countRate) + Wire.f32(doseRate) +
         Wire.u16(countRateErr10) + Wire.u16(doseRateErr10) +
         Wire.u16(flags) + byteArrayOf(realTimeFlags.toByte())
+
+/**
+ * Запись `GRP_RawData` (eid=0, gid=1) — «чужая» группа того же ответа.
+ *
+ * Существует ради одного полевого факта: прибор стамповает группы ПО-РАЗНОМУ,
+ * и в одном ответе чужая запись может быть свежее ряда измерений на десятки
+ * секунд. Якорь часов обязан этого не замечать.
+ */
+fun rawDataRecord(seq: Int, tsOffset10ms: Int, countRate: Float, doseRate: Float): ByteArray =
+    byteArrayOf(seq.toByte(), 0, 1) + Wire.i32(tsOffset10ms) +
+        Wire.f32(countRate) + Wire.f32(doseRate)

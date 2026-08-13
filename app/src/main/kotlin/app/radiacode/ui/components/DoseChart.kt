@@ -349,7 +349,16 @@ private fun StaticChartLayer(
                 // но и не исчезает — когда он выше кадра, вместо линии
                 // рисуется закреплённый указатель «↑ L1 0,30» у верхней
                 // кромки. Порог, о котором забыли, — это порог, которого нет.
-                val alarmAbove = spec.alarmLevel != null &&
+                // Указатель показывается, только пока порог РЯДОМ с кадром: при
+                // фоне 0,15 и пороге 0,30 он ещё говорит «до порога вдвое», а
+                // при фоне 0,15 и пороге 3 — уже нет, и красная строка висела
+                // бы над каждым графиком, ничего не сообщая. Мера близости —
+                // высота самого кадра: дальше неё порог перестаёт быть
+                // ориентиром для того, что нарисовано.
+                val frameSpan = (spec.scale.maxValue - spec.scale.minValue).coerceAtLeast(0f)
+                val alarmNear = spec.alarmLevel != null &&
+                    spec.alarmLevel <= spec.scale.maxValue + frameSpan
+                val alarmAbove = alarmNear && spec.alarmLevel != null &&
                     spec.alarmLevel > spec.scale.maxValue
                 // Симметрично: кадр подогнан к данным и может целиком уйти
                 // ВЫШЕ порога — тогда указатель «↓ L1 0,30» стоит у нижней

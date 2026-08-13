@@ -3,6 +3,7 @@ package app.radiacode.device
 import app.radiacode.protocol.Command
 import app.radiacode.protocol.DataBufDecoder
 import app.radiacode.protocol.DataBufResult
+import app.radiacode.protocol.RealTimeData
 import app.radiacode.protocol.Spectrum
 import app.radiacode.protocol.SpectrumDecoder
 import app.radiacode.protocol.Vs
@@ -88,7 +89,20 @@ class DeviceConnection private constructor(
     suspend fun readDataBuf(): DataBufResult {
         val payload = readVs(Vs.DATA_BUF)
         var result = DataBufDecoder.decode(payload, baseTimeMillis + clockCorrectionMillis)
-        val newest = result.records.maxOfOrNull { it.timestampMillis }
+        // Якорь ставится ТОЛЬКО по RealTimeData.
+        //
+        // В одном ответе приходят записи разных групп (RealTimeData, RawData,
+        // DoseRateDB, RareData), и прибор стамповает их ПО-РАЗНОМУ: полевой
+        // отчёт показал, что в одном и том же ответе новейшая запись свежая до
+        // миллисекунд, а RealTimeData из него же — на полминуты старше. Пока
+        // якорь брал максимум по ВСЕМ записям, он подтягивал базу к чужой
+        // группе, и ряд измерений — единственный, который попадает в `samples`
+        // и на графики, — систематически уезжал в прошлое. На экране это
+        // выглядело как «возраст показания 30 с» и график, обрывающийся за
+        // полминуты до «сейчас», при исправно идущем потоке.
+        val newest = result.records
+            .filterIsInstance<RealTimeData>()
+            .maxOfOrNull { it.timestampMillis }
         if (newest != null) {
             val rawNewest = newest - clockCorrectionMillis
             if (lastNewestRawMillis != rawNewest) {

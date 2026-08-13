@@ -146,6 +146,27 @@ class DeviceConnectionTest {
     }
 
     @Test
+    fun `a foreign record group does not set the time base`() = runTest {
+        // Полевой отчёт: в одном ответе новейшая запись свежа до миллисекунд, а
+        // RealTimeData из него же — на полминуты старше. Пока якорь брал
+        // максимум по ВСЕМ группам, ряд измерений — единственный, который
+        // попадает в `samples` и на графики, — систематически уезжал в прошлое:
+        // «возраст показания 30 с» и график, обрывающийся до «сейчас», при
+        // исправно идущем потоке.
+        val fake = FakeRadiaCode()
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 1, tsOffset10ms = 0, countRate = 10f, doseRate = 0.0004f,
+        ) + rawDataRecord(seq = 2, tsOffset10ms = 3_000, countRate = 10f, doseRate = 0.0004f)
+        val (conn, _) = establish(fake)
+
+        val result = conn.readDataBuf()
+        val measurement = result.records.filterIsInstance<RealTimeData>().single()
+
+        // Ряд измерений встал на «сейчас», а не на полминуты раньше.
+        assertEquals(now, measurement.timestampMillis)
+    }
+
+    @Test
     fun `a stalled instrument does not drag the time base forward`() = runTest {
         // Прибор перестал писать: его последняя запись стареет с каждым
         // ответом. Это простой ПОТОКА, а не уход часов — поднимать по нему базу

@@ -81,6 +81,10 @@ object ReleaseRu : ReleaseStrings {
         "Измерения сессии сохраняются в CSV, трек — в GPX.",
         "График строится с первых секунд: окно подтягивается к накопленной " +
             "истории, а не открывается пустыми шестью часами.",
+        "Метки измерений больше не отстают на полминуты: время потока " +
+            "определяется самими измерениями, а не служебными записями прибора.",
+        "С заголовков карточек убраны единицы, а отметка порога L1 " +
+            "показывается только когда порог рядом с нарисованным.",
         "Появилась настройка «После перезагрузки» (Прибор): продолжать " +
             "измерение после включения телефона, по умолчанию выключено.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
@@ -251,6 +255,10 @@ object ReleaseEn : ReleaseStrings {
         "Session measurements export to CSV and a track to GPX.",
         "A chart builds from the first seconds: the window follows the history " +
             "collected instead of opening on six empty hours.",
+        "Measurement timestamps no longer lag by half a minute: the time of the " +
+            "stream comes from the measurements, not from the instrument's service records.",
+        "Units leave the card headers, and the L1 marker appears only when the " +
+            "threshold is near what is drawn.",
         "New setting «After a restart» (Instrument): keep measuring once the " +
             "phone boots, off by default.",
         "The state of the stream is stated once for every element of the " +
