@@ -542,6 +542,19 @@ class MeasurementService : Service() {
             newDevice.realTimeData.collect { sample ->
                 graph.serviceStatus.onClockCorrection(newDevice.clockCorrectionMillis)
                 lastSample = sample
+                // Живое показание уходит на экран ПРЯМО ОТСЮДА, минуя базу:
+                // свежесть — факт о приходе данных, и она не должна зависеть
+                // ни от часов прибора, ни от того, легла ли строка в таблицу.
+                graph.serviceStatus.onSample(
+                    ServiceStatus.LiveSample(
+                        deviceTimestampMillis = sample.timestampMillis,
+                        receivedAtMillis = System.currentTimeMillis(),
+                        doseRate = sample.doseRate,
+                        doseRateErr = sample.doseRateErr,
+                        countRate = sample.countRate,
+                        countRateErr = sample.countRateErr,
+                    ),
+                )
                 onSampleForAlarm(sample)
                 onSampleForHotspot(sample)
                 updateNotification()

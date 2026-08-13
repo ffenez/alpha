@@ -20,6 +20,14 @@ package app.radiacode.ui.text
  */
 interface MonitorStrings {
 
+    /**
+     * Подпись над выводом, когда свежих данных нет.
+     *
+     * Вывод остаётся на экране — скрывать его значит заставить человека
+     * гадать, — но читаться как текущий он не имеет права.
+     */
+    val byLastMeasurement: String
+
     // --------------------------------------------- Главная: шапка и профиль
     val profileUnknown: String
     val modeAuto: String
@@ -177,6 +185,8 @@ interface MonitorStrings {
 }
 
 object MonitorRu : MonitorStrings {
+
+    override val byLastMeasurement = "по последнему измерению"
 
     override val profileUnknown = "Профиль?"
     override val modeAuto = "авто"
@@ -340,6 +350,8 @@ object MonitorRu : MonitorStrings {
 }
 
 object MonitorEn : MonitorStrings {
+
+    override val byLastMeasurement = "based on the last measurement"
 
     override val profileUnknown = "Profile?"
     override val modeAuto = "auto"
@@ -520,6 +532,7 @@ val MonitorCatalogue = AreaCatalogue(ru = MonitorRu, en = MonitorEn)
  * области не проверяют.
  */
 fun MonitorStrings.allTexts(): List<String> = listOf(
+    byLastMeasurement,
     profileUnknown, modeAuto, modeManual, modeUnconfirmed,
     contextAutoKnown, contextAutoUncertain, contextTransit, contextNoContext, contextManual,
     countTile, trendWindowHour, overWindow(trendWindowHour),

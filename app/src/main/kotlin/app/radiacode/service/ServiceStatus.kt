@@ -52,6 +52,42 @@ class ServiceStatus {
     }
 
     /** Baseline of the active place, computed by the service; null = unknown yet. */
+    /**
+     * Последнее показание, ПРИШЕДШЕЕ с прибора, вместе с моментом прихода.
+     *
+     * ## Почему это отдельный источник, а не строка из базы
+     *
+     * Экран спрашивает «идут ли данные ПРЯМО СЕЙЧАС». Это факт о ПРИХОДЕ, а не
+     * о том, что прибор думает о времени. Раньше свежесть считалась как
+     * `сейчас − метка записи`, а метка стоит на базе времени прибора, которая
+     * ИЗМЕРЯЕТСЯ по ходу сеанса и может уехать, и приходила она из базы, где
+     * строку мог молча отбросить уникальный индекс. Двух независимых поводов
+     * ошибиться хватало, чтобы приложение говорило «нет новых данных · 29 с»,
+     * пока записи исправно приходили каждую секунду.
+     *
+     * Здесь между прибором и экраном нет ни базы, ни часов прибора: показание
+     * кладётся в память сразу после разбора ответа. Метка прибора
+     * ([deviceTimestampMillis]) остаётся — она отвечает на другой вопрос,
+     * «когда измерено», и по ней строятся графики.
+     */
+    data class LiveSample(
+        val deviceTimestampMillis: Long,
+        /** Часы телефона в момент разбора ответа — единственный источник свежести. */
+        val receivedAtMillis: Long,
+        /** Сырые единицы прибора, как пришли. */
+        val doseRate: Float,
+        val doseRateErr: Float,
+        val countRate: Float,
+        val countRateErr: Float,
+    )
+
+    private val _lastSample = MutableStateFlow<LiveSample?>(null)
+    val lastSample: StateFlow<LiveSample?> = _lastSample.asStateFlow()
+
+    internal fun onSample(sample: LiveSample) {
+        _lastSample.value = sample
+    }
+
     private val _baseline = MutableStateFlow<BaselineState?>(null)
     val baseline: StateFlow<BaselineState?> = _baseline.asStateFlow()
 

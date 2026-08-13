@@ -59,6 +59,10 @@ object ReleaseRu : ReleaseStrings {
             "определяет часы прибора и больше не теряет свежие записи.",
         "Показания больше не «залипают» после подключения: экран показывает " +
             "последнее пришедшее измерение, а не самое позднее по метке времени.",
+        "«Нет новых данных» теперь считается по приходу данных с прибора, а не " +
+            "по его часам: пока измерения идут, надпись не появляется.",
+        "Точка связи показывает состояние данных: связь есть, а поток встал — " +
+            "точка янтарная, а не зелёная.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
             "пока данные идут, о разрыве не говорится ничего.",
         "Нажатия на кнопки самого прибора больше не обрывают связь: занятый " +
@@ -205,6 +209,10 @@ object ReleaseEn : ReleaseStrings {
             "the instrument's clock more carefully and no longer drops fresh records.",
         "Readings no longer stick after connecting: the screen shows the last " +
             "measurement that arrived, not the one with the latest timestamp.",
+        "«No new data» is now judged by when data arrived rather than by the " +
+            "instrument's clock: while measurements keep coming, it never appears.",
+        "The connection dot shows the state of the data: link up but stream " +
+            "stopped makes it amber rather than green.",
         "The state of the stream is stated once for every element of the " +
             "screen: while data keeps coming, nothing is said about a break.",
         "Pressing the buttons on the instrument itself no longer drops the " +

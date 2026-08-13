@@ -170,7 +170,18 @@ fun MonitorScreen(
     onOpenChart: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
-    val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
+    // Живое показание берётся ИЗ ПАМЯТИ службы, а не из базы.
+    //
+    // Полевой дефект, который чинился трижды: «нет новых данных · 29 с» при
+    // зелёном кружке связи и графики, оживающие после сворачивания. Корень —
+    // не в приборе: свежесть считалась как `сейчас − метка записи`, то есть
+    // через ДВА независимых повода ошибиться — базу времени прибора (она
+    // измеряется по ходу сеанса и может уехать) и запись в таблицу (строку с
+    // занятой меткой уникальный индекс отбрасывает молча). Вопрос «идут ли
+    // данные сейчас» — это факт о ПРИХОДЕ, и отвечать на него обязан тот, кто
+    // данные принял. Метка прибора осталась там, где она и означает время
+    // измерения: на оси графиков.
+    val live by graph.serviceStatus.lastSample.collectAsState()
     val connection by graph.serviceStatus.connection.collectAsState()
     val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
     val baselineState by graph.serviceStatus.baseline.collectAsState()
@@ -198,8 +209,8 @@ fun MonitorScreen(
     // графики обязаны говорить одно и то же. До этого каждый считал возраст
     // сам, и экран мог одновременно сообщать «поток прерван» вверху и
     // выглядеть живым в карточках.
-    val stream = StreamState.of(sample?.timestamp, nowMillis, connection)
-    val freshness = Freshness.of(sample?.timestamp, nowMillis)
+    val stream = StreamState.of(live?.receivedAtMillis, nowMillis, connection)
+    val freshness = Freshness.of(live?.receivedAtMillis, nowMillis)
 
     // Графики Главной читаются тем же путём, что и полноэкранный (ADR 004):
     // одно окно, один снимок, один кадр. Величины, блоки которых выключены,
@@ -254,7 +265,7 @@ fun MonitorScreen(
         }
         (shortest / LIVE_TICK_WINDOW_FRACTION).coerceIn(1_000L, CHART_REFRESH_MILLIS)
     }
-    val liveTick = sample?.timestamp?.let { it / liveTickMillis }
+    val liveTick = live?.receivedAtMillis?.let { it / liveTickMillis }
     LaunchedEffect(chartMetrics, savedSpans, resumeTick, liveTick) {
         while (true) {
             val now = System.currentTimeMillis()
@@ -331,7 +342,7 @@ fun MonitorScreen(
         exclusions = if (showWhy && id != null) graph.baselineRepository.exclusions(id) else emptyList()
     }
 
-    val doseMicroSvH = sample?.let { DoseUnits.rawToMicroSievertPerHour(it.doseRate) }
+    val doseMicroSvH = live?.let { DoseUnits.rawToMicroSievertPerHour(it.doseRate) }
     val status = MonitorStatus.of(
         doseRateMicroSvH = doseMicroSvH,
         baselineState = baselineState,
@@ -360,7 +371,7 @@ fun MonitorScreen(
                 onClick = { showProfilePicker = true },
             )
             Spacer(Modifier.weight(1f))
-            ConnectionChip(connection, serviceRunning)
+            ConnectionChip(connection, serviceRunning, stream)
             StreamChip(stream)
             Icon(
                 imageVector = AppIcons.Lambda,
@@ -378,8 +389,8 @@ fun MonitorScreen(
 
         HeroCard(
             doseMicroSvH = doseMicroSvH,
-            errPercent = sample?.doseRateErr,
-            cps = sample?.countRate,
+            errPercent = live?.doseRateErr,
+            cps = live?.countRate,
             trend = trend,
             trendWindowLabel = t.trendWindowHour,
             doseTodayMicroSv = doseTodayMicroSv,
@@ -485,7 +496,7 @@ fun MonitorScreen(
                 status = status,
                 baselineState = baselineState,
                 doseRateMicroSvH = doseMicroSvH,
-                cps = sample?.countRate,
+                cps = live?.countRate,
                 freshness = freshness,
                 thresholds = thresholds,
                 admission = admission,
@@ -544,7 +555,18 @@ fun contextWording(
 }
 
 @Composable
-private fun ConnectionChip(connection: ConnectionState, serviceRunning: Boolean) {
+private fun ConnectionChip(
+    connection: ConnectionState,
+    serviceRunning: Boolean,
+    /**
+     * Точка говорит о ДАННЫХ, а не о Bluetooth.
+     *
+     * Зелёный кружок рядом с надписью «нет новых данных» — прямое
+     * противоречие: человек читает зелёный как «всё работает». Связь может
+     * стоять, а поток не идти, и в этом случае честный цвет — янтарный.
+     */
+    stream: StreamState,
+) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
     val (dot, text: String?) = when {
@@ -553,7 +575,8 @@ private fun ConnectionChip(connection: ConnectionState, serviceRunning: Boolean)
         // Подключён — достаточно зелёной точки: модель и частота опроса не
         // меняются во время работы, и повторять их на главном экране незачем.
         // Они есть в Настройках → Прибор.
-        connection is ConnectionState.Connected -> colors.ok to null
+        connection is ConnectionState.Connected ->
+            (if (stream.live) colors.ok else colors.warn) to null
         connection is ConnectionState.Connecting -> colors.warn to strings.connecting
         connection is ConnectionState.Reconnecting -> colors.warn to strings.reconnecting
         !serviceRunning -> colors.muted to strings.serviceOff
@@ -694,6 +717,19 @@ private fun HeroCard(
                 verticalArrangement = Arrangement.spacedBy(Dimens.space1),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // Без свежих данных вывод не имеет права читаться как
+                // текущий: он остаётся на экране (скрывать его — значит
+                // заставить человека гадать), но подписан тем, к чему
+                // относится. Одна строка на любой статус — прошедшее время у
+                // каждой формулировки пришлось бы писать отдельно.
+                if (!stream.live) {
+                    Text(
+                        text = t.byLastMeasurement,
+                        style = type.footnote,
+                        color = colors.muted,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
