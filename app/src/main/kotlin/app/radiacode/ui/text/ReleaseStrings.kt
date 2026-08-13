@@ -87,6 +87,8 @@ object ReleaseRu : ReleaseStrings {
             "показывается только когда порог рядом с нарисованным.",
         "Графики на Главной идут в реальном времени, как полноэкранный: край " +
             "движется каждую секунду, а данные читаются по ширине колонки.",
+        "Графики открываются на пяти минутах вместо шести часов — движение " +
+            "видно сразу; нужное окно по-прежнему выбирается и запоминается.",
         "Появилась настройка «После перезагрузки» (Прибор): продолжать " +
             "измерение после включения телефона, по умолчанию выключено.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
@@ -263,6 +265,8 @@ object ReleaseEn : ReleaseStrings {
             "threshold is near what is drawn.",
         "The Monitor charts run in real time like the fullscreen one: the edge " +
             "advances every second and data is read at the column cadence.",
+        "Charts open on five minutes instead of six hours, so the motion is " +
+            "visible at once; any window is still yours to pick and is remembered.",
         "New setting «After a restart» (Instrument): keep measuring once the " +
             "phone boots, off by default.",
         "The state of the stream is stated once for every element of the " +

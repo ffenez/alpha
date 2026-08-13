@@ -98,4 +98,18 @@ class HistoryWindowTest {
 
         assertEquals(1_000L, ChartWindows.refreshMillis(bucket))
     }
+
+    @Test
+    fun `the default window is live, not hours wide`() {
+        // Полевая жалоба «графики не обновляются в реальном времени» при
+        // полной трассе конвейера: потери нет, но при шестичасовом окне
+        // колонка около полутора минут, и новая точка появляется раз в это
+        // время. Край ползёт, линия стоит — на глаз это замерший график.
+        val default = ChartWindows.PERIODS[ChartWindows.DEFAULT_PERIOD_INDEX].second
+        assertEquals(5 * 60_000L, default)
+
+        val column = ChartSeriesModel.bucketMillis(default)
+        assertTrue(column <= 3_000L, "колонка $column мс — движение не разглядеть")
+        assertEquals(1_000L, ChartWindows.refreshMillis(column))
+    }
 }
