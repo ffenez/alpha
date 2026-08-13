@@ -54,6 +54,15 @@ fun SearchWhySheet(
                     SearchVerdict.whyLines(input, strings, t).forEach { WhyRow(it) }
                 }
                 AppDivider()
+                // Граница режима переехала сюда из справки «i»: справку сняли
+                // с экрана целиком, но это утверждение — не пояснение
+                // интерфейса, а ограничение вывода, и жить оно обязано рядом с
+                // самим выводом.
+                Text(
+                    text = t.infoLimit,
+                    style = type.footnote,
+                    color = colors.muted,
+                )
                 Text(
                     text = t.evidenceLegend,
                     style = type.footnote,

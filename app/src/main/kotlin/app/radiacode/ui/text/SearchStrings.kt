@@ -38,16 +38,12 @@ interface SearchStrings {
     val vibroHint: String
 
     /** Чип «i» в шапке: техника уезжает под него, а не стоит на экране. */
-    val infoChip: String
 
     /** Приписка «· сейчас ≈ 640 Гц» к подсказке канала. */
-    fun currently(value: String): String
 
     /** Подпись процента у большого числа: знаменатель назван словом. */
     val toBackground: String
     val meterNeedsBackground: String
-    val tapeTitle: String
-    val bandNote: String
     val waitingStream: String
     val cpsUnit: String
 
@@ -55,8 +51,6 @@ interface SearchStrings {
     /** Сегмент вверху: два ВОПРОСА, а не «точный» и «быстрый». */
     val modeNavigate: String
     val modeVerify: String
-    val navHint: String
-    val verifyHint: String
 
     // --- Наведение: четыре состояния и величина изменения ---
     val navTrendCollecting: String
@@ -104,12 +98,9 @@ interface SearchStrings {
     val navModuleTitle: String
 
     /** Затенение на дуге — интервал отношения; линия без имени просто линия. */
-    fun navBandLegend(level: Int): String
-    val navScaleTitle: String
     val navScaleReference: String
     val navScalePeak: String
     val navTraceStart: String
-    val navTraceLegend: String
     fun navLocalLevel(rate: String): String
 
     // --- Наведение: действия ---
@@ -137,23 +128,15 @@ interface SearchStrings {
     val navToneAtReference: String
 
     // --- «i»: техника экрана, а не измерение ---
-    val infoTitle: String
     val infoQuestionTitle: String
-    val infoWindowsTitle: String
-    val infoWindowsNote: String
-    val infoScaleTitle: String
-    val infoTraceTitle: String
 
     /**
      * Заголовок раздела про ленту «Проверки». Отдельный от [infoTraceTitle]
      * намеренно: это разные картинки — здесь лента 60 с с полосой ожидаемых
      * колебаний фона, там спарклайн наведения.
      */
-    val infoTapeTitle: String
-    val infoFeedbackTitle: String
 
     /** Граница режима, названная явно: изменение счёта ≠ найденный источник. */
-    val infoLimitTitle: String
     val infoLimit: String
 
     /** Доза здесь мелкая подробность, а не ответ экрана. */
@@ -230,10 +213,8 @@ interface SearchStrings {
     val channelFeedback: String
 
     /** «≈ 640 Гц» — высота поискового тона. */
-    fun pitch(hz: Int): String
 
     /** «пульс каждые 0,4 с» — каденция вибро. */
-    fun cadence(seconds: String): String
 
     // --- «тон по энергии» ---
     val energyToneHint: String
@@ -335,21 +316,15 @@ object SearchRu : SearchStrings {
     override val toneHint = "тон: выше — дальше от записанного фона"
     override val vibroHint = "чаще пульс — дальше от записанного фона"
 
-    override val infoChip = "i"
 
-    override fun currently(value: String) = " · сейчас $value"
 
     override val toBackground = "к фону"
     override val meterNeedsBackground = "индикатор заработает после замера фона"
-    override val tapeTitle = "с⁻¹ · последние 60 секунд"
-    override val bandNote = "полоса — ожидаемые колебания фона"
     override val waitingStream = "ждём поток данных…"
     override val cpsUnit = "с⁻¹"
 
     override val modeNavigate = "Наведение"
     override val modeVerify = "Проверка"
-    override val navHint = "куда вести прибор прямо сейчас"
-    override val verifyHint = "есть ли устойчивое превышение над записанным фоном"
 
     override val navTrendCollecting = "… набираю статистику"
     override val navTrendNoChange = "→ без явного изменения"
@@ -390,14 +365,10 @@ object SearchRu : SearchStrings {
 
     override val navModuleTitle = "Наведение"
 
-    override fun navBandLegend(level: Int) = "затенение — $level % интервал отношения"
 
-    override val navScaleTitle = "во сколько раз счёт отличается от точки отсчёта"
     override val navScaleReference = "отсчёт"
     override val navScalePeak = "макс"
     override val navTraceStart = "−20 с"
-    override val navTraceLegend =
-        "линия — короткое окно · ровная — локальный уровень за секунды до него"
 
     override fun navLocalLevel(rate: String) = "локальный уровень $rate"
 
@@ -439,20 +410,10 @@ object SearchRu : SearchStrings {
     override val navToneNoReference = "тон молчит: точка отсчёта не поставлена"
     override val navToneAtReference = "тон молчит: счёт у точки отсчёта"
 
-    override val infoTitle = "Как устроен этот экран"
     override val infoQuestionTitle = "Вопрос режима"
-    override val infoWindowsTitle = "Время подтверждения"
     // Термин алгоритма назван ОДИН раз и там, где объясняется механизм: на
     // экране он был подписью к числу, которую нечем прочитать (§3).
-    override val infoWindowsNote =
-        "в алгоритме это «окно решения»: длина окна подбирается по целевой относительной " +
-            "ошибке счёта — чем ярче поле, тем короче окно при той же точности"
-    override val infoScaleTitle = "Дуга"
-    override val infoTraceTitle = "Лента"
-    override val infoTapeTitle = "Лента последних секунд"
-    override val infoFeedbackTitle = "Отклик"
 
-    override val infoLimitTitle = "Что режим не утверждает"
     override val infoLimit =
         "Экран подтверждает изменение скорости счёта, а не расположение источника: " +
             "прибор считает события, а не сторону, с которой они пришли. " +
@@ -572,9 +533,7 @@ object SearchRu : SearchStrings {
     override val channelVibro = "вибрация"
     override val channelFeedback = "отклик"
 
-    override fun pitch(hz: Int) = "≈ $hz Гц"
 
-    override fun cadence(seconds: String) = "пульс каждые $seconds с"
 
     override val energyToneHint = "клик выше при жёстких гамма — 3 ступени по среднему кэВ"
 
@@ -693,21 +652,15 @@ object SearchEn : SearchStrings {
     override val toneHint = "tone: higher means further from the recorded background"
     override val vibroHint = "faster pulses mean further from the recorded background"
 
-    override val infoChip = "i"
 
-    override fun currently(value: String) = " · now $value"
 
     override val toBackground = "vs background"
     override val meterNeedsBackground = "the meter starts working once the background is measured"
-    override val tapeTitle = "s⁻¹ · last 60 seconds"
-    override val bandNote = "the band — expected fluctuation of the background"
     override val waitingStream = "waiting for the data stream…"
     override val cpsUnit = "s⁻¹"
 
     override val modeNavigate = "Navigate"
     override val modeVerify = "Verify"
-    override val navHint = "where to move the instrument right now"
-    override val verifyHint = "whether the excess over the recorded background holds"
 
     override val navTrendCollecting = "… collecting counts"
     override val navTrendNoChange = "→ no resolved change"
@@ -748,14 +701,10 @@ object SearchEn : SearchStrings {
 
     override val navModuleTitle = "Navigation"
 
-    override fun navBandLegend(level: Int) = "the shading — the $level % interval of the ratio"
 
-    override val navScaleTitle = "how many times the count rate differs from the reference point"
     override val navScaleReference = "ref"
     override val navScalePeak = "max"
     override val navTraceStart = "−20 s"
-    override val navTraceLegend =
-        "line — the short window · flat — the local level of the seconds before it"
 
     override fun navLocalLevel(rate: String) = "local level $rate"
 
@@ -797,19 +746,8 @@ object SearchEn : SearchStrings {
     override val navToneNoReference = "the tone is silent: no reference point set"
     override val navToneAtReference = "the tone is silent: the count rate is at the reference point"
 
-    override val infoTitle = "How this screen works"
     override val infoQuestionTitle = "The question of the mode"
-    override val infoWindowsTitle = "Confirmation time"
-    override val infoWindowsNote =
-        "the algorithm calls it the «decision window»: its length follows a target relative " +
-            "counting error — the brighter the field, the shorter the window for the same " +
-            "precision"
-    override val infoScaleTitle = "The dial"
-    override val infoTraceTitle = "The trace"
-    override val infoTapeTitle = "The tape of the last seconds"
-    override val infoFeedbackTitle = "Feedback"
 
-    override val infoLimitTitle = "What the mode does not claim"
     override val infoLimit =
         "The screen confirms a change of count rate, not the location of a source: " +
             "the instrument counts events, not the side they arrived from. " +
@@ -935,9 +873,7 @@ object SearchEn : SearchStrings {
     override val channelVibro = "vibration"
     override val channelFeedback = "feedback"
 
-    override fun pitch(hz: Int) = "≈ $hz Hz"
 
-    override fun cadence(seconds: String) = "a pulse every $seconds s"
 
     override val energyToneHint =
         "a higher click for harder gammas — 3 steps by the mean keV"
@@ -1055,26 +991,22 @@ val SearchCatalogue = AreaCatalogue(ru = SearchRu, en = SearchEn)
  * Функции вызываются с представительными аргументами: в них тоже живёт текст.
  */
 fun SearchStrings.allTexts(): List<String> = listOf(
-    title, soundChip, vibroChip, feedbackOffNote, feedbackOffShort, infoChip,
-    toneHint, vibroHint,
-    currently(pitch(640)), toBackground, meterNeedsBackground, tapeTitle, bandNote,
-    waitingStream, cpsUnit, tapeStartLabel, baselineLabel("25,5"), excursionLabel("×1,8"),
-    modeNavigate, modeVerify, navHint, verifyHint,
-    navTrendCollecting, navTrendNoChange, navTrendRising, navTrendFalling,
+    title, soundChip, vibroChip, feedbackOffNote, feedbackOffShort,    toneHint, vibroHint,
+    toBackground, meterNeedsBackground,    waitingStream, cpsUnit, tapeStartLabel, baselineLabel("25,5"), excursionLabel("×1,8"),
+    modeNavigate, modeVerify,    navTrendCollecting, navTrendNoChange, navTrendRising, navTrendFalling,
     navRatio("1,60", navRatioInterval(95, "1,20", "2,10")), navRatio("1,60", null),
     navRatioInterval(95, "1,20", "2,10"), navRatioToLocal("1,00"), navWindows("1,8", "16,0"),
     navDeltaDash, navRefNone, navRefCollecting, navRefUnresolved, navRefAbove, navRefBelow,
     navDeltaCaptionNoReference,
     navDeltaCaptionCollecting, navDeltaCaptionUnresolved("0,92", "1,31"),
-    navDeltaCaptionResolved("1,31"), navPeakValue("47,6", 18), navModuleTitle, navBandLegend(95), navScaleTitle, navScaleReference, navScalePeak,
-    navTraceStart, navTraceLegend, navLocalLevel("24,8"),
+    navDeltaCaptionResolved("1,31"), navPeakValue("47,6", 18), navModuleTitle, navScaleReference, navScalePeak,
+    navTraceStart, navLocalLevel("24,8"),
     navMark, navReferenceSet("26,0", "11:44"), navMarkUpdate,
     navMore, navResetPeak, navMeasureHere(10), navSpotProgress(6, 10), navSpotNote,
     navSpotTitle, navSpotResult("48,2", "2,2"), navSpotExposure(10), navSpotToVerify,
     navSpotAbortStreamLost(6, 10), navSpotAbortServiceRestarted(6, 10),
     navToneHint, navVibroHint, navToneNoReference, navToneAtReference,
-    infoTitle, infoQuestionTitle, infoWindowsTitle, infoWindowsNote, infoScaleTitle,
-    infoTraceTitle, infoTapeTitle, infoFeedbackTitle, infoLimitTitle, infoLimit,
+    infoQuestionTitle,    infoLimit,
     navDose("0,18 мкЗв/ч"),
     statMean60, statMax, statDecisionWindow, statBackgroundTaken,
     openSpectrum, shapeInvitation, shapeNotEnough("z = 1,2"), shapeConsistent("z = 1,2"),
@@ -1089,8 +1021,7 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     abortStreamLost(12, 45), abortServiceRestarted(12, 45),
     reasonOff, reasonNoDevice, reasonNoData, reasonDnd, reasonNoAudio, reasonVolumeZero,
     reasonNoBackground(channelTone), reasonInsideBackground(channelVibro),
-    channelTone, channelVibro, channelFeedback, pitch(640), cadence("0,4"),
-    energyToneHint, energyToneScale,
+    channelTone, channelVibro, channelFeedback,    energyToneHint, energyToneScale,
     whyTitle, evidenceLegend, understood, spikes(2, "×4,2"),
     whyCountRateNow, whyBackground, whyComparison, whyDecisionWindow, whyBackgroundWindow,
     whyDifference, whyRatio, whyCriterion, whySignificance, whyScatter, whyHold, whyStream,

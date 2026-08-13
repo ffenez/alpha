@@ -4,7 +4,6 @@ import app.radiacode.ui.text.RuStrings
 import app.radiacode.ui.text.SearchRu
 import app.radiacode.ui.text.SearchStrings
 import app.radiacode.ui.text.Strings
-import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.ln
 import kotlin.math.pow
@@ -111,9 +110,6 @@ object SearchTone {
         return (MIN_HZ * 2.0.pow(position * octaves)).toFloat()
     }
 
-    /** «≈ 640 Гц» for the screen; null when the tone is silent. */
-    fun pitchLabel(ratio: Double?, t: SearchStrings = SearchRu): String? =
-        frequencyHz(ratio)?.let { t.pitch(it.roundToInt()) }
 }
 
 /**
@@ -216,10 +212,4 @@ object SearchVibro {
             .coerceIn(FAST_INTERVAL_MILLIS, SLOW_INTERVAL_MILLIS)
     }
 
-    /** «пульс каждые 0,4 с» for the screen; null when silent. */
-    fun cadenceLabel(ratio: Double?, t: SearchStrings = SearchRu): String? {
-        val interval = intervalMillis(ratio) ?: return null
-        val seconds = interval / 1000.0
-        return t.cadence(String.format(Locale.US, "%.1f", seconds).replace('.', ','))
-    }
 }

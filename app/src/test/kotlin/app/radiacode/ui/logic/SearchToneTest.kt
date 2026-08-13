@@ -46,8 +46,6 @@ class SearchToneTest {
 
     @Test
     fun `the pitch label speaks hertz or nothing`() {
-        assertNull(SearchTone.pitchLabel(1.0))
-        assertTrue(assertNotNull(SearchTone.pitchLabel(3.0)).endsWith("Гц"))
     }
 }
 
@@ -144,7 +142,6 @@ class SearchVibroTest {
     fun `inside the background nothing pulses`() {
         assertNull(SearchVibro.intervalMillis(null))
         assertNull(SearchVibro.intervalMillis(1.0))
-        assertNull(SearchVibro.cadenceLabel(1.0))
     }
 
     @Test
@@ -158,11 +155,6 @@ class SearchVibroTest {
         assertEquals(fastest, SearchVibro.intervalMillis(SearchVibro.MAX_RATIO * 5))
     }
 
-    @Test
-    fun `the cadence label is human and carries its unit`() {
-        val label = assertNotNull(SearchVibro.cadenceLabel(4.0))
-        assertTrue(label.contains("пульс") && label.endsWith("с"), label)
-    }
 }
 
 class SearchFeedbackModeTest {

@@ -68,8 +68,6 @@ import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.LocalBackground
 import app.radiacode.ui.logic.LocalBackgroundMachine
 import app.radiacode.ui.logic.NavigateEngine
-import app.radiacode.ui.logic.NavigateInfo
-import app.radiacode.ui.logic.SearchInfoInput
 import app.radiacode.ui.logic.NavigateState
 import app.radiacode.ui.logic.NavigateTrend
 import app.radiacode.ui.logic.SearchMode
@@ -97,7 +95,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 private val HH_MM = DateTimeFormatter.ofPattern("HH:mm")
 
@@ -169,7 +166,6 @@ fun SearchScreen(
     var deviceClockOffset by remember { mutableLongStateOf(0L) }
     var whyOpen by remember { mutableStateOf(false) }
     // Карточка «i»: свёрнута по умолчанию — она объясняет экран, а не измеряет.
-    var infoOpen by remember { mutableStateOf(false) }
     // «Наведение» держит своё состояние здесь, а не внутри секции: переключение
     // режима не должно стирать точку отсчёта и зафиксированный максимум.
     var navigate by remember { mutableStateOf(NavigateState()) }
@@ -447,13 +443,6 @@ fun SearchScreen(
         // канал отклика выбирается и включается в Настройках → Уведомления и
         // отклик, а на рабочем экране они занимали место и требовали подписи
         // о том, что именно включено.
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-        ) {
-            Spacer(Modifier.weight(1f))
-            Chip(text = t.infoChip, color = colors.ink2, onClick = { infoOpen = !infoOpen })
-        }
         val navigating = screenMode == SearchMode.NAVIGATE
         Segmented(
             options = listOf(t.modeNavigate, t.modeVerify),
@@ -464,43 +453,6 @@ fun SearchScreen(
             },
             modifier = Modifier.fillMaxWidth(),
         )
-        // Вопрос режима, канал отклика и техника окон — под «i». Три постоянных
-        // пояснения над первым числом стоили экрану весь первый viewport, а
-        // измерение начиналось ниже него.
-        AnimatedVisibility(
-            visible = infoOpen,
-            enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
-            exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
-        ) {
-            SearchInfoCard(
-                rows = NavigateInfo.rows(
-                    input = SearchInfoInput(
-                        navigating = navigating,
-                        feedback = mode,
-                        fastSeconds = navigate.fast?.seconds,
-                        localSeconds = navigate.local?.seconds,
-                        bandLevelPercent = navigate.referenceComparison
-                            ?.takeIf { it.ratioLow.isFinite() && it.ratioHigh.isFinite() }
-                            ?.let { (it.confidenceLevel * 100).roundToInt() },
-                        channelNow = when {
-                            mode == SearchFeedbackMode.TONE -> SearchTone.pitchLabel(ratio, t)
-                            // В «Наведении» вибро отвечает на события, поэтому
-                            // каденции у него нет и обещать её нельзя.
-                            mode == SearchFeedbackMode.VIBRO && !navigating ->
-                                SearchVibro.cadenceLabel(ratio, t)
-
-                            else -> null
-                        },
-                    ),
-                    strings = strings,
-                    t = t,
-                ),
-                title = t.infoTitle,
-                closeText = t.hide,
-                onClose = { infoOpen = false },
-            )
-        }
-
         // Выключенный канал уже назван приписки ради у самих кнопок — второй раз
         // целым предложением он бы стал постоянным пояснением. Остальные причины
         // молчания это СОСТОЯНИЯ (нет прибора, нет потока, тихий режим), и они
@@ -872,36 +824,6 @@ fun SearchScreen(
     }
 }
 
-/**
- * Карточка «i»: всё, что объясняет экран, — вопрос режима, окна решения, дуга,
- * лента, канал отклика и граница режима.
- *
- * Содержимое собрано чистой [NavigateInfo]: экран только рисует пары
- * «заголовок — абзац», поэтому проверять, что именно уехало под «i», можно
- * JVM-тестом, а не глазами.
- */
-@Composable
-private fun SearchInfoCard(
-    rows: List<NavigateInfo.Row>,
-    title: String,
-    closeText: String,
-    onClose: () -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Text(text = title, style = type.label, color = colors.ink)
-            for (row in rows) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(text = row.title, style = type.labelSmall, color = colors.ink2)
-                    Text(text = row.body, style = type.footnote, color = colors.muted)
-                }
-            }
-            AppButton(text = closeText, onClick = onClose, modifier = Modifier.fillMaxWidth())
-        }
-    }
-}
 
 private fun timeOfDay(millis: Long): String =
     Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(HH_MM)
