@@ -168,4 +168,57 @@ class ChartProjectionTest {
 
         assertTrue(pixels.segmentStart.none { it })
     }
+
+    @Test
+    fun `one second jitter at one hertz is not a gap`() {
+        // Прибор пишет раз в секунду, и на минутном окне колонка тоже равна
+        // секунде: пропущенная запись — это дрожание переноса, а не остановка
+        // потока. Прежний порог в полторы ширины рвал линию на куски при
+        // исправно идущих измерениях — на экране это выглядело как обрыв
+        // графика с плашкой значения справа, к которой ничего не ведёт.
+        val step = 1_000L
+        val buckets = listOf(
+            bucket(start = 0, median = 0.15f, widthMillis = step),
+            bucket(start = 1 * step, median = 0.15f, widthMillis = step),
+            // Секунда пропущена.
+            bucket(start = 3 * step, median = 0.16f, widthMillis = step),
+            bucket(start = 4 * step, median = 0.16f, widthMillis = step),
+        )
+
+        val pixels = ChartProjection.project(
+            buckets = buckets,
+            fromMillis = 0,
+            toMillis = 5 * step,
+            scale = scale,
+            leftPx = 0f,
+            widthPx = 100f,
+            topPx = 0f,
+            heightPx = 100f,
+        )
+
+        assertTrue(pixels.segmentStart.none { it }, "дрожание не рвёт линию")
+    }
+
+    @Test
+    fun `a real stop still breaks the line on a one second grid`() {
+        val step = 1_000L
+        val buckets = listOf(
+            bucket(start = 0, median = 0.15f, widthMillis = step),
+            // Прибор молчал восемь секунд.
+            bucket(start = 9 * step, median = 0.16f, widthMillis = step),
+        )
+
+        val pixels = ChartProjection.project(
+            buckets = buckets,
+            fromMillis = 0,
+            toMillis = 10 * step,
+            scale = scale,
+            leftPx = 0f,
+            widthPx = 100f,
+            topPx = 0f,
+            heightPx = 100f,
+        )
+
+        assertTrue(pixels.segmentStart[1])
+    }
 }

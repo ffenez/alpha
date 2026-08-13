@@ -70,6 +70,8 @@ object ReleaseRu : ReleaseStrings {
             "разброса заканчиваются там, где кончились измерения.",
         "Измерение не теряется, если метка времени уже занята: раньше это " +
             "выглядело как обрыв графика при работающем приборе.",
+        "Линия больше не обрывается посреди поля из-за секундного дрожания " +
+            "потока, а одиночное измерение рисуется точкой.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
             "пока данные идут, о разрыве не говорится ничего.",
         "Нажатия на кнопки самого прибора больше не обрывают связь: занятый " +
@@ -227,6 +229,8 @@ object ReleaseEn : ReleaseStrings {
             "the spread band end where the measurements ended.",
         "A measurement is not lost when its timestamp is already taken; that " +
             "used to look like the chart breaking while the instrument worked.",
+        "The line no longer breaks mid-field over a second of jitter, and a " +
+            "lone measurement is drawn as a dot.",
         "The state of the stream is stated once for every element of the " +
             "screen: while data keeps coming, nothing is said about a break.",
         "Pressing the buttons on the instrument itself no longer drops the " +

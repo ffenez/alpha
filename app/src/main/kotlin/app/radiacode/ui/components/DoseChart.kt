@@ -316,6 +316,7 @@ private fun StaticChartLayer(
             .fillMaxSize()
             .drawWithCache {
                 val gridColor = colors.grid
+                val labelPad = 2.dp.toPx()
                 // Обычный диапазон места — КОНТЕКСТ, а не главный герой: он
                 // занимал большую часть карточки и читался сильнее самой
                 // сетки, из-за чего измерение приходилось искать глазами.
@@ -513,6 +514,21 @@ private fun StaticChartLayer(
                     // 3. Gridlines, values labelled inside the plot (edge-to-edge).
                     for ((y, text) in yTexts) {
                         drawLine(gridColor, Offset(0f, y), Offset(widthPx, y), 1f)
+                        // Подложка цвета поля: на плотном ряду (счёт, жёсткость)
+                        // линия проходила прямо сквозь цифры, и подпись оси
+                        // переставала читаться — а это единственное место, где
+                        // сказано, в каких числах график.
+                        drawRect(
+                            color = colors.field,
+                            topLeft = Offset(
+                                labelInset - labelPad,
+                                y - text.size.height - 1f,
+                            ),
+                            size = Size(
+                                text.size.width + labelPad * 2f,
+                                text.size.height.toFloat(),
+                            ),
+                        )
                         drawText(
                             textLayoutResult = text,
                             color = colors.muted,
@@ -648,6 +664,8 @@ private fun SeriesLayer(
                 val dotWidth = 3.dp.toPx()
                 val endpointRadius = 4.dp.toPx()
                 val ringStroke = Stroke(width = 2.dp.toPx())
+                val loneDots = lonePoints(pixels)
+                val loneRadius = 2.dp.toPx()
                 val markerSize = 6.dp.toPx()
                 val markers = extremeMarks(spec, pixels, plotTop, markerSize)
                 val markerStroke = Stroke(width = 1.2.dp.toPx())
@@ -679,6 +697,9 @@ private fun SeriesLayer(
                         )
                     }
                     drawPath(median, colors.data, style = lineStroke)
+                    // Одиночные колонки между пропусками: линии из одной точки
+                    // не бывает, а измерение было.
+                    for (dot in loneDots) drawCircle(colors.data, loneRadius, dot)
                     // Extrema as discrete marks above the plot, filled above
                     // the alarm level and hollow above the profile's P90 —
                     // shape carries the class, not colour alone.
@@ -691,7 +712,7 @@ private fun SeriesLayer(
                                 textLayoutResult = label,
                                 color = hue,
                                 topLeft = Offset(
-                                    (mark.x + markerSize * 0.9f)
+                                    (mark.x + markerSize * 0.75f)
                                         .coerceAtMost(widthPx - label.size.width),
                                     // По центру треугольника: прижатое к его
                                     // верхушке число читалось как надстрочный
@@ -829,6 +850,28 @@ private fun linePath(pixels: ChartPixels): Path {
     return path
 }
 
+/**
+ * Колонки, стоящие в одиночестве между двумя пропусками.
+ *
+ * Отрезок из одной точки не рисуется НИЧЕМ: `moveTo` без `lineTo` не даёт
+ * пикселей. На минутном окне это выглядело как обрыв графика при живом
+ * потоке — линия кончалась в середине поля, а справа висела плашка со
+ * значением, к которой ничего не вело. Одиночное измерение — это точка, и
+ * рисовать её надо точкой.
+ */
+private fun lonePoints(pixels: ChartPixels): List<Offset> {
+    if (pixels.count == 0) return emptyList()
+    val out = mutableListOf<Offset>()
+    for (i in 0 until pixels.count) {
+        if (!pixels.plottable[i]) continue
+        val breaksBefore = i == 0 || pixels.segmentStart[i] || !pixels.plottable[i - 1]
+        val breaksAfter = i == pixels.count - 1 ||
+            pixels.segmentStart[i + 1] || !pixels.plottable[i + 1]
+        if (breaksBefore && breaksAfter) out += Offset(pixels.x[i], pixels.medianY[i])
+    }
+    return out
+}
+
 /** One extremum mark: a triangle above the plot at its column. */
 private class ExtremeMark(val path: Path, val alarmClass: Boolean, val count: Int, val x: Float)
 
@@ -839,10 +882,14 @@ private class ExtremeMark(val path: Path, val alarmClass: Boolean, val count: In
  */
 /**
  * Во сколько размеров маркера должны разойтись два треугольника, чтобы
- * считаться разными. **Инженерный параметр**: полтора размера — зазор, при
- * котором соседи видны как два указателя, а не как пятно.
+ * считаться разными.
+ *
+ * **Инженерный параметр**: три размера. Полутора хватало самим треугольникам,
+ * но у группы справа стоит счётчик, и он налезал на следующий маркер —
+ * получалось «△2△», где число читается как часть соседа. Шаг считается по
+ * ПОЛНОЙ ширине маркера со счётчиком, а не по одному треугольнику.
  */
-private const val MARKER_SPACING_FACTOR = 1.5f
+private const val MARKER_SPACING_FACTOR = 3f
 
 private fun extremeMarks(
     spec: DoseChartSpec,

@@ -92,6 +92,16 @@ object ChartProjection {
      */
     const val GAP_FACTOR = 1.5
 
+    /**
+     * Ниже этого разрыв не считается пропуском ни при какой ширине колонки.
+     *
+     * **Инженерный параметр, привязанный к прибору**: он пишет раз в секунду,
+     * и на минутном окне колонка тоже равна секунде — там дрожание переноса на
+     * одну-две секунды рвало бы линию на куски при исправно идущем потоке.
+     * Пять секунд — это четыре подряд не пришедшие записи: уже не дрожание.
+     */
+    const val MIN_GAP_MILLIS = 5_000L
+
     fun project(
         buckets: List<ChartBucket>,
         fromMillis: Long,
@@ -145,7 +155,8 @@ object ChartProjection {
             }
             plottable[k] = true
             if (stepMillis > 0L && previousMid != Long.MIN_VALUE) {
-                segmentStart[k] = b.midMillis - previousMid > stepMillis * GAP_FACTOR
+                val gapMillis = maxOf((stepMillis * GAP_FACTOR).toLong(), MIN_GAP_MILLIS)
+                segmentStart[k] = b.midMillis - previousMid > gapMillis
             }
             previousMid = b.midMillis
             medianY[k] = yOf(fMedian, topPx, heightPx)
