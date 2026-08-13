@@ -108,7 +108,6 @@ interface SearchStrings {
     val navScaleTitle: String
     val navScaleReference: String
     val navScalePeak: String
-    val navTraceTitle: String
     val navTraceStart: String
     val navTraceLegend: String
     fun navLocalLevel(rate: String): String
@@ -396,7 +395,6 @@ object SearchRu : SearchStrings {
     override val navScaleTitle = "во сколько раз счёт отличается от точки отсчёта"
     override val navScaleReference = "отсчёт"
     override val navScalePeak = "макс"
-    override val navTraceTitle = "с⁻¹ · последние 20 секунд"
     override val navTraceStart = "−20 с"
     override val navTraceLegend =
         "линия — короткое окно · ровная — локальный уровень за секунды до него"
@@ -755,7 +753,6 @@ object SearchEn : SearchStrings {
     override val navScaleTitle = "how many times the count rate differs from the reference point"
     override val navScaleReference = "ref"
     override val navScalePeak = "max"
-    override val navTraceTitle = "s⁻¹ · last 20 seconds"
     override val navTraceStart = "−20 s"
     override val navTraceLegend =
         "line — the short window · flat — the local level of the seconds before it"
@@ -1070,7 +1067,7 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     navDeltaCaptionNoReference,
     navDeltaCaptionCollecting, navDeltaCaptionUnresolved("0,92", "1,31"),
     navDeltaCaptionResolved("1,31"), navPeakValue("47,6", 18), navModuleTitle, navBandLegend(95), navScaleTitle, navScaleReference, navScalePeak,
-    navTraceTitle, navTraceStart, navTraceLegend, navLocalLevel("24,8"),
+    navTraceStart, navTraceLegend, navLocalLevel("24,8"),
     navMark, navReferenceSet("26,0", "11:44"), navMarkUpdate,
     navMore, navResetPeak, navMeasureHere(10), navSpotProgress(6, 10), navSpotNote,
     navSpotTitle, navSpotResult("48,2", "2,2"), navSpotExposure(10), navSpotToVerify,

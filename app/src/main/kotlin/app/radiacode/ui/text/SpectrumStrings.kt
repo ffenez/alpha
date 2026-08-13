@@ -33,9 +33,7 @@ package app.radiacode.ui.text
 interface SpectrumStrings {
 
     // --- экран: график и его подписи ---
-    val legendAccumulated: String
     val legendMinusBackground: String
-    fun legendBackground(day: String): String
     val noLinkLastSpectrum: String
 
     // --- действия под спектром ---
@@ -210,7 +208,6 @@ interface SpectrumStrings {
     val boundsNeedSpectrum: String
 
     val boundsEditorTitle: String
-    val boundsEditorHint: String
     val boundsLower: String
     fun boundsInner(number: Int): String
     val boundsUpper: String
@@ -307,9 +304,7 @@ interface SpectrumStrings {
 
 object SpectrumRu : SpectrumStrings {
 
-    override val legendAccumulated = "накопл."
     override val legendMinusBackground = "−фон"
-    override fun legendBackground(day: String) = "фон $day"
     override val noLinkLastSpectrum = "нет соединения — показан последний прочитанный спектр"
 
     override val saveSnapshot = "Сохранить снимок"
@@ -484,9 +479,6 @@ object SpectrumRu : SpectrumStrings {
     override val boundsNeedSpectrum =
         "чтобы двигать границы по кривой, нужен накопленный спектр — подключите прибор"
     override val boundsEditorTitle = "Настройка диапазонов"
-    override val boundsEditorHint =
-        "Перетащите границу по спектру — видно, какую его часть берёт диапазон. " +
-            "Тап по числу — точный ввод."
     override val boundsLower = "нижняя"
     override fun boundsInner(number: Int) = "граница $number"
     override val boundsUpper = "верхняя"
@@ -630,9 +622,7 @@ object SpectrumRu : SpectrumStrings {
 
 object SpectrumEn : SpectrumStrings {
 
-    override val legendAccumulated = "accum."
     override val legendMinusBackground = "−background"
-    override fun legendBackground(day: String) = "background $day"
     override val noLinkLastSpectrum = "no link — showing the last spectrum that was read"
 
     override val saveSnapshot = "Save snapshot"
@@ -817,9 +807,6 @@ object SpectrumEn : SpectrumStrings {
         "to drag the bounds along the curve an accumulated spectrum is needed — connect the " +
             "instrument"
     override val boundsEditorTitle = "Configure ranges"
-    override val boundsEditorHint =
-        "Drag a bound across the spectrum — you can see which part of it the range " +
-            "takes. Tap a number for exact entry."
     override val boundsLower = "lower"
     override fun boundsInner(number: Int) = "bound $number"
     override val boundsUpper = "upper"
@@ -976,8 +963,7 @@ fun SpectrumStrings.allTexts(): List<String> = listOf(
     infoSignificanceTitle, infoSignificance, infoTechnicalTitle, infoHowToggle,
     toolsTitle, toolCompareTitle, toolCompareSubtitle,
     toolSpectrogramTitle, toolSpectrogramSubtitle, toolRadonTitle, toolRadonSubtitle,
-    legendAccumulated, legendMinusBackground, legendBackground("12.08"),
-    noLinkLastSpectrum, unknownScintillator,
+    legendMinusBackground,    noLinkLastSpectrum, unknownScintillator,
     snapshotViewTag, snapshotTakenAt("12 авг 14:03", "51 ч"),
     snapshotDeviceUnknown, snapshotNoDevice,
     noPeakAnalysis("RadiaCode Zero", unknownScintillator),
@@ -993,7 +979,7 @@ private fun SpectrumStrings.windowTexts(): List<String> = listOf(
     indexNote, windowsEdgeNote, boundsTitle, boundsHint, defaults,
     ratioTitle, ratioFormula("100–300", "700–1500"), ratioWhat, ratioNotHardness,
     rangeDetails, rangeCounts("3 782 400"), rangeCovered("99,8–299,5"),
-    boundsEditorTitle, boundsEditorHint, boundsLower, boundsInner(1), boundsUpper,
+    boundsEditorTitle, boundsLower, boundsInner(1), boundsUpper,
     boundsExact, presetDefault, presetFullScale, presetCustom, presetFullScaleNote,
     resetBounds, done,
     moreActions, resetAccumulation, formatsTitle,

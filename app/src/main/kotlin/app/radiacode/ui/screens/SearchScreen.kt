@@ -97,6 +97,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private val HH_MM = DateTimeFormatter.ofPattern("HH:mm")
 
@@ -478,6 +479,9 @@ fun SearchScreen(
                         feedback = mode,
                         fastSeconds = navigate.fast?.seconds,
                         localSeconds = navigate.local?.seconds,
+                        bandLevelPercent = navigate.referenceComparison
+                            ?.takeIf { it.ratioLow.isFinite() && it.ratioHigh.isFinite() }
+                            ?.let { (it.confidenceLevel * 100).roundToInt() },
                         channelNow = when {
                             mode == SearchFeedbackMode.TONE -> SearchTone.pitchLabel(ratio, t)
                             // В «Наведении» вибро отвечает на события, поэтому
@@ -723,9 +727,6 @@ fun SearchScreen(
                             ),
                         ),
                     )
-                }
-                SearchVerdict.spikeLine(search.ladder.spikes, t)?.let {
-                    Text(text = it, style = type.footnote, color = colors.muted)
                 }
             }
         }

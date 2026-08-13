@@ -31,6 +31,7 @@ import app.radiacode.device.DoseUnits
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.ChartNotesDialog
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
@@ -239,6 +240,14 @@ private fun ChartCard(
     val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    // Оговорки о статистике не исчезли, а переехали под «i»: линия здесь —
+    // СРЕДНЕЕ интервала, а полный экран считает те же измерения медианой с
+    // конвертами. Молчать об этом нельзя, но и держать две строки под каждой
+    // картинкой незачем — их читают один раз.
+    var info by remember { mutableStateOf(false) }
+    if (info) {
+        ChartNotesDialog(notes = listOf(t.chartLineNote, t.fullChartNote)) { info = false }
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -253,6 +262,7 @@ private fun ChartCard(
                 if (detail.stats != null) {
                     Chip(text = t.openFullChart, color = colors.dataText, onClick = onOpenChart)
                 }
+                Chip(text = "i", color = colors.ink2, onClick = { info = true })
             }
             val stats = detail.stats
             if (stats == null) {
@@ -294,23 +304,6 @@ private fun ChartCard(
                         StatCell(HistoryFormat.count(detail.summary.stats.sampleCount), "n"),
                     ),
                 )
-                // Здесь линия — СРЕДНЕЕ интервала, а не медиана, как на
-                // полноэкранном графике: сводка сессии считается одним лёгким
-                // запросом по средним корзин. Разные статистики нельзя молча
-                // называть одним словом — на всплеске они расходятся.
-                Text(
-                    text = t.chartLineNote,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
-                // Полный экран считает те же измерения ДРУГОЙ статистикой —
-                // человек, который его откроет, обязан узнать об этом здесь, а
-                // не удивляться расхождению в третьем знаке.
-                Text(
-                    text = t.fullChartNote,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
             }
         }
     }
@@ -328,14 +321,22 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting, t: SessionR
     val type = LocalAppTypography.current
     val columns = detail.altitudeColumns ?: return
     val flight = detail.flight
+    var info by remember { mutableStateOf(false) }
+    if (info) {
+        ChartNotesDialog(notes = listOf(t.altitudeNote, t.cosmicNote)) { info = false }
+    }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Text(
-                text = t.altitudeTitle.uppercase(),
-                style = type.labelSmall,
-                color = colors.ink2,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = t.altitudeTitle.uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                    modifier = Modifier.weight(1f),
+                )
+                Chip(text = "i", color = colors.ink2, onClick = { info = true })
+            }
             val maxAltitude = columns.filterNotNull().maxOrNull()
             if (maxAltitude == null) {
                 Text(
@@ -357,11 +358,6 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting, t: SessionR
                             ?.let { HistoryFormat.count(it.toInt()) },
                     ),
                     height = 80.dp,
-                )
-                Text(
-                    text = t.altitudeNote,
-                    style = type.footnote,
-                    color = colors.muted,
                 )
             }
             if (flight != null) {
@@ -387,11 +383,6 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting, t: SessionR
                         color = colors.muted,
                     )
                 }
-                Text(
-                    text = t.cosmicNote,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
             }
         }
     }

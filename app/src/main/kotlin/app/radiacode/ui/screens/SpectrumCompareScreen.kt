@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -43,6 +44,7 @@ import app.radiacode.protocol.Spectrum
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.ChartNotesDialog
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.DiffChart
 import app.radiacode.ui.components.DiffChartSpec
@@ -208,6 +210,9 @@ private fun IntervalSection(
     val outcome = remember(first.id, second.id) {
         SpectrumCompare.extractInterval(first.toCompareInput(), second.toCompareInput())
     }
+    // Подпись графика — под «i»: что нарисовано, читают один раз.
+    var notes by remember { mutableStateOf<List<String>?>(null) }
+    notes?.let { shown -> ChartNotesDialog(notes = shown) { notes = null } }
 
     when (outcome) {
         is SpectrumCompare.IntervalOutcome.Invalid -> Card(modifier = Modifier.fillMaxWidth()) {
@@ -253,6 +258,12 @@ private fun IntervalSection(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Chip(text = SpectrumFormat.accumulationChip(outcome.durationSeconds, totalCounts))
+                Spacer(Modifier.width(Dimens.space1))
+                Chip(
+                    text = "i",
+                    color = colors.ink2,
+                    onClick = { notes = listOf(t.intervalChartCaption) },
+                )
                 Spacer(Modifier.weight(1f))
                 Segmented(
                     options = listOf(strings.scaleLog, strings.scaleLinear),
@@ -286,12 +297,6 @@ private fun IntervalSection(
                             },
                             energyTicks = SpectrumDisplay.energyTicks(full),
                         ),
-                    )
-                    Text(
-                        text = t.intervalChartCaption,
-                        style = type.footnote,
-                        color = colors.muted,
-                        modifier = Modifier.padding(horizontal = Dimens.space1),
                     )
                 }
             }
@@ -433,6 +438,12 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
             }
             val dataMax = maxOf(columnsA.maxOrNull() ?: 0f, columnsB.maxOrNull() ?: 0f)
 
+            // Подписи графиков переехали под «i»: каждая объясняет, КАК
+            // построена картинка (какая линия чья, что означают полосы), и
+            // такой текст читают один раз, а место он занимал всегда.
+            var notes by remember { mutableStateOf<List<String>?>(null) }
+            notes?.let { shown -> ChartNotesDialog(notes = shown) { notes = null } }
+
             Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     Row(
@@ -444,6 +455,11 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                             style = type.labelSmall,
                             color = colors.ink2,
                             modifier = Modifier.weight(1f),
+                        )
+                        Chip(
+                            text = "i",
+                            color = colors.ink2,
+                            onClick = { notes = listOf(t.chartPairCaption) },
                         )
                         Segmented(
                             options = listOf(strings.scaleLog, strings.scaleLinear),
@@ -465,12 +481,6 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                             energyTicks = ticks,
                         ),
                     )
-                    Text(
-                        text = t.chartPairCaption,
-                        style = type.footnote,
-                        color = colors.muted,
-                        modifier = Modifier.padding(horizontal = Dimens.space1),
-                    )
                 }
             }
 
@@ -485,24 +495,28 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
             }
             Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(
-                        text = t.chartDiffTitle.uppercase(),
-                        style = type.labelSmall,
-                        color = colors.ink2,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = Dimens.space1),
-                    )
+                    ) {
+                        Text(
+                            text = t.chartDiffTitle.uppercase(),
+                            style = type.labelSmall,
+                            color = colors.ink2,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Chip(
+                            text = "i",
+                            color = colors.ink2,
+                            onClick = { notes = listOf(t.chartDiffCaption) },
+                        )
+                    }
                     DiffChart(
                         spec = DiffChartSpec(
                             diff = diffColumns.diff,
                             sigma = diffColumns.sigma,
                             energyTicks = ticks,
                         ),
-                    )
-                    Text(
-                        text = t.chartDiffCaption,
-                        style = type.footnote,
-                        color = colors.muted,
-                        modifier = Modifier.padding(horizontal = Dimens.space1),
                     )
                 }
             }

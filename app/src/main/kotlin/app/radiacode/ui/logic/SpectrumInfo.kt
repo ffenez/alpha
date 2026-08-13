@@ -45,6 +45,8 @@ object SpectrumInfo {
         edgeLine: String? = null,
         /** Полноэкранный режим: у поля есть курсор, и о нём надо сказать. */
         cursor: Boolean = false,
+        /** Включён режим «− фон»: что именно нарисовано, объясняется здесь. */
+        subtracted: Boolean = false,
         /** Вкладка: тап по графику открывает полный экран. */
         fullscreenEntry: Boolean = false,
     ): List<SpectrumInfoSection> = buildList {
@@ -80,7 +82,15 @@ object SpectrumInfo {
             SpectrumInfoSection(
                 level = SpectrumInfoLevel.WHY,
                 title = s.infoPictureTitle,
-                lines = listOf(s.infoColumns, s.infoScales, s.infoSmoothing),
+                lines = buildList {
+                    add(s.infoColumns)
+                    add(s.infoScales)
+                    add(s.infoSmoothing)
+                    // Оговорка режима «− фон» переехала сюда из-под графика:
+                    // разность спектров — способ ПОСМОТРЕТЬ, и объяснение её
+                    // клампа принадлежит разделу «как построена картинка».
+                    if (subtracted) add(s.differenceNote)
+                },
             ),
         )
         add(

@@ -383,7 +383,6 @@ internal fun BoundsEditorDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             ) {
                 Text(text = t.boundsEditorTitle, style = type.title, color = colors.ink)
-                Text(text = t.boundsEditorHint, style = type.footnote, color = colors.muted)
 
                 BoundsField(
                     columns = columns,

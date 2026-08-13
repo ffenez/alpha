@@ -336,15 +336,8 @@ fun SpectrumFullScreen(
                     scaleRoot = scaleRoot,
                     modifier = Modifier.weight(1f),
                 )
-                // Приглушённая кривая записанного фона обязана быть названа и
-                // здесь: без подписи она читается как второй ряд данных.
-                val overlayDay = backgroundEntity?.takeIf { frame.overlay != null }
-                if (overlayDay != null) {
-                    LegendItem(
-                        color = colors.muted,
-                        label = t.legendBackground(HistoryFormat.day(overlayDay.timestamp)),
-                    )
-                }
+                // Легенды под полем нет: фон включает сам человек, и чип
+                // режима стоит в шапке — под графиком строка повторяла его.
             }
             // Ползунок степени — своей строкой и только в своём режиме: втроём
             // с сегментом в одной строке ему остаётся полоска, на которой шаг

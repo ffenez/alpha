@@ -943,15 +943,10 @@ private fun MetricChartCard(
                         .height(if (metric == ChartMetric.DOSE) 168.dp else 132.dp),
                 )
                 val stats = frame.stats
-                // Покрытие окна остаётся: месячное окно с двумя часами данных
-                // иначе выглядит как месяц измерений. А метод квантилей —
-                // подробность о РАСЧЁТЕ, и её место на полноэкранном графике,
-                // где эти числа изучают, а не на карточке-миниатюре.
-                if (spanMillis != null) {
-                    coverageWording(stats, spanMillis)?.let {
-                        Text(text = it, style = type.footnote, color = colors.muted)
-                    }
-                }
+                // Ни одной пояснительной строки под миниатюрой: покрытие окна и
+                // метод квантилей — подробности РАСЧЁТА, их место на
+                // полноэкранном графике, где эти числа изучают. Карточка
+                // Главной существует ради взгляда мельком.
                 if (showStats && stats != null) {
                     StatGrid(
                         cells = listOf(

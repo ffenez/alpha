@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,6 +31,7 @@ import app.radiacode.data.toSpectrum
 import app.radiacode.ui.components.BarChart
 import app.radiacode.ui.components.BarChartSpec
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.ChartNotesDialog
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
@@ -154,6 +156,12 @@ private fun RadonContent(m: RadonModel, t: SessionRadonStrings) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
 
+    // Что означает пунктир и пропуски — под «i»: строка под картинкой
+    // читается один раз, а высоту забирает всегда.
+    var info by remember { mutableStateOf(false) }
+    if (info) {
+        ChartNotesDialog(notes = listOf(t.radonChartNote)) { info = false }
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -164,6 +172,8 @@ private fun RadonContent(m: RadonModel, t: SessionRadonStrings) {
                 )
                 Spacer(Modifier.weight(1f))
                 Text(text = t.roiRateUnit, style = type.footnote, color = colors.muted)
+                Spacer(Modifier.width(Dimens.space1))
+                Chip(text = "i", color = colors.ink2, onClick = { info = true })
             }
             val dataMax = m.columns.filterNotNull().maxOrNull()
             if (dataMax == null || dataMax <= 0f) {
@@ -182,11 +192,6 @@ private fun RadonContent(m: RadonModel, t: SessionRadonStrings) {
                         xEndLabel = t.now,
                     ),
                     height = 80.dp,
-                )
-                Text(
-                    text = t.radonChartNote,
-                    style = type.footnote,
-                    color = colors.muted,
                 )
             }
             StatGrid(

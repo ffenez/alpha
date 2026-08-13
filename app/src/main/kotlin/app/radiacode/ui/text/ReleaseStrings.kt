@@ -66,6 +66,8 @@ object ReleaseRu : ReleaseStrings {
         "Данные подхватываются быстрее: пока приложение на экране, буфер " +
             "прибора читается четыре раза в секунду вместо одного.",
         "С миниатюр графиков убраны единицы — их называет заголовок карточки.",
+        "Над графиками и под ними больше нет поясняющих строк: как построена " +
+            "картинка, рассказывает кнопка «i» рядом с ней.",
     )
 
     override val v020Title = "Понятнее человеку, строже к данным"
@@ -210,6 +212,8 @@ object ReleaseEn : ReleaseStrings {
         "Data is picked up sooner: while the app is on screen the instrument's " +
             "buffer is read four times a second instead of once.",
         "The units are gone from the chart thumbnails — the card title names them.",
+        "No explanatory lines above or below the charts any more: how a picture " +
+            "is built is told by the «i» button next to it.",
     )
 
     override val v020Title = "Clearer to a person, stricter with data"

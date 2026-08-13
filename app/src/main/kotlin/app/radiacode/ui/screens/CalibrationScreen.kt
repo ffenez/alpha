@@ -42,6 +42,7 @@ import app.radiacode.data.toSpectrum
 import app.radiacode.device.ConnectionState
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.ChartNotesDialog
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.logic.CalibrationChart
 import app.radiacode.ui.logic.CalibrationView
@@ -292,7 +293,7 @@ private fun ResolutionSection(
     val type = LocalAppTypography.current
     val fit = (model.report.fit as? ResolutionFitOutcome.Fitted)?.fit
 
-    Section(s.resolutionTitle) {
+    Section(s.resolutionTitle, note = s.extrapolationNote) {
         for (row in CalibrationView.resolution(model.report, s)) {
             Text(text = row, style = type.valueSmall, color = colors.ink)
         }
@@ -313,7 +314,6 @@ private fun ResolutionSection(
                 measuredToKeV = fit.extrapolatedAboveKeV,
                 s = s,
             )
-            Text(text = s.extrapolationNote, style = type.footnote, color = colors.muted)
         }
 
         // Состояние: что действует ПРЯМО СЕЙЧАС — до кнопок, потому что это
@@ -471,12 +471,29 @@ private fun ResolutionChart(
 
 /** Карточка раздела: заголовок + содержимое одной колонкой. */
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Section(title: String, note: String? = null, content: @Composable () -> Unit) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    // Оговорка раздела живёт под «i»: она объясняет, ЧЕМУ верить на картинке
+    // (где ширина измерена, а где продолжена), и это ответ на вопрос, а не
+    // строка, которую читают каждый раз.
+    var info by remember { mutableStateOf(false) }
+    if (info && note != null) {
+        ChartNotesDialog(notes = listOf(note)) { info = false }
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Text(text = title.uppercase(), style = type.labelSmall, color = colors.ink2)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title.uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                    modifier = Modifier.weight(1f),
+                )
+                if (note != null) {
+                    Chip(text = "i", color = colors.ink2, onClick = { info = true })
+                }
+            }
             content()
         }
     }

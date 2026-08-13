@@ -212,14 +212,6 @@ fun NavigateSection(
                     ),
                     height = 112.dp,
                 )
-                bandLevel?.let {
-                    Text(
-                        text = t.navBandLegend(it),
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
-                Text(text = t.navTraceTitle, style = type.footnote, color = colors.muted)
                 if (state.trace.isEmpty()) {
                     Text(text = t.waitingStream, style = type.bodySmall, color = colors.muted)
                 } else {

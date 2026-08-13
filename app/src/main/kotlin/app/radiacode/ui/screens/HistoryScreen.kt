@@ -429,12 +429,9 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                     ),
                     height = 55.dp,
                 )
-                // Полый столбец назван ОБОЗНАЧЕНИЕМ, а не абзацем: факт
-                // «этот день измерен не полностью и с полным не сравним»
-                // остаётся видимым, объяснение — под «i».
-                if (model.dailyDose.any { it.microSv > 0f && !it.full }) {
-                    PartialDayLegend()
-                }
+                // Обозначение полого столбца ушло под «i» — вместе с
+                // объяснением, которое там и так лежало. Под картинкой не
+                // остаётся ни одной поясняющей строки.
             }
             StatGrid(
                 cells = listOf(

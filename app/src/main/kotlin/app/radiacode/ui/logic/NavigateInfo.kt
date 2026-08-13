@@ -20,6 +20,13 @@ data class SearchInfoInput(
      * describing itself, not the field.
      */
     val channelNow: String? = null,
+    /**
+     * Уровень доверия затенённого сектора дуги, %; null — интервала нет.
+     * Подпись сектора ушла с экрана (постоянная строка под дугой), но сам
+     * сектор — это ответ на «шкала не показывает неопределённость», и назвать
+     * его обязаны здесь.
+     */
+    val bandLevelPercent: Int? = null,
 )
 
 /**
@@ -65,7 +72,15 @@ object NavigateInfo {
             } else {
                 rows += Row(title = t.infoWindowsTitle, body = t.infoWindowsNote)
             }
-            rows += Row(title = t.infoScaleTitle, body = t.navScaleTitle)
+            // Затенённый сектор — это ответ на «аналоговая шкала не показывает
+            // неопределённость», и он обязан быть назван. Со шкалы подпись
+            // ушла (постоянная строка под дугой), значение — сюда.
+            rows += Row(
+                title = t.infoScaleTitle,
+                body = input.bandLevelPercent
+                    ?.let { "${t.navScaleTitle} · ${t.navBandLegend(it)}" }
+                    ?: t.navScaleTitle,
+            )
             rows += Row(title = t.infoTraceTitle, body = t.navTraceLegend)
         }
         if (!input.navigating) {

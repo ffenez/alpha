@@ -958,6 +958,7 @@ private fun ContinuationBanner(
 private fun SpectrumInfoCard(
     calibrationLine: String,
     edgeLine: String?,
+    subtracted: Boolean,
     onClose: () -> Unit,
 ) {
     val colors = LocalAppColors.current
@@ -979,6 +980,7 @@ private fun SpectrumInfoCard(
                 calibrationLine = calibrationLine,
                 edgeLine = edgeLine,
                 fullscreenEntry = true,
+                subtracted = subtracted,
             )
             // Кнопка внизу — как в справке Поиска: длинный текст прокручен до
             // конца, и закрывать его крестиком наверху значит возвращаться
@@ -1007,17 +1009,20 @@ internal fun ColumnScope.SpectrumInfoLines(
     withCursor: Boolean = false,
     /** Вкладка: тап по графику открывает полный экран. */
     fullscreenEntry: Boolean = false,
+    /** Включён режим «− фон». */
+    subtracted: Boolean = false,
 ) {
     val colors = LocalAppColors.current
     val t = SpectrumCatalogue.of(LocalStrings.current.language)
     val type = LocalAppTypography.current
-    val sections = remember(t, calibrationLine, edgeLine, withCursor, fullscreenEntry) {
+    val sections = remember(t, calibrationLine, edgeLine, withCursor, fullscreenEntry, subtracted) {
         SpectrumInfo.sections(
             s = t,
             calibrationLine = calibrationLine,
             edgeLine = edgeLine,
             cursor = withCursor,
             fullscreenEntry = fullscreenEntry,
+            subtracted = subtracted,
         )
     }
     // Третий уровень свёрнут: «как посчитано» отвечает на вопрос, который
@@ -1200,6 +1205,7 @@ private fun SpectrumContent(
                 t,
             ),
             edgeLine = edgeLine,
+            subtracted = subtractOn,
             onClose = { infoOpen = false },
         )
     }
@@ -1415,29 +1421,9 @@ private fun SpectrumContent(
                     )
                 },
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = Dimens.space1),
-            ) {
-                // Величины осей названы в справке «i»: числа на самих осях
-                // говорят о них яснее, чем строка под графиком. Легенда стоит
-                // слева, под началом кривой; управление уехало на само поле —
-                // под графиком остаются только подписи данных.
-                Spacer(Modifier.width(Dimens.space1))
-                LegendItem(
-                    color = colors.data,
-                    label = if (subtractOn) t.legendMinusBackground else t.legendAccumulated,
-                )
-                if (overlayColumns != null && backgroundEntity != null) {
-                    Spacer(Modifier.size(10.dp))
-                    LegendItem(
-                        color = colors.muted,
-                        label = t.legendBackground(
-                            HistoryFormat.day(backgroundEntity!!.timestamp),
-                        ),
-                    )
-                }
-            }
+            // Легенды под полем нет: что нарисовано, названо переключателями
+            // НАД графиком («Спектр | − фон» и сам фон), а строка внизу
+            // повторяла их третий раз и забирала высоту у картинки.
             // Полосы кнопок под графиком больше нет: масштаб меняется щипком —
             // тем же жестом, что и везде, — а кнопки «−» и «+» дублировали его
             // и забирали у поля высоту. Двойной тап на полном экране
@@ -1465,23 +1451,10 @@ private fun SpectrumContent(
                         color = colors.muted,
                     )
                 }
-                // Край шкалы — СОСТОЯНИЕ, а не постоянная статистика: строка
-                // появляется, только когда за краем заметная доля импульсов,
-                // и объясняет себя в «i». Само число всегда там же.
-                if (edgeLine != null &&
-                    SpectrumFrames.edgeNoticeVisible(edgeCounts, totalCounts)
-                ) {
-                    Text(text = edgeLine, style = type.footnote, color = colors.ink2)
-                }
-                // Оговорка режима стоит у САМОЙ картинки: разница обрезана
-                // нулём, и это свойство нарисованной кривой, а не кнопок внизу.
-                if (subtractOn) {
-                    Text(
-                        text = t.differenceNote,
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
+                // Ни края шкалы, ни оговорки режима «− фон» под полем больше
+                // нет: оба живут в «i» — край в технических данных, кламп
+                // нулём в разделе «как построена картинка». Под графиком
+                // остаются только состояния, а не объяснения.
             }
         }
     }
@@ -1546,22 +1519,6 @@ private fun SpectrumContent(
     )
 }
 
-/** Цветной штрих и подпись — одна легенда на вкладку и на полный экран. */
-@Composable
-internal fun LegendItem(color: Color, label: String) {
-    val type = LocalAppTypography.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Box(
-            Modifier
-                .size(width = 9.dp, height = 3.dp)
-                .background(color, RoundedCornerShape(2.dp)),
-        )
-        Text(text = label, style = type.axis, color = LocalAppColors.current.ink2)
-    }
-}
 
 @Composable
 private fun PeakTable(
