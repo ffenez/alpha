@@ -74,4 +74,28 @@ class HistoryWindowTest {
         )
         assertEquals(QuantileMethod.EXACT_RAW, QuantilePaths.methodFor(loadOfFresh.spanMillis))
     }
+
+    @Test
+    fun `the reload cadence follows the column width, not the window length`() {
+        // Полевой случай: полуторачасовое окно давало перечитывание раз в 15 с,
+        // и карточка выглядела замершей при живом полноэкранном графике —
+        // данные у них одни и те же. Новая колонка появляется раз в свою
+        // ширину, и читать чаще её четверти незачем.
+        val ninetyMinutes = 91 * 60_000L
+        val bucket = ChartSeriesModel.bucketMillis(ninetyMinutes)
+
+        val cadence = ChartWindows.refreshMillis(bucket)
+
+        assertTrue(cadence < 15_000L, "перечитывание раз в $cadence мс")
+        assertEquals(bucket / 4, cadence)
+    }
+
+    @Test
+    fun `a minute window reloads at one hertz`() {
+        // На коротком окне колонка равна секунде, и четверть секунды упирается
+        // в нижнюю границу: чаще, чем прибор пишет, читать нечего.
+        val bucket = ChartSeriesModel.bucketMillis(60_000L)
+
+        assertEquals(1_000L, ChartWindows.refreshMillis(bucket))
+    }
 }

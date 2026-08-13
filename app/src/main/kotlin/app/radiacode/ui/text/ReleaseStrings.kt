@@ -85,6 +85,8 @@ object ReleaseRu : ReleaseStrings {
             "определяется самими измерениями, а не служебными записями прибора.",
         "С заголовков карточек убраны единицы, а отметка порога L1 " +
             "показывается только когда порог рядом с нарисованным.",
+        "Графики на Главной идут в реальном времени, как полноэкранный: край " +
+            "движется каждую секунду, а данные читаются по ширине колонки.",
         "Появилась настройка «После перезагрузки» (Прибор): продолжать " +
             "измерение после включения телефона, по умолчанию выключено.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
@@ -259,6 +261,8 @@ object ReleaseEn : ReleaseStrings {
             "stream comes from the measurements, not from the instrument's service records.",
         "Units leave the card headers, and the L1 marker appears only when the " +
             "threshold is near what is drawn.",
+        "The Monitor charts run in real time like the fullscreen one: the edge " +
+            "advances every second and data is read at the column cadence.",
         "New setting «After a restart» (Instrument): keep measuring once the " +
             "phone boots, off by default.",
         "The state of the stream is stated once for every element of the " +

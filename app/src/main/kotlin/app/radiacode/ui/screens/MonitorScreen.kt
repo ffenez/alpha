@@ -154,6 +154,11 @@ private const val TREND_WINDOW_MILLIS = 3_600_000L
 private data class LoadedChart(
     val window: ChartWindow,
     val snapshot: ChartSnapshot,
+    /**
+     * Начало истории на момент загрузки — чтобы кадр мог пересчитать окно под
+     * текущее «сейчас», не ходя за этим в базу каждую секунду.
+     */
+    val earliestMillis: Long?,
 )
 
 /**
@@ -260,11 +265,16 @@ fun MonitorScreen(
     // на месячном чаще и не нужно — перерисовывались бы те же колонки ценой
     // тяжёлого запроса. Берётся самое короткое окно из включённых величин.
     val liveTickMillis = remember(chartMetrics, savedSpans) {
-        val shortest = chartMetrics.minOf { metric ->
-            ChartMetrics.startWindow(metric, savedSpans, System.currentTimeMillis())
-                .spanMillis
+        // Темп перечитывания следует ШИРИНЕ КОЛОНКИ, а не длине окна: новая
+        // колонка появляется раз в её ширину, и читать чаще четверти этого
+        // смысла нет. По длине окна получалось абсурдно: полуторачасовое окно
+        // давало 15 с — то есть данные обновлялись раз в четверть минуты, и
+        // карточка выглядела замершей при живом полноэкранном графике.
+        val shortestBucket = chartMetrics.minOf { metric ->
+            val window = ChartMetrics.startWindow(metric, savedSpans, System.currentTimeMillis())
+            app.radiacode.ui.logic.ChartSeriesModel.bucketMillis(window.spanMillis)
         }
-        (shortest / LIVE_TICK_WINDOW_FRACTION).coerceIn(1_000L, CHART_REFRESH_MILLIS)
+        ChartWindows.refreshMillis(shortestBucket)
     }
     val liveTick = live?.receivedAtMillis?.let { it / liveTickMillis }
     LaunchedEffect(chartMetrics, savedSpans, resumeTick, liveTick) {
@@ -311,7 +321,7 @@ fun MonitorScreen(
                                 frameMax = visible.lastOrNull()?.endMillis,
                             ),
                         )
-                        LoadedChart(window, snapshot)
+                        LoadedChart(window, snapshot, earliest)
                     }
                 }
                 val loadedTrend = withContext(Dispatchers.IO) {
@@ -447,11 +457,22 @@ fun MonitorScreen(
         val alert = status is MonitorStatus.Alert
         for (metric in chartMetrics) key(metric) {
             val loaded = charts[metric]
-            val frame = remember(loaded, unit, thresholds, baseline, alert) {
+            // Правый край кадра идёт за «сейчас» КАЖДУЮ СЕКУНДУ, не дожидаясь
+            // следующего чтения базы: снимок неизменен, а окно — арифметика по
+            // полутора сотням колонок. Ровно так живёт полноэкранный график, и
+            // именно поэтому он выглядел живым, пока карточка казалась
+            // замершей: данные у обоих были одни и те же, а край двигался
+            // только у него.
+            val liveSecond = nowMillis / 1_000L
+            val frame = remember(loaded, unit, thresholds, baseline, alert, liveSecond) {
                 loaded?.let {
+                    val liveWindow = ChartWindows.limitedByHistory(
+                        ChartMetrics.startWindow(metric, savedSpans, nowMillis),
+                        it.earliestMillis,
+                    )
                     buildFrame(
                         snapshot = it.snapshot,
-                        window = it.window,
+                        window = liveWindow,
                         unit = unit,
                         logScale = false,
                         thresholds = thresholds,
@@ -461,7 +482,7 @@ fun MonitorScreen(
                         xLabelCount = 3,
                         // Карточка Главной ВСЕГДА живая: правый край окна и
                         // есть «сейчас», и ось подписывается от него.
-                        nowMillis = it.window.toMillis,
+                        nowMillis = nowMillis,
                         axisStrings = ChartAxisCatalogue.of(strings.language),
                         showUnit = false,
                     )
