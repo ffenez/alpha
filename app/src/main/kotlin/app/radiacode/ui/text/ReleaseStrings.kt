@@ -66,6 +66,10 @@ object ReleaseRu : ReleaseStrings {
         "Ось времени живого графика считается от текущего момента: " +
             "«−4 мин · −2 мин · сейчас» вместо одинокой метки посередине.",
         "Слипшиеся маркеры всплесков собираются в один с числом.",
+        "Пропуск в данных больше не соединяется линией: и линия, и полоса " +
+            "разброса заканчиваются там, где кончились измерения.",
+        "Измерение не теряется, если метка времени уже занята: раньше это " +
+            "выглядело как обрыв графика при работающем приборе.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
             "пока данные идут, о разрыве не говорится ничего.",
         "Нажатия на кнопки самого прибора больше не обрывают связь: занятый " +
@@ -219,6 +223,10 @@ object ReleaseEn : ReleaseStrings {
         "The time axis of a live chart counts from the present moment: " +
             "«−4 min · −2 min · now» instead of one lonely label in the middle.",
         "Overlapping spike markers merge into one that carries their count.",
+        "A gap in the data is no longer bridged by a line: both the line and " +
+            "the spread band end where the measurements ended.",
+        "A measurement is not lost when its timestamp is already taken; that " +
+            "used to look like the chart breaking while the instrument worked.",
         "The state of the stream is stated once for every element of the " +
             "screen: while data keeps coming, nothing is said about a break.",
         "Pressing the buttons on the instrument itself no longer drops the " +

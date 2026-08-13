@@ -168,7 +168,7 @@ class MeasurementRepositoryTest {
     )
 
     @Test
-    fun `a record whose timestamp is taken is reported as dropped, not as written`() = runTest {
+    fun `a different measurement on a taken timestamp is reseated, not lost`() = runTest {
         // Полевой случай: «нет новых данных · 29 с» при зелёном кружке связи.
         // Уникальный индекс `samples.timestamp` отбрасывает строку молча — до
         // этого счётчика отброс был не отличим от записи ни на экране, ни в
@@ -179,10 +179,31 @@ class MeasurementRepositoryTest {
         assertEquals(1, first.inserted)
         assertEquals(0, first.dropped)
 
+        // Другое измерение с той же меткой — это НЕ повторная доставка, и
+        // терять его нельзя: на графике потеря выглядит как обрыв линии при
+        // исправно идущем потоке. Метка сдвигается на свободную миллисекунду.
         val second = repository.record(listOf(RealTimeData(at, 0, 25f, 1f, 0.0006f, 2f, 0, 0)))
-        assertEquals(0, second.inserted)
-        assertEquals(1, second.dropped)
-        // И само измерение действительно потеряно — счётчик не «на всякий случай».
+        assertEquals(1, second.inserted)
+        assertEquals(0, second.dropped)
+        assertEquals(2, sampleDao.inserted.size)
+        assertEquals(at + 1, sampleDao.inserted.last().timestamp)
+        // Сдвиг — миллисекунды: ниже любого разрешения анализа (корзины
+        // графиков считаются секундами и минутами).
+        assertEquals(25f, sampleDao.inserted.last().countRate)
+    }
+
+    @Test
+    fun `the same reading delivered twice is not written twice`() = runTest {
+        // Буфер прибора отдаёт записи повторно — для этого уникальный индекс и
+        // существует. Пересадка обязана отличать повтор от столкновения.
+        val at = 1_700_000_000_000L
+        val record = RealTimeData(at, 0, 10f, 1f, 0.0004f, 2f, 0, 0)
+
+        repository.record(listOf(record))
+        val again = repository.record(listOf(record))
+
+        assertEquals(0, again.inserted)
+        assertEquals(1, again.dropped)
         assertEquals(1, sampleDao.inserted.size)
     }
 

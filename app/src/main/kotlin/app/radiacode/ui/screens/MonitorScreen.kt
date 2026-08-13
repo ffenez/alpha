@@ -962,6 +962,15 @@ private fun MetricChartCard(
                     style = type.label,
                     color = colors.ink,
                 )
+                // Единица названа ОДИН раз и здесь: заголовок «МОЩНОСТЬ ДОЗЫ»
+                // сам по себе не говорит, в чём числа на оси, а вторая
+                // подпись над полем повторяла бы его.
+                Spacer(Modifier.width(Dimens.space2))
+                Text(
+                    text = ChartMetrics.unitLabel(metric, unit),
+                    style = type.footnote,
+                    color = colors.muted,
+                )
                 Spacer(Modifier.weight(1f))
                 // Tap affordance: the card opens the fullscreen live chart.
                 Text(text = "⤢", style = type.label, color = colors.ink2)

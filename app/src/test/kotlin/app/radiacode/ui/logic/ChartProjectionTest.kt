@@ -13,9 +13,10 @@ class ChartProjectionTest {
         min: Float = median,
         max: Float = median,
         spread: Float = 0f,
+        widthMillis: Long = 1_000,
     ) = ChartBucket(
         startMillis = start,
-        endMillis = start + 1_000,
+        endMillis = start + widthMillis,
         min = min,
         max = max,
         median = median,
@@ -113,5 +114,58 @@ class ChartProjectionTest {
         assertEquals(1, p.nearestIndex(50f))
         assertEquals(2, p.nearestIndex(110f))
         assertEquals(null, ChartPixels.EMPTY.nearestIndex(10f))
+    }
+
+    @Test
+    fun `a real gap breaks the series, even when the columns are neighbours in the list`() {
+        // Пустые колонки в снимок не попадают вовсе, поэтому соседство по
+        // индексу не означает соседства во времени. Полевая картина этого
+        // дефекта: длинный идеально прямой диагональный участок с
+        // расширяющимся конвертом — картинка измерений, которых не было.
+        val from = 0L
+        val step = 60_000L
+        val buckets = listOf(
+            bucket(start = 0, median = 0.10f, widthMillis = step),
+            bucket(start = step, median = 0.11f, widthMillis = step),
+            // Полчаса спустя: следующая колонка с данными.
+            bucket(start = 30 * step, median = 0.12f, widthMillis = step),
+        )
+
+        val pixels = ChartProjection.project(
+            buckets = buckets,
+            fromMillis = from,
+            toMillis = 31 * step,
+            scale = scale,
+            leftPx = 0f,
+            widthPx = 100f,
+            topPx = 0f,
+            heightPx = 100f,
+        )
+
+        assertEquals(3, pixels.count)
+        assertFalse(pixels.segmentStart[0])
+        assertFalse(pixels.segmentStart[1], "соседние по времени колонки не рвутся")
+        assertTrue(pixels.segmentStart[2], "через получасовой пропуск линия обязана рваться")
+    }
+
+    @Test
+    fun `columns one step apart are one segment`() {
+        val step = 1_000L
+        val buckets = (0 until 5).map {
+            bucket(start = it * step, median = 0.1f, widthMillis = step)
+        }
+
+        val pixels = ChartProjection.project(
+            buckets = buckets,
+            fromMillis = 0,
+            toMillis = 5 * step,
+            scale = scale,
+            leftPx = 0f,
+            widthPx = 100f,
+            topPx = 0f,
+            heightPx = 100f,
+        )
+
+        assertTrue(pixels.segmentStart.none { it })
     }
 }

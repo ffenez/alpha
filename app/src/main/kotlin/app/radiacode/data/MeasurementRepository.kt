@@ -56,7 +56,19 @@ class MeasurementRepository(
         if (samples.isNotEmpty()) {
             val ids = sampleDao.insertAll(samples)
             inserted = ids.count { it != -1L }
-            dropped = ids.size - inserted
+            val rejected = samples.filterIndexed { index, _ -> ids[index] == -1L }
+            // Отброшенная строка — это ЛИБО повторная доставка той же записи
+            // (буфер прибора отдал её снова, и уникальный индекс работает как
+            // задумано), ЛИБО другое измерение, метка которого совпала с уже
+            // занятой: так бывает, когда база времени прибора переехала назад.
+            // Второе — потеря данных, и её не должно быть: на графике она
+            // выглядит как обрыв линии при исправно идущем потоке.
+            val retried = if (rejected.isEmpty()) emptyList() else reseat(rejected)
+            if (retried.isNotEmpty()) {
+                val retryIds = sampleDao.insertAll(retried)
+                inserted += retryIds.count { it != -1L }
+            }
+            dropped = rejected.size - retried.size
         }
 
         val rare = records.filterIsInstance<RareData>().map { it.toEntity() }
@@ -65,6 +77,42 @@ class MeasurementRepository(
         val events = records.filterIsInstance<Event>().map { it.toEntity() }
         if (events.isNotEmpty()) eventDao.insertAll(events)
         return RecordOutcome(inserted = inserted, dropped = dropped)
+    }
+
+    /**
+     * Пересаживает измерения, чьи метки заняты, на ближайшие свободные.
+     *
+     * Повторная доставка распознаётся по РАВЕНСТВУ значений: если в занятой
+     * метке лежит то же показание, это та же запись, и второй раз она не
+     * нужна. Если показание другое — это отдельное измерение, и терять его
+     * нельзя; метка сдвигается на первую свободную миллисекунду. Сдвиг на
+     * единицы миллисекунд ниже любого разрешения анализа (корзины графиков —
+     * секунды и минуты) и не меняет ни одного вывода, а потеря измерения
+     * меняет картинку на экране.
+     */
+    private suspend fun reseat(rejected: List<SampleEntity>): List<SampleEntity> {
+        val from = rejected.minOf { it.timestamp }
+        val to = rejected.maxOf { it.timestamp } + RESEAT_WINDOW_MILLIS
+        val taken = sampleDao.rangeList(from, to).associateBy { it.timestamp }
+        val occupied = taken.keys.toMutableSet()
+        val out = mutableListOf<SampleEntity>()
+        for (sample in rejected) {
+            val stored = taken[sample.timestamp]
+            val sameReading = stored != null &&
+                stored.doseRate == sample.doseRate &&
+                stored.countRate == sample.countRate
+            if (sameReading) continue
+            var stamp = sample.timestamp
+            var step = 0
+            while (stamp in occupied && step < RESEAT_WINDOW_MILLIS) {
+                stamp += 1
+                step += 1
+            }
+            if (stamp in occupied) continue
+            occupied += stamp
+            out += sample.copy(timestamp = stamp)
+        }
+        return out
     }
 
     /**
@@ -253,4 +301,15 @@ class MeasurementRepository(
     /** Device snapshot metadata (no blobs) for the radon hourly thinning. */
     suspend fun deviceSnapshotMeta(from: Long, to: Long): List<SpectrumMetaRow> =
         spectrumDao.deviceSnapshotMeta(from, to)
+
+    private companion object {
+        /**
+         * На сколько миллисекунд вперёд ищется свободная метка.
+         * **Инженерный параметр**: прибор пишет раз в секунду, поэтому даже
+         * при сплошном столкновении свободная миллисекунда находится сразу; а
+         * ограничение не даёт циклу разрастись, если база уехала так, что
+         * занят целый диапазон.
+         */
+        const val RESEAT_WINDOW_MILLIS = 250
+    }
 }

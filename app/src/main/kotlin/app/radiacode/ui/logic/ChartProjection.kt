@@ -25,6 +25,19 @@ class ChartPixels(
     val q25Y: FloatArray,
     val q75Y: FloatArray,
     val plottable: BooleanArray,
+    /**
+     * Начинается ли в этой колонке НОВЫЙ отрезок линии.
+     *
+     * Пустые колонки в снимок не попадают вовсе (`ChartSeriesModel.fold`
+     * выбрасывает их, чтобы не рисовать нулей там, где измерений не было), и
+     * из-за этого две колонки по краям получасового пропуска оказывались
+     * соседями по индексу. Линия и полосы разброса честно шли от одной к
+     * другой — и на экране получался длинный идеально прямой диагональный
+     * участок с расширяющимся конвертом, то есть картинка измерений, которых
+     * не было. Разрыв определяется по ВРЕМЕНИ между соседями, а не по их
+     * наличию в списке.
+     */
+    val segmentStart: BooleanArray,
 ) {
     val count: Int get() = x.size
 
@@ -58,7 +71,7 @@ class ChartPixels(
     companion object {
         val EMPTY = ChartPixels(
             IntArray(0), FloatArray(0), FloatArray(0), FloatArray(0),
-            FloatArray(0), FloatArray(0), FloatArray(0), BooleanArray(0),
+            FloatArray(0), FloatArray(0), FloatArray(0), BooleanArray(0), BooleanArray(0),
         )
     }
 }
@@ -71,6 +84,14 @@ object ChartProjection {
      * by column index, so panning an already-loaded snapshot moves the series
      * exactly as far as the finger without touching the database.
      */
+    /**
+     * Во сколько ширин колонки должен разойтись шаг по времени, чтобы это
+     * считалось пропуском. **Инженерный параметр**: полторы — соседние
+     * колонки стоят на расстоянии ровно одной ширины, и допуск в половину
+     * покрывает округление границ, не пропуская настоящую дыру.
+     */
+    const val GAP_FACTOR = 1.5
+
     fun project(
         buckets: List<ChartBucket>,
         fromMillis: Long,
@@ -105,6 +126,13 @@ object ChartProjection {
         val q25Y = FloatArray(n)
         val q75Y = FloatArray(n)
         val plottable = BooleanArray(n)
+        val segmentStart = BooleanArray(n)
+        // Ширина колонки берётся у самих данных: снимок её знает, а сюда
+        // приходят уже отобранные колонки.
+        val stepMillis = buckets.getOrNull(first)
+            ?.let { (it.endMillis - it.startMillis).takeIf { width -> width > 0L } }
+            ?: 0L
+        var previousMid = Long.MIN_VALUE
 
         for (k in 0 until n) {
             val b = buckets[first + k]
@@ -116,6 +144,10 @@ object ChartProjection {
                 continue
             }
             plottable[k] = true
+            if (stepMillis > 0L && previousMid != Long.MIN_VALUE) {
+                segmentStart[k] = b.midMillis - previousMid > stepMillis * GAP_FACTOR
+            }
+            previousMid = b.midMillis
             medianY[k] = yOf(fMedian, topPx, heightPx)
             // A quantile the scale cannot place (log scale, zero value) falls
             // back to the median row: the envelope then collapses onto the
@@ -125,7 +157,7 @@ object ChartProjection {
             q75Y[k] = yOf(scale.fractionOrNull(b.q75) ?: fMedian, topPx, heightPx)
             q90Y[k] = yOf(scale.fractionOrNull(b.q90) ?: fMedian, topPx, heightPx)
         }
-        return ChartPixels(source, x, medianY, q10Y, q90Y, q25Y, q75Y, plottable)
+        return ChartPixels(source, x, medianY, q10Y, q90Y, q25Y, q75Y, plottable, segmentStart)
     }
 
     /** Fraction (0 = bottom) → pixel row inside the plot rectangle. */

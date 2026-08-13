@@ -109,64 +109,40 @@ class DeviceConnectionTest {
     }
 
     @Test
-    fun `a single stale buffered record does not move the base`() = runTest {
+    fun `the newest record of a reply lands on the moment it arrived`() = runTest {
+        // Прибор пишет раз в секунду и отдаёт написанное по первому запросу,
+        // поэтому самая свежая запись ответа сделана практически в момент его
+        // прихода. База равна наблюдению, а не сходится к нему: время
+        // сходимости — это ровно то время, которое экран говорил «нет новых
+        // данных», а метки лежали в прошлом и не пролезали в базу.
         val fake = FakeRadiaCode()
-        // Первый ответ: свежая запись с завышенной базой — поправка измеряется.
-        fake.dataBufPayloads += realTimeDataRecord(
-            seq = 1, tsOffset10ms = 0, countRate = 10f, doseRate = 0.0004f,
-        )
-        // Второй ответ: запись из БУФЕРА, на 40 с старше. РАЗОВОЕ отставание —
-        // честная задержка переноса, и «чинить» его нельзя: база не двигается
-        // (вверх она идёт только по минимуму окна, см. следующий тест).
-        fake.dataBufPayloads += realTimeDataRecord(
-            seq = 2, tsOffset10ms = -4_000, countRate = 10f, doseRate = 0.0004f,
-        )
-        val (conn, _) = establish(fake)
-
-        conn.readDataBuf()
-        val corrected = conn.clockCorrectionMillis
-        assertEquals(-128_000L, corrected)
-
-        val second = conn.readDataBuf()
-        assertEquals(corrected, conn.clockCorrectionMillis)
-        assertEquals(now - 40_000, second.records[0].timestampMillis)
-    }
-
-    @Test
-    fun `an over-correction from a buffered record heals in seconds`() = runTest {
-        // Полевой дефект: первый ответ принёс запись из буфера с большим
-        // смещением, база уехала вниз — и дальше метки оседали в прошлом:
-        // зелёный кружок связи, «нет новых данных · 31 с» и графики с
-        // постоянным отставанием. Прежний односторонний храповик не поднимался
-        // вовсе, min-фильтр по десяти ответам поднимался ~25 с — столько же
-        // экран говорил «нет данных». Теперь на это уходит пара ответов.
-        val fake = FakeRadiaCode()
-        // Первая запись опережает базу ещё на 30 с сверх 128 — вычтется 158 с.
         fake.dataBufPayloads += realTimeDataRecord(
             seq = 1, tsOffset10ms = 3_000, countRate = 10f, doseRate = 0.0004f,
         )
-        // Дальше идут нормальные свежие записи: относительно съехавшей базы
-        // каждая выглядит старой на 30 с.
-        repeat(3) {
-            fake.dataBufPayloads += realTimeDataRecord(
-                seq = 2 + it, tsOffset10ms = (it + 1) * 100, countRate = 10f, doseRate = 0.0004f,
-            )
-        }
         val (conn, _) = establish(fake)
 
-        conn.readDataBuf()
-        assertEquals(-158_000L, conn.clockCorrectionMillis)
+        val first = conn.readDataBuf()
 
-        // Одного измерения мало — иначе буферная запись увела бы базу сама.
-        conn.readDataBuf()
+        assertEquals(now, first.records.maxOf { it.timestampMillis })
+        // Одним ответом, без окна и без ожидания.
         assertEquals(-158_000L, conn.clockCorrectionMillis)
+    }
 
-        // Второе подтверждает отставание, и база встаёт на место: новейшая
-        // запись ответа снова получает метку «сейчас» (часы в тесте стоят, а
-        // смещения записей растут — отсюда поправка −130 с, а не −128 с).
-        val healed = conn.readDataBuf()
-        assertEquals(-130_000L, conn.clockCorrectionMillis)
-        assertEquals(now, healed.records.maxOf { it.timestampMillis })
+    @Test
+    fun `earlier records of the same reply keep their spacing`() = runTest {
+        // Сдвигается ВЕСЬ ответ целиком: интервалы между записями — это
+        // измерение прибора, и переписывать их нельзя.
+        val fake = FakeRadiaCode()
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 1, tsOffset10ms = 0, countRate = 10f, doseRate = 0.0004f,
+        ) + realTimeDataRecord(
+            seq = 2, tsOffset10ms = 100, countRate = 11f, doseRate = 0.0005f,
+        )
+        val (conn, _) = establish(fake)
+
+        val stamps = conn.readDataBuf().records.map { it.timestampMillis }.sorted()
+
+        assertEquals(listOf(now - 1_000, now), stamps)
     }
 
     @Test

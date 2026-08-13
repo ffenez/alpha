@@ -316,8 +316,12 @@ private fun StaticChartLayer(
             .fillMaxSize()
             .drawWithCache {
                 val gridColor = colors.grid
-                val bandColor = colors.ink2.copy(alpha = 0.13f)
-                val bandLineColor = colors.ink2.copy(alpha = 0.42f)
+                // Обычный диапазон места — КОНТЕКСТ, а не главный герой: он
+                // занимал большую часть карточки и читался сильнее самой
+                // сетки, из-за чего измерение приходилось искать глазами.
+                // Смысл данных не меняется, меняется вес.
+                val bandColor = colors.ink2.copy(alpha = 0.07f)
+                val bandLineColor = colors.ink2.copy(alpha = 0.26f)
                 val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 4.dp.toPx()))
                 val alarmDash = PathEffect.dashPathEffect(floatArrayOf(7.dp.toPx(), 5.dp.toPx()))
                 val alarmStroke = 1.dp.toPx()
@@ -529,10 +533,18 @@ private fun StaticChartLayer(
                         val alarmX = (widthPx - alarmText.size.width - labelInset)
                             .coerceAtLeast(0f)
                         if (alarmAbove) {
+                            // Указатель стоит НАД полем, в полосе маркеров, а
+                            // не внутри шкалы: у верхней кромки он вставал
+                            // почти на одну высоту с верхней подписью оси и
+                            // читался как её значение, хотя порог лежит далеко
+                            // за пределами кадра.
                             drawText(
                                 textLayoutResult = alarmText,
                                 color = colors.crit,
-                                topLeft = Offset(alarmX, plotTop + 1f),
+                                topLeft = Offset(
+                                    alarmX,
+                                    (plotTop - alarmText.size.height - 1f).coerceAtLeast(0f),
+                                ),
                             )
                         } else if (alarmBelow) {
                             drawText(
@@ -679,9 +691,12 @@ private fun SeriesLayer(
                                 textLayoutResult = label,
                                 color = hue,
                                 topLeft = Offset(
-                                    (mark.x + markerSize * 0.7f)
+                                    (mark.x + markerSize * 0.9f)
                                         .coerceAtMost(widthPx - label.size.width),
-                                    plotTop - 1f - label.size.height,
+                                    // По центру треугольника: прижатое к его
+                                    // верхушке число читалось как надстрочный
+                                    // знак, а не как счётчик событий.
+                                    plotTop - 1f - markerSize / 2f - label.size.height / 2f,
                                 ),
                             )
                         }
@@ -781,6 +796,10 @@ private fun bandPath(pixels: ChartPixels, high: FloatArray, low: FloatArray): Pa
     }
     for (i in 0 until pixels.count) {
         if (pixels.plottable[i]) {
+            // Полоса разброса рвётся ТАМ ЖЕ, где линия: конверт, протянутый
+            // через пропуск, — это утверждение о разбросе измерений, которых
+            // не было, и выглядит оно убедительнее самой линии.
+            if (pixels.segmentStart[i]) flush(i - 1)
             if (start < 0) start = i
         } else {
             flush(i - 1)
@@ -799,6 +818,10 @@ private fun linePath(pixels: ChartPixels): Path {
             penDown = false
             continue
         }
+        // Пустые колонки в снимок не попадают вовсе, поэтому соседство по
+        // индексу не означает соседства во времени: перо поднимается по
+        // ВРЕМЕННОМУ разрыву.
+        if (pixels.segmentStart[i]) penDown = false
         if (penDown) path.lineTo(pixels.x[i], pixels.medianY[i])
         else path.moveTo(pixels.x[i], pixels.medianY[i])
         penDown = true

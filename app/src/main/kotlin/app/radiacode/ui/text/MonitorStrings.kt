@@ -199,11 +199,16 @@ object MonitorRu : MonitorStrings {
     override val contextNoContext = "место определить нельзя — «Без места»"
     override val contextManual = "выбран вручную"
 
-    override val countTile = "Счёт"
+    // Единица в самой подписи: «Счёт 24,9 ±5,0» заставляло догадываться, что
+    // это скорость, а не число импульсов. Полного названия плитка не вмещает.
+    override val countTile = "Счёт, с⁻¹"
     override val trendWindowHour = "1 ч"
     override fun overWindow(window: String) = "за $window"
     override val usualBackgroundUpdating = "обычный фон пополняется"
-    override val usualBackgroundNotUpdating = "фоновая статистика временно не обновляется"
+    // «Фоновая статистика» — имя движка, а человек читает вывод. Причина
+    // называется той стороной, которая ему видна: новые измерения сейчас не
+    // идут в копилку места. Подробная причина — по нажатию, в «Почему».
+    override val usualBackgroundNotUpdating = "новые данные сейчас не добавляются в фон"
     override val usualBackgroundFrozen = "обычный фон заморожен вручную"
     override val bandIsProfileP10P90 = "полоса — обычный диапазон места"
     override val collectingMeasurements = "накапливаем измерения…"
@@ -273,10 +278,13 @@ object MonitorRu : MonitorStrings {
     override val exclusionStatisticsUnusable = "показание слишком неточное для статистики"
     override val exclusionManualFreeze = "обычный фон заморожен вручную"
 
+    // Первая фраза — человеческая: термин без объяснения на главном экране
+    // не значит ничего. Определение и единица идут следом, они никуда не
+    // делись и по-прежнему точны.
     override val hardnessExplanation =
-        "Жёсткость — дозовая величина на единицу скорости счёта, (мкрем/ч)/(имп/с). " +
-            "Она связана с тем, какие энергии преобладают в регистрируемом излучении, " +
-            "но это не средняя энергия фотона и не мера опасности."
+        "Показывает, как меняется энергетический состав регистрируемого излучения; " +
+            "само по себе это не мера опасности. Формально — дозовая величина на " +
+            "единицу скорости счёта, (мкрем/ч)/(имп/с); это не средняя энергия фотона."
     override val hardnessPurpose =
         "Она подавляет влияние общей интенсивности: если поле то же, а его стало " +
             "больше, доза и счёт растут вместе, а отношение остаётся примерно " +
@@ -368,11 +376,11 @@ object MonitorEn : MonitorStrings {
         "the place cannot be determined — recorded into the no-place profile"
     override val contextManual = "chosen manually"
 
-    override val countTile = "Counts"
+    override val countTile = "Counts, s⁻¹"
     override val trendWindowHour = "1 h"
     override fun overWindow(window: String) = "over $window"
     override val usualBackgroundUpdating = "the usual background is being updated"
-    override val usualBackgroundNotUpdating = "background statistics are paused for now"
+    override val usualBackgroundNotUpdating = "new data is not being added to the background"
     override val usualBackgroundFrozen = "the usual background is frozen manually"
     override val bandIsProfileP10P90 = "the band is the usual range here"
     override val collectingMeasurements = "collecting measurements…"
@@ -446,9 +454,10 @@ object MonitorEn : MonitorStrings {
     // Числитель — дозиметрическая оценка прибора, а не энергия в кристалле,
     // поэтому «average energy» запрещено и здесь.
     override val hardnessExplanation =
-        "Hardness is a dose quantity per unit count rate, (µrem/h)/(counts/s). It is " +
-            "related to which energies prevail in the detected radiation, but it is " +
-            "not the mean photon energy and not a measure of harm."
+        "Shows how the energy make-up of the registered radiation changes. " +
+            "The value by itself is not a measure of harm. " +
+            "Formally it is a dose quantity per unit count rate, " +
+            "(µrem/h)/(counts/s); it is not the mean photon energy."
     override val hardnessPurpose =
         "It suppresses the influence of overall intensity: with the same field made " +
             "brighter, dose and counts grow together and the ratio stays roughly where " +

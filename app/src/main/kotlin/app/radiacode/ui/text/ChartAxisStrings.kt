@@ -78,7 +78,9 @@ object ChartAxisRu : ChartAxisStrings {
     override fun agoLabel(seconds: Long): String = when {
         seconds <= 0 -> "сейчас"
         seconds < 60 -> "−$seconds с"
-        else -> "−${seconds / 60} мин"
+        seconds < 3_600 -> "−${seconds / 60} мин"
+        seconds < 86_400 -> "−${seconds / 3_600} ч"
+        else -> "−${seconds / 86_400} д"
     }
 
     override val doseTitle = "Мощность дозы"
@@ -147,7 +149,9 @@ object ChartAxisEn : ChartAxisStrings {
     override fun agoLabel(seconds: Long): String = when {
         seconds <= 0 -> "now"
         seconds < 60 -> "−$seconds s"
-        else -> "−${seconds / 60} min"
+        seconds < 3_600 -> "−${seconds / 60} min"
+        seconds < 86_400 -> "−${seconds / 3_600} h"
+        else -> "−${seconds / 86_400} d"
     }
 
     override val doseTitle = "Dose rate"
