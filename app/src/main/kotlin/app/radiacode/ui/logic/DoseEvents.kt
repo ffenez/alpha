@@ -246,3 +246,52 @@ object DoseEpisodes {
         return null
     }
 }
+
+/**
+ * Слипание маркеров экстремумов на оси.
+ *
+ * На длинном окне соседние всплески попадают в соседние пиксели, и над полем
+ * вырастает стена почти наложенных треугольников — она перестаёт указывать на
+ * что-либо конкретное и читается как шум. Близкие маркеры собираются в один с
+ * числом («△ 3»): указание сохраняется, шум исчезает.
+ *
+ * Чистая геометрия, JVM-тесты. Рисование ничего не решает.
+ */
+object MarkerClusters {
+
+    /**
+     * @param count сколько маркеров слилось; 1 — одиночный, число не рисуется.
+     * @param alarmClass хотя бы один участник перешагнул порог L1 — класс
+     *   группы берётся по СИЛЬНЕЙШЕМУ: иначе тревожный маркер исчез бы,
+     *   слившись с соседями другого класса.
+     */
+    data class Cluster(val x: Float, val count: Int, val alarmClass: Boolean)
+
+    /**
+     * @param marks пары «координата — тревожный ли», в любом порядке.
+     * @param minSpacingPx ближе этого расстояния маркеры считаются одним.
+     */
+    fun of(marks: List<Pair<Float, Boolean>>, minSpacingPx: Float): List<Cluster> {
+        if (marks.isEmpty()) return emptyList()
+        val sorted = marks.sortedBy { it.first }
+        val out = mutableListOf<Cluster>()
+        var startX = sorted.first().first
+        var sumX = 0f
+        var count = 0
+        var alarm = false
+        for ((x, isAlarm) in sorted) {
+            if (count > 0 && x - startX >= minSpacingPx) {
+                out += Cluster(sumX / count, count, alarm)
+                startX = x
+                sumX = 0f
+                count = 0
+                alarm = false
+            }
+            sumX += x
+            count += 1
+            alarm = alarm || isAlarm
+        }
+        if (count > 0) out += Cluster(sumX / count, count, alarm)
+        return out
+    }
+}

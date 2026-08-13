@@ -28,6 +28,8 @@ import app.radiacode.ui.logic.HourSlice
 import app.radiacode.ui.logic.QuantileMethod
 import app.radiacode.ui.logic.QuantilePaths
 import app.radiacode.ui.logic.TimeAxis
+import app.radiacode.ui.text.ChartAxisRu
+import app.radiacode.ui.text.ChartAxisStrings
 import app.radiacode.ui.logic.ValueAggregate
 import app.radiacode.ui.logic.WindowRollup
 import app.radiacode.ui.logic.WindowStats
@@ -85,6 +87,16 @@ internal fun buildFrame(
     metric: ChartMetric = ChartMetric.DOSE,
     /** Подписей времени на оси: у миниатюры на карточке их меньше. */
     xLabelCount: Int = 4,
+    /**
+     * «Сейчас» для живого окна; null — окно историческое (экран Истории).
+     *
+     * Живая ось подписывается ОТНОСИТЕЛЬНО текущего момента, пока окно
+     * короткое: одиночная стенная метка «23:42» посреди пятиминутного графика
+     * не говорит ни о масштабе, ни о том, где правый край.
+     */
+    nowMillis: Long? = null,
+    /** Каталог подписей оси — «сейчас · −4 мин». */
+    axisStrings: ChartAxisStrings = ChartAxisRu,
     /**
      * Показывать ли единицу в углу поля.
      *
@@ -170,7 +182,23 @@ internal fun buildFrame(
             },
             extremeMarkers = markers,
             yLabels = scale.ticks().map { it to ChartMetrics.format(metric, it, unit) },
-            xLabels = TimeAxis.autoLabels(window.fromMillis, window.toMillis, count = xLabelCount),
+            // Метки считаются по ТОМУ ЖЕ окну, в котором рисуется поле
+            // (`padded`): раньше доли брались от неподтянутого окна, и каждая
+            // подпись стояла на пару процентов левее своего времени.
+            xLabels = if (
+                nowMillis != null &&
+                padded.spanMillis <= TimeAxis.RELATIVE_LABEL_SPAN_MILLIS
+            ) {
+                TimeAxis.relativeLabels(
+                    fromMillis = padded.fromMillis,
+                    toMillis = padded.toMillis,
+                    nowMillis = nowMillis,
+                    s = axisStrings,
+                    count = xLabelCount,
+                )
+            } else {
+                TimeAxis.autoLabels(padded.fromMillis, padded.toMillis, count = xLabelCount)
+            },
             unitLabel = if (showUnit) ChartMetrics.unitLabel(metric, unit) else "",
             // Фон, который несёт данные: где прибор молчал, куда история не
             // доходит и где проходят сутки/часы (§2 ТЗ и правило «не

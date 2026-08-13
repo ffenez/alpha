@@ -63,6 +63,9 @@ object ReleaseRu : ReleaseStrings {
             "по его часам: пока измерения идут, надпись не появляется.",
         "Точка связи показывает состояние данных: связь есть, а поток встал — " +
             "точка янтарная, а не зелёная.",
+        "Ось времени живого графика считается от текущего момента: " +
+            "«−4 мин · −2 мин · сейчас» вместо одинокой метки посередине.",
+        "Слипшиеся маркеры всплесков собираются в один с числом.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
             "пока данные идут, о разрыве не говорится ничего.",
         "Нажатия на кнопки самого прибора больше не обрывают связь: занятый " +
@@ -213,6 +216,9 @@ object ReleaseEn : ReleaseStrings {
             "instrument's clock: while measurements keep coming, it never appears.",
         "The connection dot shows the state of the data: link up but stream " +
             "stopped makes it amber rather than green.",
+        "The time axis of a live chart counts from the present moment: " +
+            "«−4 min · −2 min · now» instead of one lonely label in the middle.",
+        "Overlapping spike markers merge into one that carries their count.",
         "The state of the stream is stated once for every element of the " +
             "screen: while data keeps coming, nothing is said about a break.",
         "Pressing the buttons on the instrument itself no longer drops the " +

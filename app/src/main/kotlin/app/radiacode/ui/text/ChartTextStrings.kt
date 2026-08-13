@@ -137,7 +137,10 @@ object ChartTextRu : ChartTextStrings {
         "кромки."
     override val anatomyMedianLine = "Линия показывает типичный уровень за этот промежуток " +
         "времени. Она построена по медиане: половина измерений была выше неё, половина ниже."
-    override val anatomyMedianDetail = "Медиана — это 50-й процентиль (P50). Она меньше " +
+    override val anatomyMedianDetail = "Крупное число на Главной и последняя точка графика " +
+        "отвечают на разные вопросы и совпадать не обязаны: число — это ПОСЛЕДНЕЕ показание " +
+        "прибора, точка — медиана своего промежутка. " +
+        "Медиана — это 50-й процентиль (P50). Она меньше " +
         "реагирует на единичные всплески, чем среднее значение, поэтому линия описывает " +
         "уровень, а не его выбросы."
     override val anatomyEnvelopes = "Затенённые области показывают, насколько менялись " +
@@ -154,8 +157,10 @@ object ChartTextRu : ChartTextStrings {
     override val anatomyGaps = "Пропуски не соединяются линией: если прибор молчал, на этом " +
         "месте ровная заливка, а не прямая от точки до точки."
 
-    override val referenceProfileBand = "Серая полоса с пунктиром — исторический диапазон " +
-        "P10–P90 этого профиля. Это статистика места, а не норматив."
+    override val referenceProfileBand = "Серая полоса с пунктиром — обычный диапазон этого " +
+        "места: P10–P90 его исторических измерений. Это статистика места, а не норматив " +
+        "радиационной безопасности — внутри полосы лежит около 80 % прошлых измерений, " +
+        "и только это она и означает."
     override val referenceProfileBandMissing = "Исторический диапазон профиля ещё не собран, " +
         "поэтому серой полосы нет."
     override val referenceAlarmLine = "Красный пунктир — ваш порог тревоги L1. Если он выше " +
@@ -257,7 +262,10 @@ object ChartTextRu : ChartTextStrings {
         "время — точные"
     override val bucketQuantilesCoarse = "квантили интервала — грубая оценка, предагрегация ещё " +
         "строится"
-    override val historicalProfile = "исторический профиль"
+    // Человеческое имя вместо статистического: «P10–P90 профиля» на экране
+    // читается как норматив безопасности, хотя это просто диапазон, в котором
+    // здесь обычно и бывает. Сами числа и их смысл — в справке «i».
+    override val historicalProfile = "обычный диапазон места"
 }
 
 /**
@@ -280,7 +288,10 @@ object ChartTextEn : ChartTextStrings {
         "pointer at the top edge."
     override val anatomyMedianLine = "The line shows the typical level over this stretch of " +
         "time. It is built from the median: half of the measurements were above it, half below."
-    override val anatomyMedianDetail = "The median is the 50th percentile (P50). It reacts to " +
+    override val anatomyMedianDetail = "The big number on the Monitor and the last point of " +
+        "the chart answer different questions and need not agree: the number is the LATEST " +
+        "reading from the instrument, the point is the median of its interval. " +
+        "The median is the 50th percentile (P50). It reacts to " +
         "single spikes less than the mean does, so the line describes the level rather than " +
         "its outliers."
     override val anatomyEnvelopes = "The shaded areas show how much the readings varied: the " +
@@ -295,7 +306,8 @@ object ChartTextEn : ChartTextStrings {
         "silent there is a flat fill, not a straight line from point to point."
 
     override val referenceProfileBand = "The grey band with the dashed edge is the historical " +
-        "P10–P90 range of this profile. It is a statistic of the place, not a regulatory limit."
+        "P10–P90 range of this profile. It is a statistic of the place, not a regulatory limit " +
+        "— about 80 % of the past measurements lie inside it, and that is all it means."
     override val referenceProfileBandMissing = "The historical range of the profile has not " +
         "been collected yet, so there is no grey band."
     override val referenceAlarmLine = "The red dashed line is your L1 alarm threshold. If it " +
@@ -400,7 +412,7 @@ object ChartTextEn : ChartTextStrings {
         "min/max and their times are exact"
     override val bucketQuantilesCoarse = "interval quantiles are a rough estimate, " +
         "pre-aggregation is still being built"
-    override val historicalProfile = "historical profile"
+    override val historicalProfile = "usual range of this place"
 }
 
 val ChartTextCatalogue = AreaCatalogue(ru = ChartTextRu, en = ChartTextEn)

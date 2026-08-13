@@ -272,8 +272,10 @@ fun LiveChartScreen(
     // republishes that object every second and rebuilding the frame at 1 Hz
     // for an unchanged picture is exactly the waste this screen must avoid.
     val endpointAlert = follow && deviation.alertSince != null
+    val axisStrings = ChartAxisCatalogue.of(LocalStrings.current.language)
     val frame = remember(
-        snapshot, window, unit, logScale, thresholds, baseline, endpointAlert, metric,
+        snapshot, window, unit, logScale, thresholds, baseline, endpointAlert, metric, follow,
+        axisStrings,
     ) {
         snapshot?.let {
             buildFrame(
@@ -285,6 +287,11 @@ fun LiveChartScreen(
                 baseline = if (ChartMetrics.showsProfileBand(metric)) baseline else null,
                 endpointAlert = endpointAlert,
                 metric = metric,
+                // Ось от «сейчас» — только когда график ДЕРЖИТСЯ живого края.
+                // Отъехали жестом или смотрим сохранённый диапазон — правый
+                // край уже не текущий момент, и подпись «сейчас» соврала бы.
+                nowMillis = window.toMillis.takeIf { range == null && follow },
+                axisStrings = axisStrings,
             )
         }
     }

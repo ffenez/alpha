@@ -24,6 +24,15 @@ interface ChartAxisStrings {
     fun longWindowsUnavailable(limit: String): String
 
     // ----------------------------------------------- ступени лестницы окон
+    /**
+     * Метка живой оси: «сейчас», «−30 с», «−4 мин».
+     *
+     * Одна функция на обе единицы: секунды до минуты, дальше минуты — на
+     * коротком окне «−90 с» читается хуже, чем «−1,5 мин», а «−0,5 мин» хуже,
+     * чем «−30 с».
+     */
+    fun agoLabel(seconds: Long): String
+
     val stepMinutes: String
     val stepHours: String
     val stepDays: String
@@ -65,6 +74,13 @@ interface ChartAxisStrings {
 }
 
 object ChartAxisRu : ChartAxisStrings {
+
+    override fun agoLabel(seconds: Long): String = when {
+        seconds <= 0 -> "сейчас"
+        seconds < 60 -> "−$seconds с"
+        else -> "−${seconds / 60} мин"
+    }
+
     override val doseTitle = "Мощность дозы"
     override val countRateTitle = "Скорость счёта"
     override val hardnessTitle = "Жёсткость"
@@ -127,6 +143,13 @@ object ChartAxisRu : ChartAxisStrings {
 }
 
 object ChartAxisEn : ChartAxisStrings {
+
+    override fun agoLabel(seconds: Long): String = when {
+        seconds <= 0 -> "now"
+        seconds < 60 -> "−$seconds s"
+        else -> "−${seconds / 60} min"
+    }
+
     override val doseTitle = "Dose rate"
     override val countRateTitle = "Count rate"
     override val hardnessTitle = "Hardness"
@@ -194,6 +217,7 @@ val ChartAxisCatalogue = AreaCatalogue(ru = ChartAxisRu, en = ChartAxisEn)
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun ChartAxisStrings.allTexts(): List<String> = listOf(
+    agoLabel(0), agoLabel(30), agoLabel(240),
     doseTitle, countRateTitle, hardnessTitle, unitCountRate, unitHardness, cpsFootnote,
     longWindowsUnavailable("6 ч"), stepMinutes, stepHours, stepDays,
     aboveL1, aboveProfileP90, aboveL1Short, aboveProfileP90Short,

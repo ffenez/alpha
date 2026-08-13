@@ -42,6 +42,7 @@ import app.radiacode.ui.logic.DoseEpisode
 import app.radiacode.ui.logic.DoseReference
 import app.radiacode.ui.logic.DoseScale
 import app.radiacode.ui.logic.ExtremeMarker
+import app.radiacode.ui.logic.MarkerClusters
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 
@@ -518,18 +519,27 @@ private fun StaticChartLayer(
                     // 4. Named alarm level — a line inside the frame, a pinned
                     // pointer above it.
                     if (alarmY == null && alarmText != null) {
+                        // Указатель прижат к ПРАВОМУ краю поля, а подписи оси
+                        // значений стоят у левого: у верхней кромки они иначе
+                        // накладывались друг на друга — «↑ L1 0,30» садилось
+                        // ровно на верхнюю подпись сетки. Единица (если она
+                        // показана) занимает правый угол НАД полем, а
+                        // указатель живёт ВНУТРИ поля, поэтому не спорит и с
+                        // ней.
+                        val alarmX = (widthPx - alarmText.size.width - labelInset)
+                            .coerceAtLeast(0f)
                         if (alarmAbove) {
                             drawText(
                                 textLayoutResult = alarmText,
                                 color = colors.crit,
-                                topLeft = Offset(labelInset, plotTop + 1f),
+                                topLeft = Offset(alarmX, plotTop + 1f),
                             )
                         } else if (alarmBelow) {
                             drawText(
                                 textLayoutResult = alarmText,
                                 color = colors.crit,
                                 topLeft = Offset(
-                                    labelInset,
+                                    alarmX,
                                     plotTop + plotHeight - alarmText.size.height - 1f,
                                 ),
                             )
@@ -626,8 +636,16 @@ private fun SeriesLayer(
                 val dotWidth = 3.dp.toPx()
                 val endpointRadius = 4.dp.toPx()
                 val ringStroke = Stroke(width = 2.dp.toPx())
-                val markers = extremeMarks(spec, pixels, plotTop, 6.dp.toPx())
+                val markerSize = 6.dp.toPx()
+                val markers = extremeMarks(spec, pixels, plotTop, markerSize)
                 val markerStroke = Stroke(width = 1.2.dp.toPx())
+                // Число слипшихся маркеров измеряется здесь: рисование ничего
+                // не считает. Одиночный маркер числа не носит — «1» рядом с
+                // треугольником означала бы, что бывает и «не один».
+                val markerCounts = markers.map { mark ->
+                    mark.takeIf { it.count > 1 }
+                        ?.let { textMeasurer.measure(it.count.toString(), axisStyle) }
+                }
                 // Подпись последней точки: измеряется здесь, чтобы рисование
                 // ничего не считало.
                 val endpointText = spec.endpointLabel
@@ -652,10 +670,21 @@ private fun SeriesLayer(
                     // Extrema as discrete marks above the plot, filled above
                     // the alarm level and hollow above the profile's P90 —
                     // shape carries the class, not colour alone.
-                    for (mark in markers) {
+                    for ((index, mark) in markers.withIndex()) {
                         val hue = if (mark.alarmClass) colors.crit else colors.warn
                         if (mark.alarmClass) drawPath(mark.path, hue)
                         else drawPath(mark.path, hue, style = markerStroke)
+                        markerCounts[index]?.let { label ->
+                            drawText(
+                                textLayoutResult = label,
+                                color = hue,
+                                topLeft = Offset(
+                                    (mark.x + markerSize * 0.7f)
+                                        .coerceAtMost(widthPx - label.size.width),
+                                    plotTop - 1f - label.size.height,
+                                ),
+                            )
+                        }
                     }
                     endpoint?.let {
                         drawCircle(endpointColor, endpointRadius, it)
@@ -778,13 +807,20 @@ private fun linePath(pixels: ChartPixels): Path {
 }
 
 /** One extremum mark: a triangle above the plot at its column. */
-private class ExtremeMark(val path: Path, val alarmClass: Boolean)
+private class ExtremeMark(val path: Path, val alarmClass: Boolean, val count: Int, val x: Float)
 
 /**
  * Triangles for the notable extrema (§7, §21). They sit in the top padding
  * strip, above the data, so they never overlap an envelope and cannot be read
  * as part of it.
  */
+/**
+ * Во сколько размеров маркера должны разойтись два треугольника, чтобы
+ * считаться разными. **Инженерный параметр**: полтора размера — зазор, при
+ * котором соседи видны как два указателя, а не как пятно.
+ */
+private const val MARKER_SPACING_FACTOR = 1.5f
+
 private fun extremeMarks(
     spec: DoseChartSpec,
     pixels: ChartPixels,
@@ -792,10 +828,17 @@ private fun extremeMarks(
     sizePx: Float,
 ): List<ExtremeMark> {
     if (spec.extremeMarkers.isEmpty()) return emptyList()
-    val out = ArrayList<ExtremeMark>(spec.extremeMarkers.size)
+    val positions = ArrayList<Pair<Float, Boolean>>(spec.extremeMarkers.size)
     for (marker in spec.extremeMarkers) {
         val k = pixels.indexOfBucket(marker.bucketIndex) ?: continue
-        val x = pixels.x[k]
+        positions += pixels.x[k] to (marker.reference == DoseReference.ALARM_L1)
+    }
+    // Слипшиеся маркеры собираются в один с числом: стена почти наложенных
+    // треугольников перестаёт указывать на что-либо конкретное.
+    val clusters = MarkerClusters.of(positions, minSpacingPx = sizePx * MARKER_SPACING_FACTOR)
+    val out = ArrayList<ExtremeMark>(clusters.size)
+    for (cluster in clusters) {
+        val x = cluster.x
         val bottom = plotTop - 1f
         val top = (bottom - sizePx).coerceAtLeast(0f)
         val path = Path().apply {
@@ -804,7 +847,7 @@ private fun extremeMarks(
             lineTo(x - sizePx / 2f, bottom)
             close()
         }
-        out += ExtremeMark(path, marker.reference == DoseReference.ALARM_L1)
+        out += ExtremeMark(path, cluster.alarmClass, cluster.count, x)
     }
     return out
 }

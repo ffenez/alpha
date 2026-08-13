@@ -75,4 +75,59 @@ class TimeAxisTest {
         val labels = TimeAxis.dayLabels(from, from + 30L * 24 * 3_600_000L, utc, count = 4)
         assertTrue(labels.size in 3..6, "expected a handful of ticks, got ${labels.size}")
     }
+
+    @Test
+    fun `a short live window is labelled from now, not by wall clock`() {
+        // Полевая претензия: одиночная метка «23:42» посреди пятиминутного
+        // графика. Шаг стенной сетки не бывает мельче минуты, и сколько
+        // минутных границ выпало в окно — столько подписей и будет; о
+        // масштабе и о том, где правый край, они не говорят ничего.
+        val now = 1_700_000_000_000L
+        val labels = TimeAxis.relativeLabels(
+            fromMillis = now - 5 * 60_000L,
+            toMillis = now,
+            nowMillis = now,
+            count = 4,
+        )
+
+        assertTrue(labels.size >= 3, "${labels.size}")
+        // Правый край назван тем, чем он является.
+        assertEquals("сейчас", labels.last().second)
+        assertEquals(1f, labels.last().first, 1e-4f)
+        // Метки идут слева направо и стоят на своих временных координатах.
+        assertEquals(labels.map { it.first }.sorted(), labels.map { it.first })
+        val minuteMark = labels.first { it.second == "−4 мин" }
+        assertEquals(0.2f, minuteMark.first, 1e-3f)
+    }
+
+    @Test
+    fun `with a right-hand pad, now is not the right edge`() {
+        // У живого графика справа оставлен воздух: «сейчас» обязано стоять
+        // там, где now, а не на кромке поля.
+        val now = 1_700_000_000_000L
+        val labels = TimeAxis.relativeLabels(
+            fromMillis = now - 5 * 60_000L,
+            toMillis = now + 6_000L,
+            nowMillis = now,
+            count = 4,
+        )
+
+        val nowLabel = labels.first { it.second == "сейчас" }
+        assertTrue(nowLabel.first < 1f, "${nowLabel.first}")
+        assertEquals(300f / 306f, nowLabel.first, 1e-3f)
+    }
+
+    @Test
+    fun `seconds below a minute, minutes above`() {
+        val now = 1_700_000_000_000L
+        val labels = TimeAxis.relativeLabels(
+            fromMillis = now - 60_000L,
+            toMillis = now,
+            nowMillis = now,
+            count = 4,
+        )
+
+        assertTrue(labels.any { it.second == "−30 с" }, labels.toString())
+        assertTrue(labels.none { it.second.contains("0 мин") }, labels.toString())
+    }
 }

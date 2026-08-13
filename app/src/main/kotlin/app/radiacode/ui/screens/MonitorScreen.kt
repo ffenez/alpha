@@ -421,6 +421,10 @@ fun MonitorScreen(
                         endpointAlert = alert && metric == ChartMetric.DOSE,
                         metric = metric,
                         xLabelCount = 3,
+                        // Карточка Главной ВСЕГДА живая: правый край окна и
+                        // есть «сейчас», и ось подписывается от него.
+                        nowMillis = it.window.toMillis,
+                        axisStrings = ChartAxisCatalogue.of(strings.language),
                         showUnit = false,
                     )
                 }
