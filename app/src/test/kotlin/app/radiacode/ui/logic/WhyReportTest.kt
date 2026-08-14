@@ -235,7 +235,7 @@ class WhyReportTest {
             WhyReportBuilder.build(
                 input(baselineState = BaselineState.Learning(2 * 3600L, 3 * 3600L)),
             ),
-        ).map { report -> report.sections.single { it.title == "Состояние статистики" } }
+        ).map { report -> report.sections.single { it.title == "Обычный фон" } }
 
         assertEquals("Обновляется", states[0].lines.first().value)
         assertEquals("Временно не обновляется", states[1].lines.first().value)
@@ -262,23 +262,25 @@ class WhyReportTest {
         )
         // §12: первый уровень называет ОДНО состояние и одно «зачем» —
         // «карантин после отклонения 36 ч» выглядел там основным показателем.
-        val state = report.sections.single { it.title == "Состояние статистики" }
+        val state = report.sections.single { it.title == "Обычный фон" }
         assertEquals(WhyLevel.PLAIN, state.level)
-        assertEquals(listOf("Состояние"), state.lines.map { it.label })
+        assertEquals(listOf("Сейчас"), state.lines.map { it.label })
         assertEquals("Временно не обновляется", state.lines.single().value)
         val plainNote = assertNotNull(state.note)
-        assertTrue(plainNote.contains("не стало его частью"), plainNote)
+        // Первый уровень объясняет ПОСЛЕДСТВИЕ человеческими словами и прямо
+        // говорит, что измерения не теряются.
+        assertTrue(plainNote.contains("не стал считаться обычным"), plainNote)
         assertTrue(plainNote.contains("сохраняются"), plainNote)
 
         // Ни одна причина и ни одна длительность не потеряны — они уровнем
         // глубже, где их и ищут.
-        val details = report.sections.single { it.title == "Что исключено из статистики" }
+        val details = report.sections.single { it.title == "Какие измерения не использовались для обычного фона" }
         assertEquals(WhyLevel.METHOD, details.level)
         assertEquals(
             BaselineExclusion.QUARANTINE.label,
-            details.lines.single { it.label == "Причина сейчас" }.value,
+            details.lines.single { it.label == "Почему сейчас" }.value,
         )
-        assertEquals("8,7 ч", details.lines.single { it.label == "Не учтено в статистике" }.value)
+        assertEquals("8,7 ч", details.lines.single { it.label == "Не пошло в обычный фон" }.value)
         // Both reasons appear as their own lines, largest first.
         val reasons = details.lines.drop(2).map { it.label }
         assertEquals(
@@ -287,7 +289,7 @@ class WhyReportTest {
         )
         // «baseline» — имя движка, на экране его нет: оговорка объясняет, что
         // отклонение не становится новым ОБЫЧНЫМ ФОНОМ.
-        assertTrue(assertNotNull(details.note).contains("новый обычный фон"), details.note!!)
+        assertTrue(assertNotNull(details.note).contains("обычно"), details.note!!)
     }
 
     @Test
@@ -413,7 +415,7 @@ class WhyReportTest {
                 "Сейчас",
                 "Сравнение с профилем",
                 "Сколько данных",
-                "Состояние статистики",
+                "Обычный фон",
                 "Спектральное сравнение",
             ),
             titles,

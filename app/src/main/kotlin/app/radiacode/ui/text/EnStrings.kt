@@ -386,18 +386,18 @@ object EnStrings : Strings {
     override val updatingNote =
         "New suitable measurements keep extending the usual range of this place."
     override val notUpdatingNote =
-        "Some measurements are being kept out of the usual background right now — so that an " +
-            "unusual event does not become part of it. Nothing is discarded: every " +
-            "measurement is still stored."
-    override val state = "State"
-    override val excludedSection = "What is kept out of the statistics"
-    override val excludedNow = "Reason right now"
-    override val excludedFromStatistics = "Not counted in the statistics"
-    override val statisticsState = "State of the statistics"
+        "New measurements are saved but are not being added to this place's usual " +
+            "background for now, so that an unusual episode does not gradually come to " +
+            "count as usual."
+    override val state = "Right now"
+    override val excludedSection = "Which measurements did not go into the usual background"
+    override val excludedNow = "Why right now"
+    override val excludedFromStatistics = "Not used for the usual background"
+    override val statisticsState = "Usual background"
     override val quarantineNote =
-        "After a sustained deviation, new measurements are stored for a while but not " +
-            "added to the place's usual range. That prevents the deviation itself from " +
-            "gradually becoming the new usual background."
+        "After a noticeable excursion the app stops topping up the usual background for a " +
+            "while. Those measurements stay in the history — they simply take no part in " +
+            "working out what is usual here."
     override val howDetected = "How a deviation is detected"
     override val absoluteThresholdL1 = "Absolute threshold L1"
     override val relativeCriterion = "Threshold relative to the usual range"

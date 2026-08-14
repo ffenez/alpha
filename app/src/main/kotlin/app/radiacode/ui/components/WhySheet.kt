@@ -2,6 +2,9 @@ package app.radiacode.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.radiacode.ui.logic.ProfileShift
@@ -326,17 +330,54 @@ internal fun WhyRow(line: WhyLine) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = line.label, style = type.bodySmall, color = colors.ink2)
-            Spacer(Modifier.weight(1f))
-            // Метки нет на первом уровне (§21): там она висела у каждой строки
-            // и переставала читаться. Глубже, где источник числа и есть предмет
-            // разговора, она остаётся — вместе с легендой под шторкой.
-            line.evidence?.let { EvidenceTag(it, Modifier.padding(end = 6.dp)) }
-            Text(text = line.value, style = type.value, color = colors.ink)
+        // Значение НЕ отдаётся на растерзание длинному названию.
+        //
+        // Полевой дефект: «2 × P90 профиля» рассыпалось по одному-двум
+        // символам в столбик, потому что подпись слева забирала всю ширину, а
+        // значению оставалось несколько знаков. Теперь ширину делит подпись
+        // (она переносится словами), а у значения есть неприкосновенный
+        // минимум; не поместилось вместе — значение уходит целой строкой ниже,
+        // но никогда не рвётся посимвольно.
+        BoxWithConstraints {
+            val narrow = maxWidth < NARROW_ROW_WIDTH
+            if (narrow) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(text = line.label, style = type.bodySmall, color = colors.ink2)
+                    Text(text = line.value, style = type.value, color = colors.ink)
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = line.label,
+                        style = type.bodySmall,
+                        color = colors.ink2,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.width(Dimens.space2))
+                    Text(
+                        text = line.value,
+                        style = type.value,
+                        color = colors.ink,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.widthIn(min = MIN_VALUE_WIDTH),
+                        textAlign = TextAlign.End,
+                    )
+                }
+            }
         }
         line.note?.let {
             Text(text = it, style = type.footnote, color = colors.muted)
         }
     }
 }
+
+/**
+ * Ниже этой ширины строка раскладывается в два ряда.
+ * **Инженерный параметр**: под 240 dp подпись и число одной строкой уже
+ * дерутся за место, и проигрывает всегда число.
+ */
+private val NARROW_ROW_WIDTH = 240.dp
+
+/** Неприкосновенная ширина значения: «2 × P90 профиля» — это одна строка. */
+private val MIN_VALUE_WIDTH = 96.dp

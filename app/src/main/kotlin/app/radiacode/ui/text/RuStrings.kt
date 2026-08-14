@@ -379,17 +379,17 @@ object RuStrings : Strings {
     override val updatingNote =
         "Новые подходящие измерения пополняют обычный диапазон этого места."
     override val notUpdatingNote =
-        "Часть измерений сейчас не идёт в обычный фон — чтобы необычное событие не стало " +
-            "его частью. Измерения при этом сохраняются полностью."
-    override val state = "Состояние"
-    override val excludedSection = "Что исключено из статистики"
-    override val excludedNow = "Причина сейчас"
-    override val excludedFromStatistics = "Не учтено в статистике"
-    override val statisticsState = "Состояние статистики"
+        "Новые измерения сохраняются, но пока не добавляются к обычному фону этого места — " +
+            "чтобы необычный эпизод постепенно не стал считаться обычным."
+    override val state = "Сейчас"
+    override val excludedSection = "Какие измерения не использовались для обычного фона"
+    override val excludedNow = "Почему сейчас"
+    override val excludedFromStatistics = "Не пошло в обычный фон"
+    override val statisticsState = "Обычный фон"
     override val quarantineNote =
-        "После устойчивого отклонения новые измерения некоторое время сохраняются, но не " +
-            "добавляются в обычный диапазон профиля. Это предотвращает постепенное " +
-            "превращение самого отклонения в новый обычный фон."
+        "После заметного отклонения приложение некоторое время не пополняет обычный фон. " +
+            "Эти измерения остаются в истории — они просто не участвуют в расчёте того, " +
+            "что здесь обычно."
     override val howDetected = "Как обнаруживается отклонение"
     override val absoluteThresholdL1 = "Абсолютный порог L1"
     override val relativeCriterion = "Порог относительно обычного диапазона"
