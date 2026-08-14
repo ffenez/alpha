@@ -112,4 +112,20 @@ class HistoryWindowTest {
         assertTrue(column <= 3_000L, "колонка $column мс — движение не разглядеть")
         assertEquals(1_000L, ChartWindows.refreshMillis(column))
     }
+
+    @Test
+    fun `a pan inside the loaded range needs no query`() {
+        // Загрузка берёт четверть окна запаса с каждой стороны именно ради
+        // этого: сдвиг внутри прочитанного — перепроецирование неизменного
+        // снимка, а не поход в базу. Без проверки покрытия каждый рывок
+        // пальцем упирался бы в диск.
+        val window = ChartWindows.latest(5 * 60_000L, now)
+        val loaded = ChartWindows.loadRange(window, now)
+
+        val small = ChartWindow(window.fromMillis - 60_000L, window.toMillis - 60_000L)
+        val large = ChartWindow(window.fromMillis - 600_000L, window.toMillis - 600_000L)
+
+        assertTrue(ChartWindows.covers(loaded, small), "сдвиг на минуту уже прочитан")
+        assertTrue(!ChartWindows.covers(loaded, large), "сдвиг на десять минут читается заново")
+    }
 }

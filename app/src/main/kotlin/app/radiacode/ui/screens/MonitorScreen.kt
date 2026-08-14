@@ -148,6 +148,18 @@ private const val TREND_WINDOW_MILLIS = 3_600_000L
 // Как это окно называется в подписи под значением — MonitorStrings.trendWindowHour.
 
 /**
+ * Ширина колонки, которую даст чтение этого окна.
+ *
+ * Нужна ровно для одного: понять, годится ли уже прочитанный снимок. Диапазон
+ * может покрывать окно, но если ступень сменилась, колонки станут другой
+ * ширины — и переиспользовать снимок значит нарисовать не тот масштаб.
+ */
+private fun expectedBucket(window: ChartWindow, metric: ChartMetric): Long =
+    app.radiacode.ui.logic.ChartSeriesModel.bucketMillis(
+        ChartWindows.loadRange(window, window.toMillis).spanMillis,
+    )
+
+/**
  * Загруженный кадр одной величины: окно и снимок ровно те же, что у
  * полноэкранного графика, поэтому тап по карточке увеличивает картинку, а не
  * заменяет её другой.
@@ -156,6 +168,15 @@ private const val TREND_WINDOW_MILLIS = 3_600_000L
 private data class LoadedChart(
     val window: ChartWindow,
     val snapshot: ChartSnapshot,
+    /**
+     * Диапазон, который реально прочитан из базы (окно плюс запас).
+     *
+     * По нему решается, нужен ли запрос вообще: сдвиг ВНУТРИ прочитанного —
+     * это перепроецирование неизменного снимка, то есть арифметика по полутора
+     * сотням колонок, а не поход в базу. Без этого каждый рывок пальцем стоил
+     * запроса, и отзыв на жест упирался в диск.
+     */
+    val loadedRange: ChartWindow,
     /**
      * Начало истории на момент загрузки — чтобы кадр мог пересчитать окно под
      * текущее «сейчас», не ходя за этим в базу каждую секунду.
@@ -236,6 +257,9 @@ fun MonitorScreen(
     // сдвиг уводил картинку в диапазон, который никто не читал, — карточка
     // пустела и говорила «накапливаем измерения» при полной базе.
     var viewports by remember { mutableStateOf<Map<ChartMetric, ChartViewport>>(emptyMap()) }
+    // Начало истории меняется раз в жизни базы (первая запись, уборка журнала),
+    // а спрашивалось раз в проход — на каждый жест по запросу на величину.
+    var earliestMillis by remember { mutableStateOf<Long?>(null) }
     var charts by remember { mutableStateOf<Map<ChartMetric, LoadedChart>>(emptyMap()) }
     var trend by remember { mutableStateOf<TrendAvailability?>(null) }
     var doseTodayMicroSv by remember { mutableStateOf<Double?>(null) }
@@ -291,8 +315,12 @@ fun MonitorScreen(
                 val loadedCharts = withContext(Dispatchers.IO) {
                     // Выбранная ступень — максимум, а не обещание, что данные за
                     // неё есть: окно подтягивается к первому измерению и растёт
-                    // вместе с историей. Один запрос по индексу на весь проход.
-                    val earliest = graph.measurementRepository.earliestSampleMillis()
+                    // вместе с историей. Начало истории спрашивается ОДИН раз:
+                    // оно меняется первой записью и уборкой журнала, а не
+                    // движением пальца.
+                    val earliest = earliestMillis
+                        ?: graph.measurementRepository.earliestSampleMillis()
+                            ?.also { earliestMillis = it }
                     chartMetrics.associateWith { metric ->
                         val viewport = viewports[metric]
                         val chosen = viewport?.window(now)
@@ -305,11 +333,22 @@ fun MonitorScreen(
                         } else {
                             chosen
                         }
+                        // Сдвиг ВНУТРИ уже прочитанного диапазона запроса не
+                        // требует: снимок неизменен, меняется только проекция.
+                        // Именно этим жест и становится мгновенным — раньше
+                        // каждый рывок пальцем упирался в диск.
+                        val previous = charts[metric]
+                        val reuse = previous
+                            ?.takeIf { ChartWindows.covers(it.loadedRange, window) }
+                            ?.takeIf { it.snapshot.bucketMillis == expectedBucket(window, metric) }
+                        if (reuse != null) {
+                            return@associateWith reuse.copy(window = window)
+                        }
+                        val load = ChartWindows.loadRange(window, now)
                         val snapshot = loadSnapshot(graph, window, metric)
                         // Трасса конвейера: три среза ОДНОГО окна — база,
-                        // снимок, кадр. По картинке нельзя сказать, на каком
-                        // этапе исчезают точки, а чинить последний этап по
-                        // догадке — способ починить не то.
+                        // снимок, кадр. Считается только при РЕАЛЬНОМ чтении:
+                        // это диагностика запроса, а не проекции.
                         val census = graph.measurementRepository.rangeCensus(
                             window.fromMillis,
                             window.toMillis,
@@ -335,7 +374,7 @@ fun MonitorScreen(
                                 frameMax = visible.lastOrNull()?.endMillis,
                             ),
                         )
-                        LoadedChart(window, snapshot, earliest)
+                        LoadedChart(window, snapshot, load, earliest)
                     }
                 }
                 val loadedTrend = withContext(Dispatchers.IO) {
