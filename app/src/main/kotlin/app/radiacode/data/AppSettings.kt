@@ -251,6 +251,21 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
      * действия, а не рассказывает о себе. Кому нужно, чем измерено и почему
      * такой вывод, — включает и получает то же самое с объяснениями.
      */
+    /**
+     * Красить ли главное число по отношению к обычному фону места.
+     *
+     * Настройка, а не умолчание навсегда: цвет читается быстрее слов, но
+     * человеку, который смотрит на число весь день, постоянно меняющийся
+     * оттенок может мешать. По умолчанию включено — иначе о нём никто не
+     * узнает.
+     */
+    val doseTint: Flow<Boolean> =
+        dataStore.data.map { it[DOSE_TINT] ?: true }
+
+    suspend fun setDoseTint(enabled: Boolean) {
+        dataStore.edit { it[DOSE_TINT] = enabled }
+    }
+
     val hintsVisible: Flow<Boolean> =
         dataStore.data.map { it[HINTS_VISIBLE] ?: false }
 
@@ -513,6 +528,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val SKIN = stringPreferencesKey("skin")
         private val CHART_DETAIL = stringPreferencesKey("chart_detail")
         private val HINTS_VISIBLE = booleanPreferencesKey("hints_visible")
+        private val DOSE_TINT = booleanPreferencesKey("dose_tint")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")

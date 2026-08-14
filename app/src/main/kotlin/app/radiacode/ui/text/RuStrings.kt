@@ -628,6 +628,7 @@ object RuStrings : Strings {
     override fun baselineStats(median: String, iqr: String, mad: String, buckets: Int) =
         "медиана $median · P25–P75 $iqr · MAD $mad · n $buckets минутных интервалов"
     override val hintsTitle = "Пояснения на экранах"
+    override val doseTintTitle = "Цвет числа по фону места"
     override val stateUnknown = "состояние неизвестно"
     override val stateRejected = "прибор не принял · попробуйте ещё раз"
     override val stateOnByApp = "включено этим приложением"

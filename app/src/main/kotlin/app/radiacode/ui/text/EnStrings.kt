@@ -636,6 +636,7 @@ object EnStrings : Strings {
     override fun baselineStats(median: String, iqr: String, mad: String, buckets: Int) =
         "median $median · P25–P75 $iqr · MAD $mad · n $buckets one-minute intervals"
     override val hintsTitle = "Explanations on screens"
+    override val doseTintTitle = "Tint the number by the place's background"
     override val stateUnknown = "state unknown"
     override val stateRejected = "the instrument refused · try again"
     override val stateOnByApp = "switched on by this app"

@@ -72,6 +72,15 @@ interface MonitorStrings {
      * экране должно стоять состояние и кнопка, которая ведёт туда, где его
      * меняют.
      */
+    /**
+     * «Подключено» — короткое подтверждение, которое гаснет само.
+     *
+     * Момент соединения человек ждёт, и он должен быть виден; но постоянная
+     * надпись «подключено» превращается в фон, который перестают замечать —
+     * и в момент, когда связь пропадёт, её отсутствие тоже не заметят.
+     */
+    val connectedFlash: String
+
     val bluetoothOffTitle: String
     val bluetoothOffBody: String
     val bluetoothOffAction: String
@@ -230,6 +239,7 @@ object MonitorRu : MonitorStrings {
     override val statMin = "мин"
     override val statMedian = "медиана"
     override val statMax = "макс"
+    override val connectedFlash = "Подключено"
     override val bluetoothOffTitle = "Bluetooth выключен"
     override val bluetoothOffBody =
         "Прибор подключается по Bluetooth — пока он выключен, измерения не идут."
@@ -409,6 +419,7 @@ object MonitorEn : MonitorStrings {
     override val statMin = "min"
     override val statMedian = "median"
     override val statMax = "max"
+    override val connectedFlash = "Connected"
     override val bluetoothOffTitle = "Bluetooth is off"
     override val bluetoothOffBody =
         "The instrument connects over Bluetooth — while it is off, no measurements arrive."

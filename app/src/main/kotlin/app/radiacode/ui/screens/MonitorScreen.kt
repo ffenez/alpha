@@ -28,6 +28,12 @@ import android.provider.Settings
 import androidx.core.content.ContextCompat
 import android.content.Context
 import app.radiacode.device.BluetoothState
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.graphics.lerp
+import app.radiacode.ui.logic.DoseTint
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -112,6 +118,7 @@ import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.MonitorCatalogue
 import app.radiacode.ui.text.MonitorRu
 import app.radiacode.ui.text.MonitorStrings
+import app.radiacode.ui.theme.Motion
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.LocalAppColors
@@ -210,6 +217,7 @@ fun MonitorScreen(
     val thresholds by graph.settings.alarmThresholds
         .collectAsState(initial = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f))
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
+    val doseTint by graph.settings.doseTint.collectAsState(initial = true)
     val chartDetailId by graph.settings.chartDetailModeId
         .collectAsState(initial = ChartDetailMode.DEFAULT.id)
     val chartDetail = remember(chartDetailId) { ChartDetailMode.of(chartDetailId) }
@@ -474,6 +482,7 @@ fun MonitorScreen(
                 onClick = { showProfilePicker = true },
             )
             Spacer(Modifier.weight(1f))
+            ConnectedFlash(connection)
             ConnectionChip(connection, serviceRunning, stream)
             StreamChip(stream)
             Icon(
@@ -513,6 +522,8 @@ fun MonitorScreen(
             frozen = frozen,
             onWhy = { showWhy = true },
             onOpenDose = onOpenDose,
+            tintEnabled = doseTint,
+            alarmMicroSvH = thresholds.l1MicroSvH.takeIf { it > 0f },
         )
 
         val baseline = (baselineState as? BaselineState.Active)?.baseline
@@ -721,6 +732,41 @@ fun contextWording(
     is MeasurementContext.Manual -> s.contextManual
 }
 
+/**
+ * «Подключено» на пару секунд после того, как связь установилась.
+ *
+ * Момент соединения человек ждёт — и до сих пор он был неотличим от любого
+ * другого: чип связи просто менял цвет. Надпись гаснет сама, потому что
+ * постоянное «подключено» через день перестают видеть, а вместе с ним
+ * перестают видеть и его исчезновение.
+ */
+@Composable
+private fun ConnectedFlash(connection: ConnectionState) {
+    val colors = LocalAppColors.current
+    val t = MonitorCatalogue.of(LocalStrings.current.language)
+    val connected = connection is ConnectionState.Connected
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(connected) {
+        if (!connected) {
+            visible = false
+            return@LaunchedEffect
+        }
+        visible = true
+        delay(CONNECTED_FLASH_MILLIS)
+        visible = false
+    }
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(Motion.normal()),
+        exit = fadeOut(Motion.screen()),
+    ) {
+        Chip(text = t.connectedFlash, color = colors.ok, dot = colors.ok)
+    }
+}
+
+/** Сколько держится подтверждение связи перед тем, как погаснуть. */
+private const val CONNECTED_FLASH_MILLIS = 2_500L
+
 @Composable
 private fun ConnectionChip(
     connection: ConnectionState,
@@ -805,6 +851,10 @@ private fun HeroCard(
     blocks: MonitorBlocks = MonitorBlocks(),
     admission: Admission = Admission.Admitted,
     frozen: Boolean = false,
+    /** Красить ли главное число по отношению к обычному фону места. */
+    tintEnabled: Boolean = true,
+    /** Порог тревоги — верх цветовой шкалы. */
+    alarmMicroSvH: Float? = null,
     onWhy: () -> Unit = {},
     /** Плитка накопленного открывает свой экран. */
     onOpenDose: () -> Unit = {},
@@ -831,11 +881,45 @@ private fun HeroCard(
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
+                // Цвет числа — отношение к обычному фону МЕСТА: от обычного
+                // до порога, который человек задал сам. Это не шкала
+                // опасности: за порогом решает вывод словами, а цвет дальше
+                // не меняется. Плавно — потому что меняется КАДР (оттенок), а
+                // не измерение: само число не «доезжает» никуда.
+                val tintFraction = if (tintEnabled) {
+                    DoseTint.fraction(
+                        doseMicroSvH,
+                        (baselineState as? BaselineState.Active)?.baseline,
+                        alarmMicroSvH,
+                    )
+                } else {
+                    null
+                }
+                val tint by animateColorAsState(
+                    targetValue = when {
+                        doseMicroSvH == null || stale -> colors.muted
+                        tintFraction == null -> colors.ink
+                        tintFraction <= 0f -> colors.ok
+                        tintFraction < 1f -> lerp(colors.warn, colors.crit, tintFraction)
+                        else -> colors.crit
+                    },
+                    animationSpec = Motion.normal(),
+                    label = "doseTint",
+                )
                 Text(
                     text = doseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
                     style = type.valueHero,
-                    color = if (doseMicroSvH == null || stale) colors.muted else colors.ink,
-                    modifier = Modifier.padding(top = 2.dp),
+                    color = tint,
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        // Само число и есть вход в разбор: в обычном состоянии
+                        // под ним больше ничего нет, и нажимать было бы нечего.
+                        .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onWhy,
+                        ),
                 )
                 // Возраст последнего измерения — ВТОРИЧНАЯ строка и только в
                 // устойчивом состоянии: в короткой запинке секунды уже названы
@@ -887,18 +971,10 @@ private fun HeroCard(
                 stream.live &&
                 !stale &&
                 baselineState !is BaselineState.Learning
-            if (quiet) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
-                        .clickable(onClick = onWhy)
-                        .defaultMinSize(minWidth = Dimens.touchTarget, minHeight = Dimens.touchTarget),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    StatusDot(statusColor, Modifier.padding(start = Dimens.space2))
-                }
-                return@Column
-            }
+            // В обычном состоянии под числом НЕТ НИЧЕГО. Кружок повторял то,
+            // что уже сказано цветом самого числа, а разбор открывается
+            // нажатием на число.
+            if (quiet) return@Column
             // Сам вывод — и есть кнопка «почему»: вопрос задают, глядя именно
             // на эту строку, и отдельная кнопка рядом с ней была лишним шагом
             // между вопросом и ответом.

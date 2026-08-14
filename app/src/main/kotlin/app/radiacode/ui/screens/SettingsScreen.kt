@@ -1209,6 +1209,28 @@ private fun InterfaceSection(graph: AppGraph) {
                 )
             }
 
+            // Цвет главного числа: он читается быстрее слов, но кому-то
+            // меняющийся оттенок мешает — поэтому выключатель, а не умолчание.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = strings.doseTintTitle,
+                    style = type.label,
+                    color = colors.ink,
+                    modifier = Modifier.weight(1f),
+                )
+                val tint by graph.settings.doseTint.collectAsState(initial = true)
+                Chip(
+                    text = if (tint) strings.on else strings.off,
+                    color = if (tint) colors.dataText else colors.ink2,
+                    selected = tint,
+                    onClick = { scope.launch { graph.settings.setDoseTint(!tint) } },
+                )
+            }
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier

@@ -562,6 +562,9 @@ interface Strings {
     /** Выключатель серых поясняющих строк (Настройки → Вид → Интерфейс). */
     val hintsTitle: String
 
+    /** Выключатель окраски главного числа (Настройки → Вид → Интерфейс). */
+    val doseTintTitle: String
+
     val stateUnknown: String
 
     /** Прибор отказал в записи: молчащая кнопка неотличима от сломанной. */
@@ -607,7 +610,7 @@ fun Strings.allTexts(): List<String> = listOf(
     deviceSignals, deviceSignalsNote, deviceSound, deviceVibro,
     deviceSignalsUnknownNote, deviceSignalsOfflineNote,
     baselineStats("0,12", "0,11–0,14", "0,01", 26),
-    hintsTitle, stateUnknown, stateRejected, stateOnByApp, stateOffByApp, on, off,
+    hintsTitle, doseTintTitle, stateUnknown, stateRejected, stateOnByApp, stateOffByApp, on, off,
     onboardingBrand, onboardingConnectTitle, onboardingConnectBody, onboardingPermissions,
     onboardingBluetoothDenied, retry, start, onboardingBackgroundTitle, onboardingBackgroundBody,
     onboardingBatteryNote, later, allow, onboardingScanTitle, scanning, onboardingScanBody,

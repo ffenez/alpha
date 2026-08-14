@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v040Title: String
+    val v040Summary: String
+
     val v039Title: String
     val v039Summary: String
 
@@ -78,6 +81,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v040Title = "Число само говорит цветом"
+    override val v040Summary =
+        "Главное число окрашено по отношению к обычному фону места: от зелёного " +
+        "внутри обычного диапазона до багрового у вашего порога, дальше цвет не " +
+        "меняется. Кружок под ним убран, разбор открывается нажатием на само " +
+        "число, а окраску можно выключить в Настройках → Вид."
 
     override val v039Title = "Вкладка открывается та, на которую нажали"
     override val v039Summary =
@@ -209,6 +219,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v040Title = "The number speaks in colour"
+    override val v040Summary =
+        "The main number is tinted by its relation to the usual background of the " +
+        "place: green inside the usual range, crimson at your threshold, and no " +
+        "further change beyond it. The dot under it is gone, the report opens by " +
+        "tapping the number, and the tint can be switched off in Settings."
 
     override val v039Title = "The tab you tapped is the tab that opens"
     override val v039Summary =
@@ -345,6 +362,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v040Title, v040Summary,
     v039Title, v039Summary,
     v038Title, v038Summary,
     v037Title, v037Summary,
