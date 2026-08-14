@@ -52,9 +52,16 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 private val HH_MM = DateTimeFormatter.ofPattern("HH:mm")
-private const val REFRESH_MILLIS = 2L * 60_000L
+/**
+ * Страховочный пересчёт: основной повод — появление снимка.
+ * **Инженерный параметр**: пять минут — заметно реже самой редкой политики
+ * опроса спектра (10 мин) и достаточно часто, чтобы незамеченный сигнал не
+ * оставил экран застывшим.
+ */
+private const val FALLBACK_REFRESH_MILLIS = 5L * 60_000L
 
 @Immutable
 private data class RadonModel(
@@ -88,11 +95,22 @@ fun RadonScreen(graph: AppGraph, onBack: () -> Unit) {
     var windowIndex by rememberSaveable { mutableIntStateOf(0) } // 0 = 24 ч, 1 = 7 д
     var model by remember { mutableStateOf<RadonModel?>(null) }
     var loaded by remember { mutableStateOf(false) }
+    // Пересчёт ведут САМИ ДАННЫЕ: ряд считается по приборным снимкам, и повод
+    // пересчитать его ровно один — появился новый снимок. Опрос по таймеру
+    // остаётся редкой страховкой: если сигнал таблицы почему-то не дойдёт,
+    // экран не должен замереть навсегда — этот урок уже оплачен на графиках
+    // Главной.
     LaunchedEffect(windowIndex) {
-        while (true) {
+        graph.measurementRepository.deviceSnapshotsChanged().collectLatest {
             model = loadRadon(graph, days = if (windowIndex == 0) 1 else 7)
             loaded = true
-            delay(REFRESH_MILLIS)
+        }
+    }
+    LaunchedEffect(windowIndex) {
+        while (true) {
+            delay(FALLBACK_REFRESH_MILLIS)
+            model = loadRadon(graph, days = if (windowIndex == 0) 1 else 7)
+            loaded = true
         }
     }
 

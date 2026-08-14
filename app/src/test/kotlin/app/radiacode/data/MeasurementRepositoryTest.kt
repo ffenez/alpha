@@ -123,6 +123,8 @@ private class FakeEventDao : EventDao {
 }
 
 internal class FakeSpectrumDao : SpectrumDao {
+    override fun observeLatestDeviceSnapshotAt(): Flow<Long?> = flowOf(null)
+
     val inserted = mutableListOf<SpectrumSnapshotEntity>()
     override suspend fun count(): Long = inserted.size.toLong()
     override suspend fun deleteByIds(ids: List<Long>): Int {

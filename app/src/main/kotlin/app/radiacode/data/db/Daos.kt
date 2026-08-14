@@ -815,6 +815,23 @@ interface SpectrumDao {
     @Query("SELECT * FROM spectra WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
     fun observeRange(from: Long, to: Long): Flow<List<SpectrumSnapshotEntity>>
 
+    /**
+     * Момент последнего приборного снимка — сигнал «появились новые данные»
+     * для рядов, которые считаются ПО снимкам (радон, линия во времени).
+     *
+     * Возвращается одна метка, а не строки: ряду нужен повод пересчитаться, а
+     * не сами спектры — их он потом читает сам, прореженными до часа. Room
+     * пересылает значение при каждом изменении таблицы, поэтому опрос по
+     * таймеру перестаёт быть основным способом узнать о новом снимке.
+     */
+    @Query(
+        """
+        SELECT MAX(timestamp) FROM spectra
+        WHERE origin NOT IN ('import', 'derived')
+        """,
+    )
+    fun observeLatestDeviceSnapshotAt(): Flow<Long?>
+
     /** Device snapshots in a session range («спектр» badge); imports excluded. */
     @Query(
         """

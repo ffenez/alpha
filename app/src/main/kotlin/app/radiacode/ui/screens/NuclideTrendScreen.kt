@@ -42,6 +42,7 @@ import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Ряд нетто-счёта в окне линии выбранного нуклида.
@@ -79,10 +80,18 @@ fun NuclideTrendScreen(graph: AppGraph, onBack: () -> Unit) {
     val line = NuclideTrend.OFFERED[lineIndex]
     var points by remember { mutableStateOf<List<NuclideTrend.Point>?>(null) }
 
+    // Пересчёт ведут сами данные: новый приборный снимок — единственный повод
+    // для нового ряда. Таймер остаётся редкой страховкой от незамеченного
+    // сигнала таблицы.
+    LaunchedEffect(lineIndex, days) {
+        graph.measurementRepository.deviceSnapshotsChanged().collectLatest {
+            points = loadLineTrend(graph, line, days)
+        }
+    }
     LaunchedEffect(lineIndex, days) {
         while (true) {
+            delay(FALLBACK_REFRESH_MILLIS)
             points = loadLineTrend(graph, line, days)
-            delay(REFRESH_MILLIS)
         }
     }
 
@@ -215,4 +224,5 @@ private suspend fun loadLineTrend(
     return NuclideTrend.series(snapshots, line)
 }
 
-private const val REFRESH_MILLIS = 60_000L
+/** Страховка на случай незамеченного сигнала таблицы; основной повод — снимок. */
+private const val FALLBACK_REFRESH_MILLIS = 5L * 60_000L

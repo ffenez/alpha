@@ -234,6 +234,9 @@ class MeasurementRepository(
     /** Начало истории измерений; null — измерений нет вовсе. */
     suspend fun earliestSampleMillis(): Long? = sampleDao.earliestTimestamp()
 
+    /** Сигнал «появился новый приборный снимок» — для рядов по спектрам. */
+    fun deviceSnapshotsChanged(): Flow<Long?> = spectrumDao.observeLatestDeviceSnapshotAt()
+
     /** Что лежит в окне до всякой обработки — вход трассы конвейера графика. */
     suspend fun rangeCensus(from: Long, to: Long): RangeCensus =
         sampleDao.rangeCensus(from, to)
