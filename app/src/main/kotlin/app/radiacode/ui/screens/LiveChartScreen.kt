@@ -335,6 +335,7 @@ fun LiveChartScreen(
         cursorFraction.value = null
     }
 
+    val pinch = remember(metric) { ChartViewport.PinchAccumulator() }
     val onTransform: (Float, Float, Float) -> Unit = { pan, zoom, focus ->
         val now = edge()
         var w = window
@@ -346,11 +347,10 @@ fun LiveChartScreen(
         // каждого жеста. Фокус щипка сохранён — приближают то место, за которое
         // держатся пальцы.
         if (zoom != 1f) {
-            val direction = when {
-                zoom >= ChartViewport.STEP_ZOOM_FACTOR -> -1
-                zoom <= 1f / ChartViewport.STEP_ZOOM_FACTOR -> 1
-                else -> 0
-            }
+            // Множитель приходит ЗА КАДР: за событие пальцы расходятся на
+            // проценты, и порог «в полтора раза» не срабатывал никогда — щипок
+            // не масштабировал вовсе. Кадры копятся в накопителе.
+            val direction = pinch.add(zoom)
             if (direction != 0) {
                 val current = ChartWindows.nearestPeriodIndex(w.spanMillis, periodIndices)
                 val next = periodIndices

@@ -102,6 +102,15 @@ object ChartWindows {
     const val LOAD_PADDING_FRACTION = 1.0f
 
     /**
+     * Наименьший запас с каждой стороны.
+     * **Инженерный параметр**: час. На коротких окнах доля окна даёт минуты, а
+     * жест пальцем за минуты и проходит; час хода без запроса — это уже «не
+     * подгружается», а не «подгружается реже». Ограничение сверху прежнее:
+     * граница точного пути чтения.
+     */
+    const val MIN_LOAD_PADDING_MILLIS = 3_600_000L
+
+    /**
      * Visible window → the range to ask the database for (right edge ≤ now).
      *
      * ## Запас — это и есть отзывчивость жеста
@@ -122,7 +131,15 @@ object ChartWindows {
      */
     fun loadRange(window: ChartWindow, nowMillis: Long): ChartWindow {
         val span = window.spanMillis
-        val wanted = (span * LOAD_PADDING_FRACTION).toLong()
+        // На коротком окне доля окна — это минуты, и запас кончался почти
+        // сразу. Чтение по секундам стоит строки на секунду, поэтому там
+        // выгоднее брать запас АБСОЛЮТНЫЙ: час вперёд и час назад с
+        // пятиминутного окна — семь тысяч строк, то есть треть бюджета
+        // точного пути, и час хода пальцем без единого запроса.
+        val wanted = maxOf(
+            (span * LOAD_PADDING_FRACTION).toLong(),
+            MIN_LOAD_PADDING_MILLIS,
+        )
         val exactLimit = QuantilePaths.EXACT_MAX_SPAN_MILLIS
         val pad = if (span >= exactLimit) {
             // Длинное окно и так на скетчах: там строка — это час, и лишний

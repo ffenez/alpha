@@ -145,6 +145,11 @@ fun DoseChart(
     onResetScale: (() -> Unit)? = null,
     onTransform: ((panFraction: Float, zoomFactor: Float, focusFraction: Float) -> Unit)? = null,
     /**
+     * Одиночное нажатие по полю. Задан — курсор по тапу не ставится: у
+     * миниатюры одно действие, и это «открыть во весь экран».
+     */
+    onTap: (() -> Unit)? = null,
+    /**
      * Жесты. На Главной график — миниатюра: он показывает ту же картинку, но
      * принадлежит карточке, и единственное действие над ним — открыть его во
      * весь экран. Обработчики там не просто бесполезны, а вредны: они
@@ -221,6 +226,7 @@ fun DoseChart(
         val setCursor = rememberUpdatedState(onCursorFraction)
         val dismissCursor = rememberUpdatedState(onCursorDismiss)
         val resetScale = rememberUpdatedState(onResetScale)
+        val tapAction = rememberUpdatedState(onTap)
         val transform = rememberUpdatedState(onTransform)
         // Маркер экстремума — не украшение, а указание «здесь что-то было»:
         // по нему должно открываться то же, что по любому месту графика.
@@ -247,6 +253,11 @@ fun DoseChart(
                 .pointerInput(widthPx) {
                     detectTapGestures(
                         onTap = { offset ->
+                            val open = tapAction.value
+                            if (open != null) {
+                                open()
+                                return@detectTapGestures
+                            }
                             val marker = markers
                                 .filter { offset.y <= markerBandPx }
                                 .minByOrNull { kotlin.math.abs(it - offset.x) }

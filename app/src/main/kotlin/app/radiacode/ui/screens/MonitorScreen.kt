@@ -521,6 +521,7 @@ fun MonitorScreen(
                 ),
                 nowMillis,
             )
+            val pinch = remember(metric) { ChartViewport.PinchAccumulator() }
             fun setViewport(next: ChartViewport) {
                 viewports = viewports + (metric to next)
             }
@@ -567,15 +568,21 @@ fun MonitorScreen(
                 },
                 following = viewport.follow,
                 onBackToNow = { setViewport(ChartViewport.jumpToNow(viewport, nowMillis)) },
+                onOpenFromChart = {
+                    if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
+                },
                 onTransform = { panFraction, zoomFactor, _ ->
                     // Жест меняет ВРЕМЯ, а не картинку: из состояния получается
                     // окно, окно идёт в загрузку и в кадр. Готовое изображение
                     // не растягивается — иначе агрегация перестала бы отвечать
                     // масштабу, а геометрия графика у нас следует времени.
+                    // Щипок приходит МНОЖИТЕЛЕМ ЗА КАДР — за событие пальцы
+                    // расходятся на проценты, и порог «в полтора раза» не
+                    // срабатывал никогда. Кадры копятся в накопителе.
                     setViewport(
-                        ChartViewport.zoom(
+                        ChartViewport.step(
                             ChartViewport.pan(viewport, panFraction, nowMillis),
-                            zoomFactor,
+                            pinch.add(zoomFactor),
                             nowMillis,
                         ),
                     )
@@ -1086,6 +1093,8 @@ private fun MetricChartCard(
     /** Держится ли окно живого края — от этого зависит кнопка возврата. */
     following: Boolean = true,
     onBackToNow: () -> Unit = {},
+    /** Одиночное нажатие по самому полю — открыть во весь экран. */
+    onOpenFromChart: () -> Unit = {},
     onTransform: ((panFraction: Float, zoomFactor: Float, focusFraction: Float) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
@@ -1155,6 +1164,10 @@ private fun MetricChartCard(
                     interactive = true,
                     onTransform = onTransform,
                     onResetScale = onBackToNow,
+                    // Тап по самому графику открывает его во весь экран: пока
+                    // поле принимало жесты, нажатие на него не доходило до
+                    // карточки, и открыть график можно было только мимо него.
+                    onTap = onOpenFromChart,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(if (metric == ChartMetric.DOSE) 168.dp else 132.dp),

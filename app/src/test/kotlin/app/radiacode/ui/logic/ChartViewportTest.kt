@@ -144,4 +144,48 @@ class ChartViewportTest {
         // И «сейчас» на этом окне уже не правый край: подпись обязана это знать.
         assertTrue(window.toMillis < now)
     }
+
+    @Test
+    fun `a pinch arrives frame by frame and still moves a step`() {
+        // Полевой дефект: большой график не масштабировался пальцами вовсе.
+        // `detectTransformGestures` отдаёт множитель ЗА КАДР — за событие
+        // пальцы расходятся на проценты, — и порог «в полтора раза» не
+        // срабатывал ни разу.
+        val pinch = ChartViewport.PinchAccumulator()
+
+        val beforeThreshold = (1..8).map { pinch.add(1.02f) }
+        assertTrue(beforeThreshold.all { it == 0 }, "$beforeThreshold")
+
+        // 1,02^21 ≈ 1,52 — на этом кадре порог перейден.
+        var step = 0
+        repeat(13) { if (step == 0) step = pinch.add(1.02f) }
+        assertEquals(-1, step)
+    }
+
+    @Test
+    fun `after a step the count starts again`() {
+        // Иначе один долгий щипок пролетел бы всю лестницу.
+        val pinch = ChartViewport.PinchAccumulator()
+
+        assertEquals(-1, pinch.add(2f))
+        assertEquals(0, pinch.add(1.2f))
+        assertEquals(-1, pinch.add(1.4f))
+    }
+
+    @Test
+    fun `pinching the other way steps the other way`() {
+        val pinch = ChartViewport.PinchAccumulator()
+
+        assertEquals(1, pinch.add(0.5f))
+    }
+
+    @Test
+    fun `a released finger does not carry its motion into the next gesture`() {
+        val pinch = ChartViewport.PinchAccumulator()
+
+        pinch.add(1.4f)
+        pinch.reset()
+
+        assertEquals(0, pinch.add(1.2f))
+    }
 }

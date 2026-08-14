@@ -122,10 +122,12 @@ class HistoryWindowTest {
         val window = ChartWindows.latest(5 * 60_000L, now)
         val loaded = ChartWindows.loadRange(window, now)
 
-        val small = ChartWindow(window.fromMillis - 60_000L, window.toMillis - 60_000L)
-        val large = ChartWindow(window.fromMillis - 600_000L, window.toMillis - 600_000L)
+        // На пятиминутном окне запас абсолютный — час: полчаса хода пальцем
+        // проходят без единого запроса, и подгрузки не видно вовсе.
+        val halfHour = ChartWindow(window.fromMillis - 1_800_000L, window.toMillis - 1_800_000L)
+        val far = ChartWindow(window.fromMillis - 7_200_000L, window.toMillis - 7_200_000L)
 
-        assertTrue(ChartWindows.covers(loaded, small), "сдвиг на минуту уже прочитан")
-        assertTrue(!ChartWindows.covers(loaded, large), "сдвиг на десять минут читается заново")
+        assertTrue(ChartWindows.covers(loaded, halfHour), "полчаса уже прочитаны")
+        assertTrue(!ChartWindows.covers(loaded, far), "два часа читаются заново")
     }
 }

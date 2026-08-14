@@ -40,6 +40,43 @@ data class ChartViewport(
     fun window(nowMillis: Long): ChartWindow =
         ChartWindows.latest(spanMillis(), if (follow) nowMillis else endMillis)
 
+    /**
+     * Накопитель щипка.
+     *
+     * `detectTransformGestures` отдаёт множитель ЗА СОБЫТИЕ — за кадр пальцы
+     * расходятся на пару процентов, и порог «развести в полтора раза» не
+     * срабатывал никогда: жест не масштабировал вовсе. Множители кадра
+     * перемножаются здесь, и ступень переключается, когда произведение
+     * перешагнуло порог; после переключения счёт начинается заново, иначе один
+     * долгий щипок пролетел бы всю лестницу.
+     */
+    class PinchAccumulator(private val threshold: Float = STEP_ZOOM_FACTOR) {
+
+        private var product = 1f
+
+        /** @return −1 приблизить, +1 отдалить, 0 — порог ещё не перейден. */
+        fun add(frameScale: Float): Int {
+            if (frameScale <= 0f || !frameScale.isFinite()) return 0
+            product *= frameScale
+            return when {
+                product >= threshold -> {
+                    product = 1f
+                    -1
+                }
+                product <= 1f / threshold -> {
+                    product = 1f
+                    1
+                }
+                else -> 0
+            }
+        }
+
+        /** Палец оторвался — незавершённое движение не переносится на следующий жест. */
+        fun reset() {
+            product = 1f
+        }
+    }
+
     companion object {
 
         /**
@@ -72,6 +109,12 @@ data class ChartViewport(
                 scale <= 1f / STEP_ZOOM_FACTOR -> 1
                 else -> return viewport
             }
+            return step(viewport, direction, nowMillis)
+        }
+
+        /** Переход на соседнюю ступень: −1 приблизить, +1 отдалить. */
+        fun step(viewport: ChartViewport, direction: Int, nowMillis: Long): ChartViewport {
+            if (direction == 0) return viewport
             val next = (viewport.stepIndex + direction)
                 .coerceIn(0, ChartWindows.PERIODS.lastIndex)
             if (next == viewport.stepIndex) return viewport
