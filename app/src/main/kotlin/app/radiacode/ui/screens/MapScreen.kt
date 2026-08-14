@@ -398,6 +398,8 @@ fun MapScreen(graph: AppGraph) {
             unit = unit,
             position = fix,
             positionState = positionState,
+            trackWaiting = recording != null &&
+                trackLocation == ServiceStatus.TrackLocation.WAITING,
             nowMillis = nowMillis,
             onViewport = { viewport = it },
             emptyState = {
@@ -578,6 +580,7 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
                 unit = unit,
                 position = null,
                 positionState = PositionState.NO_PERMISSION,
+                trackWaiting = false,
                 nowMillis = System.currentTimeMillis(),
                 onViewport = {},
                 emptyState = {},
@@ -605,6 +608,8 @@ private fun TrackMapCard(
     unit: DoseUnitSetting,
     position: PositionFix?,
     positionState: PositionState,
+    /** Карточка следа уже говорит «жду первые точки» — чип тогда молчит. */
+    trackWaiting: Boolean,
     nowMillis: Long,
     onViewport: (MapViewport) -> Unit,
     emptyState: @Composable () -> Unit,
@@ -694,7 +699,13 @@ private fun TrackMapCard(
                     ),
                 )
             }
-            MyPosition.chipText(positionState, position, nowMillis, t)?.let { text ->
+            MyPosition.chipText(
+                state = positionState,
+                fix = position,
+                nowMillis = nowMillis,
+                s = t,
+                trackWaiting = trackWaiting,
+            )?.let { text ->
                 Chip(
                     text = text,
                     color = if (positionState == PositionState.WAITING_FIX) {

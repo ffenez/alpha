@@ -490,6 +490,12 @@ fun MonitorScreen(
             )
         }
 
+        // Выключенный Bluetooth — САМОЕ ВЕРХНЕЕ, что есть на экране: пока он
+        // выключен, прибор не подключится ничем, и все числа ниже относятся к
+        // прошлому. Внизу страницы это предупреждение читалось после того, как
+        // человек уже поверил показаниям.
+        BluetoothBanner()
+
         HeroCard(
             doseMicroSvH = doseMicroSvH,
             errPercent = live?.doseRateErr,
@@ -599,7 +605,6 @@ fun MonitorScreen(
             )
         }
 
-        BluetoothBanner()
         BatteryBanner()
     }
 

@@ -187,7 +187,8 @@ object MapRu : MapStrings {
 
     override val emptyWaitingTitle = "Жду первые точки"
     override val emptyWaitingBody =
-        "Запись идёт. Точки появятся, как только GPS даст координаты."
+        "Запись идёт, координат пока нет. В помещении спутники обычно не ловятся " +
+            "— точки появятся на открытом месте."
     override val emptyAreaTitle = "Здесь записей нет"
     override val emptyAreaBody =
         "В этом районе ничего не записано. Отдалите карту, чтобы увидеть " +
@@ -297,7 +298,8 @@ object MapEn : MapStrings {
 
     override val emptyWaitingTitle = "Waiting for the first points"
     override val emptyWaitingBody =
-        "Recording is on. Points appear as soon as GPS gives coordinates."
+        "Recording is on, there are no coordinates yet. Satellites are rarely " +
+            "reachable indoors — points appear in the open."
     override val emptyAreaTitle = "Nothing recorded here"
     override val emptyAreaBody =
         "Nothing has been recorded in this area. Zoom out to see the other " +

@@ -311,6 +311,9 @@ private fun MainScaffold(graph: AppGraph) {
                     tabs = navTabs,
                     selected = tab,
                     onSelected = { tab = it },
+                    // Карту двигают пальцем: свайп вкладок отбирал у неё каждое
+                    // движение вбок.
+                    swipeDisabledOn = setOf(AppTab.MAP),
                 ) { pageTab ->
                     when (pageTab) {
                 AppTab.HOME -> MonitorScreen(

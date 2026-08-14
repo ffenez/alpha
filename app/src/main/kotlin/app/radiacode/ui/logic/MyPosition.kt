@@ -70,10 +70,18 @@ object MyPosition {
         fix: PositionFix?,
         nowMillis: Long,
         s: MapStrings = MapRu,
+        /**
+         * На экране уже стоит карточка «жду первые точки».
+         *
+         * Тогда чип молчит: «жду сигнал GPS» и «жду первые точки» — одно и то
+         * же ожидание, названное дважды, и вместе они читаются как две разные
+         * беды.
+         */
+        trackWaiting: Boolean = false,
     ): String? =
         when (state) {
             PositionState.NO_PERMISSION, PositionState.PROVIDER_OFF -> null
-            PositionState.WAITING_FIX -> s.waitingGps
+            PositionState.WAITING_FIX -> if (trackWaiting) null else s.waitingGps
             PositionState.FIXED -> {
                 val current = fix ?: return null
                 if (isStale(current, nowMillis)) {

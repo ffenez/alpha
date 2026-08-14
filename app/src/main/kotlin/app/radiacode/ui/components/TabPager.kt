@@ -36,6 +36,15 @@ fun TabPager(
     selected: AppTab,
     onSelected: (AppTab) -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Вкладки, у которых горизонтальный жест занят своим содержимым.
+     *
+     * Карту двигают пальцем во все стороны, и пейджер отбирал у неё каждое
+     * движение вбок: карта дёргалась и уезжала на соседнюю вкладку. Там, где
+     * жест уже что-то значит, листания вкладок нет — переключают их нижним
+     * меню, как и раньше.
+     */
+    swipeDisabledOn: Set<AppTab> = emptySet(),
     content: @Composable (AppTab) -> Unit,
 ) {
     if (tabs.isEmpty()) return
@@ -67,6 +76,7 @@ fun TabPager(
     HorizontalPager(
         state = state,
         modifier = modifier.fillMaxSize(),
+        userScrollEnabled = selected !in swipeDisabledOn,
         // Соседняя вкладка собирается ЗАРАНЕЕ, а не под пальцем.
         //
         // Без этого первый кадр жеста строил целый экран — с чтением базы у

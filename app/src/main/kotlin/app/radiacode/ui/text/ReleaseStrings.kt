@@ -75,10 +75,10 @@ object ReleaseRu : ReleaseStrings {
 
     override val v037Title = "Видно, когда Bluetooth выключен"
     override val v037Summary =
-        "Главная предупреждает, если Bluetooth выключен: прибор в этот момент не " +
-        "подключится ничем, а раньше это было видно только в отчёте о связи. " +
-        "«Связь восстанавливается» с экрана убрано — о том, что связи нет, " +
-        "говорит цвет точки в шапке."
+        "Главная предупреждает вверху экрана, если Bluetooth выключен: прибор в " +
+        "этот момент не подключится ничем. Карту больше не дёргает свайп вкладок, " +
+        "а след пишется по всем источникам координат и называет причину, если " +
+        "точек нет."
 
     override val v036Title = "История короче, и пояснений больше нет по умолчанию"
     override val v036Summary =
@@ -192,10 +192,10 @@ object ReleaseEn : ReleaseStrings {
 
     override val v037Title = "It is visible when Bluetooth is off"
     override val v037Summary =
-        "Home warns when Bluetooth is off: the instrument cannot connect at all in " +
-        "that state, and until now it showed only in the connection report. " +
-        "«Reconnecting» is gone from the screen — the colour of the link dot says " +
-        "that the link is down."
+        "Home warns at the top of the screen when Bluetooth is off: the instrument " +
+        "cannot connect at all in that state. The map is no longer tugged by the tab " +
+        "swipe, and a track is written from every source of coordinates and names " +
+        "the reason when there are no points."
 
     override val v036Title = "История is shorter, and explanations start off"
     override val v036Summary =
