@@ -26,6 +26,7 @@ class NuclideTrendTest {
         netPerInterval: Double,
         seconds: Long = 600,
         seed: Long = 1L,
+        energyKeV: Double = 661.7,
     ): List<NuclideTrend.Snapshot> {
         val out = mutableListOf<NuclideTrend.Snapshot>()
         var total = IntArray(1024)
@@ -33,7 +34,7 @@ class NuclideTrendTest {
             if (i > 0) {
                 val slice = SyntheticSpectra.build(
                     lines = if (netPerInterval > 0) {
-                        listOf(SyntheticSpectra.Line(661.7, netPerInterval))
+                        listOf(SyntheticSpectra.Line(energyKeV, netPerInterval))
                     } else {
                         emptyList()
                     },
@@ -50,6 +51,27 @@ class NuclideTrendTest {
             )
         }
         return out
+    }
+
+    /**
+     * Каждая предлагаемая линия обязана ДАВАТЬ ряд на шкале самого прибора.
+     * Tl-208 2614,5 кэВ — самая заметная ториевая линия — не давала ни одной
+     * точки: верхнее боковое окно континуума уходило за край 1024-канальной
+     * шкалы, и расчёт отменялся целиком. Экран при этом писал «в выбранном
+     * окне измерений не было» — ровно то же, что и при отсутствии данных,
+     * так что отличить пустую историю от неработающей линии было нечем.
+     */
+    @Test
+    fun `every offered line produces points on the instrument scale`() {
+        for (line in NuclideTrend.OFFERED) {
+            val points = NuclideTrend.series(
+                accumulating(3, netPerInterval = 20_000.0, energyKeV = line.energyKeV.toDouble()),
+                line,
+            )
+            assertEquals(3, points.size, "${line.label}: ряд пуст")
+            val summary = NuclideTrend.summary(points)!!
+            assertTrue(summary.resolved, "${line.label}: значимость ${summary.significance}")
+        }
     }
 
     @Test

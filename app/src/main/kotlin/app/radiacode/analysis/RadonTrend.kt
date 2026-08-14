@@ -35,7 +35,20 @@ object RadonTrend {
      * Net counts above the local continuum in the ROI [energyKeV] ± FWHM.
      * Continuum = mean of two side windows one ROI-width away on each side.
      * σ² = gross + (w/side)²·sideSum (Poisson + continuum-estimate variance).
-     * Null when the ROI or its side windows fall off the spectrum.
+     * Null when the ROI itself falls off the spectrum.
+     *
+     * Боковое окно ОБРЕЗАЕТСЯ краем спектра, а не отменяет расчёт. Причина
+     * конкретная: у RC-110 шкала кончается около 2,9 МэВ, и верхнее боковое
+     * окно линии Tl-208 2614,5 кэВ (самой заметной ториевой линии) целиком за
+     * краем — строгая проверка молча выбрасывала эту линию, и ряд по ней был
+     * всегда пуст. Масштаб континуума и так делится на ФАКТИЧЕСКОЕ число
+     * боковых каналов, поэтому обрезка учтена в оценке и в σ.
+     *
+     * Цена обрезки названа: односторонний континуум смещён на наклон фона
+     * (снизу его больше), то есть нетто у самой верхней линии скорее занижено,
+     * чем завышено. Требование «боковых каналов не меньше, чем в самой ROI»
+     * оставляет оценку континуума не грубее самого измерения; всё, что уже, —
+     * по-прежнему отказ.
      */
     fun roiNet(counts: List<Int>, calibration: EnergyCalibration, energyKeV: Float): RoiNet? {
         val fwhm = PeakDetection.fwhmKeV(energyKeV)
@@ -43,9 +56,9 @@ object RadonTrend {
         val hi = ceil(calibration.channelAt(energyKeV + fwhm)).toInt()
         if (lo <= 0 || hi >= counts.size || hi <= lo) return null
         val width = hi - lo + 1
-        val sideLo1 = lo - width
-        val sideHi2 = hi + width
-        if (sideLo1 < 0 || sideHi2 >= counts.size) return null
+        val sideLo1 = (lo - width).coerceAtLeast(0)
+        val sideHi2 = (hi + width).coerceAtMost(counts.size - 1)
+        if ((lo - sideLo1) + (sideHi2 - hi) < width) return null
 
         var gross = 0.0
         for (ch in lo..hi) gross += counts[ch]

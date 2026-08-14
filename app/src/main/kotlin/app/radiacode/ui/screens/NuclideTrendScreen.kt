@@ -151,12 +151,16 @@ fun NuclideTrendScreen(graph: AppGraph, onBack: () -> Unit) {
                     )
                     else -> {
                         val max = series.maxOf { it.netCps + it.sigmaCps }
+                        // Левая подпись — НАЧАЛО РЯДА, а не запрошенное окно:
+                        // столбики стоят на том, что действительно записано,
+                        // и «7 д» над шестью часами данных было бы неправдой.
+                        val span = spanText(t, series.first().atMillis, series.last().atMillis)
                         BarChart(
                             spec = BarChartSpec(
                                 values = series.map { it.netCps },
                                 yMax = if (max > 0f) max * 1.15f else 1f,
                                 refLine = 0f,
-                                xStartLabel = if (days == 1) t.window24h else t.window7d,
+                                xStartLabel = span,
                                 xEndLabel = t.now,
                             ),
                             height = 96.dp,
@@ -175,6 +179,7 @@ fun NuclideTrendScreen(graph: AppGraph, onBack: () -> Unit) {
                                         t.lineSignificance,
                                     ),
                                     StatCell("${summary.points}", t.linePoints),
+                                    StatCell(span, t.lineSpan),
                                 ),
                             )
                             // Вердикт о том, выделяется ли линия ВООБЩЕ: без
@@ -196,6 +201,25 @@ fun NuclideTrendScreen(graph: AppGraph, onBack: () -> Unit) {
         }
 
         Text(text = t.lineTrendCaveat, style = type.footnote, color = colors.muted)
+    }
+}
+
+/**
+ * Охват ряда словами: минуты, часы или дни — что человек и назовёт, глядя на
+ * тот же промежуток. Единица выбирается по величине, а не по окну: у одних и
+ * тех же данных запрос «7 д» и запрос «24 ч» дают ОДИН охват, и в этом весь
+ * смысл подписи.
+ */
+internal fun spanText(
+    t: app.radiacode.ui.text.SessionRadonStrings,
+    fromMillis: Long,
+    toMillis: Long,
+): String {
+    val minutes = ((toMillis - fromMillis).coerceAtLeast(0L) + 30_000L) / 60_000L
+    return when {
+        minutes < 90L -> t.spanMinutes(minutes.toInt())
+        minutes < 48L * 60L -> t.spanHours(((minutes + 30L) / 60L).toInt())
+        else -> t.spanDays(((minutes + 12L * 60L) / (24L * 60L)).toInt())
     }
 }
 

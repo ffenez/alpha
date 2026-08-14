@@ -313,7 +313,7 @@ object SearchBaseline {
         }
         return BackgroundCardModel(
             level = c.level(rateText),
-            basis = c.recordedAt(day, timeOfDay, record.window.seconds.toInt()),
+            basis = c.recordedAt(day, timeOfDay),
             reason = reason,
             action = c.refresh,
             // Пока фон годится, работа человека — ходить с прибором, а не

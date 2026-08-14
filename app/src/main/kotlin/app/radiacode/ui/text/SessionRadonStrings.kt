@@ -25,6 +25,18 @@ interface SessionRadonStrings {
     val lineNetRate: String
     val lineSignificance: String
     val linePoints: String
+
+    /**
+     * Подпись охвата ряда. Отдельно от выбранного окна сознательно: окно —
+     * это запрос, а охват — то, за что ДЕЙСТВИТЕЛЬНО есть снимки. Без него
+     * «24 ч» и «7 д» на одинаковых данных выглядели одинаково, и разницу
+     * между «прибор столько не работал» и «экран не работает» увидеть было
+     * нечем.
+     */
+    val lineSpan: String
+    fun spanMinutes(value: Int): String
+    fun spanHours(value: Int): String
+    fun spanDays(value: Int): String
     val lineResolved: String
     val lineNotResolved: String
     val lineTrendCaveat: String
@@ -110,6 +122,10 @@ object SessionRadonRu : SessionRadonStrings {
     override val lineNetRate = "нетто, с⁻¹"
     override val lineSignificance = "значимость"
     override val linePoints = "точек"
+    override val lineSpan = "охват"
+    override fun spanMinutes(value: Int) = "$value мин"
+    override fun spanHours(value: Int) = "$value ч"
+    override fun spanDays(value: Int) = "$value д"
     override val lineResolved = "Линия выделяется над континуумом за всё накопленное время."
     override val lineNotResolved =
         "Линия не выделяется над континуумом: нетто того же порядка, что его " +
@@ -223,6 +239,10 @@ object SessionRadonEn : SessionRadonStrings {
     override val lineNetRate = "net, s⁻¹"
     override val lineSignificance = "significance"
     override val linePoints = "points"
+    override val lineSpan = "covered"
+    override fun spanMinutes(value: Int) = "$value min"
+    override fun spanHours(value: Int) = "$value h"
+    override fun spanDays(value: Int) = "$value d"
     override val lineResolved = "The line stands out above the continuum over all the time collected."
     override val lineNotResolved =
         "The line does not stand out above the continuum: the net is of the same " +
@@ -338,7 +358,8 @@ val SessionRadonCatalogue = AreaCatalogue(ru = SessionRadonRu, en = SessionRadon
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun SessionRadonStrings.allTexts(): List<String> = listOf(
-    lineTrendTitle, lineNetRate, lineSignificance, linePoints, lineResolved,
+    lineTrendTitle, lineNetRate, lineSignificance, linePoints, lineSpan,
+    spanMinutes(20), spanHours(6), spanDays(3), lineResolved,
     lineNotResolved, lineTrendCaveat,
     exportCsv, exportSaved, exportFailed,
     sessionTag, sessionNotFound, readingSession, runningNow, samplesLabel, doseRateLabel,

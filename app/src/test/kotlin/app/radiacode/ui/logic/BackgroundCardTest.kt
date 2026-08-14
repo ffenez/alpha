@@ -55,7 +55,7 @@ class BackgroundCardTest {
         val model = card(BackgroundCheck.USABLE)
 
         assertEquals("Фон: 24,1 имп/с", model.level)
-        assertEquals("Записан 12.08 в 15:04 · измерение 45 с", model.basis)
+        assertEquals("Записан 12.08 в 15:04", model.basis)
         assertNull(model.reason, "пригодный фон ничего не требует")
         assertTrue(model.usable)
         // Пока сравнивать есть с чем, работа человека — ходить, а не нажимать.
@@ -161,7 +161,7 @@ class BackgroundCardTest {
         )
 
         assertEquals("Background: 24.1 counts/s", model.level)
-        assertEquals("Recorded on 12.08 at 15:04 · 45 s measurement", model.basis)
+        assertEquals("Recorded on 12.08 at 15:04", model.basis)
         assertTrue(assertNotNull(model.reason).contains("refresh it"))
         assertEquals("Refresh the background", model.action)
     }
