@@ -613,23 +613,19 @@ class MeasurementService : Service() {
         }
         deviceJobs += scope.launch {
             graph.deviceControlHub.commands.collect { command ->
-                // Состояние помечается применённым ТОЛЬКО после подтверждения
-                // прибором: иначе тумблер показывал бы желаемое, а не то, что
-                // в приборе.
-                val ok = try {
-                    when (command) {
-                        is DeviceControlHub.Command.Sound ->
-                            newDevice.setDeviceSoundOn(command.on)
-                        is DeviceControlHub.Command.Vibro ->
-                            newDevice.setDeviceVibroOn(command.on)
-                    }
-                    true
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    false
+                applyDeviceControl(newDevice, command)
+            }
+        }
+        deviceJobs += scope.launch {
+            // Просьба человека доносится до прибора при КАЖДОМ подключении.
+            // Нажатие в момент переподключения раньше исчезало: слушателя
+            // команд в этот момент не было, а буфера воспроизведения у потока
+            // нет — и повторить нажатие было нечем, тумблер уже стоял как надо.
+            newDevice.connectionState.collect { state ->
+                if (state !is ConnectionState.Connected) return@collect
+                for (command in graph.deviceControlHub.pending()) {
+                    applyDeviceControl(newDevice, command)
                 }
-                if (ok) graph.deviceControlHub.onApplied(command)
             }
         }
         deviceJobs += scope.launch {
@@ -643,6 +639,31 @@ class MeasurementService : Service() {
     }
 
     // --- spectrum acquisition ---
+
+    /**
+     * Пишет настройку в прибор и ЧЕСТНО сообщает исход.
+     *
+     * Состояние помечается применённым только после подтверждения прибором:
+     * иначе тумблер показывал бы желаемое, а не то, что в приборе. Отказ тоже
+     * не проглатывается — молчащая кнопка неотличима от сломанной.
+     */
+    private suspend fun applyDeviceControl(
+        device: RadiaCodeDevice,
+        command: DeviceControlHub.Command,
+    ) {
+        val ok = try {
+            when (command) {
+                is DeviceControlHub.Command.Sound -> device.setDeviceSoundOn(command.on)
+                is DeviceControlHub.Command.Vibro -> device.setDeviceVibroOn(command.on)
+            }
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+        if (ok) graph.deviceControlHub.onApplied(command) else graph.deviceControlHub.onFailed(command)
+    }
 
     private suspend fun pollSpectrum(device: RadiaCodeDevice) {
         val bytesBefore = device.spectrumPayloadBytes

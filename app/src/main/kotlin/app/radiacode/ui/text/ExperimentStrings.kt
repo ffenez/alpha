@@ -162,6 +162,13 @@ interface ExperimentStrings {
     val distanceWarning: String
     val shieldingWarning: String
     val experimentalBadge: String
+
+    /**
+     * Одна фраза о том, что здесь делают. Абзац про синтетическую проверку и
+     * отсутствие валидации на приборе уехал под «i»: он объясняет ЗРЕЛОСТЬ
+     * функции, а не то, как ею пользоваться, и стоял на месте первого шага.
+     */
+    val experimentalLead: String
     val experimentalNote: String
 
     // --- единицы ---
@@ -354,7 +361,8 @@ object ExperimentRu : ExperimentStrings {
         "Из этого опыта не выводятся коэффициенты ослабления материала: домашняя " +
             "геометрия неконтролируема, спектр источника неизвестен, а рассеянное " +
             "излучение приходит в детектор в обход материала."
-    override val experimentalBadge = "экспериментальная функция"
+    override val experimentalBadge = "Экспериментально"
+    override val experimentalLead = "Сравните два измерения в одинаковых условиях."
     override val experimentalNote =
         "Функция экспериментальная: статистика реализована и проверена на синтетике, " +
             "но пока не валидирована на реальных измерениях прибора. Вердикт говорит о " +
@@ -564,7 +572,8 @@ object ExperimentEn : ExperimentStrings {
         "Attenuation coefficients of the material do not follow from this experiment: the " +
             "home geometry is uncontrolled, the source spectrum is unknown, and scattered " +
             "radiation reaches the detector around the material."
-    override val experimentalBadge = "experimental feature"
+    override val experimentalBadge = "Experimental"
+    override val experimentalLead = "Compare two measurements taken in the same conditions."
     override val experimentalNote =
         "This feature is experimental: the statistics are implemented and checked on " +
             "synthetic data, but not yet validated on real instrument measurements. A verdict " +

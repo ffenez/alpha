@@ -194,7 +194,9 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
     // Системная «назад» (в том числе жест от края) обязана значить ровно то же,
     // что кнопка на экране: один шаг вверх. Без этого свайп из открытого
     // раздела закрывал сразу все настройки и выбрасывал на Главную.
-    BackHandler(enabled = category != null) { category = null }
+    BackHandler(enabled = category != null) {
+        if (calibrationOpen) calibrationOpen = false else category = null
+    }
 
     Column(
         modifier = Modifier
@@ -207,7 +209,15 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AppButton(
                 text = "← ${strings.back}",
-                onClick = { if (open == null) onBack() else category = null },
+                // Один шаг вверх, чем бы этот шаг ни был: сначала закрывается
+                // экран внутри раздела, потом сам раздел, потом Настройки.
+                onClick = {
+                    when {
+                        calibrationOpen -> calibrationOpen = false
+                        open == null -> onBack()
+                        else -> category = null
+                    }
+                },
             )
             Spacer(Modifier.weight(1f))
             Chip(text = open?.title(strings) ?: strings.settings, color = colors.ink)
@@ -734,11 +744,6 @@ private fun LanguageSection(graph: AppGraph) {
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text(
-                text = strings.translationNote,
-                style = type.footnote,
-                color = colors.muted,
-            )
         }
     }
 }
@@ -771,11 +776,6 @@ private fun SkinSection(graph: AppGraph) {
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text(
-                text = strings.skinNote,
-                style = type.footnote,
-                color = colors.muted,
-            )
         }
     }
 }
@@ -798,11 +798,6 @@ private fun ThemeSection(graph: AppGraph) {
                     scope.launch { graph.settings.setThemeSetting(ThemeSetting.entries[index]) }
                 },
                 modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                text = strings.themeNote,
-                style = type.bodySmall,
-                color = colors.ink2,
             )
         }
     }
@@ -884,6 +879,8 @@ private fun DeviceSignalsSection(graph: AppGraph) {
     val type = LocalAppTypography.current
     val connection by graph.serviceStatus.connection.collectAsState()
     val applied by graph.deviceControlHub.applied.collectAsState()
+    val desired by graph.deviceControlHub.desired.collectAsState()
+    val failed by graph.deviceControlHub.failed.collectAsState()
     val connected = connection is ConnectionState.Connected
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -897,12 +894,16 @@ private fun DeviceSignalsSection(graph: AppGraph) {
             DeviceSignalRow(
                 title = strings.deviceSound,
                 state = applied.sound,
+                asked = desired.sound,
+                rejected = failed.sound == true,
                 enabled = connected,
                 onSet = { graph.deviceControlHub.request(DeviceControlHub.Command.Sound(it)) },
             )
             DeviceSignalRow(
                 title = strings.deviceVibro,
                 state = applied.vibro,
+                asked = desired.vibro,
+                rejected = failed.vibro == true,
                 enabled = connected,
                 onSet = { graph.deviceControlHub.request(DeviceControlHub.Command.Vibro(it)) },
             )
@@ -959,11 +960,20 @@ private fun BootSection(graph: AppGraph) {
     }
 }
 
-/** Строка сигнала прибора: три состояния — вкл, выкл и «неизвестно». */
+/**
+ * Строка сигнала прибора: вкл, выкл, «неизвестно» и «прибор не принял».
+ *
+ * Переключатель стоит там, куда его поставил ЧЕЛОВЕК ([asked]), а подпись под
+ * ним говорит, чем это кончилось. Раньше он показывал только подтверждённое
+ * прибором состояние и молча отскакивал назад при любой неудаче — выглядело
+ * это как «кнопка не работает», и узнать причину было неоткуда.
+ */
 @Composable
 private fun DeviceSignalRow(
     title: String,
     state: Boolean?,
+    asked: Boolean?,
+    rejected: Boolean,
     enabled: Boolean,
     onSet: (Boolean) -> Unit,
 ) {
@@ -978,18 +988,23 @@ private fun DeviceSignalRow(
         Column(Modifier.weight(1f)) {
             Text(text = title, style = type.label, color = colors.ink)
             Text(
-                text = when (state) {
-                    true -> strings.stateOnByApp
-                    false -> strings.stateOffByApp
-                    null -> strings.stateUnknown
+                text = when {
+                    rejected -> strings.stateRejected
+                    state == true -> strings.stateOnByApp
+                    state == false -> strings.stateOffByApp
+                    else -> strings.stateUnknown
                 },
                 style = type.footnote,
-                color = if (state == null) colors.muted else colors.ink2,
+                color = when {
+                    rejected -> colors.warn
+                    state == null -> colors.muted
+                    else -> colors.ink2
+                },
             )
         }
         Segmented(
             options = listOf(strings.off, strings.on),
-            selectedIndex = if (state == true) 1 else 0,
+            selectedIndex = if ((asked ?: state) == true) 1 else 0,
             onSelect = { if (enabled) onSet(it == 1) },
             enabled = { enabled },
             modifier = Modifier.weight(1f),
@@ -1079,7 +1094,6 @@ private fun UnitsSection(graph: AppGraph) {
             SectionTitle(strings.unitsTitle)
             UnitOption(
                 title = strings.unitMicroSv,
-                subtitle = strings.unitMicroSvNote,
                 selected = unit == DoseUnitSetting.MICRO_SIEVERT,
                 onSelect = {
                     scope.launch { graph.settings.setDoseUnit(DoseUnitSetting.MICRO_SIEVERT) }
@@ -1087,16 +1101,10 @@ private fun UnitsSection(graph: AppGraph) {
             )
             UnitOption(
                 title = strings.unitMicroR,
-                subtitle = strings.unitMicroRNote,
                 selected = unit == DoseUnitSetting.MICRO_ROENTGEN,
                 onSelect = {
                     scope.launch { graph.settings.setDoseUnit(DoseUnitSetting.MICRO_ROENTGEN) }
                 },
-            )
-            Text(
-                text = strings.unitsNote,
-                style = type.bodySmall,
-                color = colors.muted,
             )
         }
     }
@@ -1105,7 +1113,6 @@ private fun UnitsSection(graph: AppGraph) {
 @Composable
 private fun UnitOption(
     title: String,
-    subtitle: String,
     selected: Boolean,
     onSelect: () -> Unit,
 ) {
@@ -1125,14 +1132,7 @@ private fun UnitOption(
             ),
     ) {
         RadioMark(selected)
-        Column {
-            Text(
-                text = title,
-                style = type.value,
-                color = colors.ink,
-            )
-            Text(text = subtitle, style = type.bodySmall, color = colors.muted)
-        }
+        Text(text = title, style = type.value, color = colors.ink)
     }
 }
 
@@ -1163,11 +1163,6 @@ private fun InterfaceSection(graph: AppGraph) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle(strings.interfaceTitle)
 
-            Text(
-                text = strings.tabsNote,
-                style = type.bodySmall,
-                color = colors.ink2,
-            )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier

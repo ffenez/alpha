@@ -1,14 +1,17 @@
+@file:OptIn(ExperimentalLayoutApi::class)
+
 package app.radiacode.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -33,9 +36,8 @@ import app.radiacode.ui.components.BarChart
 import app.radiacode.ui.components.BarChartSpec
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
-import app.radiacode.ui.components.StatCell
-import app.radiacode.ui.components.StatGrid
-import app.radiacode.ui.logic.Uncertainty
+import app.radiacode.ui.components.ResultCard
+import app.radiacode.ui.logic.LineTrendReport
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.SessionRadonCatalogue
 import app.radiacode.ui.theme.Dimens
@@ -117,11 +119,13 @@ fun NuclideTrendScreen(graph: AppGraph, onBack: () -> Unit) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(text = t.lineTrendTitle.uppercase(), style = type.labelSmall, color = colors.ink2)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                // Список линий ПЕРЕНОСИТСЯ, а не уезжает вбок. Горизонтальная
+                // прокрутка обрезала последние линии по краю экрана, и что
+                // список продолжается, было видно только если по нему провести.
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.space1),
                 ) {
                     NuclideTrend.OFFERED.forEachIndexed { index, offered ->
                         Chip(
@@ -136,73 +140,72 @@ fun NuclideTrendScreen(graph: AppGraph, onBack: () -> Unit) {
         }
 
         val series = points
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                when {
-                    series == null -> Text(
-                        text = t.readingSession,
-                        style = type.bodySmall,
-                        color = colors.muted,
-                    )
-                    series.isEmpty() -> Text(
-                        text = t.noMeasurementsInWindow,
-                        style = type.bodySmall,
-                        color = colors.muted,
-                    )
-                    else -> {
-                        val max = series.maxOf { it.netCps + it.sigmaCps }
-                        // Левая подпись — НАЧАЛО РЯДА, а не запрошенное окно:
-                        // столбики стоят на том, что действительно записано,
-                        // и «7 д» над шестью часами данных было бы неправдой.
-                        val span = spanText(t, series.first().atMillis, series.last().atMillis)
+        when {
+            series == null -> Card(modifier = Modifier.fillMaxWidth()) {
+                Text(text = t.readingSession, style = type.bodySmall, color = colors.muted)
+            }
+            else -> {
+                val span = series.takeIf { it.isNotEmpty() }?.let {
+                    spanText(t, it.first().atMillis, it.last().atMillis)
+                }
+                val summary = NuclideTrend.summary(series)
+                ResultCard(
+                    result = LineTrendReport.build(
+                        line = line,
+                        summary = summary,
+                        spanText = span,
+                        t = t,
+                    ),
+                ) {
+                    if (series.isNotEmpty()) {
+                        // Столбики стоят в ЧАСОВОЙ СЕТКЕ, а не подряд: час без
+                        // измерений — настоящий пробел, а не сдвинутый сосед.
+                        val columns = hourColumns(series)
+                        // Ноль на своём месте, отрицательные столбики — вниз.
+                        // Прижатый к нулю столбик означал бы «ровно ноль»,
+                        // хотя число под ним говорит «−0,02».
+                        val high = series.maxOf { it.netCps }
+                        val low = series.minOf { it.netCps }
                         BarChart(
                             spec = BarChartSpec(
-                                values = series.map { it.netCps },
-                                yMax = if (max > 0f) max * 1.15f else 1f,
+                                values = columns,
+                                yMax = if (high > 0f) high * 1.15f else high * 0.2f + 0.01f,
+                                yMin = if (low < 0f) low * 1.15f else 0f,
                                 refLine = 0f,
                                 xStartLabel = span,
                                 xEndLabel = t.now,
                             ),
                             height = 96.dp,
                         )
-                        val summary = NuclideTrend.summary(series)
-                        if (summary != null) {
-                            StatGrid(
-                                cells = listOf(
-                                    StatCell(
-                                        Uncertainty.num1(summary.netCps) + " ±" +
-                                            Uncertainty.num1(summary.sigmaCps),
-                                        t.lineNetRate,
-                                    ),
-                                    StatCell(
-                                        Uncertainty.num1(summary.significance),
-                                        t.lineSignificance,
-                                    ),
-                                    StatCell("${summary.points}", t.linePoints),
-                                    StatCell(span, t.lineSpan),
-                                ),
-                            )
-                            // Вердикт о том, выделяется ли линия ВООБЩЕ: без
-                            // него положительное среднее при σ того же порядка
-                            // читалось бы как находка.
-                            Text(
-                                text = if (summary.resolved) {
-                                    t.lineResolved
-                                } else {
-                                    t.lineNotResolved
-                                },
-                                style = type.bodySmall,
-                                color = if (summary.resolved) colors.ink2 else colors.muted,
-                            )
-                        }
                     }
                 }
             }
         }
-
-        Text(text = t.lineTrendCaveat, style = type.footnote, color = colors.muted)
     }
 }
+
+/**
+ * Часовая сетка от первой точки до последней: час без измерений — `null`.
+ *
+ * Ряд прореживается до одной точки в час, но часы, в которые прибор не писал,
+ * в нём просто отсутствуют. Нарисованные подряд, такие точки склеивали разрыв
+ * в непрерывную картинку: отсутствие измерения становилось похоже на
+ * измерение.
+ */
+internal fun hourColumns(series: List<NuclideTrend.Point>): List<Float?> {
+    if (series.isEmpty()) return emptyList()
+    val firstHour = series.first().atMillis / RadonTrend.HOUR_MILLIS
+    val lastHour = series.last().atMillis / RadonTrend.HOUR_MILLIS
+    val byHour = series.associateBy { it.atMillis / RadonTrend.HOUR_MILLIS }
+    val count = (lastHour - firstHour + 1).toInt().coerceAtMost(MAX_COLUMNS)
+    return List(count) { i -> byHour[firstHour + i]?.netCps }
+}
+
+/**
+ * Потолок числа столбиков: за неделю часовых слотов 168, и это ещё рисуемо,
+ * но испорченные приборные метки времени способны дать любое число.
+ */
+private const val MAX_COLUMNS = 400
 
 /**
  * Охват ряда словами: минуты, часы или дни — что человек и назовёт, глядя на

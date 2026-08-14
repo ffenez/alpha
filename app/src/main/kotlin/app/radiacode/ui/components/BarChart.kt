@@ -30,6 +30,17 @@ data class BarChartSpec(
     /** One value per slot, null = no data in that slot. */
     val values: List<Float?>,
     val yMax: Float,
+    /**
+     * Низ шкалы. Ноль по умолчанию — так рисуются доза и счёт, у которых
+     * отрицательных значений не бывает.
+     *
+     * Отрицательные величины (нетто над оценённым континуумом бывает и
+     * отрицательным) обязаны опускаться НИЖЕ нулевой линии, а не ложиться на
+     * неё: прижатый к нулю столбик выглядит как «ровно ноль», хотя число под
+     * картинкой в этот момент говорит «−0,29». Одна величина не имеет права
+     * выглядеть на графике иначе, чем в подписи.
+     */
+    val yMin: Float = 0f,
     /** Reference band (e.g. background ±2σ), same unit. */
     val band: ClosedFloatingPointRange<Float>? = null,
     /** Dashed reference line (e.g. the recorded background), same unit. */
@@ -68,11 +79,14 @@ fun BarChart(
         }
         val padT = 2.dp.toPx()
         val plotH = size.height - padT - labelHeight
-        if (plotH <= 0 || spec.yMax <= 0f || spec.values.isEmpty()) return@Canvas
+        val span = spec.yMax - spec.yMin
+        if (plotH <= 0 || span <= 0f || spec.values.isEmpty()) return@Canvas
 
         fun y(value: Float): Float =
-            padT + (1f - (value / spec.yMax).coerceIn(0f, 1f)) * plotH
-        val bottom = padT + plotH
+            padT + (1f - ((value - spec.yMin) / span).coerceIn(0f, 1f)) * plotH
+        // Основание столбиков — НОЛЬ, а не низ поля: иначе отрицательная
+        // величина была бы нарисована как маленькая положительная.
+        val baseline = y(0f.coerceIn(spec.yMin, spec.yMax))
 
         // Reference band + dashed center line.
         spec.band?.let { band ->
@@ -103,7 +117,9 @@ fun BarChart(
         val radius = CornerRadius(2.dp.toPx())
         spec.values.forEachIndexed { index, value ->
             if (value == null) return@forEachIndexed
-            val top = y(value)
+            val level = y(value)
+            val top = minOf(level, baseline)
+            val bottom = maxOf(level, baseline)
             val alpha = when {
                 spec.emphasizeLast -> if (index == n - 1) 1f else 0.6f
                 spec.dimAtOrBelow != null && value <= spec.dimAtOrBelow -> 0.5f

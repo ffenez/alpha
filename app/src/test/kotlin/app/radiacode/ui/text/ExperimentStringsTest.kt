@@ -116,7 +116,10 @@ class ExperimentStringsTest {
         assertTrue(ExperimentRu.experimentalNote.contains("измерениях прибора"))
         assertTrue(ExperimentEn.experimentalNote.contains("not yet validated"))
         assertTrue(ExperimentEn.experimentalNote.contains("instrument measurements"))
-        assertTrue(ExperimentEn.experimentalBadge.contains("experimental"))
+        assertTrue(ExperimentEn.experimentalBadge.lowercase().contains("experimental"))
+        // Метка и одна фраза остаются на экране, разбор зрелости — под «i».
+        assertTrue(ExperimentRu.experimentalLead.length < ExperimentRu.experimentalNote.length)
+        assertTrue(ExperimentEn.experimentalLead.length < ExperimentEn.experimentalNote.length)
         for (note in listOf(ExperimentRu.experimentalNote, ExperimentEn.experimentalNote)) {
             assertTrue(!note.contains("RC-110"), note)
         }

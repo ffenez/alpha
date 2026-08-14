@@ -33,6 +33,7 @@ import app.radiacode.ui.components.BarChartSpec
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.ChartNotesDialog
 import app.radiacode.ui.components.Chip
+import app.radiacode.ui.components.ResultCard
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
@@ -42,6 +43,7 @@ import app.radiacode.ui.text.HistoryCatalogue
 import app.radiacode.ui.text.HistoryRu
 import app.radiacode.ui.text.HistoryStrings
 import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.logic.RadonReport
 import app.radiacode.ui.text.SessionRadonCatalogue
 import app.radiacode.ui.text.SessionRadonStrings
 import app.radiacode.ui.theme.Dimens
@@ -138,38 +140,18 @@ fun RadonScreen(graph: AppGraph, onBack: () -> Unit) {
             !loaded -> Card(modifier = Modifier.fillMaxWidth()) {
                 Text(text = t.readingSnapshots, style = type.bodySmall, color = colors.muted)
             }
-            m == null || m.hours.isEmpty() -> Card(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(
-                        text = t.noRadonDataYet,
-                        style = type.bodySmall,
-                        color = colors.ink2,
-                    )
-                    Text(
-                        text = t.radonEmptyExplained,
-                        style = type.bodySmall,
-                        color = colors.muted,
-                    )
-                }
-            }
+            // Пустая история и посчитанный индикатор идут по ОДНОМУ шаблону:
+            // «данных пока мало» — такой же ответ, как «признак не выражен», и
+            // отдельной карточкой он говорил бы, что экран сломан.
             else -> RadonContent(m, t)
         }
 
-        Text(
-            text = t.radonCaveat,
-            style = type.footnote,
-            color = colors.muted,
-        )
-        Text(
-            text = t.ventilationCheck,
-            style = type.footnote,
-            color = colors.muted,
-        )
+        Text(text = t.ventilationCheck, style = type.footnote, color = colors.muted)
     }
 }
 
 @Composable
-private fun RadonContent(m: RadonModel, t: SessionRadonStrings) {
+private fun RadonContent(m: RadonModel?, t: SessionRadonStrings) {
     val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -180,79 +162,67 @@ private fun RadonContent(m: RadonModel, t: SessionRadonStrings) {
     if (info) {
         ChartNotesDialog(notes = listOf(t.radonChartNote)) { info = false }
     }
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = t.hourlyTitle.uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(text = t.roiRateUnit, style = type.footnote, color = colors.muted)
-                Spacer(Modifier.width(Dimens.space1))
-                Chip(text = "i", color = colors.ink2, onClick = { info = true })
-            }
-            val dataMax = m.columns.filterNotNull().maxOrNull()
-            if (dataMax == null || dataMax <= 0f) {
-                Text(
-                    text = t.noMeasurementsInWindow,
-                    style = type.bodySmall,
-                    color = colors.muted,
-                )
-            } else {
+    val span = m?.hours?.takeIf { it.isNotEmpty() }?.let {
+        HistoryFormat.duration(
+            (it.last().hourStartMillis + RadonTrend.HOUR_MILLIS - it.first().hourStartMillis)
+                / 1000L,
+            s = h,
+        )
+    }
+    ResultCard(
+        result = RadonReport.build(
+            current = m?.current,
+            median = m?.median,
+            hours = m?.hours?.size ?: 0,
+            spanText = span,
+            t = t,
+        ),
+    ) {
+        if (m != null && m.hours.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = t.hourlyTitle.uppercase(),
+                        style = type.labelSmall,
+                        color = colors.ink2,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Chip(text = "i", color = colors.ink2, onClick = { info = true })
+                }
+                // Ноль на своём месте, отрицательные столбики — вниз. Раньше
+                // отрицательный час прижимался к нулю и выглядел как «ровно
+                // столько же»; теперь видно, что там оценка континуума вышла
+                // выше самих окон.
+                val values = m.columns.filterNotNull()
+                val high = values.maxOrNull() ?: 0f
+                val low = values.minOrNull() ?: 0f
                 BarChart(
                     spec = BarChartSpec(
                         values = m.columns,
-                        yMax = dataMax * 1.25f,
+                        yMax = if (high > 0f) high * 1.25f else 0.01f,
+                        yMin = if (low < 0f) low * 1.25f else 0f,
                         refLine = m.median,
                         xStartLabel = edgeLabel(m.fromMillis, m.toMillis, h),
                         xEndLabel = t.now,
                     ),
                     height = 80.dp,
                 )
-            }
-            StatGrid(
-                cells = listOf(
-                    StatCell(
-                        m.current?.let { rate(it.rateCps) } ?: "—",
-                        t.now,
-                    ),
-                    StatCell(m.median?.let { rate(it) } ?: "—", t.statMedian),
-                    StatCell(relativeLabel(m.current?.rateCps, m.median), t.toMedian),
-                    StatCell("${m.hours.size}", t.hoursOfData),
-                ),
-            )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-            ) {
-                val (label, color) = when (m.trend) {
-                    RadonTrend.Trend.RISING -> t.trendRising to colors.warn
-                    RadonTrend.Trend.FALLING -> t.trendFalling to colors.ok
-                    // Правило сравнивает проекцию наклона с разбросом: оно
-                    // может НЕ найти направления, но не может доказать
-                    // постоянство. «Стабильно» утверждало бы второе.
-                    RadonTrend.Trend.FLAT -> t.trendFlat to colors.ink2
-                    RadonTrend.Trend.UNKNOWN -> t.trendUnknown to colors.muted
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                ) {
+                    val (label, color) = when (m.trend) {
+                        RadonTrend.Trend.RISING -> t.trendRising to colors.warn
+                        RadonTrend.Trend.FALLING -> t.trendFalling to colors.ok
+                        // Правило сравнивает проекцию наклона с разбросом: оно
+                        // может НЕ найти направления, но не может доказать
+                        // постоянство. «Стабильно» утверждало бы второе.
+                        RadonTrend.Trend.FLAT -> t.trendFlat to colors.ink2
+                        RadonTrend.Trend.UNKNOWN -> t.trendUnknown to colors.muted
+                    }
+                    Chip(text = label, color = color)
+                    Text(text = t.trendWindow, style = type.footnote, color = colors.muted)
                 }
-                Chip(text = label, color = color)
-                Text(
-                    text = t.trendWindow,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
-            }
-            m.current?.let { current ->
-                Text(
-                    text = t.currentPoint(
-                        rate = rate(current.rateCps),
-                        sigma = rate(current.sigmaCps),
-                        duration = HistoryFormat.duration(current.seconds, s = h),
-                    ),
-                    style = type.footnote,
-                    color = colors.muted,
-                )
             }
         }
     }

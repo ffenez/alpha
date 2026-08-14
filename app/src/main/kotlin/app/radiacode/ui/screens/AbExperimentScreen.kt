@@ -57,6 +57,7 @@ import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.ChartNotesDialog
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.components.RadioMark
@@ -748,22 +749,33 @@ private fun Header(title: String, back: String, onBack: () -> Unit) {
     }
 }
 
-/** Спец §24: до валидации на реальных данных функция помечена как опытная. */
+/**
+ * Спец §24: до валидации на реальных данных функция помечена как опытная.
+ *
+ * На экране остаются метка и одна фраза о том, что здесь делают. Абзац про
+ * синтетическую проверку — под «i»: он о зрелости функции, а не о том, как ею
+ * пользоваться, и стоял ровно на месте первого шага.
+ */
 @Composable
 private fun ExperimentalBanner() {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val t = ExperimentCatalogue.of(LocalStrings.current.language)
+    var info by remember { mutableStateOf(false) }
+    if (info) ChartNotesDialog(notes = listOf(t.experimentalNote)) { info = false }
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Chip(text = t.experimentalBadge, color = colors.warn)
-            }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
+            Chip(text = t.experimentalBadge, color = colors.warn)
             Text(
-                text = t.experimentalNote,
-                style = type.footnote,
-                color = colors.muted,
+                text = t.experimentalLead,
+                style = type.bodySmall,
+                color = colors.ink2,
+                modifier = Modifier.weight(1f),
             )
+            Chip(text = "i", color = colors.ink2, onClick = { info = true })
         }
     }
 }

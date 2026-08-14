@@ -48,23 +48,74 @@ class DeviceControlHub {
     private val _applied = MutableStateFlow(Applied())
     val applied: StateFlow<Applied> = _applied.asStateFlow()
 
+    /**
+     * Чего ЧЕЛОВЕК попросил — независимо от того, дошло ли это до прибора.
+     *
+     * Полевой дефект: тумблер не срабатывал. Команда уходила в `SharedFlow` без
+     * буфера воспроизведения, а слушателя у него нет, пока прибор не подключён
+     * и не поднялись его задачи, — то есть нажатие в момент переподключения
+     * (или единственная неудачная запись) исчезало навсегда, и повторить его
+     * человеку было нечем: тумблер уже стоял в нужном положении.
+     *
+     * Теперь просьба ХРАНИТСЯ и применяется заново на каждом подключении. Она
+     * переживает потерю связи: связь оборвалась не по воле человека, и его
+     * решение о приборе от этого не отменяется.
+     */
+    private val _desired = MutableStateFlow(Applied())
+    val desired: StateFlow<Applied> = _desired.asStateFlow()
+
+    /** Прибор отказал в записи; UI обязан сказать это, а не молчать. */
+    private val _failed = MutableStateFlow(Applied())
+    val failed: StateFlow<Applied> = _failed.asStateFlow()
+
     private val _commands = MutableSharedFlow<Command>(extraBufferCapacity = 8)
     val commands: SharedFlow<Command> = _commands.asSharedFlow()
 
     fun request(command: Command) {
+        _desired.value = _desired.value.with(command)
+        _failed.value = _failed.value.clear(command)
         _commands.tryEmit(command)
+    }
+
+    /** Что осталось донести до прибора при (пере)подключении. */
+    fun pending(): List<Command> {
+        val desired = _desired.value
+        val applied = _applied.value
+        return listOfNotNull(
+            desired.sound?.takeIf { it != applied.sound }?.let { Command.Sound(it) },
+            desired.vibro?.takeIf { it != applied.vibro }?.let { Command.Vibro(it) },
+        )
     }
 
     /** Вызывается сервисом ПОСЛЕ того, как прибор подтвердил запись. */
     internal fun onApplied(command: Command) {
-        _applied.value = when (command) {
-            is Command.Sound -> _applied.value.copy(sound = command.on)
-            is Command.Vibro -> _applied.value.copy(vibro = command.on)
+        _applied.value = _applied.value.with(command)
+        _failed.value = _failed.value.clear(command)
+    }
+
+    /** Прибор не принял запись: пусть это будет видно, а не пропадёт. */
+    internal fun onFailed(command: Command) {
+        _failed.value = when (command) {
+            is Command.Sound -> _failed.value.copy(sound = true)
+            is Command.Vibro -> _failed.value.copy(vibro = true)
         }
     }
 
-    /** Связь потеряна: что стоит в приборе сейчас, мы снова не знаем. */
+    /**
+     * Связь потеряна: что стоит в приборе сейчас, мы снова не знаем.
+     * Просьба человека при этом остаётся — её применит следующее подключение.
+     */
     internal fun onDisconnected() {
         _applied.value = Applied()
+    }
+
+    private fun Applied.with(command: Command): Applied = when (command) {
+        is Command.Sound -> copy(sound = command.on)
+        is Command.Vibro -> copy(vibro = command.on)
+    }
+
+    private fun Applied.clear(command: Command): Applied = when (command) {
+        is Command.Sound -> copy(sound = null)
+        is Command.Vibro -> copy(vibro = null)
     }
 }

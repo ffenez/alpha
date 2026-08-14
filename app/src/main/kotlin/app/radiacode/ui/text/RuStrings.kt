@@ -444,9 +444,6 @@ object RuStrings : Strings {
     override fun createdAt(stamp: String) = "создан $stamp"
 
     override val notCreated = "не создан"
-    override val translationNote =
-        "Перевод выполняется по разделам: непереведённые части пока показываются " +
-            "по-русски. · Translation is in progress: untranslated parts are shown in Russian."
     override val skinTitle = "Оформление"
     override val skinTerminal = "Научный терминал"
     override val skinEightBit = "8-bit"
@@ -470,10 +467,6 @@ object RuStrings : Strings {
             "сырая детализация. По умолчанию хранится всё."
 
     override val scaleTitle = "Масштаб"
-    override val scaleNote =
-        "Текст и элементы регулируются отдельно: числа читают издалека, а кнопки нажимают " +
-            "пальцем, и увеличивать всё сразу значит терять половину экрана. Системный " +
-            "размер шрифта при этом сохраняется — проценты умножаются на него."
     override val scaleFont = "текст"
     override val scaleElements = "элементы"
 
@@ -485,14 +478,7 @@ object RuStrings : Strings {
     override val modeClicks = "клики"
     override val modeTone = "тон"
     override val modeVibro = "вибро"
-    override val skinNote =
-        "Оформление меняет цвета, шрифт и форму рамок — и только их: показания, " +
-            "формулировки и расчёты от него не зависят. Светлая и тёмная тема работают " +
-            "в обоих вариантах."
     override val themeTitle = "Тема"
-    override val themeNote =
-        "Тёмная тема — основная: на ней графики и цифры читаются в сумерках. Светлая " +
-            "пригодится на солнце."
     override val alarmsIntro =
         "Тревога срабатывает не от одиночного скачка: уровень должен превысить порог — " +
             "по абсолютной величине или относительно обычного фона места — и продержаться " +
@@ -592,18 +578,10 @@ object RuStrings : Strings {
     }
     override val unitsTitle = "Единицы"
     override val unitMicroSv = "мкЗв/ч"
-    override val unitMicroSvNote = "микрозиверты в час — единица СИ"
     override val unitMicroR = "мкР/ч"
-    override val unitMicroRNote = "микрорентгены в час · 1 мкЗв/ч = 100 мкР/ч"
     override val unitDoseMicroSv = "мкЗв"
     override val unitDoseMicroR = "мкР"
-    override val unitsNote =
-        "Пересчёт только для отображения: измерения хранятся в исходных единицах прибора " +
-            "без потери точности."
     override val interfaceTitle = "Интерфейс"
-    override val tabsNote =
-        "Вкладки меню: порядок и видимость. Настройки остаются доступны через значок λ " +
-            "на Главной."
     override val alwaysVisible = "всегда видна"
     override val atLeastOneTab = "Кроме Главной должна остаться хотя бы одна вкладка."
     override val monitorBlocksNote =
@@ -650,6 +628,7 @@ object RuStrings : Strings {
     override fun baselineStats(median: String, iqr: String, mad: String, buckets: Int) =
         "медиана $median · P25–P75 $iqr · MAD $mad · n $buckets минутных интервалов"
     override val stateUnknown = "состояние неизвестно"
+    override val stateRejected = "прибор не принял · попробуйте ещё раз"
     override val stateOnByApp = "включено этим приложением"
     override val stateOffByApp = "выключено этим приложением"
     override val on = "Вкл"

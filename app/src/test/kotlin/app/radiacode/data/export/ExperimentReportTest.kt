@@ -72,7 +72,7 @@ class ExperimentReportTest {
         assertTrue(report.contains("создан: 10.08.2026 14:22:03"), report)
         assertTrue(report.contains("профиль: Дом"), report)
         assertTrue(report.contains("геометрия: тарелка на столе"), report)
-        assertTrue(report.contains("статус: экспериментальная функция"), report)
+        assertTrue(report.contains("статус: Экспериментально"), report)
 
         // §22: normalization, background method, algorithm versions, parameters.
         assertTrue(report.contains("нормализация: ${ProcessingMetadata.NORMALIZATION_RATE}"), report)

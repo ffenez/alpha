@@ -61,7 +61,6 @@ fun SpectrumRateSection(graph: AppGraph) {
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text(text = t.rateWatching, style = type.footnote, color = colors.muted)
             Text(
                 text = t.rateVolume(
                     Uncertainty.num2(SpectrogramHistory.megabytesPerDay(policy.intervalMillis)),

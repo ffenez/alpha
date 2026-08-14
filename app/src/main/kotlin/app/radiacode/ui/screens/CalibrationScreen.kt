@@ -165,10 +165,10 @@ fun CalibrationScreen(graph: AppGraph, onBack: () -> Unit) {
             .padding(vertical = Dimens.space1),
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← ${strings.back}", onClick = onBack)
-            Spacer(Modifier.weight(1f))
-        }
+        // Своей кнопки «назад» здесь НЕТ: экран живёт внутри Настроек, у
+        // которых она уже есть в шапке, и две одинаковые кнопки подряд
+        // заставляли гадать, чем они отличаются. Системный жест по-прежнему
+        // закрывает сначала этот экран — за это отвечает BackHandler выше.
         Text(text = s.screenTitle, style = type.title, color = colors.ink)
         Text(text = s.intro, style = type.bodySmall, color = colors.ink2)
 

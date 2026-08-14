@@ -68,7 +68,6 @@ fun ScaleSection(graph: AppGraph) {
                 onCommit = { scope.launch { graph.settings.setElementScalePercent(it) } },
             )
 
-            Text(text = strings.scaleNote, style = type.footnote, color = colors.muted)
 
             if (fontPercent != UiScale.DEFAULT_PERCENT ||
                 elementPercent != UiScale.DEFAULT_PERCENT

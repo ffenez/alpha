@@ -64,7 +64,6 @@ interface SpectrogramStrings {
     val rateEconomy: String
 
     /** Правило одно и названо вслух: открытый экран = 5 с. */
-    val rateWatching: String
 
     /** Объём истории при выбранной частоте — факт, а не пугание батареей. */
     fun rateVolume(megabytesPerDay: String): String
@@ -148,8 +147,6 @@ object SpectrogramRu : SpectrogramStrings {
     override val rateBalanced = "30 с · обычно"
     override val rateEconomy = "10 мин · экономно"
 
-    override val rateWatching =
-        "Пока этот экран открыт, запись идёт раз в 5 с независимо от выбранной частоты."
 
     override fun rateVolume(megabytesPerDay: String) =
         "При закрытом экране это ≈$megabytesPerDay МБ истории в сутки."
@@ -243,8 +240,6 @@ object SpectrogramEn : SpectrogramStrings {
     override val rateBalanced = "30 s · usual"
     override val rateEconomy = "10 min · frugal"
 
-    override val rateWatching =
-        "While this screen is open, recording runs every 5 s whatever the rate you chose."
 
     override fun rateVolume(megabytesPerDay: String) =
         "With the screen closed that is ≈$megabytesPerDay MB of history per day."
@@ -340,8 +335,7 @@ fun SpectrogramStrings.allTexts(): List<String> = listOf(
     modeIntensity, modeShape, doseStripLabel("µSv/h"), energyUnit,
     legendZero, legendColumnMax, legendRate("1,2"),
     measuredSeconds(5), countsPerSecond("24,3"), countsInColumn(120), meanEnergy(310),
-    rateTitle, rateDetailed, rateBalanced, rateEconomy, rateWatching,
-    rateVolume("1,3"), rateThinning(7, 5),
+    rateTitle, rateDetailed, rateBalanced, rateEconomy, rateVolume("1,3"), rateThinning(7, 5),
     infoTitle, statIntervals, statStored, statRecorded, statColumnStep, statBands,
     secondsValue(10), coverageNote("02:30", "05:00"),
     stepNote(stepPerBand("1,4")), stepCollecting,

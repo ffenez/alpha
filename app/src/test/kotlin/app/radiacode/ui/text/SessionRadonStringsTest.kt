@@ -1,6 +1,7 @@
 package app.radiacode.ui.text
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -47,24 +48,60 @@ class SessionRadonStringsTest {
         assertTrue(SessionRadonRu.chartLineNote != SessionRadonEn.chartLineNote)
     }
 
+    /**
+     * Экран радона обязан отказаться от концентрации ТАМ, ГДЕ ЧЕЛОВЕК ВИДИТ
+     * результат, — то есть в самой карточке вывода, а не в подписи внизу
+     * страницы, до которой ещё надо долистать.
+     */
     @Test
     fun `radon stays a relative indicator in every language`() {
         for (catalogue in catalogues) {
-            // Единица допустима ровно один раз — внутри отрицания; отдельного
-            // упоминания «концентрации» как показанной величины быть не может.
-            val caveat = catalogue.radonCaveat.lowercase()
+            val limit = catalogue.radonLimit.lowercase()
             assertTrue(
-                caveat.contains("не концентрация") || caveat.contains("not a radon concentration"),
-                "радон обязан отказаться от концентрации: $caveat",
+                limit.contains("не измерение концентрации") ||
+                    limit.contains("not a measurement of concentration"),
+                "радон обязан отказаться от концентрации: $limit",
             )
+            // Единица допустима ровно внутри отрицания и нигде больше.
+            val allowed = setOf(limit, catalogue.ventilationCheck.lowercase())
             for (text in catalogue.allTexts()) {
                 val lower = text.lowercase()
-                if (lower == caveat) continue
+                if (lower in allowed) continue
                 assertTrue(
                     !lower.contains("бк/м") && !lower.contains("bq/m"),
                     "беккерели вне отрицания: $text",
                 )
             }
+        }
+    }
+
+    /**
+     * Главный ответ обоих экранов — КАТЕГОРИЯ, а не остаток вычитания.
+     * `−0,29` в этой роли не читается ни как «мало», ни как «ничего нет»,
+     * хотя означает именно второе.
+     */
+    @Test
+    fun `the headline verdicts are words, not numbers`() {
+        for (catalogue in catalogues) {
+            val radon = listOf(
+                catalogue.radonResultNotable,
+                catalogue.radonResultPlain,
+                catalogue.radonResultNoData,
+            )
+            val line = listOf(
+                catalogue.lineResultExcess,
+                catalogue.lineResultPlain,
+                catalogue.lineResultNoData,
+            )
+            for (verdict in radon + line) {
+                assertTrue(verdict.none { it.isDigit() }, "в выводе есть число: $verdict")
+                assertTrue(!verdict.contains("σ") && !verdict.contains("−"), verdict)
+            }
+            // Три исхода ОДНОГО экрана различимы: одинаковая строка на два
+            // состояния — это «экран не знает, что сказать». Между экранами
+            // совпадение допустимо: «данных пока мало» — один и тот же ответ.
+            assertEquals(3, radon.toSet().size, "$radon")
+            assertEquals(3, line.toSet().size, "$line")
         }
     }
 

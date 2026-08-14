@@ -22,9 +22,6 @@ interface SessionRadonStrings {
 
     /** Ряд нетто-счёта в окне линии выбранного нуклида. */
     val lineTrendTitle: String
-    val lineNetRate: String
-    val lineSignificance: String
-    val linePoints: String
 
     /**
      * Подпись охвата ряда. Отдельно от выбранного окна сознательно: окно —
@@ -33,12 +30,9 @@ interface SessionRadonStrings {
      * между «прибор столько не работал» и «экран не работает» увидеть было
      * нечем.
      */
-    val lineSpan: String
     fun spanMinutes(value: Int): String
     fun spanHours(value: Int): String
     fun spanDays(value: Int): String
-    val lineResolved: String
-    val lineNotResolved: String
     val lineTrendCaveat: String
 
     /** Экспорт ряда измерений сессии — открытый формат, явное действие. */
@@ -94,42 +88,67 @@ interface SessionRadonStrings {
 
     // --- Радон ---
     val radonTag: String
+
+    // --- единый шаблон результата (аналитика) ---
+    /**
+     * Категориальный ответ вместо статистического остатка.
+     *
+     * `−0,29 сейчас` в роли главного числа не читается никак: ни «мало», ни
+     * «много», ни «ничего нет», — а означает ровно последнее. Число со знаком
+     * осталось, но переехало в подробности.
+     */
+    val radonResultNotable: String
+    val radonResultPlain: String
+    val radonResultNoData: String
+    val radonMeaningNotable: String
+    val radonMeaningPlain: String
+    val radonMeaningNoData: String
+    val radonLimit: String
+
+    val lineResultExcess: String
+    val lineResultPlain: String
+    val lineResultNoData: String
+    fun lineMeaningExcess(line: String): String
+    fun lineMeaningPlain(line: String): String
+    val lineMeaningNoData: String
+
+    /** «13 часовых интервалов · охват 11 ч» — объём измерения одной строкой. */
+    fun measuredIntervals(intervals: String, span: String): String
+    fun hourIntervals(count: Int): String
+
+    /** Подписи технического уровня: те же величины числами. */
+    val detailNet: String
+    val detailSignificance: String
+    val detailSignificanceNote: String
+    val detailWindow: String
+    val detailContinuum: String
+    val detailContinuumValue: String
+    val detailCurrent: String
+    val detailMedian: String
+    val detailToMedian: String
+    fun windowAround(energy: String, halfWidth: String): String
+    fun netWithSigma(net: String, sigma: String): String
+    fun sigmaUnits(value: String): String
     val window24h: String
     val window7d: String
     val readingSnapshots: String
-    val noRadonDataYet: String
-    val radonEmptyExplained: String
-    val radonCaveat: String
     val ventilationCheck: String
     val hourlyTitle: String
-    val roiRateUnit: String
-    val noMeasurementsInWindow: String
     val now: String
     val radonChartNote: String
-    val toMedian: String
-    val hoursOfData: String
     val trendRising: String
     val trendFalling: String
     val trendFlat: String
     val trendUnknown: String
     val trendWindow: String
-    fun currentPoint(rate: String, sigma: String, duration: String): String
 }
 
 object SessionRadonRu : SessionRadonStrings {
 
     override val lineTrendTitle = "Линия во времени"
-    override val lineNetRate = "нетто, с⁻¹"
-    override val lineSignificance = "значимость"
-    override val linePoints = "точек"
-    override val lineSpan = "охват"
     override fun spanMinutes(value: Int) = "$value мин"
     override fun spanHours(value: Int) = "$value ч"
     override fun spanDays(value: Int) = "$value д"
-    override val lineResolved = "Линия выделяется над континуумом за всё накопленное время."
-    override val lineNotResolved =
-        "Линия не выделяется над континуумом: нетто того же порядка, что его " +
-            "собственная неопределённость."
     override val lineTrendCaveat =
         "Это относительная величина: без измеренной кривой эффективности прибора " +
             "перевод в беккерели невозможен. Сравнивать можно место с местом и время " +
@@ -196,30 +215,74 @@ object SessionRadonRu : SessionRadonStrings {
     override val deviationEvent = "отклонение"
     override val excursionEvent = "точка превышения"
 
-    override val radonTag = "Радон"
+    override val radonTag = "Продукты радона"
+
+    override val radonResultNotable = "Признак продуктов радона заметен"
+    override val radonResultPlain = "Признак не выражен"
+    override val radonResultNoData = "Данных пока мало"
+    override val radonMeaningNotable =
+        "В окнах Bi-214 и Pb-214 событий устойчиво больше, чем в соседних участках " +
+            "спектра. Это дочерние продукты распада радона."
+    override val radonMeaningPlain =
+        "В окнах Bi-214 и Pb-214 событий не больше, чем в соседних участках спектра."
+    override val radonMeaningNoData =
+        "Индикатор строится по снимкам спектра: пока прибор подключён, они пишутся " +
+            "автоматически. Первые точки появятся через час-два измерения."
+    override val radonLimit =
+        "Это косвенный признак, а не измерение концентрации: перевод в Бк/м³ " +
+            "требует радон-монитора, прибор по объёмной активности не откалиброван."
+
+    override val lineResultExcess = "Линия выделяется над локальным фоном спектра"
+    override val lineResultPlain = "Линия не выделяется"
+    override val lineResultNoData = "Данных пока мало"
+    override fun lineMeaningExcess(line: String) =
+        "В окне $line событий устойчиво больше, чем в соседних участках спектра."
+    override fun lineMeaningPlain(line: String) =
+        "В окне $line событий не больше, чем в соседних участках спектра."
+    override val lineMeaningNoData =
+        "Нужны снимки спектра за несколько часов подряд: их делает служба, пока " +
+            "прибор подключён."
+
+    override fun measuredIntervals(intervals: String, span: String) =
+        "$intervals · охват $span"
+    override fun hourIntervals(count: Int): String {
+        val tail = count % 100
+        val last = count % 10
+        val word = when {
+            tail in 11..14 -> "часовых интервалов"
+            last == 1 -> "часовой интервал"
+            last in 2..4 -> "часовых интервала"
+            else -> "часовых интервалов"
+        }
+        return "$count $word"
+    }
+
+    override val detailNet = "Избыток над локальным фоном спектра"
+    override val detailSignificance = "Насколько уверенно отличается от фона"
+    override val detailSignificanceNote =
+        "Избыток в долях собственной погрешности. С трёх говорят, что он есть; " +
+            "минус означает, что в самом окне оказалось меньше, чем по соседству."
+    override val detailWindow = "Энергетическое окно"
+    override val detailContinuum = "Локальный фон спектра"
+    override val detailContinuumValue = "оценён по участкам слева и справа от окна"
+    override val detailCurrent = "Сейчас"
+    override val detailMedian = "Медиана окна"
+    override val detailToMedian = "Сейчас к медиане"
+    override fun windowAround(energy: String, halfWidth: String) = "$energy ± $halfWidth кэВ"
+    override fun netWithSigma(net: String, sigma: String) = "$net ± $sigma имп/с"
+    override fun sigmaUnits(value: String) = "$value σ"
     override val window24h = "24 ч"
     override val window7d = "7 д"
     override val readingSnapshots = "читаю снимки спектра…"
-    override val noRadonDataYet = "данных пока нет"
-    override val radonEmptyExplained =
-        "Индикатор строится по снимкам спектра: пока прибор подключён, они пишутся " +
-            "автоматически (раз в ~10 мин, чаще при открытом Спектре). Первые точки " +
-            "появятся через час-два измерения."
-    override val radonCaveat =
-        "Относительный индикатор радоновых продуктов распада — net-скорость счёта в окнах " +
-            "Bi-214 (609 кэВ) и Pb-214 (352 кэВ). Это не концентрация радона в Бк/м³: " +
-            "прибор не откалиброван по объёмной активности."
     override val ventilationCheck =
-        "Проверка: проветрите помещение и наблюдайте спад — продукты распада радона " +
-            "вымываются воздухообменом за десятки минут."
+        "Проверка проветриванием: проветрите помещение и последите за показателем " +
+            "ближайшие часы. Если вклад продуктов распада радона заметен, после смены " +
+            "воздухообмена показатель может измениться. Это косвенная проверка, а не " +
+            "измерение концентрации."
 
     override val hourlyTitle = "Индикатор по часам"
-    override val roiRateUnit = "имп/с в ROI"
-    override val noMeasurementsInWindow = "в выбранном окне измерений не было"
     override val now = "сейчас"
     override val radonChartNote = "пунктир — медиана окна · пропуски — часы без измерений"
-    override val toMedian = "к медиане"
-    override val hoursOfData = "часов данных"
     override val trendRising = "↗ растёт"
     override val trendFalling = "↘ спадает"
     // Правило сравнивает проекцию наклона с разбросом: оно может НЕ найти
@@ -229,24 +292,14 @@ object SessionRadonRu : SessionRadonStrings {
     override val trendUnknown = "тренд: мало данных"
     override val trendWindow = "тренд последних 6 часов"
 
-    override fun currentPoint(rate: String, sigma: String, duration: String) =
-        "текущая точка: $rate ± $sigma имп/с (1σ) за $duration"
 }
 
 object SessionRadonEn : SessionRadonStrings {
 
     override val lineTrendTitle = "A line over time"
-    override val lineNetRate = "net, s⁻¹"
-    override val lineSignificance = "significance"
-    override val linePoints = "points"
-    override val lineSpan = "covered"
     override fun spanMinutes(value: Int) = "$value min"
     override fun spanHours(value: Int) = "$value h"
     override fun spanDays(value: Int) = "$value d"
-    override val lineResolved = "The line stands out above the continuum over all the time collected."
-    override val lineNotResolved =
-        "The line does not stand out above the continuum: the net is of the same " +
-            "order as its own uncertainty."
     override val lineTrendCaveat =
         "This is a relative quantity: without a measured efficiency curve there is no " +
             "conversion to becquerels. Compare place with place and time with time on " +
@@ -315,33 +368,70 @@ object SessionRadonEn : SessionRadonStrings {
     override val deviationEvent = "deviation"
     override val excursionEvent = "excursion point"
 
-    override val radonTag = "Radon"
+    override val radonTag = "Radon daughters"
+
+    override val radonResultNotable = "Radon daughters stand out"
+    override val radonResultPlain = "No excess to speak of"
+    override val radonResultNoData = "Not enough data yet"
+    override val radonMeaningNotable =
+        "The Bi-214 and Pb-214 windows hold steadily more events than the parts of " +
+            "the spectrum next to them. These are radon decay products."
+    override val radonMeaningPlain =
+        "The Bi-214 and Pb-214 windows hold no more events than the parts of the " +
+            "spectrum next to them."
+    override val radonMeaningNoData =
+        "The indicator is built from spectrum snapshots, written automatically while " +
+            "the instrument is connected. The first points appear after an hour or two."
+    override val radonLimit =
+        "This is an indirect sign, not a measurement of concentration: Bq/m³ needs a " +
+            "radon monitor, and this instrument is not calibrated for volume activity."
+
+    override val lineResultExcess = "The line stands out above the local spectrum background"
+    override val lineResultPlain = "The line does not stand out"
+    override val lineResultNoData = "Not enough data yet"
+    override fun lineMeaningExcess(line: String) =
+        "The $line window holds steadily more events than the parts of the spectrum " +
+            "next to it."
+    override fun lineMeaningPlain(line: String) =
+        "The $line window holds no more events than the parts of the spectrum next to it."
+    override val lineMeaningNoData =
+        "Spectrum snapshots over several hours in a row are needed; the service writes " +
+            "them while the instrument is connected."
+
+    override fun measuredIntervals(intervals: String, span: String) =
+        "$intervals · $span covered"
+    override fun hourIntervals(count: Int) =
+        if (count == 1) "1 hourly interval" else "$count hourly intervals"
+
+    override val detailNet = "Excess above the local spectrum background"
+    override val detailSignificance = "How firmly it differs from the background"
+    override val detailSignificanceNote =
+        "The excess in units of its own uncertainty. From three it is called an " +
+            "excess; a minus means the window itself held less than its neighbours."
+    override val detailWindow = "Energy window"
+    override val detailContinuum = "Local spectrum background"
+    override val detailContinuumValue = "estimated from the parts left and right of the window"
+    override val detailCurrent = "Now"
+    override val detailMedian = "Median of the window"
+    override val detailToMedian = "Now vs the median"
+    override fun windowAround(energy: String, halfWidth: String) = "$energy ± $halfWidth keV"
+    override fun netWithSigma(net: String, sigma: String) = "$net ± $sigma counts/s"
+    override fun sigmaUnits(value: String) = "$value σ"
     override val window24h = "24 h"
     override val window7d = "7 d"
     override val readingSnapshots = "reading spectrum snapshots…"
-    override val noRadonDataYet = "no data yet"
-    override val radonEmptyExplained =
-        "The indicator is built from spectrum snapshots: while the instrument is connected " +
-            "they are recorded automatically (about every 10 min, more often with Spectrum " +
-            "open). The first points appear after an hour or two of measuring."
     // Единица Бк/м³ остаётся ТОЛЬКО внутри отрицания — ею мы отказываемся от
     // концентрации, а не называем показанное число.
-    override val radonCaveat =
-        "A relative indicator of radon decay products — the net count rate in the Bi-214 " +
-            "(609 keV) and Pb-214 (352 keV) windows. It is not a radon concentration in " +
-            "Bq/m³: the instrument is not calibrated for volumetric activity."
     override val ventilationCheck =
-        "A check: ventilate the room and watch the fall — radon decay products are flushed " +
-            "out by air exchange within tens of minutes."
+        "The airing check: air the room and watch the indicator over the next few hours. " +
+            "If radon decay products contribute noticeably, the indicator may change once " +
+            "the air exchange does. This is an indirect check, not a measurement of " +
+            "concentration."
 
     override val hourlyTitle = "Indicator by hour"
-    override val roiRateUnit = "counts/s in the ROI"
-    override val noMeasurementsInWindow = "there were no measurements in the selected window"
     override val now = "now"
     override val radonChartNote =
         "the dashed line is the window median · gaps are hours without measurements"
-    override val toMedian = "vs median"
-    override val hoursOfData = "hours of data"
     override val trendRising = "↗ rising"
     override val trendFalling = "↘ falling"
     // «no direction resolved», а не «steady»: правило не умеет доказывать
@@ -350,17 +440,14 @@ object SessionRadonEn : SessionRadonStrings {
     override val trendUnknown = "trend: not enough data"
     override val trendWindow = "trend over the last 6 hours"
 
-    override fun currentPoint(rate: String, sigma: String, duration: String) =
-        "current point: $rate ± $sigma counts/s (1σ) over $duration"
 }
 
 val SessionRadonCatalogue = AreaCatalogue(ru = SessionRadonRu, en = SessionRadonEn)
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun SessionRadonStrings.allTexts(): List<String> = listOf(
-    lineTrendTitle, lineNetRate, lineSignificance, linePoints, lineSpan,
-    spanMinutes(20), spanHours(6), spanDays(3), lineResolved,
-    lineNotResolved, lineTrendCaveat,
+    lineTrendTitle, spanMinutes(20), spanHours(6), spanDays(3),
+    lineTrendCaveat,
     exportCsv, exportSaved, exportFailed,
     sessionTag, sessionNotFound, readingSession, runningNow, samplesLabel, doseRateLabel,
     doseRateSummary("0,15", "0,12", "0,21", "мкЗв/ч"),
@@ -371,9 +458,16 @@ fun SessionRadonStrings.allTexts(): List<String> = listOf(
     flightFactor("1,8", "0,25", "0,14", "мкЗв/ч"),
     noGroundPoints, cosmicNote,
     eventsTitle, deviationEvent, excursionEvent,
-    radonTag, window24h, window7d, readingSnapshots, noRadonDataYet, radonEmptyExplained,
-    radonCaveat, ventilationCheck, hourlyTitle, roiRateUnit, noMeasurementsInWindow, now,
-    radonChartNote, toMedian, hoursOfData,
+    radonTag, radonResultNotable, radonResultPlain, radonResultNoData,
+    radonMeaningNotable, radonMeaningPlain, radonMeaningNoData, radonLimit,
+    lineResultExcess, lineResultPlain, lineResultNoData,
+    lineMeaningExcess("Cs-137 · 661,7"), lineMeaningPlain("Cs-137 · 661,7"), lineMeaningNoData,
+    measuredIntervals(hourIntervals(13), "11 ч"), hourIntervals(1), hourIntervals(2),
+    detailNet, detailSignificance, detailSignificanceNote, detailWindow,
+    detailContinuum, detailContinuumValue, detailCurrent, detailMedian, detailToMedian,
+    windowAround("661,7", "52,9"), netWithSigma("0,12", "0,04"), sigmaUnits("3,1"),
+    window24h, window7d, readingSnapshots,
+    ventilationCheck, hourlyTitle, now,
+    radonChartNote,
     trendRising, trendFalling, trendFlat, trendUnknown, trendWindow,
-    currentPoint("0,42", "0,05", "1 ч"),
 )

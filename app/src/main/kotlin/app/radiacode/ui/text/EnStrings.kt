@@ -454,9 +454,6 @@ object EnStrings : Strings {
     override fun createdAt(stamp: String) = "created $stamp"
 
     override val notCreated = "not created"
-    override val translationNote =
-        "Translation is in progress: untranslated parts are shown in Russian. · Перевод " +
-            "выполняется по разделам: непереведённые части пока показываются по-русски."
     override val skinTitle = "Skin"
     override val skinTerminal = "Science terminal"
     override val skinEightBit = "8-bit"
@@ -480,10 +477,6 @@ object EnStrings : Strings {
             "detail is lost. By default everything is kept."
 
     override val scaleTitle = "Scale"
-    override val scaleNote =
-        "Text and elements are adjusted separately: numbers are read from a distance while " +
-            "buttons are pressed with a finger, and enlarging everything at once costs half " +
-            "the screen. The system font size is kept — the percentages multiply it."
     override val scaleFont = "text"
     override val scaleElements = "elements"
 
@@ -495,14 +488,7 @@ object EnStrings : Strings {
     override val modeClicks = "clicks"
     override val modeTone = "tone"
     override val modeVibro = "vibration"
-    override val skinNote =
-        "A skin changes colours, type and the shape of borders — and nothing else: " +
-            "readings, wording and calculations do not depend on it. Light and dark work " +
-            "in both skins."
     override val themeTitle = "Theme"
-    override val themeNote =
-        "Dark is the primary theme: charts and figures read well at dusk. Light is for " +
-            "bright sunlight."
     override val alarmsIntro =
         "An alarm is not triggered by a single spike: the level has to cross a threshold — " +
             "in absolute value or relative to this place's usual background — and hold " +
@@ -607,18 +593,10 @@ object EnStrings : Strings {
     }
     override val unitsTitle = "Units"
     override val unitMicroSv = "µSv/h"
-    override val unitMicroSvNote = "microsieverts per hour — the SI unit"
     override val unitMicroR = "µR/h"
-    override val unitMicroRNote = "microroentgens per hour · 1 µSv/h = 100 µR/h"
     override val unitDoseMicroSv = "µSv"
     override val unitDoseMicroR = "µR"
-    override val unitsNote =
-        "The conversion is for display only: measurements are stored in the instrument's " +
-            "own units without loss of precision."
     override val interfaceTitle = "Interface"
-    override val tabsNote =
-        "Tabs of the menu: order and visibility. Settings stay reachable through the λ " +
-            "icon on Monitor."
     override val alwaysVisible = "always visible"
     override val atLeastOneTab = "Besides Monitor, at least one tab has to remain."
     override val monitorBlocksNote =
@@ -666,6 +644,7 @@ object EnStrings : Strings {
     override fun baselineStats(median: String, iqr: String, mad: String, buckets: Int) =
         "median $median · P25–P75 $iqr · MAD $mad · n $buckets one-minute intervals"
     override val stateUnknown = "state unknown"
+    override val stateRejected = "the instrument refused · try again"
     override val stateOnByApp = "switched on by this app"
     override val stateOffByApp = "switched off by this app"
     override val on = "On"

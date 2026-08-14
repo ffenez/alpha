@@ -406,9 +406,7 @@ interface Strings {
     val notRecorded: String
     fun createdAt(stamp: String): String
     val notCreated: String
-    val translationNote: String
     val skinTitle: String
-    val skinNote: String
     val skinTerminal: String
     val skinEightBit: String
     val themeSystem: String
@@ -431,7 +429,6 @@ interface Strings {
     val retentionNote: String
 
     val scaleTitle: String
-    val scaleNote: String
     val scaleFont: String
     val scaleElements: String
     fun scalePercent(percent: Int): String
@@ -444,7 +441,6 @@ interface Strings {
     val modeTone: String
     val modeVibro: String
     val themeTitle: String
-    val themeNote: String
     val alarmsIntro: String
     val nowLabel: String
     val usuallyHere: String
@@ -514,9 +510,7 @@ interface Strings {
     fun lastMeasurementAgo(seconds: Long): String
     val unitsTitle: String
     val unitMicroSv: String
-    val unitMicroSvNote: String
     val unitMicroR: String
-    val unitMicroRNote: String
 
     /**
      * Накопленная доза — своя единица, а не «мкЗв/ч» без «/ч»: обрезать
@@ -524,9 +518,7 @@ interface Strings {
      */
     val unitDoseMicroSv: String
     val unitDoseMicroR: String
-    val unitsNote: String
     val interfaceTitle: String
-    val tabsNote: String
     val alwaysVisible: String
     val atLeastOneTab: String
     val monitorBlocksNote: String
@@ -563,6 +555,9 @@ interface Strings {
     /** «медиана 0,12 · P25–P75 … · MAD … · n 26 минутных интервалов». */
     fun baselineStats(median: String, iqr: String, mad: String, buckets: Int): String
     val stateUnknown: String
+
+    /** Прибор отказал в записи: молчащая кнопка неотличима от сломанной. */
+    val stateRejected: String
     val stateOnByApp: String
     val stateOffByApp: String
     val on: String
@@ -604,7 +599,7 @@ fun Strings.allTexts(): List<String> = listOf(
     deviceSignals, deviceSignalsNote, deviceSound, deviceVibro,
     deviceSignalsUnknownNote, deviceSignalsOfflineNote,
     baselineStats("0,12", "0,11–0,14", "0,01", 26),
-    stateUnknown, stateOnByApp, stateOffByApp, on, off,
+    stateUnknown, stateRejected, stateOnByApp, stateOffByApp, on, off,
     onboardingBrand, onboardingConnectTitle, onboardingConnectBody, onboardingPermissions,
     onboardingBluetoothDenied, retry, start, onboardingBackgroundTitle, onboardingBackgroundBody,
     onboardingBatteryNote, later, allow, onboardingScanTitle, scanning, onboardingScanBody,
@@ -657,13 +652,13 @@ fun Strings.allTexts(): List<String> = listOf(
     debugBundleNote, whatIsWrong, whatIsWrongHint,
     saveDebugArchive, notConnected, measurementsCounted,
     no, notRecorded, notCreated,
-    translationNote, skinTitle, skinNote, skinTerminal, skinEightBit,
+    skinTitle, skinTerminal, skinEightBit,
     themeSystem, themeDark, themeLight,
     signalDbm(-72), alarmPreset("0,30", "2", held(minutes(2))),
     retentionTitle, retentionKeepAll, retentionDays(90), retentionNote,
-    scaleTitle, scaleNote, scaleFont, scaleElements, scalePercent(100), scaleReset,
+    scaleTitle, scaleFont, scaleElements, scalePercent(100), scaleReset,
     crystalOrganicPlastic, modeOff, modeClicks, modeTone, modeVibro,
-    themeTitle, themeNote, alarmsIntro,
+    themeTitle, alarmsIntro,
     nowLabel, usuallyHere, thresholdL1,
     noBandToCompare, sensitivityNormal, sensitivityHigh,
     sensitivityCustom, sensitivityCustomNote, alarmSoundElsewhere,
@@ -685,9 +680,9 @@ fun Strings.allTexts(): List<String> = listOf(
     serviceStopped, instrumentBattery, temperature,
     stream, streamActive, streamNoNewData(8), streamReconnecting, streamLost,
     streamNoDataYet, lastMeasurementAgo(120), unitsTitle,
-    unitMicroSv, unitMicroSvNote, unitMicroR,
-    unitMicroRNote, unitDoseMicroSv, unitDoseMicroR, unitsNote, interfaceTitle,
-    tabsNote, alwaysVisible, atLeastOneTab,
+    unitMicroSv, unitMicroR,
+    unitDoseMicroSv, unitDoseMicroR, interfaceTitle,
+    alwaysVisible, atLeastOneTab,
     monitorBlocksNote, blockTrend, blockDoseToday,
     blockCountChart, blockHardnessChart, blockStats,
     resetInterface, visible, hidden,
