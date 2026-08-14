@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v047Title: String
+    val v047Summary: String
+
     val v046Title: String
     val v046Summary: String
 
@@ -99,6 +102,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v047Title = "Карта и график маршрута ходят вместе"
+    override val v047Summary =
+        "Под сохранённым маршрутом появился профиль во времени: ведёшь по нему " +
+        "пальцем — кольцо едет по следу на карте, трогаешь след — курсор встаёт " +
+        "на графике, а карточка называет момент, измерение и точность фикса. В " +
+        "сравнении двух маршрутов включается «Разница»: участки, где разбросы не " +
+        "перекрылись, а где перекрылись — так и сказано."
 
     override val v046Title = "У маршрутов своё место в Истории"
     override val v046Summary =
@@ -281,6 +292,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v047Title = "The route map and its chart move together"
+    override val v047Summary =
+        "A saved route now has a profile over time below it: drag along it and " +
+        "the ring moves along the trace, touch the trace and the cursor moves on " +
+        "the chart, while a card names the moment, the reading and the accuracy " +
+        "of the fix. Comparing two routes offers «Разница»: the patches where the " +
+        "spreads did not overlap, and where they did, it says so."
 
     override val v046Title = "Routes have their own place in История"
     override val v046Summary =
@@ -470,6 +489,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v047Title, v047Summary,
     v046Title, v046Summary,
     v045Title, v045Summary,
     v044Title, v044Summary,

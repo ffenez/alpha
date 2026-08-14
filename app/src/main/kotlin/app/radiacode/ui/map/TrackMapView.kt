@@ -117,6 +117,11 @@ fun TrackMapView(
     positionStale: Boolean = false,
     /** Increment to center the camera on [position] («⌖ я»). */
     centerOnPositionTick: Int = 0,
+    /**
+     * Точка, выбранная на графике профиля: карта и график показывают ОДИН
+     * момент маршрута, поэтому курсор у них общий.
+     */
+    cursor: MapTrackPoint? = null,
     /** Visible box and zoom after every camera change (accumulated map query). */
     onViewport: (MapViewport) -> Unit = {},
 ) {
@@ -137,6 +142,7 @@ fun TrackMapView(
             holder.setData(points, metric, scale, lineBreaks, hotspots)
             holder.setCells(cells, cellMeters, cellScale)
             holder.setPosition(position, positionStale)
+            holder.setCursor(cursor)
             holder.fitBounds(bounds, recenterTick)
             holder.centerOnPosition(centerOnPositionTick)
             // A mode switch does not move the camera, so nothing would fire the
@@ -172,6 +178,9 @@ private const val ROUTE_WIDTH_DP = 4.5f
 private const val FIT_PADDING_DP = 40f
 private const val DEGENERATE_ZOOM = 16.0
 private const val DEFAULT_ZOOM = 4.0
+
+/** Курсор профиля на карте: кольцо, а не точка — под ним видно измерение. */
+private const val CURSOR_RADIUS_DP = 9f
 
 /** Own-position marker: dot and the surface-colored ring around it, dp. */
 private const val POSITION_DOT_DP = 6f
@@ -209,6 +218,7 @@ private class MapHolder(
     private var hotspotOverlay: DotOverlay<MapHotspot>? = null
     private var cellOverlay: CellOverlay? = null
     private var positionOverlay: PositionOverlay? = null
+    private var cursorOverlay: CursorOverlay? = null
     private var appliedDark: Boolean? = null
     private var userGestured = false
     private var fittedBounds: MapBounds? = null
@@ -289,6 +299,12 @@ private class MapHolder(
         hotspotOverlay = hotspotDots
         mapView.overlays.add(hotspotDots)
 
+        // Курсор профиля — над следом, но под «я на карте»: он показывает
+        // момент маршрута, а не место человека, и путать их нельзя.
+        val cursorRing = CursorOverlay(radiusPx = CURSOR_RADIUS_DP * density)
+        cursorOverlay = cursorRing
+        mapView.overlays.add(cursorRing)
+
         // Topmost: the user's own position is never hidden by data.
         val myPosition = PositionOverlay(
             dotRadiusPx = POSITION_DOT_DP * density,
@@ -364,6 +380,7 @@ private class MapHolder(
         hotspotOverlay?.strokeColor = colors.hotspotStroke
         cellOverlay?.colors = colors.ramp.toIntArray()
         cellOverlay?.fallbackColor = colors.metricMissing
+        cursorOverlay?.color = colors.position
         positionOverlay?.fillColor = colors.position
         positionOverlay?.ringColor = colors.positionRing
         if (appliedDark != dark) {
@@ -412,6 +429,14 @@ private class MapHolder(
         val overlay = cellOverlay ?: return
         if (overlay.sameCells(cells) && overlay.scale == scale) return
         overlay.setCells(cells, cellMeters, scale)
+        mapView.invalidate()
+    }
+
+    fun setCursor(point: MapTrackPoint?) {
+        val mapView = mapView ?: return
+        val overlay = cursorOverlay ?: return
+        if (overlay.point == point) return
+        overlay.point = point
         mapView.invalidate()
     }
 
@@ -482,6 +507,7 @@ private class MapHolder(
         hotspotOverlay = null
         cellOverlay = null
         positionOverlay = null
+        cursorOverlay = null
     }
 }
 
@@ -562,6 +588,31 @@ private class CellOverlay(
             ?: return false
         onSelect(cell, cellMeters)
         return true
+    }
+}
+
+/**
+ * Курсор профиля: где на маршруте стоит выбранный момент.
+ *
+ * Кольцо, а не залитая точка: под ним остаётся видно цвет самого следа, то
+ * есть то самое измерение, о котором говорит карточка.
+ */
+private class CursorOverlay(private val radiusPx: Float) : Overlay() {
+
+    var point: MapTrackPoint? = null
+    var color: Int = 0
+
+    private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val center = GeoPoint(0.0, 0.0)
+    private val pixels = Point()
+
+    override fun draw(canvas: Canvas, projection: Projection) {
+        val current = point ?: return
+        center.setCoords(current.latitude, current.longitude)
+        projection.toPixels(center, pixels)
+        ringPaint.color = color
+        ringPaint.strokeWidth = radiusPx / 3f
+        canvas.drawCircle(pixels.x.toFloat(), pixels.y.toFloat(), radiusPx, ringPaint)
     }
 }
 

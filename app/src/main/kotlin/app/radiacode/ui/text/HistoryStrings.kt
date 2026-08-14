@@ -125,6 +125,11 @@ interface HistoryStrings {
      */
     val routeCompareCaveat: String
     val routeOpen: String
+    /** Разница по участкам — только для пары маршрутов. */
+    val routeDiff: String
+    fun routeDiffSummary(matched: Int, higher: Int, lower: Int): String
+    /** Как именно сопоставлены участки: это метод, а не вывод. */
+    fun routeDiffMethod(cell: String, minPoints: Int): String
     val statDistance: String
     val statDose: String
     val measurementsUntouched: String
@@ -240,6 +245,15 @@ object HistoryRu : HistoryStrings {
             "чисел сама по себе различием не является: маршруты проходят по " +
             "разной геометрии и в разное время."
     override val routeOpen = "Открыть"
+    override val routeDiff = "Разница"
+    override fun routeDiffSummary(matched: Int, higher: Int, lower: Int) =
+        "Сопоставлено участков: $matched. Разброс не перекрывается на " +
+            "$higher выше и $lower ниже — на остальных различия не видно."
+    override fun routeDiffMethod(cell: String, minPoints: Int) =
+        "Участок — клетка $cell, где у обоих маршрутов не меньше $minPoints " +
+            "измерений; сравниваются медианы, различие названо видимым только " +
+            "когда P10–P90 маршрутов не перекрываются. Это описание, а не " +
+            "критерий: показания вдоль маршрута идут подряд и зависимы"
     override val statDistance = "путь"
     override val statDose = "доза"
 
@@ -370,6 +384,16 @@ object HistoryEn : HistoryStrings {
             "difference in the numbers is not by itself a difference: the " +
             "routes run over different geometry and at different times."
     override val routeOpen = "Open"
+    override val routeDiff = "Difference"
+    override fun routeDiffSummary(matched: Int, higher: Int, lower: Int) =
+        "Patches matched: $matched. The spreads do not overlap on $higher higher " +
+            "and $lower lower — on the rest no difference is visible."
+    override fun routeDiffMethod(cell: String, minPoints: Int) =
+        "A patch is a $cell cell where both routes have at least $minPoints " +
+            "measurements; the medians are compared, and a difference is called " +
+            "visible only when the routes' P10–P90 do not overlap. This is a " +
+            "description, not a test: readings along a route are consecutive " +
+            "and dependent"
     override val statDistance = "distance"
     override val statDose = "dose"
 
@@ -394,6 +418,7 @@ fun HistoryStrings.allTexts(): List<String> = months + listOf(
     routeMeasurements("4 654"), routeRename, routeNameHint,
     routeCompare, routeCompareCount(2), routeCompareTitle, routeCompareNeedTwo,
     routeCompareCaveat, routeOpen, statDistance, statDose,
+    routeDiff, routeDiffSummary(12, 3, 1), routeDiffMethod("30 м", 5),
     seconds(45), minutes(12), hours(8), hoursMinutes(8, 12),
     // Причина подставляется каталогом Монитора — здесь стоит её образец на
     // языке человека, а не имя механизма движка.

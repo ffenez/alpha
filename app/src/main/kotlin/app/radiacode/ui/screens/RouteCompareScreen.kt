@@ -35,7 +35,10 @@ import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.DoseTint
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.MapColorScale
+import app.radiacode.ui.logic.GridCell
 import app.radiacode.ui.logic.MapTrackPoint
+import app.radiacode.ui.logic.RouteDiff
+import app.radiacode.ui.logic.TrackGrid
 import app.radiacode.ui.logic.RouteFormat
 import app.radiacode.ui.logic.RouteSummary
 import app.radiacode.ui.logic.TrackMap
@@ -116,7 +119,36 @@ fun RouteCompareScreen(graph: AppGraph, routeIds: List<Long>, onBack: () -> Unit
         }
     }
 
+    // Разница по участкам: только когда сравниваются ровно два маршрута —
+    // «выше/ниже» это утверждение о ПАРЕ, и у трёх маршрутов его нет.
+    var showDiff by rememberSaveable { mutableStateOf(false) }
     val shown = routes.filter { it.summary.id !in hidden }
+    val pair = shown.takeIf { it.size == 2 }
+    val diff = remember(pair, metric) {
+        pair?.let { RouteDiff.compare(it[0].points, it[1].points, metric) }
+    }
+    val diffCells = remember(diff) {
+        diff?.differing?.map { cell ->
+            GridCell(
+                latKey = cell.latKey,
+                lonKey = cell.lonKey,
+                southLatitude = cell.southLatitude,
+                northLatitude = cell.northLatitude,
+                westLongitude = cell.westLongitude,
+                eastLongitude = cell.eastLongitude,
+                count = minOf(cell.countA, cell.countB),
+                // В клетке рисуется НАПРАВЛЕНИЕ: 0 — ниже на первом, 1 — выше.
+                median = if (cell.higher) 1f else 0f,
+                p10 = cell.p10A,
+                p90 = cell.p90A,
+                minValue = cell.medianA,
+                maxValue = cell.medianB,
+                fromMillis = 0L,
+                toMillis = 0L,
+            )
+        }.orEmpty()
+    }
+    val diffOn = showDiff && diff != null
     // Точки всех показанных маршрутов рисуются одним следом, но линия между
     // соседними маршрутами не проводится: разрывы считаются по каждому
     // маршруту отдельно, и первая точка следующего всегда начинает новый.
@@ -165,32 +197,80 @@ fun RouteCompareScreen(graph: AppGraph, routeIds: List<Long>, onBack: () -> Unit
             TrackMapView(
                 dark = colors.isDark,
                 layerColors = MapLayerColors(
-                    ramp = TrackRampColors.map { it.toArgb() },
+                    ramp = if (diffOn) {
+                        listOf(colors.data.toArgb(), colors.crit.toArgb())
+                    } else {
+                        TrackRampColors.map { it.toArgb() }
+                    },
                     metricMissing = colors.muted.toArgb(),
                     hotspotFill = colors.crit.toArgb(),
                     hotspotStroke = colors.surface.toArgb(),
                     position = colors.data.toArgb(),
                     positionRing = colors.surface.toArgb(),
                 ),
-                points = drawn.first,
+                // В режиме разницы след гасится: цвет клетки означает
+                // направление, а не уровень, и две шкалы под одними красками
+                // читались бы как одна.
+                points = if (diffOn) emptyList() else drawn.first,
                 metric = metric,
-                scale = scale,
-                lineBreaks = drawn.second,
+                scale = if (diffOn) null else scale,
+                lineBreaks = if (diffOn) BooleanArray(0) else drawn.second,
                 hotspots = emptyList(),
                 bounds = TrackMap.bounds(drawn.first),
                 recenterTick = 0,
                 onTap = {},
                 onTileStats = {},
                 modifier = Modifier.fillMaxSize(),
+                cells = if (diffOn) diffCells else emptyList(),
+                cellMeters = RouteDiff.CELL_METERS,
+                cellScale = if (diffOn) DIFF_SCALE else null,
             )
         }
 
-        Segmented(
-            options = listOf(t.metricDose, t.metricCps),
-            selectedIndex = metricIndex,
-            onSelect = { metricIndex = it },
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
+            Segmented(
+                options = listOf(t.metricDose, t.metricCps),
+                selectedIndex = metricIndex,
+                onSelect = { metricIndex = it },
+                modifier = Modifier.weight(1f),
+            )
+            // Разница включается только там, где ей есть о чём говорить.
+            if (diff != null) {
+                Chip(
+                    text = h.routeDiff,
+                    color = if (showDiff) colors.dataText else colors.ink2,
+                    selected = showDiff,
+                    onClick = { showDiff = !showDiff },
+                )
+            }
+        }
+
+        diff?.let { result ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                    Text(
+                        text = h.routeDiffSummary(
+                            matched = result.matched,
+                            higher = result.higher.size,
+                            lower = result.lower.size,
+                        ),
+                        style = type.bodySmall,
+                        color = colors.ink,
+                    )
+                    Text(
+                        text = h.routeDiffMethod(
+                            cell = TrackGrid.formatCellSize(RouteDiff.CELL_METERS, t),
+                            minPoints = RouteDiff.MIN_POINTS_PER_CELL,
+                        ),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+            }
+        }
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
@@ -257,3 +337,15 @@ fun RouteCompareScreen(graph: AppGraph, routeIds: List<Long>, onBack: () -> Unit
  * полным маршрутам и от прореживания не зависят.
  */
 private const val COMPARE_POINTS_PER_ROUTE = 800
+
+/**
+ * Шкала клеток разницы: два цвета, граница между ними — ноль и единица.
+ * Значение клетки здесь не уровень, а направление, поэтому и ступени всего
+ * две: ниже на первом маршруте и выше на нём.
+ */
+private val DIFF_SCALE = TrackMap.RampScale(
+    bounds = listOf(0.5f),
+    mode = MapColorScale.ABSOLUTE,
+    low = 0f,
+    high = 1f,
+)

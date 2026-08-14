@@ -63,6 +63,7 @@ import app.radiacode.data.export.SeriesExport
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Hint
+import app.radiacode.ui.components.RouteProfileChart
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
@@ -81,6 +82,7 @@ import app.radiacode.ui.logic.MapViewport
 import app.radiacode.ui.logic.MyPosition
 import app.radiacode.ui.logic.PositionFix
 import app.radiacode.ui.logic.PositionState
+import app.radiacode.ui.logic.RouteProfile
 import app.radiacode.ui.logic.TileStatus
 import app.radiacode.ui.logic.TrackGrid
 import app.radiacode.ui.logic.TrackMap
@@ -96,6 +98,7 @@ import app.radiacode.ui.text.HistoryRu
 import app.radiacode.ui.text.HistoryStrings
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.MapCatalogue
+import app.radiacode.ui.text.SearchCatalogue
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppMetrics
 import app.radiacode.ui.theme.TrackRampColors
@@ -622,6 +625,10 @@ private fun TrackDetailScreen(
         }
     }
 
+    // Курсор один на карту и на график: это один момент одной прогулки.
+    var cursorIndex by remember(data) { mutableStateOf<Int?>(null) }
+    val cursorPoint = data?.points?.getOrNull(cursorIndex ?: -1)
+
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var pendingGpx by remember { mutableStateOf<String?>(null) }
@@ -697,11 +704,29 @@ private fun TrackDetailScreen(
                 scaleMode = scaleMode,
                 usualBand = usualBand,
                 tintFactor = tintFactor,
+                cursor = cursorPoint,
+                onTrackPointTap = { timestamp ->
+                    cursorIndex = RouteProfile.indexOfTime(
+                        d?.points.orEmpty().map { it.timestamp },
+                        timestamp,
+                    )
+                },
                 onViewport = {},
                 emptyState = {},
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             if (d != null && d.points.isNotEmpty()) {
+                // График и карта показывают одно и то же: ведёшь по графику —
+                // кольцо едет по следу, трогаешь след — курсор встаёт здесь.
+                RouteProfileChart(
+                    points = d.points,
+                    metric = metric,
+                    cursorIndex = cursorIndex,
+                    onCursor = { cursorIndex = it },
+                )
+                cursorPoint?.let { point ->
+                    CursorCard(point = point, unit = unit, onDismiss = { cursorIndex = null })
+                }
                 RouteSummaryCard(
                     data = d,
                     unit = unit,
@@ -738,6 +763,10 @@ private fun TrackMapCard(
     tintFactor: Float = DoseTint.DEFAULT_FACTOR,
     /** Счётчик тайлов — только при включённом отладочном отчёте. */
     showTileStats: Boolean = false,
+    /** Общий с графиком курсор: выбранный момент маршрута. */
+    cursor: MapTrackPoint? = null,
+    /** Тап по следу выбирает момент, а не только открывает карточку. */
+    onTrackPointTap: (Long) -> Unit = {},
     onViewport: (MapViewport) -> Unit,
     emptyState: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -797,7 +826,11 @@ private fun TrackMapCard(
             hotspots = grid?.hotspots ?: data?.hotspots.orEmpty(),
             bounds = fitBounds,
             recenterTick = recenterTick,
-            onTap = { tap = it },
+            cursor = cursor,
+            onTap = { info ->
+                tap = info
+                if (info is MapTapInfo.TrackPoint) onTrackPointTap(info.timestamp)
+            },
             onTileStats = { tiles = it },
             modifier = Modifier.fillMaxSize(),
             cells = grid?.cells.orEmpty(),
@@ -1140,6 +1173,52 @@ private fun HotspotCard(graph: AppGraph, info: MapTapInfo.Hotspot, unit: DoseUni
 }
 
 private const val DWELL_WINDOW_MILLIS = 10L * 60_000
+
+/**
+ * Что именно выбрано курсором: момент, измерение и точность фикса.
+ *
+ * Точность названа рядом с координатами не для полноты: показание привязано к
+ * месту ровно настолько, насколько его знал приёмник, и «±25 м» меняет смысл
+ * фразы «здесь было столько-то».
+ */
+@Composable
+private fun CursorCard(point: MapTrackPoint, unit: DoseUnitSetting, onDismiss: () -> Unit) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
+    val strings = LocalStrings.current
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = HistoryFormat.dayTime(point.timestamp, System.currentTimeMillis(), s = h),
+                    style = type.label,
+                    color = colors.ink,
+                    modifier = Modifier.weight(1f),
+                )
+                Chip(
+                    text = SearchCatalogue.of(strings.language).hide,
+                    color = colors.ink2,
+                    onClick = onDismiss,
+                )
+            }
+            Text(
+                text = listOfNotNull(
+                    point.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit, s = strings) },
+                    point.cps?.let { TrackMap.formatCps(it) + " " + t.unitCps },
+                ).joinToString(" · ").ifBlank { strings.noData },
+                style = type.value,
+                color = colors.ink,
+            )
+            Text(
+                text = MyPosition.accuracy(point.accuracyMeters, t),
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+    }
+}
 
 // --- summary and states ---
 
