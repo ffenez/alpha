@@ -282,11 +282,6 @@ object RuStrings : Strings {
     override val fileSaved = "файл сохранён"
     override val spectraTitle = "Спектры"
     override val compare = "сравнить"
-    override val merge = "объединить"
-    override val markForDeletion = "отметьте снимки, которые нужно удалить"
-    override val pickTwoToCompare = "выберите два снимка — откроется сравнение"
-    override val pickTwoOrMoreToMerge =
-        "отметьте два и более снимков — каналы сложатся, время накопления просуммируется"
     override val snapshotOpensActions = "снимок открывается целиком: кривая, пики и действия"
     override val openSnapshot = "Открыть спектр"
     override val chooseSnapshotToCompare = "С каким снимком сравнить"

@@ -283,11 +283,6 @@ object EnStrings : Strings {
     override val fileSaved = "file saved"
     override val spectraTitle = "Spectra"
     override val compare = "compare"
-    override val merge = "merge"
-    override val markForDeletion = "tick the snapshots to delete"
-    override val pickTwoToCompare = "pick two snapshots — the comparison opens"
-    override val pickTwoOrMoreToMerge =
-        "tick two or more snapshots — channels add up and accumulation times are summed"
     override val snapshotOpensActions = "a snapshot opens in full: curve, peaks and actions"
     override val openSnapshot = "Open the spectrum"
     override val chooseSnapshotToCompare = "Which snapshot to compare with"

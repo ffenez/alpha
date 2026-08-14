@@ -322,6 +322,8 @@ fun HistoryScreen(
     val savedSpectra by graph.measurementRepository.savedSpectra(SPECTRA_LIMIT)
         .collectAsState(initial = emptyList())
     var confirming by remember { mutableStateOf<DeletionPlan?>(null) }
+    // Что вышло из объединения снимков — рядом со списком, где их и выбирали.
+    var mergeNote by remember { mutableStateOf<String?>(null) }
 
     confirming?.let { plan ->
         DeleteConfirmDialog(
@@ -379,11 +381,9 @@ fun HistoryScreen(
                     // на экране.
                     filter == HistoryFilter.ALL || filter == HistoryFilter.SESSIONS
                 }?.let {
-                    Chip(
-                        text = strings.sessionsCount(it.totalSessions),
-                        color = colors.ink2,
-                        onClick = { selection = selection.start() },
-                    )
+                    // Счётчик — число, а не кнопка: в режим выбора везде в
+                    // журнале входят одинаково, долгим нажатием на запись.
+                    Chip(text = strings.sessionsCount(it.totalSessions), color = colors.ink2)
                 }
             }
         }
@@ -505,12 +505,14 @@ fun HistoryScreen(
             if (filter == HistoryFilter.ALL || filter == HistoryFilter.SPECTRA) SavedSpectraCard(
                 graph = graph,
                 spectra = savedSpectra,
-                onCompare = { first, second -> comparePair = first to second },
                 onContinue = onContinueSpectrum,
                 onOpen = onOpenSpectrum,
                 selectionActive = selection.active,
                 selected = selection.spectra,
-                onToggle = { id -> selection = selection.toggleSpectrum(id) },
+                onToggle = { id ->
+                    selection = selection.start().toggleSpectrum(id)
+                },
+                mergeNote = mergeNote,
             )
 
             val showSessions = filter == HistoryFilter.ALL || filter == HistoryFilter.SESSIONS
@@ -560,6 +562,14 @@ fun HistoryScreen(
                                             onOpenSession(item.group.ids.last())
                                         }
                                     },
+                                    onLongClick = {
+                                        if (!item.group.running) {
+                                            selection = item.group.ids.fold(selection.start()) {
+                                                acc, id ->
+                                                acc.toggleSession(id)
+                                            }
+                                        }
+                                    },
                                 )
                                 is HistoryItem.Deviation -> DeviationRow(item.event, unit)
                             }
@@ -579,32 +589,69 @@ fun HistoryScreen(
                 )
             }
 
+            // Действия выбранного — одной строкой внизу, как у маршрутов:
+            // сравнить и объединить появляются, когда выбрано столько, сколько
+            // им нужно, и не занимают места, пока выбирать нечего.
             AnimatedVisibility(
                 visible = selection.active,
                 enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
                 exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
             ) {
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                        AppButton(
-                            text = HistoryDeletion.actionLabel(selection, h),
-                            onClick = {
-                                scope.launch {
-                                    confirming = graph.sessionRepository.deletionPlan(
-                                        sessionIds = selection.sessions,
-                                        spectrumIds = selection.spectra,
-                                    )
-                                }
-                            },
-                            primary = !selection.isEmpty,
-                            enabled = !selection.isEmpty,
-                            modifier = Modifier.weight(1f),
-                        )
-                        AppButton(
-                            text = strings.cancel,
-                            onClick = { selection = selection.cancel() },
-                            modifier = Modifier.weight(1f),
-                        )
+                    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                        val chosenSpectra = savedSpectra.filter { it.id in selection.spectra }
+                        if (chosenSpectra.size >= 2) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                                AppButton(
+                                    text = strings.compare,
+                                    enabled = chosenSpectra.size == 2,
+                                    onClick = {
+                                        comparePair = chosenSpectra[0].id to chosenSpectra[1].id
+                                        selection = selection.cancel()
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                                AppButton(
+                                    text = strings.mergeAction(chosenSpectra.size),
+                                    onClick = {
+                                        scope.launch {
+                                            when (val saved = mergeSnapshots(graph, chosenSpectra)) {
+                                                is MergeResult.Saved -> {
+                                                    selection = selection.cancel()
+                                                    mergeNote = strings.mergedSaved(
+                                                        saved.label.orEmpty(),
+                                                    )
+                                                }
+                                                is MergeResult.Refused -> mergeNote =
+                                                    strings.mergeImpossible + " — " + saved.reason
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                            AppButton(
+                                text = HistoryDeletion.actionLabel(selection, h),
+                                onClick = {
+                                    scope.launch {
+                                        confirming = graph.sessionRepository.deletionPlan(
+                                            sessionIds = selection.sessions,
+                                            spectrumIds = selection.spectra,
+                                        )
+                                    }
+                                },
+                                primary = !selection.isEmpty,
+                                enabled = !selection.isEmpty,
+                                modifier = Modifier.weight(1f),
+                            )
+                            AppButton(
+                                text = strings.cancel,
+                                onClick = { selection = selection.cancel() },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
             }
@@ -917,12 +964,13 @@ private fun RouteRenameDialog(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun SessionRow(
     group: SessionGroup,
     unit: DoseUnitSetting,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     selectionActive: Boolean = false,
     selected: Boolean = false,
 ) {
@@ -937,10 +985,13 @@ private fun SessionRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
+            .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
+                // Зажать = выбрать: тот же жест, что у маршрутов, — режим
+                // выбора включается там, где на него смотрят.
+                onLongClick = onLongClick,
             )
             .padding(vertical = 9.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -1115,13 +1166,14 @@ private const val SPECTRA_LIMIT = 30
 private fun SavedSpectraCard(
     graph: AppGraph,
     spectra: List<SpectrumSnapshotEntity>,
-    onCompare: (Long, Long) -> Unit,
     onContinue: (Long) -> Unit,
     /** Открыть снимок полноценным экраном Спектра. */
     onOpen: (Long) -> Unit,
     selectionActive: Boolean = false,
     selected: Set<Long> = emptySet(),
     onToggle: (Long) -> Unit = {},
+    /** Результат объединения показывается там же, где список снимков. */
+    mergeNote: String? = null,
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -1132,10 +1184,6 @@ private fun SavedSpectraCard(
 
     if (spectra.isEmpty()) return
 
-    var compareMode by remember { mutableStateOf(false) }
-    var firstPickId by remember { mutableStateOf<Long?>(null) }
-    var mergeMode by remember { mutableStateOf(false) }
-    var mergeIds by remember { mutableStateOf(setOf<Long>()) }
     var actionsFor by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
     var notice by remember { mutableStateOf<SpectrumFileNotice?>(null) }
     var exportedNote by remember { mutableStateOf<String?>(null) }
@@ -1168,44 +1216,18 @@ private fun SavedSpectraCard(
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-            ) {
-                Text(
-                    text = strings.spectraTitle.uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                    modifier = Modifier.weight(1f),
-                )
-                if (spectra.size >= 2 && !mergeMode && !selectionActive) {
-                    Chip(
-                        text = if (compareMode) strings.cancel.lowercase() else strings.compare,
-                        color = if (compareMode) colors.ink2 else colors.dataText,
-                        onClick = {
-                            compareMode = !compareMode
-                            firstPickId = null
-                        },
-                    )
-                }
-                if (spectra.size >= 2 && !compareMode && !selectionActive) {
-                    Chip(
-                        text = if (mergeMode) strings.cancel.lowercase() else strings.merge,
-                        color = if (mergeMode) colors.ink2 else colors.dataText,
-                        onClick = {
-                            mergeMode = !mergeMode
-                            mergeIds = emptySet()
-                        },
-                    )
-                }
-            }
             Text(
-                text = when {
-                    selectionActive -> strings.markForDeletion
-                    compareMode -> strings.pickTwoToCompare
-                    mergeMode -> strings.pickTwoOrMoreToMerge
-                    else -> strings.snapshotOpensActions
-                },
+                text = strings.spectraTitle.uppercase(),
+                style = type.labelSmall,
+                color = colors.ink2,
+            )
+            // Что делать со снимками, спрашивают не заранее: сначала выбирают
+            // (долгим нажатием), потом внизу появляются действия — сравнить,
+            // объединить, удалить. Прежние режимы «сравнение» и «объединение»
+            // были третьим и четвёртым состоянием одного списка, и в каждом
+            // строка значила своё.
+            Hint(
+                text = strings.snapshotOpensActions,
                 style = type.footnote,
                 color = colors.muted,
                 modifier = Modifier.padding(top = 3.dp, bottom = 5.dp),
@@ -1214,63 +1236,15 @@ private fun SavedSpectraCard(
                 if (index > 0) AppDivider()
                 SavedSpectrumRow(
                     entity = entity,
-                    marker = when {
-                        selectionActive -> null
-                        compareMode && firstPickId == entity.id -> "A"
-                        mergeMode && entity.id in mergeIds -> "✓"
-                        else -> null
-                    },
+                    marker = null,
                     check = if (selectionActive) entity.id in selected else null,
                     onClick = {
-                        when {
-                            selectionActive -> onToggle(entity.id)
-                            compareMode -> {
-                                val first = firstPickId
-                                when {
-                                    first == null -> firstPickId = entity.id
-                                    first == entity.id -> firstPickId = null
-                                    else -> {
-                                        compareMode = false
-                                        firstPickId = null
-                                        onCompare(first, entity.id)
-                                    }
-                                }
-                            }
-                            mergeMode -> mergeIds = if (entity.id in mergeIds) {
-                                mergeIds - entity.id
-                            } else {
-                                mergeIds + entity.id
-                            }
-                            else -> actionsFor = entity
-                        }
+                        if (selectionActive) onToggle(entity.id) else actionsFor = entity
                     },
+                    onLongClick = { onToggle(entity.id) },
                 )
             }
-            if (mergeMode && !selectionActive) {
-                AppButton(
-                    text = strings.mergeAction(mergeIds.size),
-                    enabled = mergeIds.size >= 2,
-                    onClick = {
-                        val chosen = spectra.filter { it.id in mergeIds }
-                        scope.launch {
-                            when (val saved = mergeSnapshots(graph, chosen)) {
-                                is MergeResult.Saved -> {
-                                    mergeMode = false
-                                    mergeIds = emptySet()
-                                    exportedNote = strings.mergedSaved(saved.label.orEmpty())
-                                }
-                                is MergeResult.Refused -> notice = SpectrumFileNotice(
-                                    title = strings.mergeImpossible,
-                                    lines = listOf(saved.reason),
-                                    isError = true,
-                                )
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(top = Dimens.space2),
-                )
-            }
-            exportedNote?.let {
+            (exportedNote ?: mergeNote)?.let {
                 Text(text = it, style = type.footnote, color = colors.muted)
             }
         }
@@ -1342,10 +1316,12 @@ private fun SavedSpectraCard(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     AppButton(
+                        // Сравнение начинается с выбора: снимок отмечается, и
+                        // дальше человек отмечает второй — теми же нажатиями,
+                        // что и везде в журнале.
                         text = strings.compareWithAnother,
                         onClick = {
-                            compareMode = true
-                            firstPickId = entity.id
+                            onToggle(entity.id)
                             actionsFor = null
                         },
                         enabled = spectra.size >= 2,
@@ -1377,11 +1353,13 @@ private fun SavedSpectraCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SavedSpectrumRow(
     entity: SpectrumSnapshotEntity,
     marker: String?,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     /** Non-null while the list is in selection mode: the tick of this row. */
     check: Boolean? = null,
 ) {
@@ -1394,10 +1372,11 @@ private fun SavedSpectrumRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
+            .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
+                onLongClick = onLongClick,
             )
             .padding(vertical = 9.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),

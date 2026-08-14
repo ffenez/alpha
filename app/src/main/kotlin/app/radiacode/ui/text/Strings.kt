@@ -272,10 +272,6 @@ interface Strings {
     val fileSaved: String
     val spectraTitle: String
     val compare: String
-    val merge: String
-    val markForDeletion: String
-    val pickTwoToCompare: String
-    val pickTwoOrMoreToMerge: String
     val snapshotOpensActions: String
 
     /** История → снимок: открыть его на полном экране Спектра. */
@@ -641,8 +637,8 @@ fun Strings.allTexts(): List<String> = listOf(
     sessionExplained, showMore, accumulatedDose, todayWithUnit("мкЗв"), days7, days30, doseProjection, noProfile,
     runningCannotDelete, running, avg, max, dose, track, spectrum, flight,
     noSamplesInSession, profileEllipsis, sessionProfileTitle, sessionProfileBody("12:00"),
-    deviation, excursionPoint, usually, fileSaved, spectraTitle, compare, merge,
-    markForDeletion, pickTwoToCompare, pickTwoOrMoreToMerge, snapshotOpensActions,
+    deviation, excursionPoint, usually, fileSaved, spectraTitle, compare,
+    snapshotOpensActions,
     openSnapshot, chooseSnapshotToCompare,
     mergeAction(2), mergedSaved("x"), mergeImpossible, compareWithAnother,
     continueAccumulation, continueAccumulationNote, importedTag, backgroundTag, delete,

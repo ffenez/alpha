@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v049Title: String
+    val v049Summary: String
+
     val v048Title: String
     val v048Summary: String
 
@@ -105,6 +108,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v049Title = "В журнале везде выбирают одинаково"
+    override val v049Summary =
+        "Долгое нажатие на запись — маршрут, сессию или снимок — включает выбор, а " +
+        "действия появляются одной строкой внизу: сравнить, объединить, удалить, " +
+        "отмена. Отдельные режимы «сравнение» и «объединение» у спектров убраны — " +
+        "они делали из списка четыре разных списка."
 
     override val v048Title = "Пустые маршруты больше не заводятся"
     override val v048Summary =
@@ -304,6 +314,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v049Title = "The journal is selected the same way everywhere"
+    override val v049Summary =
+        "A long press on an entry — a route, a session or a spectrum — starts the " +
+        "selection, and the actions appear as one row below: compare, merge, " +
+        "delete, cancel. The separate «compare» and «merge» modes are gone from " +
+        "the spectra — they turned one list into four different ones."
 
     override val v048Title = "Empty routes are no longer created"
     override val v048Summary =
@@ -510,6 +527,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v049Title, v049Summary,
     v048Title, v048Summary,
     v047Title, v047Summary,
     v046Title, v046Summary,
