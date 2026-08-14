@@ -59,6 +59,7 @@ import app.radiacode.data.toSpectrum
 import app.radiacode.device.ConnectionState
 import app.radiacode.protocol.Spectrum
 import app.radiacode.service.SpectrumHub
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
@@ -489,10 +490,8 @@ internal fun SpectrumMoreDialog(
                     enabled = hasSpectrum,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(
+                Hint(
                     text = strings.exportFormatsNote,
-                    style = type.footnote,
-                    color = colors.muted,
                 )
                 if (viewingSnapshot) {
                     Text(
@@ -559,10 +558,8 @@ internal fun ContinuationBanner(
                     color = colors.muted,
                 )
             }
-            Text(
+            Hint(
                 text = strings.continuationWarning,
-                style = type.footnote,
-                color = colors.muted,
             )
         }
     }

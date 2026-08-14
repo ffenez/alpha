@@ -61,6 +61,7 @@ import app.radiacode.data.export.ProcessingMetadata
 import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.SpectrumExport
 import app.radiacode.device.DoseUnits
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.BarChart
@@ -303,7 +304,7 @@ fun HistoryScreen(
                             style = type.bodySmall,
                             color = colors.ink2,
                         )
-                        Text(
+                        Hint(
                             text = strings.sessionExplained,
                             style = type.bodySmall,
                             color = colors.muted,
@@ -513,7 +514,7 @@ private fun AccumulatedDoseInfoDialog(onClose: () -> Unit) {
                     style = type.label,
                     color = colors.ink,
                 )
-                Text(
+                Hint(
                     text = HistoryFormat.doseProjectionCaveat(h),
                     style = type.bodySmall,
                     color = colors.muted,
@@ -1114,10 +1115,8 @@ private fun SavedSpectraCard(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Text(
+                    Hint(
                         text = strings.continueAccumulationNote,
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                     AppButton(
                         text = strings.close,

@@ -56,6 +56,7 @@ import app.radiacode.device.ConnectionState
 import app.radiacode.protocol.Spectrum
 import app.radiacode.service.AbRunRecorder
 import app.radiacode.service.ServiceStatus
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTextField
@@ -176,7 +177,7 @@ private fun ExperimentList(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     Text(text = t.emptyList, style = type.bodySmall, color = colors.ink2)
-                    Text(
+                    Hint(
                         text = t.emptyHint,
                         style = type.bodySmall,
                         color = colors.muted,
@@ -289,10 +290,8 @@ private fun CreateExperiment(
                         )
                     }
                 }
-                Text(
+                Hint(
                     text = ExperimentConditionsFormat.scenarioHint(scenario, t),
-                    style = type.footnote,
-                    color = colors.muted,
                 )
                 if (scenario == ExperimentScenario.CUSTOM) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space1)) {
@@ -305,10 +304,8 @@ private fun CreateExperiment(
                             )
                         }
                     }
-                    Text(
+                    Hint(
                         text = ExperimentFormat.kindHint(template, t),
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                 }
             }
@@ -321,7 +318,7 @@ private fun CreateExperiment(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(text = t.conditionsTitle, style = type.label, color = colors.ink)
-                Text(text = t.geometryPrompt, style = type.footnote, color = colors.muted)
+                Hint(text = t.geometryPrompt)
 
                 Text(text = t.conditionDistance, style = type.labelSmall, color = colors.ink2)
                 AppTextField(
@@ -403,10 +400,8 @@ private fun CreateExperiment(
             )
             AppButton(text = t.cancel, onClick = onCancel, modifier = Modifier.weight(1f))
         }
-        Text(
+        Hint(
             text = t.geometryKeptNote,
-            style = type.footnote,
-            color = colors.muted,
         )
     }
 }
@@ -540,10 +535,8 @@ private fun ExperimentDetail(
                 if (current.note.isNotBlank()) {
                     Text(text = current.note, style = type.bodySmall, color = colors.ink2)
                 }
-                Text(
+                Hint(
                     text = ExperimentFormat.kindHint(current.kind, t),
-                    style = type.footnote,
-                    color = colors.muted,
                 )
             }
         }
@@ -599,10 +592,8 @@ private fun ExperimentDetail(
                         style = type.label,
                         color = colors.ink,
                     )
-                    Text(
+                    Hint(
                         text = t.holdGeometryNote,
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                     AppButton(
                         text = t.stopRun,
@@ -751,10 +742,8 @@ private fun ExperimentDetail(
             if (series.isNotEmpty()) DistanceCard(series)
         }
         if (current.kind == ExperimentEntity.KIND_SHIELDING) {
-            Text(
+            Hint(
                 text = t.shieldingWarning,
-                style = type.footnote,
-                color = colors.muted,
             )
         }
 
@@ -988,10 +977,8 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
                     else -> colors.warn
                 },
             )
-            Text(
+            Hint(
                 text = t.verdictScopeNote,
-                style = type.footnote,
-                color = colors.muted,
             )
         }
     }
@@ -1047,10 +1034,8 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
             }
             val method = comparison.totalCounts?.method ?: comparison.spectrum?.method
             if (method != null) {
-                Text(
+                Hint(
                     text = ExperimentFormat.methodExplanation(method, t),
-                    style = type.footnote,
-                    color = colors.muted,
                 )
             }
             comparison.totalCounts?.let { total ->
@@ -1064,10 +1049,8 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
                 )
             }
             comparison.doseRate?.let {
-                Text(
+                Hint(
                     text = t.doseAuxNote,
-                    style = type.footnote,
-                    color = colors.muted,
                 )
             }
             comparison.warnings.forEach { warning ->
@@ -1119,10 +1102,8 @@ private fun DistanceCard(series: List<AbExperiment.DistancePoint>) {
                 }
                 if (index < series.size - 1) AppDivider()
             }
-            Text(
+            Hint(
                 text = t.distanceWarning,
-                style = type.footnote,
-                color = colors.muted,
             )
         }
     }

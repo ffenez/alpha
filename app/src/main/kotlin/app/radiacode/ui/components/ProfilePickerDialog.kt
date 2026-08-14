@@ -97,10 +97,8 @@ fun ProfilePickerDialog(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Text(
+                    Hint(
                         text = t.pickerAutoNote,
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                 }
 

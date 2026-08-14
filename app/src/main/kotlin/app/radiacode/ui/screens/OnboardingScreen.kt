@@ -30,6 +30,7 @@ import app.radiacode.AppGraph
 import app.radiacode.device.DiscoveredRadiaCode
 import app.radiacode.service.BatteryOptimization
 import app.radiacode.service.MeasurementService
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
@@ -174,7 +175,7 @@ private fun BatteryStep(onAllow: () -> Unit, onSkip: () -> Unit) {
                 style = type.body,
                 color = colors.ink2,
             )
-            Text(
+            Hint(
                 text = strings.onboardingBatteryNote,
                 style = type.bodySmall,
                 color = colors.muted,

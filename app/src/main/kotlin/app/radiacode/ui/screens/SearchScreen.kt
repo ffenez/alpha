@@ -42,6 +42,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import app.radiacode.AppGraph
 import app.radiacode.device.ConnectionState
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.BackgroundCard
 import app.radiacode.ui.text.BackgroundCardCatalogue
@@ -709,10 +710,8 @@ fun SearchScreen(
                     if (invitation != null) {
                         StatusRow(text = invitation, color = colors.warn)
                     }
-                    Text(
+                    Hint(
                         text = shapeNote.orEmpty(),
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                     if (invitation != null) {
                         AppButton(
@@ -745,10 +744,8 @@ fun SearchScreen(
                             onClick = { graph.localBackground.cancel() },
                         )
                     }
-                    Text(
+                    Hint(
                         text = t.backgroundRunNote,
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                 }
             }
@@ -820,18 +817,14 @@ fun SearchScreen(
                     },
                 )
                 if (energyToneEnabled) {
-                    Text(
+                    Hint(
                         text = t.energyToneHint,
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                 }
             }
             if (energyToneEnabled) {
-                Text(
+                Hint(
                     text = t.energyToneScale,
-                    style = type.footnote,
-                    color = colors.muted,
                 )
             }
         }

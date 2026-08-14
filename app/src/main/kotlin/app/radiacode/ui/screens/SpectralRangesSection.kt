@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import app.radiacode.AppGraph
 import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.EnergyWindows
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.logic.EnergyBounds
@@ -64,7 +65,7 @@ fun SpectralRangesSection(graph: AppGraph) {
                 style = type.value,
                 color = colors.ink,
             )
-            Text(text = t.rangesSettingsNote, style = type.footnote, color = colors.muted)
+            Hint(text = t.rangesSettingsNote)
 
             val counts = spectrum.spectrum?.counts
             if (counts == null) {

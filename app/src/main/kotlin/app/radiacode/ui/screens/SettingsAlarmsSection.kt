@@ -63,6 +63,7 @@ import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DeviceModel
 import app.radiacode.service.Notifications
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTab
@@ -269,7 +270,7 @@ internal fun AlarmSoundRow() {
     ) {
         Column(Modifier.weight(1f)) {
             Text(text = strings.alarmSoundTitle, style = type.label, color = colors.ink)
-            Text(
+            Hint(
                 text = strings.alarmSoundNote,
                 style = type.bodySmall,
                 color = colors.muted,
@@ -367,7 +368,7 @@ internal fun CustomLevels(
                 }
             },
         )
-        Text(
+        Hint(
             text = strings.levelsNote,
             style = type.bodySmall,
             color = colors.muted,

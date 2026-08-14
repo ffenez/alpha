@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v032Title: String
+    val v032Summary: String
+
     val v031Title: String
     val v031Summary: String
 
@@ -54,6 +57,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v032Title = "Пояснения можно выключить"
+    override val v032Summary =
+        "Серые строки, которые объясняют экран, убираются одним переключателем в " +
+        "Настройках → Вид. Состояния — «нет связи», «прибор не подключён» — " +
+        "остаются всегда: без них работающий экран не отличить от молчащего."
 
     override val v031Title = "График снова показывает измерения"
     override val v031Summary =
@@ -130,6 +139,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v032Title = "Explanations can be switched off"
+    override val v032Summary =
+        "The grey lines that explain a screen are removed by one switch in Settings " +
+        "→ Appearance. States — «no link», «no instrument connected» — always stay: " +
+        "without them a working screen looks the same as a silent one."
 
     override val v031Title = "The chart shows the measurements again"
     override val v031Summary =
@@ -211,6 +226,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v032Title, v032Summary,
     v031Title, v031Summary,
     v030Title, v030Summary,
     v021Title, v021Summary,

@@ -65,6 +65,7 @@ import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DeviceModel
 import app.radiacode.service.Notifications
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTab
@@ -401,10 +402,8 @@ private fun SoundSection(graph: AppGraph) {
                             }
                         },
                     )
-                    Text(
+                    Hint(
                         text = strings.energyToneNote,
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                 }
             }
@@ -463,10 +462,8 @@ private fun DebugSection(graph: AppGraph) {
                 style = type.bodySmall,
                 color = colors.ink2,
             )
-            Text(
+            Hint(
                 text = DebugBundle.PRIVACY_NOTE,
-                style = type.footnote,
-                color = colors.muted,
             )
             if (enabled) {
                 Text(text = strings.whatIsWrong, style = type.label, color = colors.ink)
@@ -1162,6 +1159,30 @@ private fun InterfaceSection(graph: AppGraph) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle(strings.interfaceTitle)
+
+            // Пояснения объясняют экран, а не измеряют: тому, кто носит прибор
+            // каждый день, они через неделю становятся шумом. Состояния («нет
+            // связи», «прибор не подключён») выключатель НЕ трогает — экран без
+            // них выглядел бы работающим, когда он не работает.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = strings.hintsTitle,
+                    style = type.label,
+                    color = colors.ink,
+                    modifier = Modifier.weight(1f),
+                )
+                val hints by graph.settings.hintsVisible.collectAsState(initial = true)
+                Chip(
+                    text = if (hints) strings.on else strings.off,
+                    color = if (hints) colors.dataText else colors.ink2,
+                    selected = hints,
+                    onClick = { scope.launch { graph.settings.setHintsVisible(!hints) } },
+                )
+            }
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,

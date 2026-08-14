@@ -128,7 +128,7 @@ fun WhySheet(
                     // Оговорка стоит на ПЕРВОМ уровне и до кнопки «показать
                     // методику»: она про смысл вывода, а не про его расчёт.
                     if (report.caveat.isNotBlank()) {
-                        Text(
+                        Hint(
                             text = report.caveat,
                             style = type.footnote,
                             color = colors.ink2,
@@ -155,10 +155,8 @@ fun WhySheet(
                             // Легенда меток стоит там же, где сами метки: на
                             // первом уровне их нет, и расшифровка отсутствующих
                             // подписей была бы объяснением пустого места.
-                            Text(
+                            Hint(
                                 text = report.legend,
-                                style = type.footnote,
-                                color = colors.muted,
                             )
                             // Третий уровень живёт ВНУТРИ второго: формулы,
                             // MAD, χ² и z нужны реже, чем сама методика.
@@ -267,7 +265,7 @@ private fun ProfileShiftBlock(
             style = type.bodySmall,
             color = colors.ink2,
         )
-        Text(text = ProfileShift.explanation(t), style = type.footnote, color = colors.muted)
+        Hint(text = ProfileShift.explanation(t))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             AppButton(
                 text = ProfileShift.updateAction(t),

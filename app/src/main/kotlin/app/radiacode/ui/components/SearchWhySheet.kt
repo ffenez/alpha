@@ -63,10 +63,8 @@ fun SearchWhySheet(
                     style = type.footnote,
                     color = colors.muted,
                 )
-                Text(
+                Hint(
                     text = t.evidenceLegend,
-                    style = type.footnote,
-                    color = colors.muted,
                 )
                 AppButton(
                     text = t.understood,

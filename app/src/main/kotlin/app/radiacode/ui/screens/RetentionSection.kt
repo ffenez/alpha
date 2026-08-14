@@ -11,6 +11,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import app.radiacode.AppGraph
 import app.radiacode.data.RawRetention
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.text.LocalStrings
@@ -60,7 +61,7 @@ fun RetentionSection(graph: AppGraph) {
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text(text = strings.retentionNote, style = type.footnote, color = colors.muted)
+            Hint(text = strings.retentionNote)
         }
     }
 }

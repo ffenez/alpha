@@ -245,6 +245,20 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
+     * Показывать ли пояснения — серые строки, объясняющие происходящее.
+     *
+     * По умолчанию включены: человек, открывший приложение впервые, не должен
+     * догадываться сам. Тому, кто носит прибор каждый день, они через неделю
+     * становятся шумом, и выключатель — про место на экране, а не про вкус.
+     */
+    val hintsVisible: Flow<Boolean> =
+        dataStore.data.map { it[HINTS_VISIBLE] ?: true }
+
+    suspend fun setHintsVisible(visible: Boolean) {
+        dataStore.edit { it[HINTS_VISIBLE] = visible }
+    }
+
+    /**
      * Как рисуется живой график: подробно или сглаженно.
      *
      * Настройка ОДНА на карточку Главной и на полноэкранный график: это два
@@ -498,6 +512,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val LANGUAGE = stringPreferencesKey("language")
         private val SKIN = stringPreferencesKey("skin")
         private val CHART_DETAIL = stringPreferencesKey("chart_detail")
+        private val HINTS_VISIBLE = booleanPreferencesKey("hints_visible")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")

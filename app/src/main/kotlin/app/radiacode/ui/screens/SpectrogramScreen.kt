@@ -37,6 +37,7 @@ import app.radiacode.analysis.SpectrogramColumn
 import app.radiacode.analysis.SpectrogramSlice
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.device.ConnectionState
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.StatCell
@@ -486,10 +487,8 @@ private fun InfoDialog(
                     color = colors.muted,
                 )
             }
-            Text(
+            Hint(
                 text = t.stepNote(stepReason(slices, stepSeconds, t)),
-                style = type.footnote,
-                color = colors.muted,
             )
             if (bandsPerGroup > 1) {
                 Text(
@@ -502,15 +501,11 @@ private fun InfoDialog(
                     color = colors.muted,
                 )
             }
-            Text(
+            Hint(
                 text = t.intensityNote,
-                style = type.footnote,
-                color = colors.muted,
             )
-            Text(
+            Hint(
                 text = t.shapeNote,
-                style = type.footnote,
-                color = colors.muted,
             )
             Text(
                 text = t.energyRangeNote(
@@ -520,7 +515,7 @@ private fun InfoDialog(
                 style = type.footnote,
                 color = colors.muted,
             )
-            Text(text = t.backgroundNote, style = type.footnote, color = colors.muted)
+            Hint(text = t.backgroundNote)
         }
         }
     }

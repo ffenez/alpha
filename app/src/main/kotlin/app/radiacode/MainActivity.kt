@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import app.radiacode.ui.text.AppLanguage
+import app.radiacode.ui.components.LocalHintsVisible
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.stringsFor
 import app.radiacode.ui.AppRoot
@@ -56,6 +57,7 @@ class MainActivity : ComponentActivity() {
             // из каталога, а не из системы, поэтому переключатель в настройках
             // работает мгновенно и без пересоздания активности.
             val systemTag = LocalConfiguration.current.locales[0]?.language.orEmpty()
+            val hintsVisible by graph.settings.hintsVisible.collectAsState(initial = true)
             AppTheme(
                 dark = when (theme) {
                     ThemeSetting.SYSTEM -> isSystemInDarkTheme()
@@ -71,6 +73,7 @@ class MainActivity : ComponentActivity() {
                 val system = LocalDensity.current
                 CompositionLocalProvider(
                     LocalStrings provides stringsFor(AppLanguage.resolve(language, systemTag)),
+                    LocalHintsVisible provides hintsVisible,
                     LocalDensity provides Density(
                         density = UiScale.density(system.density, elementPercent),
                         fontScale = UiScale.fontScale(

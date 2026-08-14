@@ -63,6 +63,7 @@ import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DeviceModel
 import app.radiacode.service.Notifications
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTab
@@ -370,10 +371,8 @@ internal fun ProfileSettingsRow(
         }
 
         // --- Wi-Fi ---
-        Text(
+        Hint(
             text = strings.wifiNote,
-            style = type.footnote,
-            color = colors.muted,
         )
         boundNetworks.forEach { bound ->
             Row(

@@ -40,6 +40,7 @@ import app.radiacode.analysis.evidence.ResolutionFitOutcome
 import app.radiacode.analysis.evidence.ResolutionModel
 import app.radiacode.data.toSpectrum
 import app.radiacode.device.ConnectionState
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.ChartNotesDialog
@@ -180,7 +181,7 @@ fun CalibrationScreen(graph: AppGraph, onBack: () -> Unit) {
             m == null || m.selection.long == null -> Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     Text(text = s.noMaterial, style = type.bodySmall, color = colors.ink2)
-                    Text(
+                    Hint(
                         text = s.noMaterialExplained,
                         style = type.bodySmall,
                         color = colors.muted,
@@ -222,7 +223,7 @@ internal fun CalibrationContent(
         for (row in CalibrationView.material(model.selection, s, h)) {
             Text(text = row, style = type.valueSmall, color = colors.ink)
         }
-        Text(text = s.radonExplained, style = type.footnote, color = colors.muted)
+        Hint(text = s.radonExplained)
         Text(text = s.materialCollected, style = type.footnote, color = colors.muted)
     }
 
@@ -329,7 +330,7 @@ private fun ResolutionSection(
             )
         }
         Text(text = state, style = type.bodySmall, color = colors.ink2)
-        Text(text = s.acceptedNote, style = type.footnote, color = colors.muted)
+        Hint(text = s.acceptedNote)
 
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             if (fit != null) {

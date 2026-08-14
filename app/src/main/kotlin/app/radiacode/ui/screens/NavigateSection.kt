@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
@@ -280,7 +281,7 @@ fun NavigateSection(
                         )
                         AppButton(text = strings.cancel, onClick = onCancelMeasure)
                     }
-                    Text(text = t.navSpotNote, style = type.footnote, color = colors.muted)
+                    Hint(text = t.navSpotNote)
                 }
             }
 

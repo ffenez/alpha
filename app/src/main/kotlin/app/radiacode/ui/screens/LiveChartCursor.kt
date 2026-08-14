@@ -52,6 +52,7 @@ import app.radiacode.baseline.alarmThresholds
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.PreAggregateRepository
 import app.radiacode.device.DoseUnits
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.ChartSheet
@@ -459,10 +460,8 @@ internal fun BoxScope.CursorCard(
                         style = type.footnote,
                         color = colors.ink2,
                     )
-                    Text(
+                    Hint(
                         text = CursorReadout.ratioExplanation(RatioDenominator.BASELINE_P90),
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                 }
             }

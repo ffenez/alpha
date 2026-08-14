@@ -53,6 +53,7 @@ import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.EnergyWindowSpec
 import app.radiacode.analysis.EnergyWindows
 import app.radiacode.analysis.SpectrumDisplay
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTextField
@@ -300,7 +301,7 @@ private fun RatioExplainDialog(
                 }
                 Text(text = t.ratioWhat, style = type.bodySmall, color = colors.ink2)
                 Text(text = t.ratioNotHardness, style = type.bodySmall, color = colors.ink2)
-                Text(text = t.indexNote, style = type.footnote, color = colors.muted)
+                Hint(text = t.indexNote)
                 AppButton(
                     text = strings.close,
                     onClick = onDismiss,
@@ -497,10 +498,8 @@ internal fun BoundsEditorDialog(
                     )
                 }
                 if (preset == EnergyBounds.Preset.FULL_SCALE) {
-                    Text(
+                    Hint(
                         text = t.presetFullScaleNote,
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                 }
                 error?.let { Text(text = it, style = type.footnote, color = colors.warn) }

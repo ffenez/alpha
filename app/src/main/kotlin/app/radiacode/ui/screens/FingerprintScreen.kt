@@ -29,6 +29,7 @@ import app.radiacode.analysis.FingerprintState
 import app.radiacode.baseline.BaselineState
 import app.radiacode.data.FingerprintRepository
 import app.radiacode.data.db.ProfileFingerprintEntity
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
@@ -147,7 +148,7 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
                 Fingerprint.hardnessLine(current.comparison, t)?.let {
                     Text(text = it, style = type.footnote, color = colors.muted)
                 }
-                Text(text = t.caveat, style = type.footnote, color = colors.muted)
+                Hint(text = t.caveat)
             }
         }
 
@@ -222,10 +223,8 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
                         style = type.bodySmall,
                         color = colors.ink2,
                     )
-                    Text(
+                    Hint(
                         text = t.referenceFrozenExplanation,
-                        style = type.footnote,
-                        color = colors.muted,
                     )
                 }
                 AppButton(
@@ -247,10 +246,8 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
                     enabled = current.baselineActive,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(
+                Hint(
                     text = t.updateReferenceNote,
-                    style = type.footnote,
-                    color = colors.muted,
                 )
             }
         }

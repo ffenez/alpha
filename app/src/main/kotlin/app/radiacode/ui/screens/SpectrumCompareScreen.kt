@@ -42,6 +42,7 @@ import app.radiacode.data.export.ProcessingMetadata
 import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.SpectrumExport
 import app.radiacode.protocol.Spectrum
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
@@ -221,10 +222,8 @@ private fun IntervalSection(
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(t.intervalImpossible, style = type.title, color = colors.ink)
                 Text(text = outcome.reason, style = type.body, color = colors.ink2)
-                Text(
+                Hint(
                     text = t.intervalImpossibleHint,
-                    style = type.footnote,
-                    color = colors.muted,
                 )
             }
         }
@@ -561,10 +560,8 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                             }
                             if (index < verdicts.size - 1) AppDivider()
                         }
-                        Text(
+                        Hint(
                             text = t.zExplanation,
-                            style = type.footnote,
-                            color = colors.muted,
                         )
                     }
                 }

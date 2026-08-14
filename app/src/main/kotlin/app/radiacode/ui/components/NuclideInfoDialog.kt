@@ -169,7 +169,7 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
         model.ratio.forEach { line ->
             Text(text = line, style = type.footnote, color = colors.muted)
         }
-        Text(text = model.yieldNote, style = type.footnote, color = colors.muted)
+        Hint(text = model.yieldNote)
     }
 
     // 3. Свойства нуклида — один компактный блок, без повторов происхождения.
@@ -208,7 +208,7 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
                 )
             }
         }
-        Text(text = model.strengthenNote, style = type.footnote, color = colors.muted)
+        Hint(text = model.strengthenNote)
     }
 
     // 4. Одна оговорка про метод — внизу и только здесь.

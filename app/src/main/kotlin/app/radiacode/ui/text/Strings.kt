@@ -554,6 +554,9 @@ interface Strings {
     val deviceSignalsOfflineNote: String
     /** «медиана 0,12 · P25–P75 … · MAD … · n 26 минутных интервалов». */
     fun baselineStats(median: String, iqr: String, mad: String, buckets: Int): String
+    /** Выключатель серых поясняющих строк (Настройки → Вид → Интерфейс). */
+    val hintsTitle: String
+
     val stateUnknown: String
 
     /** Прибор отказал в записи: молчащая кнопка неотличима от сломанной. */
@@ -599,7 +602,7 @@ fun Strings.allTexts(): List<String> = listOf(
     deviceSignals, deviceSignalsNote, deviceSound, deviceVibro,
     deviceSignalsUnknownNote, deviceSignalsOfflineNote,
     baselineStats("0,12", "0,11–0,14", "0,01", 26),
-    stateUnknown, stateRejected, stateOnByApp, stateOffByApp, on, off,
+    hintsTitle, stateUnknown, stateRejected, stateOnByApp, stateOffByApp, on, off,
     onboardingBrand, onboardingConnectTitle, onboardingConnectBody, onboardingPermissions,
     onboardingBluetoothDenied, retry, start, onboardingBackgroundTitle, onboardingBackgroundBody,
     onboardingBatteryNote, later, allow, onboardingScanTitle, scanning, onboardingScanBody,
