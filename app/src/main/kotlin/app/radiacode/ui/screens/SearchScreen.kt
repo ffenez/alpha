@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.graphics.lerp
+import app.radiacode.ui.logic.DoseTint
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -173,6 +176,7 @@ fun SearchScreen(
     // clocks is what turns «сейчас» into that base. Recomputed on every reading.
     var deviceClockOffset by remember { mutableLongStateOf(0L) }
     var whyOpen by remember { mutableStateOf(false) }
+    val doseTint by graph.settings.doseTint.collectAsState(initial = true)
     // «Наведение» держит своё состояние в графе, а не в композиции: точку
     // отсчёта ставит человек, и уход на другую вкладку не имеет права её
     // отменить — раньше она молча пропадала вместе с экраном.
@@ -547,10 +551,31 @@ fun SearchScreen(
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
+                // Цвет числа — отношение к ЗАПИСАННОМУ фону: зелёное, пока
+                // счёт держится на уровне фона, багровое вдвое выше него. То
+                // же правило, что у дозы на Главной (`DoseTint`), — два экрана
+                // с разными шкалами под одинаковыми цветами означали бы, что
+                // цвет ничего не значит.
+                val tintFraction = if (doseTint) {
+                    DoseTint.of(cps, record?.cps, null)
+                } else {
+                    null
+                }
+                val numberTint by animateColorAsState(
+                    targetValue = when {
+                        cps == null -> colors.muted
+                        tintFraction == null -> colors.ink
+                        tintFraction <= 0f -> colors.ok
+                        tintFraction < 1f -> lerp(colors.warn, colors.crit, tintFraction)
+                        else -> colors.crit
+                    },
+                    animationSpec = Motion.normal(),
+                    label = "searchTint",
+                )
                 Text(
                     text = cps?.let { Uncertainty.num1(it) } ?: "—",
                     style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
-                    color = if (cps != null) colors.ink else colors.muted,
+                    color = numberTint,
                     textAlign = TextAlign.Center,
                 )
                 // Под числом не осталось ничего: величина названа заголовком
@@ -605,15 +630,21 @@ fun SearchScreen(
                         )
                         .padding(vertical = Dimens.space1, horizontal = Dimens.space2),
                 ) {
-                    StatusRow(
-                        text = SearchVerdict.headline(
-                            level,
-                            search.direction,
-                            record != null,
-                            strings,
-                        ),
-                        color = levelColor,
-                    )
+                    // Когда счёт держится на уровне фона, сказать нечего —
+                    // и экран молчит: это уже сказано цветом самого числа.
+                    // Любое ДРУГОЕ состояние говорит словами, там молчание
+                    // было бы утаиванием.
+                    if (level != SearchLevel.BACKGROUND) {
+                        StatusRow(
+                            text = SearchVerdict.headline(
+                                level,
+                                search.direction,
+                                record != null,
+                                strings,
+                            ),
+                            color = levelColor,
+                        )
+                    }
                     // Объяснения вывода под ним нет: оно повторяло то, что
                     // ниже показывают шкала и лента, а полностью разбор
                     // открывается нажатием на сам вывод.

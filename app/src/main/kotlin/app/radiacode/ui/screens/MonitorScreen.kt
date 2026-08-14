@@ -949,7 +949,76 @@ private fun HeroCard(
                 // изменилось только место объяснения.
             }
 
-            // 2. Состояние фона: во всю ширину, без соседей по строке.
+            // 2. Плитки сразу под числом — тот же порядок, что в Поиске:
+            // величины, дополняющие главное число, стоят рядом с ним, а вывод
+            // словами идёт последним и появляется, только когда есть что
+            // сказать.
+            val tiles = buildList<MetricTile> {
+                // Фон — то, С ЧЕМ сравнивается главное число, и потому первая
+                // плитка: «выше обычного» без самого обычного не проверить.
+                // Скорость счёта отсюда ушла — она не участвует в выводе и
+                // живёт своей карточкой с графиком ниже.
+                val band = (baselineState as? BaselineState.Active)?.baseline
+                add(
+                    MetricTile(
+                        label = strings.backgroundTag + ", " +
+                            DoseFormat.rateUnitLabel(unit, s = strings),
+                        value = band?.let {
+                            DoseFormat.range(it.doseLowMicroSvH, it.doseHighMicroSvH, unit)
+                        } ?: "—",
+                    ),
+                )
+                if (blocks.trend) {
+                    val slope = (trend as? TrendAvailability.Ready)?.result?.slopeMicroSvHPerHour
+                    add(
+                        MetricTile(
+                            label = strings.trendPerHour,
+                            value = slope?.let { TrendFit.label(it, unit) } ?: "—",
+                            valueColor = trendWarnColor(slope, status),
+                            // Прочерк без причины неотличим от поломки: плитка
+                            // говорит, чего именно не хватает — или за какое
+                            // окно посчитан показанный наклон.
+                            // Окно тренда («за 1 ч») с плитки убрано: оно не
+                            // меняется и названо в «Почему такой вывод».
+                            // Причина ПРОЧЕРКА остаётся: он без объяснения
+                            // неотличим от поломки.
+                            note = if (trend != null && slope == null) {
+                                TrendFit.unavailableShort(trend)
+                            } else {
+                                null
+                            },
+                        ),
+                    )
+                }
+                if (blocks.doseToday) {
+                    add(
+                        MetricTile(
+                            // Единица — в подписи, как у счёта: в значении она
+                            // повторялась у каждого числа, а меняется вместе с
+                            // настройкой один раз на всё приложение.
+                            //
+                            // Подпись говорит, ЧТО это за число: «сегодня» —
+                            // это отрезок времени, а не величина, и рядом с
+                            // мощностью дозы читалось как «доза сейчас».
+                            // Набралось — про накопление, и плитка открывает
+                            // экран, где видно, как оно набиралось.
+                            label = strings.doseAccumulatedToday + ", " +
+                                DoseFormat.doseUnitLabel(unit, s = strings),
+                            value = doseTodayMicroSv?.let { DoseFormat.dose(it, unit) } ?: "—",
+                            onClick = onOpenDose,
+                        ),
+                    )
+                }
+            }
+            if (tiles.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    for (tile in tiles) {
+                        MetricTileBox(tile, Modifier.weight(1f))
+                    }
+                }
+            }
+
+            // 3. Состояние фона: во всю ширину, без соседей по строке.
             // Red is reserved for the confirmed alarm; amber for «выше
             // обычного»; normal states never shout (design rule).
             val statusColor = when {
@@ -1047,64 +1116,6 @@ private fun HeroCard(
                 // Подписи «почему такой вывод ›» нет: нажимается сама строка
                 // вывода, а приглашение к нажатию занимало место под каждым
                 // состоянием и повторяло то, что уже сообщает цвет ссылки.
-            }
-
-            // 3. Плитки: то, что дополняет главное число, а не спорит с ним.
-            val tiles = buildList<MetricTile> {
-                add(
-                    MetricTile(
-                        label = t.countTile,
-                        value = cps?.let { Uncertainty.cpsPlain(it) } ?: "—",
-                    ),
-                )
-                if (blocks.trend) {
-                    val slope = (trend as? TrendAvailability.Ready)?.result?.slopeMicroSvHPerHour
-                    add(
-                        MetricTile(
-                            label = strings.trendPerHour,
-                            value = slope?.let { TrendFit.label(it, unit) } ?: "—",
-                            valueColor = trendWarnColor(slope, status),
-                            // Прочерк без причины неотличим от поломки: плитка
-                            // говорит, чего именно не хватает — или за какое
-                            // окно посчитан показанный наклон.
-                            // Окно тренда («за 1 ч») с плитки убрано: оно не
-                            // меняется и названо в «Почему такой вывод».
-                            // Причина ПРОЧЕРКА остаётся: он без объяснения
-                            // неотличим от поломки.
-                            note = if (trend != null && slope == null) {
-                                TrendFit.unavailableShort(trend)
-                            } else {
-                                null
-                            },
-                        ),
-                    )
-                }
-                if (blocks.doseToday) {
-                    add(
-                        MetricTile(
-                            // Единица — в подписи, как у счёта: в значении она
-                            // повторялась у каждого числа, а меняется вместе с
-                            // настройкой один раз на всё приложение.
-                            //
-                            // Подпись говорит, ЧТО это за число: «сегодня» —
-                            // это отрезок времени, а не величина, и рядом с
-                            // мощностью дозы читалось как «доза сейчас».
-                            // Набралось — про накопление, и плитка открывает
-                            // экран, где видно, как оно набиралось.
-                            label = strings.doseAccumulatedToday + ", " +
-                                DoseFormat.doseUnitLabel(unit, s = strings),
-                            value = doseTodayMicroSv?.let { DoseFormat.dose(it, unit) } ?: "—",
-                            onClick = onOpenDose,
-                        ),
-                    )
-                }
-            }
-            if (tiles.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    for (tile in tiles) {
-                        MetricTileBox(tile, Modifier.weight(1f))
-                    }
-                }
             }
 
         }

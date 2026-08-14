@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v041Title: String
+    val v041Summary: String
+
     val v040Title: String
     val v040Summary: String
 
@@ -81,6 +84,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v041Title = "Главная и Поиск устроены одинаково"
+    override val v041Summary =
+        "На обоих экранах: число цветом, под ним плитки, а вывод словами — только " +
+        "когда есть что сказать. Плитки Главной теперь фон, тренд и сколько " +
+        "набралось за день; в Поиске скорость счёта окрашена по отношению к " +
+        "записанному фону."
 
     override val v040Title = "Число само говорит цветом"
     override val v040Summary =
@@ -219,6 +229,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v041Title = "Home and Поиск are built the same way"
+    override val v041Summary =
+        "On both screens: the number carries the colour, tiles sit under it, and the " +
+        "verdict in words appears only when there is something to say. Home's tiles " +
+        "are the background, the trend and what accumulated today; in Поиск the " +
+        "count rate is tinted against the recorded background."
 
     override val v040Title = "The number speaks in colour"
     override val v040Summary =
@@ -363,6 +380,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v041Title, v041Summary,
     v040Title, v040Summary,
     v039Title, v039Summary,
     v038Title, v038Summary,

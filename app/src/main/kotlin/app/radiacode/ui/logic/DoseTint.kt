@@ -34,16 +34,30 @@ object DoseTint {
         doseMicroSvH: Float?,
         baseline: Baseline?,
         alarmMicroSvH: Float?,
-    ): Float? {
-        val value = doseMicroSvH ?: return null
-        if (!value.isFinite()) return null
-        val high = baseline?.doseHighMicroSvH ?: return null
+    ): Float? = of(
+        value = doseMicroSvH,
+        usualHigh = baseline?.doseHighMicroSvH,
+        top = alarmMicroSvH,
+    )
+
+    /**
+     * То же самое для любой величины со своим «обычно здесь».
+     *
+     * Поиск сравнивает счёт с ЗАПИСАННЫМ фоном, Главная — дозу с обычным
+     * диапазоном места. Величины разные, правило одно, и написано оно один
+     * раз: два экрана, красящие числа по-разному, означали бы две разные
+     * шкалы под одинаковыми цветами.
+     */
+    fun of(value: Float?, usualHigh: Float?, top: Float?): Float? {
+        val current = value ?: return null
+        if (!current.isFinite()) return null
+        val high = usualHigh ?: return null
         if (!high.isFinite() || high <= 0f) return null
-        if (value <= high) return 0f
-        // Порог ниже обычного диапазона места — не шкала, а противоречие:
-        // тогда единственная честная привязка это сам диапазон.
-        val top = alarmMicroSvH?.takeIf { it.isFinite() && it > high } ?: (high * FALLBACK_TOP)
-        return ((value - high) / (top - high)).coerceIn(0f, 1f)
+        if (current <= high) return 0f
+        // Верх ниже обычного — не шкала, а противоречие: тогда единственная
+        // честная привязка это само «обычно».
+        val ceiling = top?.takeIf { it.isFinite() && it > high } ?: (high * FALLBACK_TOP)
+        return ((current - high) / (ceiling - high)).coerceIn(0f, 1f)
     }
 
     /**
