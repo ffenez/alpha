@@ -216,23 +216,22 @@ class NuclideCardTest {
         assertTrue(en.status.detail.contains("1 of 1"), en.status.detail)
     }
 
+    /**
+     * Числа справочной карточки называют, откуда они, — но ОДНОЙ строкой.
+     * Построчный раздел «Источник и неопределённости» убран: он повторял для
+     * каждой линии один и тот же источник и один и тот же отказ назвать
+     * неопределённость, которой в выборке ENSDF нет.
+     */
     @Test
-    fun `provenance survives from the library to the card`() {
-        // Источник живёт в самих линиях; неопределённостей у ENSDF-выборки нет,
-        // и карточка обязана сказать это словами, а не напечатать ноль.
+    fun `the card names where the line data came from, in one line`() {
         assertTrue(GammaLineLibrary.LINES.all { it.source == DataSource.ENSDF })
-        assertTrue(GammaLineLibrary.LINES.all { it.energyUncertaintyKeV == null })
-        assertTrue(GammaLineLibrary.LINES.all { it.intensityUncertaintyPercent == null })
 
         val model = card("Bi-214", listOf(peak(609.3f)))
-        assertEquals(3, model.provenance.rows.size)
-        model.provenance.rows.forEach { row ->
-            assertEquals(NuclideRu.sourceEnsdf, row.source)
-            assertEquals(NuclideRu.uncertaintyUnknown, row.uncertainty)
-        }
         assertTrue(model.provenance.summary.contains("ENSDF"), model.provenance.summary)
-        // Два интерфейса к одной базе — не два независимых подтверждения.
-        assertTrue(model.provenance.note.contains("не два независимых"), model.provenance.note)
+        assertTrue(
+            model.allTexts().none { it.contains("неопределённост", ignoreCase = true) },
+            "неопределённости сняты с карточки целиком",
+        )
     }
 
     @Test

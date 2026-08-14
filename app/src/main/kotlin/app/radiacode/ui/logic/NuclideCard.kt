@@ -79,23 +79,18 @@ data class NuclideLineRow(
 data class NuclideFact(val label: String, val value: String)
 
 /** Provenance одной библиотечной линии — источник и его неопределённости. */
-data class NuclideProvenanceRow(
-    val line: String,
-    /** Либо обе неопределённости, либо честный отказ — но не ноль. */
-    val uncertainty: String,
-    val source: String,
-)
-
+/**
+ * Откуда взяты числа линий — ОДНОЙ строкой.
+ *
+ * Раскрывающийся раздел «Источник и неопределённости» с построчным списком
+ * снят: он повторял для каждой линии одно и то же — тот же источник и тот же
+ * честный отказ назвать неопределённость, которой в выборке ENSDF нет. Само
+ * утверждение об источнике осталось: числа в справочной карточке обязаны
+ * называть, откуда они, иначе это не справка.
+ */
 data class NuclideProvenance(
     /** «Данные линий: ENSDF (IAEA Live Chart / NNDC NuDat 3)». */
     val summary: String,
-    /** «Источник и неопределённости ›» — вход на второй уровень. */
-    val linkLabel: String,
-    /** IAEA Live Chart и NuDat — два интерфейса к одному набору, а не два довода. */
-    val note: String,
-    /** Чего не хватает, чтобы перейти на рекомендованные значения DDEP/LNHB. */
-    val plan: String,
-    val rows: List<NuclideProvenanceRow>,
 )
 
 /** Всё, что показывает карточка, сверху вниз. Собирается чистой функцией. */
@@ -138,16 +133,14 @@ fun NuclideCardModel.allTexts(): List<String> =
         sectionLineCheck, columnLine, columnYield, columnResult, yieldNote, lineTapHint,
         sectionAbout, sectionEveryday, everyday,
         sectionStrengthen, strengthenNote, sectionLimitation, limitation,
-        allLinesLabel, provenance.summary, provenance.linkLabel,
-        provenance.note, provenance.plan,
+        allLinesLabel, provenance.summary,
     ) +
         ratio +
         lineCheck.flatMap {
             listOfNotNull(it.energyText, it.actionLabel, it.yieldText, it.verdictText, it.measuredText)
         } +
         about.flatMap { listOf(it.label, it.value) } +
-        strengthen + allLines +
-        provenance.rows.flatMap { listOf(it.line, it.uncertainty, it.source) }
+        strengthen + allLines
 
 /**
  * Сборка справки о нуклиде, открываемой из строки кандидата на Спектре.
@@ -436,39 +429,15 @@ object NuclideCard {
     }
 
     /**
-     * Provenance берётся из САМИХ данных линий, а не из одной подписи внизу
-     * карточки: источник хранится в [NuclideGammaLine.source], и если завтра
-     * часть линий приедет из DDEP, подпись изменится сама.
-     *
-     * Неопределённости `null` печатаются ОТКАЗОМ, а не нулём и не прочерком со
-     * значением: нулевая неопределённость сделала бы совпадение бесконечно
-     * точным, а мы её попросту не знаем.
+     * Provenance берётся из САМИХ данных линий, а не из подписи внизу карточки:
+     * источник хранится в [NuclideGammaLine.source], и если завтра часть линий
+     * приедет из DDEP, подпись изменится сама.
      */
     private fun provenance(nuclide: Nuclide, s: NuclideStrings): NuclideProvenance {
         val sources = nuclide.lines.map { it.source }.distinct().sorted()
         return NuclideProvenance(
             summary = s.lineDataSource(sources.joinToString(" · ") { sourceName(it, s) }),
-            linkLabel = s.provenanceLink,
-            note = s.sameEvaluationNote,
-            plan = s.ddepPlan,
-            rows = nuclide.lines.map { line ->
-                NuclideProvenanceRow(
-                    line = lineText(line.energyKeV, line.intensityPercent, s),
-                    uncertainty = uncertaintyText(line, s),
-                    source = sourceName(line.source, s),
-                )
-            },
         )
-    }
-
-    private fun uncertaintyText(line: NuclideGammaLine, s: NuclideStrings): String {
-        val energy = line.energyUncertaintyKeV
-        val yield_ = line.intensityUncertaintyPercent
-        if (energy == null && yield_ == null) return s.uncertaintyUnknown
-        return listOfNotNull(
-            energy?.let { s.energyUncertainty(decimal(it, 1)) } ?: s.energyUncertaintyUnknown,
-            yield_?.let { s.yieldUncertainty(decimal(it, 1)) } ?: s.yieldUncertaintyUnknown,
-        ).joinToString(" · ")
     }
 
     private fun sourceName(source: DataSource, s: NuclideStrings): String = when (source) {

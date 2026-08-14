@@ -222,21 +222,10 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
             Text(text = line, style = type.valueSmall, color = colors.ink)
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-        Text(text = model.provenance.summary, style = type.footnote, color = colors.muted)
-        Disclosure(model.provenance.linkLabel) {
-            model.provenance.rows.forEach { row ->
-                Text(text = row.line, style = type.footnoteMono, color = colors.ink2)
-                Text(
-                    text = "${row.uncertainty} · ${row.source}",
-                    style = type.footnote,
-                    color = colors.muted,
-                )
-            }
-            Text(text = model.provenance.note, style = type.footnote, color = colors.muted)
-            Text(text = model.provenance.plan, style = type.footnote, color = colors.muted)
-        }
-    }
+    // Откуда числа — одной строкой. Построчный список источников и
+    // неопределённостей снят: он повторял для каждой линии один и тот же
+    // источник и один и тот же отказ назвать неопределённость.
+    Text(text = model.provenance.summary, style = type.footnote, color = colors.muted)
 }
 
 /** Подпись колонки таблицы — тише данных, но на своём месте по ширине. */

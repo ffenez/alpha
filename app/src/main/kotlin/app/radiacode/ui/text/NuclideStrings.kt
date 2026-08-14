@@ -109,16 +109,8 @@ interface NuclideStrings {
     // ------------------------------------------------ источник данных линий
     /** «Данные линий: ENSDF …» — одна строка вместо библиографии у каждой. */
     fun lineDataSource(sources: String): String
-    val provenanceLink: String
-    val sameEvaluationNote: String
-    val ddepPlan: String
     val sourceEnsdf: String
     val sourceDdep: String
-    val uncertaintyUnknown: String
-    fun energyUncertainty(value: String): String
-    val energyUncertaintyUnknown: String
-    fun yieldUncertainty(value: String): String
-    val yieldUncertaintyUnknown: String
 
     fun netAreaRatio(fromKeV: String, toKeV: String, value: String, sigma: String): String
     fun expectedByYield(value: String): String
@@ -290,25 +282,12 @@ object NuclideRu : NuclideStrings {
         "больше статистики в этих энергетических областях — дольше накопление"
 
     override fun lineDataSource(sources: String) = "Данные линий: $sources"
-    override val provenanceLink = "Источник и неопределённости"
 
-    override val sameEvaluationNote =
-        "IAEA Live Chart и NNDC NuDat 3 — два интерфейса к одному оценённому " +
-            "набору ENSDF, а не два независимых подтверждения одного числа."
 
-    override val ddepPlan =
-        "Рекомендованные значения вместе с неопределённостями публикует DDEP/LNHB. " +
-            "Пока в приложении лежат числа из ENSDF, и приписывать им чужие " +
-            "неопределённости нельзя: число переносится вместе со своей."
 
     override val sourceEnsdf = "ENSDF (IAEA Live Chart / NNDC NuDat 3)"
     override val sourceDdep = "DDEP/LNHB"
 
-    override val uncertaintyUnknown = "неопределённости в нашей выборке нет"
-    override fun energyUncertainty(value: String) = "энергия ±$value кэВ"
-    override val energyUncertaintyUnknown = "энергия — неопределённости нет"
-    override fun yieldUncertainty(value: String) = "выход ±$value %"
-    override val yieldUncertaintyUnknown = "выход — неопределённости нет"
 
     override fun netAreaRatio(fromKeV: String, toKeV: String, value: String, sigma: String) =
         "Отношение нетто-площадей $fromKeV/$toKeV кэВ: $value ± $sigma"
@@ -541,25 +520,12 @@ object NuclideEn : NuclideStrings {
         "more statistics in these energy regions — a longer accumulation"
 
     override fun lineDataSource(sources: String) = "Line data: $sources"
-    override val provenanceLink = "Source and uncertainties"
 
-    override val sameEvaluationNote =
-        "The IAEA Live Chart and NNDC NuDat 3 are two interfaces to one evaluated " +
-            "ENSDF dataset, not two independent confirmations of a number."
 
-    override val ddepPlan =
-        "Recommended values together with their uncertainties are published by " +
-            "DDEP/LNHB. For now the app carries ENSDF numbers, and borrowing " +
-            "uncertainties from elsewhere is not allowed: a number travels with its own."
 
     override val sourceEnsdf = "ENSDF (IAEA Live Chart / NNDC NuDat 3)"
     override val sourceDdep = "DDEP/LNHB"
 
-    override val uncertaintyUnknown = "no uncertainty in our extract"
-    override fun energyUncertainty(value: String) = "energy ±$value keV"
-    override val energyUncertaintyUnknown = "energy — no uncertainty"
-    override fun yieldUncertainty(value: String) = "yield ±$value %"
-    override val yieldUncertaintyUnknown = "yield — no uncertainty"
 
     override fun netAreaRatio(fromKeV: String, toKeV: String, value: String, sigma: String) =
         "Net-area ratio $fromKeV/$toKeV keV: $value ± $sigma"
@@ -717,10 +683,8 @@ fun NuclideStrings.allTexts(): List<String> = listOf(
     lineShowHint, lineShowAction("661,7"),
     bulletOtherLines("609,3 кэВ"), bulletChainLines("Pb-214 351,9 кэВ"),
     bulletHoldsUp, bulletNoContradiction, bulletMoreStatistics,
-    lineDataSource(sourceEnsdf), provenanceLink, sameEvaluationNote, ddepPlan,
-    sourceEnsdf, sourceDdep, uncertaintyUnknown,
-    energyUncertainty("0,1"), energyUncertaintyUnknown,
-    yieldUncertainty("0,2"), yieldUncertaintyUnknown,
+    lineDataSource(sourceEnsdf),
+    sourceEnsdf, sourceDdep,
     netAreaRatio("609", "1120", "3,05", "0,42"),
     expectedByYield("3,05"), efficiencyNotCalibrated,
 ) + nuclideTexts()
