@@ -27,6 +27,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import app.radiacode.ui.theme.Motion
+import app.radiacode.ui.components.TabPager
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.NavBar
 import app.radiacode.ui.logic.NavConfig
@@ -74,7 +75,6 @@ private data class ScreenKey(
     val experiments: Boolean,
     val trackMapId: Long?,
     val detailId: Long?,
-    val tab: AppTab,
 )
 
 @Composable
@@ -255,7 +255,6 @@ private fun MainScaffold(graph: AppGraph) {
                     experiments = showExperiments,
                     trackMapId = trackMapId,
                     detailId = detailId,
-                    tab = tab,
                 ),
                 // Fade through: уходящее гаснет быстро и первым, приходящее
                 // проявляется и подрастает с 96 % — переход читается как смена
@@ -308,57 +307,63 @@ private fun MainScaffold(graph: AppGraph) {
                         showLiveChart = true
                     },
                 )
-                else -> when (key.tab) {
-                    AppTab.HOME -> MonitorScreen(
-                        graph = graph,
-                        onOpenSettings = { showSettings = true },
-                        onOpenChart = {
-                            chartMetricId = ChartMetric.DOSE.id
-                            // С Главной график живой: диапазон снимается.
-                            chartRangeFrom = null
-                            chartRangeTo = null
-                            showLiveChart = true
-                        },
-                        onOpenMetricChart = { metric ->
-                            chartMetricId = metric.id
-                            chartRangeFrom = null
-                            chartRangeTo = null
-                            showLiveChart = true
-                        },
-                        onOpenDose = { showDose = true },
-                    )
-                    AppTab.SEARCH -> SearchScreen(
-                        graph = graph,
-                        // §13 of the search redesign: a confirmed excursion
-                        // whose *spectral shape* also changed may invite the
-                        // user to the spectrum. Nothing is carried across —
-                        // the spectrum tab shows its own live accumulation.
-                        onOpenSpectrum = { tab = AppTab.SPECTRUM },
-                        // «Отпечаток места» спрашивает то же, что и Поиск, но
-                        // про место целиком, а не про сейчас — поэтому вход
-                        // живёт здесь, а не на Главной.
-                        onOpenFingerprint = { showFingerprint = true },
-                    )
-                    AppTab.SPECTRUM -> SpectrumScreen(
-                        graph = graph,
-                        onOpenSpectrogram = { showSpectrogram = true },
-                        onOpenRadon = { showRadon = true },
-                        onOpenLineTrend = { showLineTrend = true },
-                        onOpenExperiments = { showExperiments = true },
-                        continueSnapshotId = continueSpectrumId,
-                        onStopContinuation = { continueSpectrumId = null },
-                        onOpenFullscreen = openFullSpectrum,
-                    )
-                    AppTab.MAP -> MapScreen(graph)
-                    AppTab.HISTORY -> HistoryScreen(
-                        graph = graph,
-                        onOpenSession = { sessionDetailId = it },
-                        onOpenSpectrum = { spectrumSnapshotId = it },
-                        onContinueSpectrum = {
-                            continueSpectrumId = it
-                            tab = AppTab.SPECTRUM
-                        },
-                    )
+                else -> TabPager(
+                    tabs = navTabs,
+                    selected = tab,
+                    onSelected = { tab = it },
+                ) { pageTab ->
+                    when (pageTab) {
+                AppTab.HOME -> MonitorScreen(
+                    graph = graph,
+                    onOpenSettings = { showSettings = true },
+                    onOpenChart = {
+                        chartMetricId = ChartMetric.DOSE.id
+                        // С Главной график живой: диапазон снимается.
+                        chartRangeFrom = null
+                        chartRangeTo = null
+                        showLiveChart = true
+                    },
+                    onOpenMetricChart = { metric ->
+                        chartMetricId = metric.id
+                        chartRangeFrom = null
+                        chartRangeTo = null
+                        showLiveChart = true
+                    },
+                    onOpenDose = { showDose = true },
+                )
+                AppTab.SEARCH -> SearchScreen(
+                    graph = graph,
+                    // §13 of the search redesign: a confirmed excursion
+                    // whose *spectral shape* also changed may invite the
+                    // user to the spectrum. Nothing is carried across —
+                    // the spectrum tab shows its own live accumulation.
+                    onOpenSpectrum = { tab = AppTab.SPECTRUM },
+                    // «Отпечаток места» спрашивает то же, что и Поиск, но
+                    // про место целиком, а не про сейчас — поэтому вход
+                    // живёт здесь, а не на Главной.
+                    onOpenFingerprint = { showFingerprint = true },
+                )
+                AppTab.SPECTRUM -> SpectrumScreen(
+                    graph = graph,
+                    onOpenSpectrogram = { showSpectrogram = true },
+                    onOpenRadon = { showRadon = true },
+                    onOpenLineTrend = { showLineTrend = true },
+                    onOpenExperiments = { showExperiments = true },
+                    continueSnapshotId = continueSpectrumId,
+                    onStopContinuation = { continueSpectrumId = null },
+                    onOpenFullscreen = openFullSpectrum,
+                )
+                AppTab.MAP -> MapScreen(graph)
+                AppTab.HISTORY -> HistoryScreen(
+                    graph = graph,
+                    onOpenSession = { sessionDetailId = it },
+                    onOpenSpectrum = { spectrumSnapshotId = it },
+                    onContinueSpectrum = {
+                        continueSpectrumId = it
+                        tab = AppTab.SPECTRUM
+                    },
+                )
+                    }
                 }
             }
             }

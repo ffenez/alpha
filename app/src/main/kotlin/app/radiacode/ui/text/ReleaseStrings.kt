@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v035Title: String
+    val v035Summary: String
+
     val v034Title: String
     val v034Summary: String
 
@@ -63,6 +66,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v035Title = "Вкладки листаются пальцем"
+    override val v035Summary =
+        "Между вкладками теперь переходят свайпом: содержимое идёт за пальцем, " +
+        "соседняя вкладка приезжает чуть медленнее и мельче — видно, что она " +
+        "лежит рядом. Заодно вывод на Главной говорит человеческими словами: " +
+        "«обычно здесь 0,09–0,14» вместо «P10–P90 профиля», а порог назван вашим."
 
     override val v034Title = "«Набралось сегодня» открывает свой экран"
     override val v034Summary =
@@ -159,6 +169,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v035Title = "Tabs move under your finger"
+    override val v035Summary =
+        "Swipe left or right to change tabs: the content follows the finger and the " +
+        "next tab arrives a little slower and smaller, so it reads as lying beside " +
+        "the current one. The verdict on Home also speaks plainly now — «usually " +
+        "here 0.09–0.14» instead of «profile P10–P90», and the threshold is yours."
 
     override val v034Title = "«Collected today» opens a screen of its own"
     override val v034Summary =
@@ -260,6 +277,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v035Title, v035Summary,
     v034Title, v034Summary,
     v033Title, v033Summary,
     v032Title, v032Summary,
