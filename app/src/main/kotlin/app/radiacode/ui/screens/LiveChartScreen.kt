@@ -999,11 +999,14 @@ private fun RowScope.ControlChips(
         onClick = onToggleScale,
     )
     Spacer(Modifier.width(Dimens.space1))
-    // Рядом с «лог» и по тому же правилу: подсвечен — подробный вид включён.
+    // Рядом с «лог» и по тому же правилу: подсвечен — названное состояние
+    // включено. Названо СГЛАЖИВАНИЕ, потому что включают именно его: подробный
+    // вид — это картинка без него, а не отдельная надстройка. Тем же словом
+    // назван сглаживатель спектра, и означает оно там то же самое.
     Chip(
-        text = ChartTextCatalogue.of(LocalStrings.current.language).detailChip,
-        color = if (detailed) colors.dataText else colors.ink2,
-        selected = detailed,
+        text = ChartTextCatalogue.of(LocalStrings.current.language).smoothChip,
+        color = if (detailed) colors.ink2 else colors.dataText,
+        selected = !detailed,
         onClick = onToggleDetail,
     )
     Spacer(Modifier.width(Dimens.space1))

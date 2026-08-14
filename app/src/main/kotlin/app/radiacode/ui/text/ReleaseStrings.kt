@@ -68,9 +68,9 @@ object ReleaseRu : ReleaseStrings {
     override val v031Summary =
         "На пяти минутах видно каждое измерение, а не десяток усреднённых узлов: " +
         "ширину интервала задаёт видимое окно, а не запас, который читается " +
-        "заранее ради плавного перелистывания. Чипом «подробно» рядом с «лог» " +
-        "можно вернуть сглаженный вид с полосами разброса — данные и числа окна " +
-        "у обоих видов одни."
+        "заранее ради плавного перелистывания. Чипом «сглаживание» рядом с «лог» " +
+        "возвращается прежний вид с полосами разброса — данные и числа окна у " +
+        "обоих видов одни."
 
     override val v030Title = "Выводы словами, числа под ними"
     override val v030Summary =
@@ -150,8 +150,8 @@ object ReleaseEn : ReleaseStrings {
     override val v031Summary =
         "Over five minutes every measurement is visible instead of a dozen averaged " +
         "nodes: the interval width comes from the visible window, not from the " +
-        "read-ahead kept for smooth panning. The «detailed» chip next to «log» " +
-        "brings back the smoothed view with its spread bands — both views draw the " +
+        "read-ahead kept for smooth panning. The «smoothing» chip next to «log» " +
+        "brings back the previous view with its spread bands — both views draw the " +
         "same data and report the same numbers."
 
     override val v030Title = "Conclusions in words, numbers underneath"

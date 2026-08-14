@@ -54,10 +54,11 @@ interface ChartTextStrings {
     val showDetails: String
     val hideDetails: String
     /**
-     * Чип подробного вида. Подсвечен = подробный вид включён; правило панели —
-     * название постоянное, меняется только подсветка.
+     * Чип сглаживания. Правило панели: название постоянное, подсвечен =
+     * названное состояние ВКЛЮЧЕНО, — поэтому чип называет сглаживание, а не
+     * подробность: включают именно его, а подробный вид это его отсутствие.
      */
-    val detailChip: String
+    val smoothChip: String
     val detailNote: String
     val smoothedNote: String
 
@@ -201,7 +202,7 @@ object ChartTextRu : ChartTextStrings {
         "подписано отдельно."
     override val showDetails = "Подробнее"
     override val hideDetails = "Свернуть подробности"
-    override val detailChip = "подробно"
+    override val smoothChip = "сглаживание"
     override val detailNote =
         "Подробный вид: линия идёт по самим измерениям окна. На длинном окне " +
             "она ведётся по крайним значениям интервалов, поэтому пики и провалы " +
@@ -359,7 +360,7 @@ object ChartTextEn : ChartTextStrings {
         "window is captioned separately."
     override val showDetails = "More detail"
     override val hideDetails = "Hide the details"
-    override val detailChip = "detailed"
+    override val smoothChip = "smoothing"
     override val detailNote =
         "Detailed view: the line follows the measurements themselves. Over a long " +
             "window it follows the extremes of each interval, so peaks and dips stay " +
@@ -453,7 +454,7 @@ fun ChartTextStrings.allTexts(): List<String> = listOf(
     quantilesSketch("≈ 1,8 %"), quantilesSketchDetail("≈ 1,8 %"),
     quantilesSubBucketMeans, quantilesSubBucketMeansDetail,
     sampleCountNote, sampleCountDetail, showDetails, hideDetails,
-    detailChip, detailNote, smoothedNote,
+    smoothChip, detailNote, smoothedNote,
     logScaleNote, logScaleDroppedNote(3),
     gestureZoomPan, gestureCursor, gestureMarkerTap, gestureDoubleTap, gestureDoubleTapRange,
     historicalRangeNote, sessionChip, sessionRangeLabel("12 авг 14:03–16:18", "2 ч 15 мин"),
