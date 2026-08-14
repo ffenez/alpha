@@ -597,6 +597,7 @@ fun SearchScreen(
                             tile = MetricTile(
                                 label = strings.backgroundTag,
                                 value = Uncertainty.num1(record.cps),
+                                note = t.cpsUnit,
                             ),
                             modifier = Modifier.weight(1f),
                         )

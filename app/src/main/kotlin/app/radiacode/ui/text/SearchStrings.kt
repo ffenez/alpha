@@ -376,7 +376,7 @@ object SearchRu : SearchStrings {
 
 
 
-    override val toBackground = "к фону"
+    override val toBackground = "Разница"
     override val meterNeedsBackground = "индикатор заработает после замера фона"
     override val waitingStream = "ждём поток данных…"
     override val cpsUnit = "с⁻¹"
@@ -752,7 +752,7 @@ object SearchEn : SearchStrings {
 
 
 
-    override val toBackground = "vs background"
+    override val toBackground = "Difference"
     override val meterNeedsBackground = "the meter starts working once the background is measured"
     override val waitingStream = "waiting for the data stream…"
     override val cpsUnit = "s⁻¹"

@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v043Title: String
+    val v043Summary: String
+
     val v042Title: String
     val v042Summary: String
 
@@ -87,6 +90,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v043Title = "Плитки называются одним словом"
+    override val v043Summary =
+        "ФОН · ДИНАМИКА · ДОЗА на Главной и ФОН · РАЗНИЦА в Поиске: заголовок " +
+        "плитки больше не переносится на вторую строку. Единица и период ушли " +
+        "под значение вторичной строкой — они свойства числа, а не имя величины."
 
     override val v042Title = "Смена места попадает в журнал"
     override val v042Summary =
@@ -239,6 +248,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v043Title = "A tile is named by one word"
+    override val v043Summary =
+        "BACKGROUND · TREND · DOSE on Home and BACKGROUND · DIFFERENCE in Поиск: a " +
+        "tile header no longer wraps onto a second line. The unit and the period " +
+        "moved under the value, where they belong — they describe the number, not " +
+        "the quantity."
 
     override val v042Title = "A change of place reaches the journal"
     override val v042Summary =
@@ -397,6 +413,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v043Title, v043Summary,
     v042Title, v042Summary,
     v041Title, v041Summary,
     v040Title, v040Summary,

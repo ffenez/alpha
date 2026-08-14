@@ -966,11 +966,15 @@ private fun HeroCard(
                 val band = (baselineState as? BaselineState.Active)?.baseline
                 add(
                     MetricTile(
-                        label = strings.backgroundTag + ", " +
-                            DoseFormat.rateUnitLabel(unit, s = strings),
+                        // Заголовок плитки — ОДНО слово. Единица уходит
+                        // вторичной строкой: в заголовке она удлиняла его до
+                        // переноса, а перенесённый заголовок перестаёт быть
+                        // заголовком.
+                        label = strings.backgroundTag,
                         value = band?.let {
                             DoseFormat.range(it.doseLowMicroSvH, it.doseHighMicroSvH, unit)
                         } ?: "—",
+                        note = DoseFormat.rateUnitLabel(unit, s = strings),
                     ),
                 )
                 if (blocks.trend) {
@@ -1007,9 +1011,13 @@ private fun HeroCard(
                             // мощностью дозы читалось как «доза сейчас».
                             // Набралось — про накопление, и плитка открывает
                             // экран, где видно, как оно набиралось.
-                            label = strings.doseAccumulatedToday + ", " +
-                                DoseFormat.doseUnitLabel(unit, s = strings),
+                            // «Набралось сегодня» — три слова и период в
+                            // заголовке. Период — свойство ЧИСЛА, а не имя
+                            // величины: он уходит вниз вместе с единицей.
+                            label = strings.dose,
                             value = doseTodayMicroSv?.let { DoseFormat.dose(it, unit) } ?: "—",
+                            note = DoseFormat.doseUnitLabel(unit, s = strings) + " · " +
+                                strings.doseToday.lowercase(),
                             onClick = onOpenDose,
                         ),
                     )

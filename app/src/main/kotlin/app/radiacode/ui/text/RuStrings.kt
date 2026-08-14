@@ -24,7 +24,7 @@ object RuStrings : Strings {
     override val doseRate = "Мощность дозы"
     override val countRate = "Скорость счёта"
     override val hardness = "Жёсткость"
-    override val trendPerHour = "Тренд/ч"
+    override val trendPerHour = "Динамика"
     override val doseToday = "Сегодня"
     override val doseAccumulatedToday = "Набралось сегодня"
     override val placeFingerprint = "Отпечаток места"

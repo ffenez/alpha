@@ -52,11 +52,16 @@ fun MetricTileBox(tile: MetricTile, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Заголовок плитки — ОДНО слово и ОДНА строка. Перенесённый заголовок
+        // перестаёт быть заголовком: глаз читает его как две строки текста, а
+        // плитка теряет форму. Всё, что не помещается в слово, — единица,
+        // период, оговорка — живёт вторичной строкой под значением.
         Text(
             text = tile.label.uppercase(),
             style = type.overline,
             color = colors.muted,
-            maxLines = 2,
+            maxLines = 1,
+            softWrap = false,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
