@@ -281,14 +281,14 @@ fun MapScreen(graph: AppGraph) {
 
     // Location permission and provider state, re-checked on resume (the user
     // may change both in system settings).
-    var hasLocation by remember { mutableStateOf(hasFineLocation(context)) }
+    var hasLocation by remember { mutableStateOf(hasAnyLocation(context)) }
     var providersEnabled by remember { mutableStateOf(anyLocationProviderEnabled(context)) }
     var gpsEnabled by remember { mutableStateOf(isGpsEnabled(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                hasLocation = hasFineLocation(context)
+                hasLocation = hasAnyLocation(context)
                 gpsEnabled = isGpsEnabled(context)
                 providersEnabled = anyLocationProviderEnabled(context)
             }
@@ -299,7 +299,9 @@ fun MapScreen(graph: AppGraph) {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
-        hasLocation = results[FINE_LOCATION] == true || hasFineLocation(context)
+        // Человек мог выбрать «Приблизительно» — это тоже разрешение, и запись
+        // с ним начинается: грубый след честнее отсутствующего.
+        hasLocation = results.values.any { it } || hasAnyLocation(context)
         if (hasLocation) startTrackRecording(context)
     }
 
@@ -426,6 +428,14 @@ fun MapScreen(graph: AppGraph) {
                         ),
                         color = colors.ok,
                         dot = colors.ok,
+                    )
+                    // Сколько точек уже записано. Без этого числа «идёт 12 мин»
+                    // одинаково выглядит и когда след пишется, и когда система
+                    // не даёт ни одной координаты.
+                    val written = d?.points?.size ?: 0
+                    Chip(
+                        text = t.recordedPoints(HistoryFormat.count(written)),
+                        color = if (written > 0) colors.ink2 else colors.warn,
                     )
                 }
             },
@@ -1192,6 +1202,21 @@ private const val COARSE_LOCATION = android.Manifest.permission.ACCESS_COARSE_LO
 
 private fun hasFineLocation(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+/**
+ * Любое разрешение на место — точное или приблизительное.
+ *
+ * Системный диалог с Android 12 предлагает выбор, и «Приблизительно» это тоже
+ * ДА: с ним след пишется грубее, но пишется. Прежняя проверка признавала
+ * только точное, и на такой выбор кнопка записи молча переспрашивала
+ * разрешение по кругу.
+ */
+private fun hasAnyLocation(context: Context): Boolean =
+    hasFineLocation(context) ||
+        ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
 
 private fun isGpsEnabled(context: Context): Boolean =
     (context.getSystemService(Context.LOCATION_SERVICE) as LocationManager)

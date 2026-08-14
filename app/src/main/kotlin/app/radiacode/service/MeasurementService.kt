@@ -741,7 +741,12 @@ class MeasurementService : Service() {
 
     private fun startTracking() {
         if (trackSessionId != null) return
-        if (!hasLocationPermission()) return
+        // Достаточно ЛЮБОГО разрешения на место. Раньше требовалось только
+        // точное, и человек, выбравший в системном диалоге «Приблизительно»,
+        // получал молчащую кнопку: запись не начиналась и не объясняла почему.
+        // Приблизительный след честнее отсутствующего — его точность видна
+        // кружком у каждой точки.
+        if (!hasLocationPermission() && !hasCoarseLocationPermission()) return
 
         // Track hotspots share the alarm L1 level (single user-facing threshold).
         val detector = HotspotDetector(thresholds.l1MicroSvH)
@@ -754,8 +759,12 @@ class MeasurementService : Service() {
             graph.serviceStatus.onTrackRecording(
                 ServiceStatus.TrackRecording(sessionId, System.currentTimeMillis()),
             )
-            registerLocationUpdates(sessionId)
+            // Сначала служба объявляется работающей С МЕСТОПОЛОЖЕНИЕМ, и только
+            // потом подписывается: с Android 14 система смотрит на тип службы
+            // в момент подписки, и подписка «не того» типа не получает ни
+            // одного обновления — молча.
             startForegroundWithCurrentTypes()
+            registerLocationUpdates(sessionId)
         }
     }
 
@@ -797,7 +806,8 @@ class MeasurementService : Service() {
      */
     private fun registerLocationUpdates(sessionId: Long) {
         val locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-        if (!hasLocationPermission() || locationManager == null) {
+        val precise = hasLocationPermission()
+        if ((!precise && !hasCoarseLocationPermission()) || locationManager == null) {
             graph.serviceStatus.onTrackLocation(ServiceStatus.TrackLocation.NO_PERMISSION)
             return
         }
@@ -810,11 +820,28 @@ class MeasurementService : Service() {
             // километр вытеснял бы спутниковый.
             val fresh = location.time - lastAcceptedAt >= LOCATION_INTERVAL_MILLIS
             val better = location.accuracy < lastAccuracy
-            if (!fresh && !better) return@LocationListener
+            if (!fresh && !better) {
+                // Дубль от второго провайдера тоже считается: без этого
+                // «фиксов 0» в отчёте означало бы и «система молчит», и «всё
+                // приходит, но отбрасывается».
+                graph.serviceStatus.onTrackFix(
+                    provider = location.provider,
+                    accuracyMeters = location.accuracy,
+                    atMillis = System.currentTimeMillis(),
+                    stored = false,
+                )
+                return@LocationListener
+            }
             lastAcceptedAt = location.time
             lastAccuracy = location.accuracy
             lastLocation = location
             graph.serviceStatus.onTrackLocation(ServiceStatus.TrackLocation.RECEIVING)
+            graph.serviceStatus.onTrackFix(
+                provider = location.provider,
+                accuracyMeters = location.accuracy,
+                atMillis = System.currentTimeMillis(),
+                stored = true,
+            )
             val sample = lastSample
             scope.launch {
                 graph.trackRepository.addPoint(
@@ -831,10 +858,12 @@ class MeasurementService : Service() {
             }
         }
         locationListener = listener
-        var subscribed = 0
-        for (provider in LOCATION_PROVIDERS) {
+        val subscribedTo = mutableListOf<String>()
+        val enabled = LOCATION_PROVIDERS.filter {
+            runCatching { locationManager.isProviderEnabled(it) }.getOrDefault(false)
+        }
+        for (provider in enabled) {
             runCatching {
-                if (!locationManager.isProviderEnabled(provider)) return@runCatching
                 locationManager.requestLocationUpdates(
                     provider,
                     LOCATION_INTERVAL_MILLIS,
@@ -842,10 +871,11 @@ class MeasurementService : Service() {
                     listener,
                     mainLooper,
                 )
-                subscribed += 1
+                subscribedTo += provider
             }
         }
-        if (subscribed == 0) {
+        graph.serviceStatus.onTrackSubscribed(subscribedTo, enabled, precise)
+        if (subscribedTo.isEmpty()) {
             locationListener = null
             graph.serviceStatus.onTrackLocation(ServiceStatus.TrackLocation.NO_PROVIDER)
             return
@@ -886,11 +916,17 @@ class MeasurementService : Service() {
         Manifest.permission.ACCESS_FINE_LOCATION,
     ) == PackageManager.PERMISSION_GRANTED
 
+    /** «Приблизительно» в системном диалоге: место известно грубо, но известно. */
+    private fun hasCoarseLocationPermission(): Boolean = ContextCompat.checkSelfPermission(
+        this,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+
     // --- notification ---
 
     private fun startForegroundWithCurrentTypes() {
         var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-        if (trackSessionId != null && hasLocationPermission()) {
+        if (trackSessionId != null && (hasLocationPermission() || hasCoarseLocationPermission())) {
             types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
         }
         ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), types)

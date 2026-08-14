@@ -123,6 +123,28 @@ data class DebugSnapshot(
      * умолчанию — «нечего сказать»: раздел просто не печатается.
      */
     val spectrumTraffic: SpectrumTraffic? = null,
+    /**
+     * Запись следа: что известно приложению о координатах.
+     *
+     * «След не пишется» на чужом устройстве неразбираемо: непонятно, дошла ли
+     * подписка до системы, приходят ли фиксы и доезжают ли они до базы. Здесь
+     * нет ни одной координаты — только состояние подписки и счётчики.
+     */
+    val track: TrackDiagnostics? = null,
+)
+
+/** Состояние записи следа — без единой координаты. */
+data class TrackDiagnostics(
+    val recording: Boolean,
+    val state: String,
+    val precise: Boolean,
+    val providersEnabled: List<String>,
+    val providersSubscribed: List<String>,
+    val fixes: Int,
+    val points: Int,
+    val lastFixAgeSeconds: Long?,
+    val lastProvider: String?,
+    val lastAccuracyMeters: Float?,
 )
 
 /**
@@ -174,6 +196,31 @@ object DebugReport {
         appendLine("формат спектра: ${snapshot.spectrumFormatVersion?.toString() ?: "—"}")
         for (line in snapshot.instrumentConfig) appendLine("конфигурация: $line")
         snapshot.connectionFailure?.let { appendLine("последняя ошибка связи: $it") }
+
+        snapshot.track?.let { track ->
+            appendLine()
+            appendLine("## След на карте")
+            appendLine("запись: ${if (track.recording) "идёт" else "не идёт"}")
+            appendLine("состояние: ${track.state}")
+            appendLine("разрешение: ${if (track.precise) "точное" else "приблизительное"}")
+            appendLine(
+                "источники включены: " +
+                    track.providersEnabled.joinToString(" · ").ifEmpty { "нет" },
+            )
+            appendLine(
+                "подписка удалась на: " +
+                    track.providersSubscribed.joinToString(" · ").ifEmpty { "ни на один" },
+            )
+            appendLine("фиксов получено: ${track.fixes} · записано точек: ${track.points}")
+            appendLine(
+                "последний фикс: " + (
+                    track.lastFixAgeSeconds?.let {
+                        "$it с назад · ${track.lastProvider ?: "?"} · " +
+                            "±${track.lastAccuracyMeters?.toInt() ?: "?"} м"
+                    } ?: "не было"
+                    ),
+            )
+        }
         appendLine()
 
         appendLine("## Спектр")

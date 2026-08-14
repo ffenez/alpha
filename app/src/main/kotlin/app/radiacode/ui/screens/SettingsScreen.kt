@@ -111,6 +111,7 @@ import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.SpectrumExport
 import app.radiacode.data.export.DebugReport
 import app.radiacode.data.export.DebugSnapshot
+import app.radiacode.data.export.TrackDiagnostics
 import app.radiacode.data.export.SpectrumTraffic
 import app.radiacode.device.DoseUnits
 import app.radiacode.ui.logic.MonitorStatus
@@ -703,10 +704,33 @@ private suspend fun buildDebugReport(
             ?.let { "создан ${REPORT_STAMP.format(Instant.ofEpochMilli(it.createdAt).atZone(ZoneId.systemDefault()))}" }
             ?: "не создан",
         spectrumTraffic = spectrumTraffic(graph, now),
+        track = trackDiagnostics(graph, now),
     )
     return DebugReport.build(snapshot) { millis ->
         REPORT_STAMP.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
     }
+}
+
+/**
+ * Состояние записи следа для отчёта — без единой координаты.
+ *
+ * Отвечает на три вопроса, которые по экрану не различить: дошла ли подписка
+ * до системы, приходят ли фиксы вообще и доезжают ли они до базы.
+ */
+private fun trackDiagnostics(graph: AppGraph, nowMillis: Long): TrackDiagnostics {
+    val diagnostics = graph.serviceStatus.trackDiagnostics.value
+    return TrackDiagnostics(
+        recording = graph.serviceStatus.trackRecording.value != null,
+        state = graph.serviceStatus.trackLocation.value.name.lowercase(),
+        precise = diagnostics.precise,
+        providersEnabled = diagnostics.enabled,
+        providersSubscribed = diagnostics.providers,
+        fixes = diagnostics.fixes,
+        points = diagnostics.points,
+        lastFixAgeSeconds = diagnostics.lastFixMillis?.let { (nowMillis - it) / 1000L },
+        lastProvider = diagnostics.lastProvider,
+        lastAccuracyMeters = diagnostics.lastAccuracyMeters,
+    )
 }
 
 private val FILE_STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm")

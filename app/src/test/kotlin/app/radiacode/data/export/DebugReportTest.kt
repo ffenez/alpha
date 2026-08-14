@@ -240,4 +240,38 @@ class DebugReportTest {
         assertTrue(text.contains("пропусков seq в DATA_BUF: 17"), text)
         assertTrue(text.contains("переподключений за сеанс: 4"), text)
     }
+
+    /**
+     * «След не пишется» на чужом устройстве неразбираемо по одному экрану:
+     * непонятно, дошла ли подписка до системы, приходят ли фиксы вообще и
+     * доезжают ли они до базы. Отчёт отвечает на все три вопроса — и не несёт
+     * ни одной координаты.
+     */
+    @Test
+    fun `the track section answers where the points are lost, without coordinates`() {
+        val report = DebugReport.build(
+            snapshot.copy(
+                track = TrackDiagnostics(
+                    recording = true,
+                    state = "waiting",
+                    precise = true,
+                    providersEnabled = listOf("gps"),
+                    providersSubscribed = listOf("gps"),
+                    fixes = 0,
+                    points = 0,
+                    lastFixAgeSeconds = null,
+                    lastProvider = null,
+                    lastAccuracyMeters = null,
+                ),
+            ),
+        ) { "стамп" }
+
+        assertTrue(report.contains("## След на карте"), report)
+        assertTrue(report.contains("запись: идёт"), report)
+        assertTrue(report.contains("источники включены: gps"), report)
+        assertTrue(report.contains("фиксов получено: 0 · записано точек: 0"), report)
+        assertTrue(report.contains("последний фикс: не было"), report)
+        // Ни широты, ни долготы: отчёт описывает состояние, а не место.
+        assertTrue(!report.contains("широта") && !report.contains("latitude"), report)
+    }
 }

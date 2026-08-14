@@ -148,6 +148,56 @@ class ServiceStatus {
     private val _trackLocation = MutableStateFlow(TrackLocation.WAITING)
     val trackLocation: StateFlow<TrackLocation> = _trackLocation.asStateFlow()
 
+    /**
+     * Что произошло с координатами с начала записи — для отчёта.
+     *
+     * «След не пишется» на чужом устройстве неразбираемо: непонятно, дошла ли
+     * подписка до системы, приходят ли фиксы вообще и доезжают ли они до базы.
+     * Три числа отвечают на все три вопроса сразу.
+     */
+    data class TrackDiagnostics(
+        /** Провайдеры, на которые удалось подписаться. */
+        val providers: List<String> = emptyList(),
+        /** Провайдеры, включённые в системе на момент подписки. */
+        val enabled: List<String> = emptyList(),
+        /** Сколько фиксов пришло от системы. */
+        val fixes: Int = 0,
+        /** Сколько точек записано в базу (часть фиксов отбрасывается как дубли). */
+        val points: Int = 0,
+        /** Когда пришёл последний фикс и от кого. */
+        val lastFixMillis: Long? = null,
+        val lastProvider: String? = null,
+        val lastAccuracyMeters: Float? = null,
+        /** Точное разрешение (FINE) или только приблизительное (COARSE). */
+        val precise: Boolean = false,
+    )
+
+    private val _trackDiagnostics = MutableStateFlow(TrackDiagnostics())
+    val trackDiagnostics: StateFlow<TrackDiagnostics> = _trackDiagnostics.asStateFlow()
+
+    internal fun onTrackSubscribed(
+        providers: List<String>,
+        enabled: List<String>,
+        precise: Boolean,
+    ) {
+        _trackDiagnostics.value = TrackDiagnostics(
+            providers = providers,
+            enabled = enabled,
+            precise = precise,
+        )
+    }
+
+    internal fun onTrackFix(provider: String?, accuracyMeters: Float, atMillis: Long, stored: Boolean) {
+        val current = _trackDiagnostics.value
+        _trackDiagnostics.value = current.copy(
+            fixes = current.fixes + 1,
+            points = current.points + if (stored) 1 else 0,
+            lastFixMillis = atMillis,
+            lastProvider = provider,
+            lastAccuracyMeters = accuracyMeters,
+        )
+    }
+
     internal fun onServiceStarted() {
         _serviceRunning.value = true
         serviceStartedAtMillis = System.currentTimeMillis()

@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v038Title: String
+    val v038Summary: String
+
     val v037Title: String
     val v037Summary: String
 
@@ -72,6 +75,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v038Title = "След пишется и с приблизительным местом"
+    override val v038Summary =
+        "Раньше запись требовала точного разрешения: выбравший в системном " +
+        "диалоге «Приблизительно» получал молчащую кнопку. Теперь пишется и " +
+        "грубый след, рядом с длительностью видно число записанных точек, а " +
+        "отладочный отчёт показывает, где именно теряются координаты."
 
     override val v037Title = "Видно, когда Bluetooth выключен"
     override val v037Summary =
@@ -189,6 +199,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v038Title = "A track is written with approximate location too"
+    override val v038Summary =
+        "Recording used to require the precise permission, so choosing «Approximate» " +
+        "in the system dialog left a button that did nothing. A coarse track is now " +
+        "recorded too, the number of points sits next to the duration, and the debug " +
+        "report shows where coordinates are being lost."
 
     override val v037Title = "It is visible when Bluetooth is off"
     override val v037Summary =
@@ -311,6 +328,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v038Title, v038Summary,
     v037Title, v037Summary,
     v036Title, v036Summary,
     v035Title, v035Summary,
