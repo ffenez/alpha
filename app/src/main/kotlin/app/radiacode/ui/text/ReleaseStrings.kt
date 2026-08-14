@@ -99,6 +99,10 @@ object ReleaseRu : ReleaseStrings {
             "вовсе; тап по мини-графику открывает его во весь экран.",
         "Возврат на Главную с другой вкладки больше не собирает экран заново: " +
             "графики появляются сразу, а обновление приходит следом.",
+        "В Поиске: вместо «Фон: 24,1» — «фон записан 12.08 в 14:30», а " +
+            "статистика под графиком включается там же, где блоки Главной.",
+        "В Наведении появилась кнопка «Снять» у точки отсчёта.",
+        "«Подробнее» на полном экране стало кнопкой рядом с «лог».",
         "С главного экрана убраны повторы единиц и погрешностей — они остались " +
             "в «Почему такой вывод», рядом с тем, к чему относятся.",
         "Короче формулировки состояния: «Ниже порога тревоги», «Обычно для " +
@@ -297,6 +301,10 @@ object ReleaseEn : ReleaseStrings {
             "work at all; a tap on a card chart opens it full screen.",
         "Coming back to the Monitor from another tab no longer rebuilds it: the " +
             "charts are there at once and the refresh follows.",
+        "In Search: «background recorded on 12.08 at 14:30» instead of a bare " +
+            "number, and the statistics under the chart follow the Monitor setting.",
+        "Navigation gained a «Clear» button for the reference point.",
+        "«More» on the fullscreen chart became a chip next to «log».",
         "The main screen drops repeated units and errors; they stay in the why " +
             "sheet, next to what they belong to.",
         "Shorter status wording: «Below the alarm threshold», «Usual for this " +

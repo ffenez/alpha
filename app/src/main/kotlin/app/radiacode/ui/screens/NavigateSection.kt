@@ -74,6 +74,7 @@ fun NavigateSection(
     strings: Strings,
     t: SearchStrings,
     onMark: () -> Unit,
+    onClearMark: () -> Unit,
     onResetPeak: () -> Unit,
     onMeasureHere: () -> Unit,
     onCancelMeasure: () -> Unit,
@@ -138,26 +139,11 @@ fun NavigateSection(
                 NavigateVerdict.localRatio(state.trendComparison, t)?.let {
                     Text(text = it, style = type.value, color = trendColor)
                 }
-                NavigateVerdict.localInterval(state.trendComparison, t)?.let {
-                    Text(
-                        text = it,
-                        style = type.footnote,
-                        color = colors.muted,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-                // Доза в наведении не участвует: ни одно окно, ни тест, ни дуга
-                // её не читают. Она остаётся вторичной строкой — с той же
-                // точностью и той же приборной погрешностью, что на Мониторе.
-                doseLine?.let {
-                    Text(
-                        text = t.navDose(it),
-                        style = type.footnote,
-                        color = colors.muted,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = Dimens.space1),
-                    )
-                }
+                // Интервал отношения и доза с экрана сняты. Наведение отвечает
+                // на один вопрос — «куда вести прибор сейчас», — и обе строки
+                // на него не отвечали: интервал разбирают, когда сомневаются в
+                // выводе (он в «Почему»), а доза в наведении не участвует
+                // вовсе — её не читают ни окна, ни тест, ни дуга.
             }
         }
 
@@ -335,6 +321,10 @@ fun NavigateSection(
                     modifier = Modifier.weight(1f),
                 )
                 AppButton(text = t.navMarkUpdate, onClick = onMark, enabled = cps != null)
+                // То, что человек начал, он должен уметь и прекратить: пока
+                // отсчёт стоял, дуга и отклик считали ОТ НЕГО, и единственным
+                // способом вернуться к обычному наведению был уход с экрана.
+                AppButton(text = t.navMarkClear, onClick = onClearMark)
             }
             AppButton(text = t.navMore, onClick = { moreOpen = !moreOpen })
         }

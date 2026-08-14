@@ -180,6 +180,17 @@ object NavigateEngine {
         )
     }
 
+    /**
+     * Снять точку отсчёта.
+     *
+     * То, что человек начал, он должен уметь и прекратить. Пока отсчёт стоял,
+     * дуга и отклик считали ОТ НЕГО, и единственным способом вернуться к
+     * обычному наведению был уход с экрана — то есть отмена делалась чем
+     * угодно, только не кнопкой.
+     */
+    fun clearMark(state: NavigateState): NavigateState =
+        state.copy(reference = null, referenceComparison = null)
+
     /** Forgets the held maximum; the next window starts a new one. */
     fun resetPeak(state: NavigateState): NavigateState = state.copy(peak = null)
 

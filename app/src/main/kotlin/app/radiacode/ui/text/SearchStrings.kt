@@ -23,6 +23,9 @@ package app.radiacode.ui.text
  */
 interface SearchStrings {
 
+    /** «фон записан 12.08 в 14:30» — важно КОГДА, а не какое там число. */
+    fun backgroundRecordedAt(day: String, time: String): String
+
     // --- экран ---
     val title: String
     val soundChip: String
@@ -109,6 +112,9 @@ interface SearchStrings {
     /** Поставленная точка отсчёта: величина и момент, а не кнопка во весь экран. */
     fun navReferenceSet(rate: String, time: String): String
     val navMarkUpdate: String
+
+    /** Снять точку отсчёта и вернуться к обычному наведению. */
+    val navMarkClear: String
     val navMore: String
     val navResetPeak: String
     fun navMeasureHere(seconds: Int): String
@@ -308,6 +314,9 @@ interface SearchStrings {
 
 object SearchRu : SearchStrings {
 
+    override fun backgroundRecordedAt(day: String, time: String) =
+        "фон записан $day в $time"
+
     override val title = "Поиск источника"
     override val soundChip = "звук"
     override val vibroChip = "вибро"
@@ -377,6 +386,7 @@ object SearchRu : SearchStrings {
     override fun navReferenceSet(rate: String, time: String) = "Отсчёт $rate с⁻¹ · $time"
 
     override val navMarkUpdate = "Обновить"
+    override val navMarkClear = "Снять"
     override val navMore = "⋯"
     override val navResetPeak = "Сбросить максимум"
 
@@ -644,6 +654,9 @@ object SearchRu : SearchStrings {
 
 object SearchEn : SearchStrings {
 
+    override fun backgroundRecordedAt(day: String, time: String) =
+        "background recorded on $day at $time"
+
     override val title = "Source search"
     override val soundChip = "sound"
     override val vibroChip = "vibration"
@@ -713,6 +726,7 @@ object SearchEn : SearchStrings {
     override fun navReferenceSet(rate: String, time: String) = "Reference $rate s⁻¹ · $time"
 
     override val navMarkUpdate = "Update"
+    override val navMarkClear = "Clear"
     override val navMore = "⋯"
     override val navResetPeak = "Reset the maximum"
 
@@ -991,6 +1005,7 @@ val SearchCatalogue = AreaCatalogue(ru = SearchRu, en = SearchEn)
  * Функции вызываются с представительными аргументами: в них тоже живёт текст.
  */
 fun SearchStrings.allTexts(): List<String> = listOf(
+    backgroundRecordedAt("12.08", "14:30"),
     title, soundChip, vibroChip, feedbackOffNote, feedbackOffShort,    toneHint, vibroHint,
     toBackground, meterNeedsBackground,    waitingStream, cpsUnit, tapeStartLabel, baselineLabel("25,5"), excursionLabel("×1,8"),
     modeNavigate, modeVerify,    navTrendCollecting, navTrendNoChange, navTrendRising, navTrendFalling,
@@ -1001,7 +1016,7 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     navDeltaCaptionCollecting, navDeltaCaptionUnresolved("0,92", "1,31"),
     navDeltaCaptionResolved("1,31"), navPeakValue("47,6", 18), navModuleTitle, navScaleReference, navScalePeak,
     navTraceStart, navLocalLevel("24,8"),
-    navMark, navReferenceSet("26,0", "11:44"), navMarkUpdate,
+    navMark, navReferenceSet("26,0", "11:44"), navMarkUpdate, navMarkClear,
     navMore, navResetPeak, navMeasureHere(10), navSpotProgress(6, 10), navSpotNote,
     navSpotTitle, navSpotResult("48,2", "2,2"), navSpotExposure(10), navSpotToVerify,
     navSpotAbortStreamLost(6, 10), navSpotAbortServiceRestarted(6, 10),

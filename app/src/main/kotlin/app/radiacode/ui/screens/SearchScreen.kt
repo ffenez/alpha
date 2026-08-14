@@ -78,6 +78,7 @@ import app.radiacode.ui.logic.SearchLevel
 import app.radiacode.ui.logic.SearchSpectrumHint
 import app.radiacode.ui.logic.SearchState
 import app.radiacode.ui.logic.SearchTone
+import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.SearchVerdict
 import app.radiacode.ui.logic.SearchVibro
 import app.radiacode.ui.logic.SearchWhyInput
@@ -131,6 +132,10 @@ fun SearchScreen(
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val strings = LocalStrings.current
+    // Та же настройка, что у блоков Главной: «статистика под графиком» —
+    // одно решение человека на всё приложение, а не два одинаковых тумблера.
+    val showStats by graph.settings.monitorBlocks
+        .collectAsState(initial = app.radiacode.data.MonitorBlocks())
     val backgroundCard = BackgroundCardCatalogue.of(strings.language)
     val t = SearchCatalogue.of(strings.language)
     val scope = rememberCoroutineScope()
@@ -513,6 +518,7 @@ fun SearchScreen(
                         System.currentTimeMillis() - deviceClockOffset,
                     )
                 },
+                onClearMark = { navigate = NavigateEngine.clearMark(navigate) },
                 onResetPeak = { navigate = NavigateEngine.resetPeak(navigate) },
                 onMeasureHere = { graph.spotMeasure.start(navigate.reference) },
                 onCancelMeasure = { graph.spotMeasure.cancel() },
@@ -543,11 +549,10 @@ fun SearchScreen(
                     color = if (cps != null) colors.ink else colors.muted,
                     textAlign = TextAlign.Center,
                 )
-                Text(
-                    text = cps?.let { Uncertainty.cpsSigmaLine(it) } ?: t.cpsUnit,
-                    style = type.footnote,
-                    color = colors.ink2,
-                )
+                // Под числом — только единица: пуассоновская σ стояла здесь
+                // постоянно, а нужна тогда, когда разбирают вывод, — и там она
+                // есть, в «Почему», рядом с окном, по которому посчитана.
+                Text(text = t.cpsUnit, style = type.footnote, color = colors.ink2)
 
                 if (record != null) {
                     val delta = SearchVerdict.deltaPercent(search.comparison)
@@ -555,14 +560,17 @@ fun SearchScreen(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         modifier = Modifier.padding(top = Dimens.space2),
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(strings.backgroundTag, style = type.bodySmall, color = colors.ink2)
-                            Text(
-                                text = Uncertainty.num1(record.cps),
-                                style = type.value,
-                                color = colors.ink,
-                            )
-                        }
+                        // «Фон: 24,1» заставляло вспоминать, что это за число и
+                        // откуда оно. Человеку важно другое — КОГДА он его снял:
+                        // по возрасту видно, годится ли фон для сравнения.
+                        Text(
+                            text = t.backgroundRecordedAt(
+                                HistoryFormat.day(record.atMillis),
+                                timeOfDay(record.atMillis),
+                            ),
+                            style = type.bodySmall,
+                            color = colors.ink2,
+                        )
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(text = t.toBackground, style = type.bodySmall, color = colors.ink2)
                             Text(
@@ -665,7 +673,7 @@ fun SearchScreen(
                         ),
                     )
                     val values = points.map { it.cps }
-                    StatGrid(
+                    if (showStats.stats) StatGrid(
                         cells = listOf(
                             StatCell(Uncertainty.num1(values.sum() / values.size), t.statMean60),
                             StatCell(Uncertainty.num1(values.max()), t.statMax),

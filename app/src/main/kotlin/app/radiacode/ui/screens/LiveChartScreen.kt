@@ -474,6 +474,7 @@ fun LiveChartScreen(
                     logScale = logScale,
                     onSelectPeriod = ::selectPeriod,
                     onToggleScale = { logScale = !logScale },
+                    onOpenDetails = { detailsOpen = true },
                     availablePeriods = periodIndices,
                     periodExact = periodExact,
                     currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000, s = h),
@@ -530,7 +531,6 @@ fun LiveChartScreen(
             unit = unit,
             metric = metric,
             spanMillis = window.spanMillis,
-            onOpenDetails = { detailsOpen = true },
         )
         Row(
             horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
@@ -544,6 +544,7 @@ fun LiveChartScreen(
                 logScale = logScale,
                 onSelectPeriod = ::selectPeriod,
                 onToggleScale = { logScale = !logScale },
+                onOpenDetails = { detailsOpen = true },
                 availablePeriods = periodIndices,
                 periodExact = periodExact,
                 currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000, s = h),
@@ -587,7 +588,6 @@ private fun WindowStatsLine(
     unit: DoseUnitSetting,
     metric: ChartMetric,
     spanMillis: Long,
-    onOpenDetails: () -> Unit,
 ) {
     val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
@@ -597,11 +597,6 @@ private fun WindowStatsLine(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onOpenDetails,
-            )
             .padding(horizontal = Dimens.space3, vertical = 9.dp),
     ) {
         val value = { v: Float -> ChartMetrics.format(metric, v, unit) }
@@ -623,7 +618,6 @@ private fun WindowStatsLine(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Text(text = t.moreDetails, style = type.footnote, color = colors.muted)
     }
 }
 
@@ -674,15 +668,11 @@ private fun liveReading(
                 color = if (value == null || freshness !is Freshness.Fresh) colors.muted
                 else colors.ink,
             )
+            // Рядом с числом — только единица. Приборная погрешность стояла
+            // здесь постоянно, а прочитывается один раз: она в «подробнее», где
+            // разбирают само значение.
             Text(
-                text = listOfNotNull(
-                    if (metric == ChartMetric.DOSE) {
-                        Uncertainty.errPercentLabel(sample?.doseRateErr)
-                    } else {
-                        null
-                    },
-                    ChartMetrics.unitLabel(metric, unit, axis, strings),
-                ).joinToString(" "),
+                text = ChartMetrics.unitLabel(metric, unit, axis, strings),
                 style = type.footnote,
                 color = colors.ink2,
                 modifier = Modifier.padding(start = 5.dp, bottom = 2.dp),
@@ -911,6 +901,7 @@ private fun RowScope.ControlChips(
     logScale: Boolean,
     onSelectPeriod: (Int) -> Unit,
     onToggleScale: () -> Unit,
+    onOpenDetails: () -> Unit,
     availablePeriods: List<Int> = ChartWindows.PERIODS.indices.toList(),
     periodExact: Boolean = true,
     /** Фактическое окно словами — для свёрнутого чипа между ступенями. */
@@ -975,5 +966,13 @@ private fun RowScope.ControlChips(
         color = if (logScale) colors.dataText else colors.ink2,
         selected = logScale,
         onClick = onToggleScale,
+    )
+    Spacer(Modifier.width(Dimens.space1))
+    // «Подробнее» было хвостом строки чисел — то есть кнопкой, не похожей на
+    // кнопку. Здесь оно стоит среди других управляющих чипов, где его и ищут.
+    Chip(
+        text = ChartTextCatalogue.of(LocalStrings.current.language).moreDetails,
+        color = colors.ink2,
+        onClick = onOpenDetails,
     )
 }

@@ -480,6 +480,7 @@ private fun AnalysisToolsSection(
             AnalysisToolRow(t.toolSpectrogramTitle, t.toolSpectrogramSubtitle, onOpenSpectrogram)
             AppDivider()
             AnalysisToolRow(t.toolRadonTitle, t.toolRadonSubtitle, onOpenRadon)
+            AppDivider()
             AnalysisToolRow(t.toolLineTitle, t.toolLineSubtitle, onOpenLineTrend)
         }
     }
@@ -690,18 +691,6 @@ private fun SpectrumContent(
             enabled = { it == 0 || background != null },
             modifier = Modifier.weight(1.7f),
         )
-        // Кнопка появляется только когда фон записан: до этого показывать
-        // нечего, и место она занимала бы зря. В режиме «− фон» её тоже нет —
-        // там фон уже вычтен, и рисовать его сверху значило бы использовать
-        // одни и те же импульсы дважды.
-        if (background != null && !subtractOn) {
-            Chip(
-                text = t.showBackgroundCurve,
-                color = if (showBackground) colors.dataText else colors.ink2,
-                selected = showBackground,
-                onClick = { showBackground = !showBackground },
-            )
-        }
         Segmented(
             options = listOf(strings.scaleLinear, strings.scalePower, strings.scaleLog),
             selectedIndex = when (scale) {
@@ -988,15 +977,31 @@ private fun SpectrumContent(
                 // кнопок под графиком отнимала у него высоту ради одного
                 // нажатия. Обведён = сглаживание включено (правило чипов).
                 fieldControls = {
-                    Chip(
-                        text = strings.smoothing,
-                        color = if (smoothing) colors.dataText else colors.ink2,
-                        selected = smoothing,
-                        onClick = { smoothing = !smoothing },
+                    // Оба переключателя — свойства КАРТИНКИ, поэтому живут на
+                    // ней: сглаживание и показ записанного фона. В строке над
+                    // графиком чип фона стоял среди сегментов режима и читался
+                    // как ещё один режим, хотя он про то, что нарисовано.
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(Dimens.space1),
-                    )
+                    ) {
+                        if (background != null && !subtractOn) {
+                            Chip(
+                                text = t.showBackgroundCurve,
+                                color = if (showBackground) colors.dataText else colors.ink2,
+                                selected = showBackground,
+                                onClick = { showBackground = !showBackground },
+                            )
+                        }
+                        Chip(
+                            text = strings.smoothing,
+                            color = if (smoothing) colors.dataText else colors.ink2,
+                            selected = smoothing,
+                            onClick = { smoothing = !smoothing },
+                        )
+                    }
                 },
             )
             // Легенды под полем нет: что нарисовано, названо переключателями
