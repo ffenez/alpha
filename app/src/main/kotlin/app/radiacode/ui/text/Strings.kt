@@ -112,7 +112,6 @@ interface Strings {
     val statusUsual: String
     val statusUsualShort: String
     val statusAboveUsual: String
-    val statusAboveUsualShort: String
     val statusAboveThreshold: String
     val statusAboveThresholdShort: String
     val statusAlert: String
@@ -587,7 +586,7 @@ fun Strings.allTexts(): List<String> = listOf(
     settingsDevice, settingsDeviceSub, settingsAbout, settingsAboutSub,
     languageTitle, languageSystem,
     statusNoData, statusAboveL1, statusBelowL1, statusUsual, statusUsualShort,
-    statusAboveUsual, statusAboveUsualShort, statusAboveThreshold, statusAboveThresholdShort,
+    statusAboveUsual, statusAboveThreshold, statusAboveThresholdShort,
     statusAlert, streamRunning, streamInterruptedFor,
     detailNoBaseline("0,30"), detailUsual("0,09–0,14", "мкЗв/ч", "26 ч"),
     detailAboveUsual("0,09–0,14", "мкЗв/ч", held(minutes(4))),

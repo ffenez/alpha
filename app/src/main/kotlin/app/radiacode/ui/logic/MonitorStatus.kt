@@ -132,7 +132,6 @@ fun statusHeadline(status: MonitorStatus, s: Strings = RuStrings): String = when
 /** Short variant for narrow slots; same meaning, same forbidden words. */
 fun statusHeadlineShort(status: MonitorStatus, s: Strings = RuStrings): String = when (status) {
     is MonitorStatus.Usual -> s.statusUsualShort
-    is MonitorStatus.AboveUsual -> s.statusAboveUsualShort
     is MonitorStatus.AboveThreshold -> s.statusAboveThresholdShort
     else -> statusHeadline(status, s)
 }

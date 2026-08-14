@@ -95,7 +95,7 @@ class MonitorStatusTest {
         val held = DeviationSnapshot(aboveUsualSince = now - 4 * 60_000)
         val status = MonitorStatus.of(0.18f, active, held, thresholds, now)
         assertEquals(MonitorStatus.AboveUsual(baseline, heldSeconds = 240), status)
-        assertEquals("Выше обычного здесь", statusHeadline(status))
+        assertEquals("Выше обычного", statusHeadline(status))
         assertEquals(
             "P10–P90 профиля: 0,09–0,14 мкЗв/ч · держится 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
