@@ -86,6 +86,7 @@ import app.radiacode.ui.logic.ReleaseNotes
 import app.radiacode.ui.logic.freshnessLabel
 import app.radiacode.ui.logic.heldWording
 import app.radiacode.ui.logic.learningWording
+import app.radiacode.ui.text.MonitorRu
 import app.radiacode.ui.text.AppLanguage
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.CalibrationCatalogue
@@ -176,7 +177,11 @@ internal fun ProfilesSection(graph: AppGraph) {
                         allProfiles = profiles,
                         nested = profile.parentId != null,
                         active = profile.id == activeProfile?.id,
-                        baselineLine = baselineSummary(baselines[profile.id], unit),
+                        baselineLine = baselineSummary(
+                            state = baselines[profile.id],
+                            unit = unit,
+                            learning = profile.baselineLearning,
+                        ),
                         boundNetworks = networks.filter { it.profileId == profile.id },
                         currentNetworkHash = network.hash,
                         currentNetworkLabel = network.label,
@@ -238,15 +243,27 @@ internal fun baselineSummary(
     state: BaselineState?,
     unit: DoseUnitSetting,
     strings: Strings = RuStrings,
-): String = when (state) {
-    null -> "…"
-    is BaselineState.Learning -> learningWording(state)
-    is BaselineState.Active ->
-        DoseFormat.range(
-            state.baseline.doseLowMicroSvH,
-            state.baseline.doseHighMicroSvH,
-            unit,
-        ) + " ${DoseFormat.rateUnitLabel(unit, s = strings)} · " + baselineCollectedWording(state.baseline)
+    /**
+     * Собирает ли этот профиль обычный фон вообще.
+     *
+     * «В пути» и «Без места» описывают положение, а не комнату, и фон им не
+     * собирается по устройству. Полоса прогресса «0 ч из 3» обещала им конец,
+     * которого не будет: она не «ещё не набрала», она не наберёт никогда.
+     */
+    learning: Boolean = true,
+): String = when {
+    !learning -> MonitorRu.usualBackgroundNotCollected
+    else -> when (state) {
+        null -> "…"
+        is BaselineState.Learning -> learningWording(state)
+        is BaselineState.Active ->
+            DoseFormat.range(
+                state.baseline.doseLowMicroSvH,
+                state.baseline.doseHighMicroSvH,
+                unit,
+            ) + " ${DoseFormat.rateUnitLabel(unit, s = strings)} · " +
+                baselineCollectedWording(state.baseline)
+    }
 }
 
 /** Extended per-profile statistics (spec §4.1) shown inside the expanded row. */

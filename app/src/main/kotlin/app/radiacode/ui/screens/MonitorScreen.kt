@@ -218,6 +218,7 @@ fun MonitorScreen(
         .collectAsState(initial = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f))
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     val doseTint by graph.settings.doseTint.collectAsState(initial = true)
+    val connectedAt by graph.serviceStatus.connectedAtMillis.collectAsState()
     val chartDetailId by graph.settings.chartDetailModeId
         .collectAsState(initial = ChartDetailMode.DEFAULT.id)
     val chartDetail = remember(chartDetailId) { ChartDetailMode.of(chartDetailId) }
@@ -482,7 +483,7 @@ fun MonitorScreen(
                 onClick = { showProfilePicker = true },
             )
             Spacer(Modifier.weight(1f))
-            ConnectedFlash(connection)
+            ConnectedFlash(connectedAt)
             ConnectionChip(connection, serviceRunning, stream)
             StreamChip(stream)
             Icon(
@@ -741,18 +742,22 @@ fun contextWording(
  * перестают видеть и его исчезновение.
  */
 @Composable
-private fun ConnectedFlash(connection: ConnectionState) {
+private fun ConnectedFlash(connectedAtMillis: Long?) {
     val colors = LocalAppColors.current
     val t = MonitorCatalogue.of(LocalStrings.current.language)
-    val connected = connection is ConnectionState.Connected
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(connected) {
-        if (!connected) {
-            visible = false
-            return@LaunchedEffect
-        }
-        visible = true
-        delay(CONNECTED_FLASH_MILLIS)
+    // Видимость считается от МОМЕНТА подключения, а не от сборки экрана:
+    // возврат из Настроек не является новым соединением.
+    var visible by remember(connectedAtMillis) {
+        mutableStateOf(
+            connectedAtMillis != null &&
+                System.currentTimeMillis() - connectedAtMillis < CONNECTED_FLASH_MILLIS,
+        )
+    }
+    LaunchedEffect(connectedAtMillis) {
+        if (!visible) return@LaunchedEffect
+        val left = CONNECTED_FLASH_MILLIS -
+            (System.currentTimeMillis() - (connectedAtMillis ?: 0L))
+        delay(left.coerceAtLeast(0L))
         visible = false
     }
     AnimatedVisibility(

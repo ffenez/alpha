@@ -96,4 +96,24 @@ class SessionGateTest {
         assertEquals(SessionGate.Action.None, gate.onConnected(30 * minute, 10 * minute))
         assertEquals(30L * minute, SessionGate.DEFAULT_GRACE_MILLIS)
     }
+
+    /**
+     * Смена места — настоящая граница записи, в отличие от разрыва связи.
+     *
+     * Полевой случай: человек ушёл из дома, контекст переключился на «В пути»,
+     * карта писала след — а в журнале этой записи не было: она осталась внутри
+     * записи «Дом», потому что профиль запоминается один раз, при открытии.
+     * Гейт связи об этом не знает и знать не должен: он про СВЯЗЬ, а место
+     * меняет служба. Тест держит границу ролей.
+     */
+    @Test
+    fun `the link gate says nothing about the place`() {
+        val gate = SessionGate()
+        gate.onConnected(0, null)
+
+        // Ни один сигнал связи не закрывает запись сам по себе, пока связь
+        // держится: закрытие по смене места делает служба.
+        assertEquals(SessionGate.Action.None, gate.onConnected(minute, 0))
+        assertEquals(SessionGate.Action.None, gate.onLinkLost(2 * minute))
+    }
 }

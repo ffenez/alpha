@@ -225,14 +225,28 @@ class MeasurementService : Service() {
         }
         scope.launch {
             graph.profileRepository.activeProfile().collect { profile ->
-                val changed = profile?.id != activeProfileId ||
+                val placeChanged = profile?.id != activeProfileId
+                val changed = placeChanged ||
                     profile?.baselineEpochMillis != activeBaselineEpoch
+                val previousSession = sessionId
                 activeProfileId = profile?.id
                 activeBaselineEpoch = profile?.baselineEpochMillis
                 profileLearningEnabled = profile?.baselineLearning ?: false
                 if (changed) {
                     rebuildTrackers()
                     refreshBaseline()
+                }
+                // Смена места — НАСТОЯЩАЯ граница записи, в отличие от разрыва
+                // связи. Полевой случай: человек ушёл из дома, контекст честно
+                // переключился на «В пути», карта писала след — а в журнале
+                // этой записи не было вовсе: она осталась внутри записи «Дом»,
+                // потому что профиль запоминается один раз, при открытии.
+                if (placeChanged && previousSession != null) {
+                    graph.sessionRepository.close(
+                        sessionId = previousSession,
+                        endedAt = lastSample?.timestampMillis ?: System.currentTimeMillis(),
+                    )
+                    sessionId = graph.sessionRepository.open(profile?.id)
                 }
             }
         }

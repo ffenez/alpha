@@ -269,8 +269,26 @@ class ServiceStatus {
         if (payloadBytes > 0L) spectrumPayloadBytes += payloadBytes
     }
 
+    /**
+     * Когда связь установилась — момент прибора, а не экрана.
+     *
+     * Полевой дефект: возврат из Настроек на Главную показывал «Подключено»
+     * заново. Подтверждение жило в композиции и появлялось при каждой её
+     * сборке, то есть сообщало о том, что человек открыл экран, а не о том,
+     * что прибор подключился.
+     */
+    private val _connectedAtMillis = MutableStateFlow<Long?>(null)
+    val connectedAtMillis: StateFlow<Long?> = _connectedAtMillis.asStateFlow()
+
     internal fun onConnectionState(state: ConnectionState) {
+        val was = _connection.value
         _connection.value = state
+        // Момент ставится на ПЕРЕХОДЕ в подключённое состояние: повторное
+        // сообщение о том же соединении подтверждением не является.
+        if (state is ConnectionState.Connected && was !is ConnectionState.Connected) {
+            _connectedAtMillis.value = System.currentTimeMillis()
+        }
+        if (state !is ConnectionState.Connected) _connectedAtMillis.value = null
     }
 
     internal fun onBaseline(state: BaselineState?) {

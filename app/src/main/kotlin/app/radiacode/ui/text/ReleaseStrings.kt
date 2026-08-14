@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v042Title: String
+    val v042Summary: String
+
     val v041Title: String
     val v041Summary: String
 
@@ -84,6 +87,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v042Title = "Смена места попадает в журнал"
+    override val v042Summary =
+        "Уход из дома переключает место на «В пути» — и теперь это отдельная " +
+        "запись в Истории, а не продолжение домашней. «Подключено» больше не " +
+        "мигает при возврате из Настроек, а профиль, который фон не собирает, не " +
+        "обещает «0 ч из 3»."
 
     override val v041Title = "Главная и Поиск устроены одинаково"
     override val v041Summary =
@@ -229,6 +239,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v042Title = "A change of place reaches the journal"
+    override val v042Summary =
+        "Leaving home switches the place to «В пути» — and that is now a record of " +
+        "its own rather than a continuation of the one at home. «Подключено» no " +
+        "longer blinks on the way back from Settings, and a profile that collects no " +
+        "background stops promising «0 ч из 3»."
 
     override val v041Title = "Home and Поиск are built the same way"
     override val v041Summary =
@@ -380,6 +397,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v042Title, v042Summary,
     v041Title, v041Summary,
     v040Title, v040Summary,
     v039Title, v039Summary,
