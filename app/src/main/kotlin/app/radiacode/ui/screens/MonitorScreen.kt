@@ -177,6 +177,8 @@ fun MonitorScreen(
     onOpenMetricChart: (ChartMetric) -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenChart: () -> Unit = {},
+    /** Плитка накопленного открывает свой экран. */
+    onOpenDose: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     // Живое показание берётся ИЗ ПАМЯТИ службы, а не из базы.
@@ -494,6 +496,7 @@ fun MonitorScreen(
             admission = admission,
             frozen = frozen,
             onWhy = { showWhy = true },
+            onOpenDose = onOpenDose,
         )
 
         val baseline = (baselineState as? BaselineState.Active)?.baseline
@@ -787,6 +790,8 @@ private fun HeroCard(
     admission: Admission = Admission.Admitted,
     frozen: Boolean = false,
     onWhy: () -> Unit = {},
+    /** Плитка накопленного открывает свой экран. */
+    onOpenDose: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -968,9 +973,16 @@ private fun HeroCard(
                             // Единица — в подписи, как у счёта: в значении она
                             // повторялась у каждого числа, а меняется вместе с
                             // настройкой один раз на всё приложение.
-                            label = strings.doseToday + ", " +
+                            //
+                            // Подпись говорит, ЧТО это за число: «сегодня» —
+                            // это отрезок времени, а не величина, и рядом с
+                            // мощностью дозы читалось как «доза сейчас».
+                            // Набралось — про накопление, и плитка открывает
+                            // экран, где видно, как оно набиралось.
+                            label = strings.doseAccumulatedToday + ", " +
                                 DoseFormat.doseUnitLabel(unit, s = strings),
                             value = doseTodayMicroSv?.let { DoseFormat.dose(it, unit) } ?: "—",
+                            onClick = onOpenDose,
                         ),
                     )
                 }

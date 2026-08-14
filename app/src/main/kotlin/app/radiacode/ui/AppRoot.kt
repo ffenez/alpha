@@ -30,6 +30,7 @@ import app.radiacode.ui.theme.Motion
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.NavBar
 import app.radiacode.ui.logic.NavConfig
+import app.radiacode.ui.screens.DoseScreen
 import app.radiacode.ui.screens.AbExperimentScreen
 import app.radiacode.ui.logic.ChartMetric
 import app.radiacode.ui.logic.ChartRange
@@ -157,6 +158,9 @@ private fun MainScaffold(graph: AppGraph) {
     var showExperiments by rememberSaveable { mutableStateOf(false) }
     var showRadon by rememberSaveable { mutableStateOf(false) }
     var showLineTrend by rememberSaveable { mutableStateOf(false) }
+    // «Сколько набралось» — свой экран, а не блок в Истории: спрашивают о нём
+    // редко и с Главной, где и стоит число за сегодня.
+    var showDose by rememberSaveable { mutableStateOf(false) }
     var sessionDetailId by rememberSaveable { mutableStateOf<Long?>(null) }
     var trackMapSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
     // «Продолжить накопление»: snapshot id the Спектр tab merges with the live
@@ -164,7 +168,8 @@ private fun MainScaffold(graph: AppGraph) {
     var continueSpectrumId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     BackHandler(
-        enabled = showSettings || showLiveChart || fullSpectrum || showSpectrogram || showRadon || showLineTrend ||
+        enabled = showSettings || showLiveChart || fullSpectrum || showSpectrogram || showRadon ||
+            showLineTrend || showDose ||
             showExperiments || showFingerprint || sessionDetailId != null ||
             trackMapSessionId != null || spectrumSnapshotId != null,
     ) {
@@ -172,6 +177,7 @@ private fun MainScaffold(graph: AppGraph) {
             showSettings -> showSettings = false
             fullSpectrum -> fullSpectrum = false
             showFingerprint -> showFingerprint = false
+            showDose -> showDose = false
             showLiveChart -> showLiveChart = false
             spectrumSnapshotId != null -> spectrumSnapshotId = null
             showSpectrogram -> showSpectrogram = false
@@ -204,6 +210,11 @@ private fun MainScaffold(graph: AppGraph) {
             ),
             onCloseFullscreen = { fullSpectrum = false },
         )
+        return
+    }
+
+    if (showDose) {
+        DoseScreen(graph = graph, onBack = { showDose = false })
         return
     }
 
@@ -314,6 +325,7 @@ private fun MainScaffold(graph: AppGraph) {
                             chartRangeTo = null
                             showLiveChart = true
                         },
+                        onOpenDose = { showDose = true },
                     )
                     AppTab.SEARCH -> SearchScreen(
                         graph = graph,

@@ -123,25 +123,19 @@ private sealed interface HistoryItem {
 
 @Immutable
 private data class HistoryModel(
-    val doseTodayMicroSv: Double,
-    val dose7dMicroSv: Double,
-    val dose30dMicroSv: Double,
-    /** µSv per local day, oldest first, [DOSE_DAYS] entries. */
-    val dailyDose: List<DailyDose.Day>,
-    /** Seconds of *actual measurement* behind the 7- and 30-day integrals. */
-    val measured7dSeconds: Long,
-    val measured30dSeconds: Long,
-    val fromMillis: Long,
-    val toMillis: Long,
     val items: List<HistoryItem>,
     val totalSessions: Long,
 )
 
 /**
- * История (SPEC «History»): accumulated dose with the 30-day bar mini-chart,
- * then dense measurement-session rows newest-first with full summaries,
- * interleaved with deviation events and their «обычно здесь X» context.
- * Windowed pages keep months of data smooth; a session opens its detail.
+ * История (SPEC «History»): dense measurement-session rows newest-first with
+ * their summaries, interleaved with deviation events and their «обычно здесь
+ * X» context. Windowed pages keep months of data smooth; a session opens its
+ * detail.
+ *
+ * Накопленной дозы здесь больше нет: её спрашивают с Главной и по конкретному
+ * поводу, а верх Истории она занимала всегда — теперь у неё свой экран
+ * ([DoseScreen]), вход на него с плитки «Набралось сегодня».
  */
 @Composable
 fun HistoryScreen(
@@ -276,8 +270,6 @@ fun HistoryScreen(
                 Text(text = strings.readingJournal, style = type.bodySmall, color = colors.muted)
             }
         } else {
-            AccumulatedDoseCard(m, unit)
-
             SavedSpectraCard(
                 graph = graph,
                 spectra = savedSpectra,
@@ -382,115 +374,6 @@ fun HistoryScreen(
     }
 }
 
-@Composable
-private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val h = HistoryCatalogue.of(strings.language)
-    val type = LocalAppTypography.current
-    // Свёрнута по умолчанию: на Историю приходят за последними записями, а
-    // накопленная доза занимала графиком, проекцией и объяснениями половину
-    // первого экрана. Свёрнутая она отвечает на тот же вопрос числами.
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    // Период графика: 7 · 30 · 90 дней, по умолчанию месяц.
-    var periodIndex by rememberSaveable { mutableIntStateOf(1) }
-    val periodDays = DOSE_PERIODS[periodIndex]
-    val days = model.dailyDose.takeLast(periodDays)
-    val measuredSeconds = days.sumOf { it.measuredSeconds }
-
-    // Период показывается, только если измерения ДО него были. Иначе он не
-    // добавляет ни одного измерения к более короткому и повторяет его число:
-    // «2,36 · 2,36 · 2,36» на пятнадцати часах истории выглядело поломкой.
-    val depthDays = remember(model.dailyDose) { DailyDose.measuredDepthDays(model.dailyDose) }
-    val cells = buildList {
-        add(
-            StatCell(
-                DoseFormat.dose(model.doseTodayMicroSv, unit),
-                strings.todayWithUnit(DoseFormat.doseUnitLabel(unit, s = strings)),
-            ),
-        )
-        if (depthDays >= 1) {
-            add(StatCell(DoseFormat.dose(model.dose7dMicroSv, unit), strings.days7))
-        }
-        if (depthDays >= 7) {
-            add(StatCell(DoseFormat.dose(model.dose30dMicroSv, unit), strings.days30))
-        }
-    }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { expanded = !expanded },
-                    ),
-            ) {
-                Text(
-                    text = strings.accumulatedDose.uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                )
-                Spacer(Modifier.weight(1f))
-                DisclosureArrow(expanded = expanded)
-            }
-
-            if (!expanded) {
-                Text(
-                    text = cells.joinToString(" · ") { "${it.value} ${it.key}" },
-                    style = type.value,
-                    color = colors.ink,
-                )
-                Text(
-                    text = h.measuredFor(
-                        HistoryFormat.duration(model.dailyDose.sumOf { it.measuredSeconds }, h),
-                    ),
-                    style = type.footnote,
-                    color = colors.ink2,
-                )
-                return@Column
-            }
-
-            StatGrid(cells = cells)
-            Segmented(
-                options = listOf(strings.days7, strings.days30, h.days90),
-                selectedIndex = periodIndex,
-                onSelect = { periodIndex = it },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            val dailyMax = days.maxOfOrNull { it.microSv } ?: 0f
-            if (dailyMax > 0f) {
-                BarChart(
-                    spec = BarChartSpec(
-                        // День без измерений — ПУСТОЕ место, а не нулевая
-                        // доза: прибор в этот день не работал, и рисовать за
-                        // него ноль значит утверждать, что дозы не было.
-                        values = days.map { it.microSv.takeIf { v -> v > 0f } },
-                        // Полый столбик = день измерен не полностью: доза
-                        // накоплена только за время записи, и сравнивать её с
-                        // полным днём как равную нельзя.
-                        partial = days.map { !it.full },
-                        yMax = dailyMax * 1.15f,
-                        emphasizeLast = true,
-                        xStartLabel = HistoryFormat.day(
-                            model.toMillis - periodDays.toLong() * 86_400_000L,
-                            s = h,
-                        ),
-                        xEndLabel = HistoryFormat.day(model.toMillis, s = h),
-                    ),
-                    height = 72.dp,
-                )
-            }
-            Hint(text = h.recordedOfPeriod(HistoryFormat.duration(measuredSeconds, h)))
-        }
-    }
-}
-
-/** Периоды графика накопленной дозы, дни. */
-private val DOSE_PERIODS = listOf(7, 30, 90)
 
 
 
@@ -1097,38 +980,7 @@ private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryMode
         groups.map { HistoryItem.Session(it) } + events.map { HistoryItem.Deviation(it) }
         ).sortedByDescending { it.timestamp }
 
-    val zone = ZoneId.systemDefault()
-    val startOfDay = LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli()
-    val fromDaily = now - DOSE_DAYS.toLong() * 24 * 3600_000
-    // Hour buckets across the 30-day span feed both the totals and the
-    // per-day bars (AVG×COUNT integration is exact for any bucket width).
-    val bucketsDaily = graph.measurementRepository.downsampledSamples(
-        from = fromDaily,
-        to = now,
-        bucketMillis = 3_600_000L,
-    )
-
-    // «Сегодня» starts at local midnight, which epoch-hour buckets straddle —
-    // minute buckets keep it exact (same as the Монитор figure).
-    val todayBuckets = graph.measurementRepository.downsampledSamples(
-        from = startOfDay,
-        to = now,
-        bucketMillis = 60_000L,
-    )
-
-    val buckets7 = bucketsDaily.filter { it.bucketStart >= now - 7L * 24 * 3600_000 }
-    val buckets30 = bucketsDaily.filter { it.bucketStart >= now - 30L * 24 * 3600_000 }
     return HistoryModel(
-        doseTodayMicroSv = ChartMapping.integrateDoseMicroSv(todayBuckets),
-        dose7dMicroSv = ChartMapping.integrateDoseMicroSv(buckets7),
-        dose30dMicroSv = ChartMapping.integrateDoseMicroSv(buckets30),
-        dailyDose = DailyDose.perDay(bucketsDaily, now, zone, DOSE_DAYS),
-        // 1 Hz sampling: one sample ≈ one measured second, the same assumption
-        // the dose integral itself uses (ChartMapping.integrateDoseMicroSv).
-        measured7dSeconds = buckets7.sumOf { it.sampleCount.toLong() },
-        measured30dSeconds = buckets30.sumOf { it.sampleCount.toLong() },
-        fromMillis = fromDaily,
-        toMillis = now,
         items = items,
         totalSessions = totalSessions,
     )

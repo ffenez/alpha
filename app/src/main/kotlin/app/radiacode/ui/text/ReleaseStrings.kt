@@ -64,12 +64,12 @@ interface ReleaseStrings {
 
 object ReleaseRu : ReleaseStrings {
 
-    override val v034Title = "Накопленная доза не занимает пол-экрана"
+    override val v034Title = "«Набралось сегодня» открывает свой экран"
     override val v034Summary =
-        "Блок свёрнут: числа за сегодня, неделю и месяц одной строкой, и время, за " +
-        "которое они измерены. Раскрывается нажатием — столбики по дням за 7, 30 " +
-        "или 90 суток, где день без записи остаётся пустым, а период не " +
-        "показывается, пока за ним нет измерений."
+        "Накопленная доза ушла из Истории на свой экран — он открывается нажатием " +
+        "на плитку «Набралось сегодня» на Главной, где этот вопрос и возникает. " +
+        "Там столбики по дням за 7, 30 или 90 суток: день без записи остаётся " +
+        "пустым, а период не показывается, пока за ним нет измерений."
 
     override val v033Title = "История больше не рассыпается на куски"
     override val v033Summary =
@@ -160,12 +160,12 @@ object ReleaseRu : ReleaseStrings {
 
 object ReleaseEn : ReleaseStrings {
 
-    override val v034Title = "Accumulated dose stops taking half the screen"
+    override val v034Title = "«Collected today» opens a screen of its own"
     override val v034Summary =
-        "The block is collapsed: today, this week and this month on one line, with " +
-        "the time they were measured over. One tap opens daily bars over 7, 30 or 90 " +
-        "days, where a day without recording stays empty and a period is not offered " +
-        "until there is history behind it."
+        "Accumulated dose left История for a screen of its own, opened by tapping " +
+        "«Collected today» on Home, where the question comes up. It draws daily bars " +
+        "over 7, 30 or 90 days: a day without recording stays empty, and a period is " +
+        "not offered until there is history behind it."
 
     override val v033Title = "History stops falling apart"
     override val v033Summary =

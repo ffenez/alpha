@@ -1,6 +1,7 @@
 package app.radiacode.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -32,6 +33,8 @@ data class MetricTile(
     val value: String,
     val valueColor: Color? = null,
     val note: String? = null,
+    /** Плитка открывает свой экран; null — просто число. */
+    val onClick: (() -> Unit)? = null,
 )
 
 @Composable
@@ -42,6 +45,9 @@ fun MetricTileBox(tile: MetricTile, modifier: Modifier = Modifier) {
         modifier = modifier
             .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
             .background(colors.surface2)
+            .then(
+                tile.onClick?.let { Modifier.clickable(onClick = it) } ?: Modifier,
+            )
             .padding(horizontal = Dimens.space2, vertical = Dimens.space2),
         verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

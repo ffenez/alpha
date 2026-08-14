@@ -82,6 +82,15 @@ interface Strings {
     val hardness: String
     val trendPerHour: String
     val doseToday: String
+
+    /**
+     * Подпись плитки Главной: «Набралось сегодня».
+     *
+     * «Сегодня» — это отрезок времени, а не величина, и рядом с мощностью
+     * дозы читалось как «доза сейчас». Слово «набралось» говорит, что число
+     * копится, а не измеряется в данный момент.
+     */
+    val doseAccumulatedToday: String
     val placeFingerprint: String
 
     // --- настройки: корень ---

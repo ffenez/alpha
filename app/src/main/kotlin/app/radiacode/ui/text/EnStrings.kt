@@ -34,6 +34,7 @@ object EnStrings : Strings {
     override val hardness = "Hardness"
     override val trendPerHour = "Trend/h"
     override val doseToday = "Today"
+    override val doseAccumulatedToday = "Collected today"
     override val placeFingerprint = "Place fingerprint"
 
     override val groupMeasurement = "Measurement"
