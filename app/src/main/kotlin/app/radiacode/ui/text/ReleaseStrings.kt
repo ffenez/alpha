@@ -97,6 +97,8 @@ object ReleaseRu : ReleaseStrings {
             "стороны, и подгрузка перестала попадаться на глаза.",
         "Щипок пальцами снова меняет окно — на полном экране он не работал " +
             "вовсе; тап по мини-графику открывает его во весь экран.",
+        "Возврат на Главную с другой вкладки больше не собирает экран заново: " +
+            "графики появляются сразу, а обновление приходит следом.",
         "С главного экрана убраны повторы единиц и погрешностей — они остались " +
             "в «Почему такой вывод», рядом с тем, к чему относятся.",
         "Короче формулировки состояния: «Ниже порога тревоги», «Обычно для " +
@@ -293,6 +295,8 @@ object ReleaseEn : ReleaseStrings {
             "loading stops catching the eye.",
         "Pinch changes the window again — on the fullscreen chart it did not " +
             "work at all; a tap on a card chart opens it full screen.",
+        "Coming back to the Monitor from another tab no longer rebuilds it: the " +
+            "charts are there at once and the refresh follows.",
         "The main screen drops repeated units and errors; they stay in the why " +
             "sheet, next to what they belong to.",
         "Shorter status wording: «Below the alarm threshold», «Usual for this " +

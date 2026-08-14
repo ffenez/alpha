@@ -32,6 +32,7 @@ import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.service.FastPollHub
 import app.radiacode.service.SearchPresenceHub
 import app.radiacode.service.StreamTrace
+import app.radiacode.ui.logic.ChartCache
 import app.radiacode.ui.logic.ChartTrace
 import app.radiacode.service.LocalBackgroundRecorder
 import app.radiacode.service.SpotMeasureRecorder
@@ -193,6 +194,14 @@ class AppGraph private constructor(
 
     /** Поиск asks for a shorter DATA_BUF poll period while it is on screen. */
     val fastPollHub: FastPollHub = FastPollHub()
+
+    /**
+     * Последние построенные ряды карточек Главной.
+     *
+     * Живёт в графе, а не в экране: переход на другую вкладку выводит Главную
+     * из композиции, и всё, что она помнила, умирало вместе с ней.
+     */
+    val chartCache: ChartCache = ChartCache()
 
     /** Трасса конвейера графика: на каком этапе исчезают точки. */
     val chartTrace: ChartTrace = ChartTrace()

@@ -114,6 +114,7 @@ import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartTrace
 import app.radiacode.ui.logic.ChartViewport
 import app.radiacode.ui.logic.ChartWindows
+import app.radiacode.ui.logic.LoadedChart
 import app.radiacode.ui.logic.TrendPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -158,31 +159,6 @@ private fun expectedBucket(window: ChartWindow, metric: ChartMetric): Long =
     app.radiacode.ui.logic.ChartSeriesModel.bucketMillis(
         ChartWindows.loadRange(window, window.toMillis).spanMillis,
     )
-
-/**
- * Загруженный кадр одной величины: окно и снимок ровно те же, что у
- * полноэкранного графика, поэтому тап по карточке увеличивает картинку, а не
- * заменяет её другой.
- */
-@Immutable
-private data class LoadedChart(
-    val window: ChartWindow,
-    val snapshot: ChartSnapshot,
-    /**
-     * Диапазон, который реально прочитан из базы (окно плюс запас).
-     *
-     * По нему решается, нужен ли запрос вообще: сдвиг ВНУТРИ прочитанного —
-     * это перепроецирование неизменного снимка, то есть арифметика по полутора
-     * сотням колонок, а не поход в базу. Без этого каждый рывок пальцем стоил
-     * запроса, и отзыв на жест упирался в диск.
-     */
-    val loadedRange: ChartWindow,
-    /**
-     * Начало истории на момент загрузки — чтобы кадр мог пересчитать окно под
-     * текущее «сейчас», не ходя за этим в базу каждую секунду.
-     */
-    val earliestMillis: Long?,
-)
 
 /**
  * Монитор (Главная): the 2-3 second answer — current dose rate with its
@@ -256,11 +232,16 @@ fun MonitorScreen(
     // пальцем в прошлое, должно видеть ЗАГРУЗЧИК. Пока он грузил живое окно,
     // сдвиг уводил картинку в диапазон, который никто не читал, — карточка
     // пустела и говорила «накапливаем измерения» при полной базе.
-    var viewports by remember { mutableStateOf<Map<ChartMetric, ChartViewport>>(emptyMap()) }
+    // Состояние переживает уход с вкладки: Главная выходит из композиции, и
+    // всё, что она помнила через `remember`, умирало вместе с ней — возврат
+    // собирал экран с нуля. Кэш хранит РЕЗУЛЬТАТ последнего чтения, поэтому
+    // картинка появляется сразу, а свежесть догоняет обычным путём.
+    val cache = graph.chartCache
+    var viewports by remember { mutableStateOf(cache.viewports) }
     // Начало истории меняется раз в жизни базы (первая запись, уборка журнала),
     // а спрашивалось раз в проход — на каждый жест по запросу на величину.
-    var earliestMillis by remember { mutableStateOf<Long?>(null) }
-    var charts by remember { mutableStateOf<Map<ChartMetric, LoadedChart>>(emptyMap()) }
+    var earliestMillis by remember { mutableStateOf(cache.earliestMillis) }
+    var charts by remember { mutableStateOf(cache.charts) }
     var trend by remember { mutableStateOf<TrendAvailability?>(null) }
     var doseTodayMicroSv by remember { mutableStateOf<Double?>(null) }
     // Цикл перечитывания графиков привязан к ЖИЗНЕННОМУ ЦИКЛУ и не может
@@ -390,6 +371,8 @@ fun MonitorScreen(
             }
             outcome.getOrNull()?.let { (loadedCharts, loadedTrend, loadedDose) ->
                 charts = loadedCharts
+                cache.charts = loadedCharts
+                cache.earliestMillis = earliestMillis
                 trend = loadedTrend
                 doseTodayMicroSv = loadedDose
                 // Отметка для отладочного отчёта: по ней видно, ЖИВ ли цикл
@@ -524,6 +507,7 @@ fun MonitorScreen(
             val pinch = remember(metric) { ChartViewport.PinchAccumulator() }
             fun setViewport(next: ChartViewport) {
                 viewports = viewports + (metric to next)
+                cache.viewports = viewports
             }
             // Правый край кадра идёт за «сейчас» КАЖДУЮ СЕКУНДУ, не дожидаясь
             // следующего чтения базы: снимок неизменен, а окно — арифметика по
