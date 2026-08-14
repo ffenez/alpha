@@ -65,6 +65,7 @@ import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DeviceModel
 import app.radiacode.service.Notifications
+import app.radiacode.ui.components.NavArrow
 import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
@@ -312,7 +313,7 @@ private fun CalibrationEntry(onClick: () -> Unit) {
                 Text(text = c.entryTitle, style = type.label, color = colors.ink)
                 Text(text = c.entrySubtitle, style = type.footnote, color = colors.muted)
             }
-            Text(text = "›", style = type.value, color = colors.ink2)
+            NavArrow()
         }
     }
 }
@@ -338,7 +339,7 @@ private fun CategoryRow(category: SettingsCategory, onClick: () -> Unit) {
             Text(text = category.title(strings), style = type.label, color = colors.ink)
             Text(text = category.subtitle(strings), style = type.footnote, color = colors.muted)
         }
-        Text(text = "›", style = type.title, color = colors.ink2)
+        NavArrow()
     }
 }
 

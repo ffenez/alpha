@@ -255,17 +255,11 @@ object EnStrings : Strings {
             "instrument connects and closes when it disconnects."
     override val showMore = "Show more"
     override val accumulatedDose = "Accumulated dose"
-    override val partialDayNote =
-        "hollow bars — the day was measured only in part: the dose accumulated over the " +
-            "recording time, not over the whole day"
 
     override fun todayWithUnit(unit: String) = "today, $unit"
 
     override val days7 = "7 days"
     override val days30 = "30 days"
-    override val accumulatedDoseNote =
-        "The dose rate summed over the seconds actually measured — not to be confused " +
-            "with the current dose rate."
     override val doseProjection = "Dose projection"
     override val noProfile = "No place"
     override val runningCannotDelete = "· running, cannot be deleted"

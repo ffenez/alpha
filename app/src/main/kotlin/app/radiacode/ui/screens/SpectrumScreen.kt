@@ -59,6 +59,7 @@ import app.radiacode.data.toSpectrum
 import app.radiacode.device.ConnectionState
 import app.radiacode.protocol.Spectrum
 import app.radiacode.service.SpectrumHub
+import app.radiacode.ui.components.NavArrow
 import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
@@ -504,7 +505,7 @@ private fun AnalysisToolRow(title: String, subtitle: String, onClick: () -> Unit
             // называет его, поэтому подпись уходит вместе с пояснениями.
             Hint(text = subtitle)
         }
-        Text(text = "›", style = type.value, color = colors.ink2)
+        NavArrow()
     }
 }
 

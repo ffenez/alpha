@@ -63,6 +63,7 @@ import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DeviceModel
 import app.radiacode.service.Notifications
+import app.radiacode.ui.components.DisclosureArrow
 import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
@@ -227,7 +228,7 @@ internal fun VersionRow(expanded: Boolean, onToggle: () -> Unit) {
                 color = colors.muted,
             )
         }
-        Text(text = if (expanded) "▴" else "▾", style = type.label, color = colors.ink2)
+        DisclosureArrow(expanded = expanded)
     }
 }
 

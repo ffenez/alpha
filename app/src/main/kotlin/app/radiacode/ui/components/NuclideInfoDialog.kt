@@ -343,7 +343,7 @@ private fun Disclosure(label: String, content: @Composable () -> Unit) {
                 color = colors.ink2,
                 modifier = Modifier.weight(1f),
             )
-            Text(text = if (expanded) "▴" else "▾", style = type.label, color = colors.ink2)
+            DisclosureArrow(expanded = expanded)
         }
         if (expanded) content()
     }

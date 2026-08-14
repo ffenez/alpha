@@ -129,4 +129,23 @@ class HistoryFormatTest {
             HistoryFormat.doseProjectionUnavailable(720),
         )
     }
+
+    /**
+     * «2,36 сегодня · 2,36 за 7 д · 2,36 за 30 д» — три одинаковых числа
+     * читаются как поломка, хотя всё верно: истории пятнадцать часов. Период
+     * показывается, только если ДО него измерения были.
+     */
+    @Test
+    fun `a period is offered only when there is history behind it`() {
+        fun days(measured: List<Long>) = measured.map { DailyDose.Day(1f, it) }
+
+        // Измерения только сегодня: недели и месяца ещё нет.
+        assertEquals(0, DailyDose.measuredDepthDays(days(listOf(0, 0, 0, 0, 0, 0, 3_600))))
+        // Вчера и сегодня: неделя уже что-то добавляет, месяц — ещё нет.
+        assertEquals(1, DailyDose.measuredDepthDays(days(listOf(0, 0, 0, 0, 0, 3_600, 3_600))))
+        assertEquals(6, DailyDose.measuredDepthDays(days(List(7) { 3_600L })))
+        // Пустая история ничего не предлагает.
+        assertEquals(0, DailyDose.measuredDepthDays(emptyList()))
+        assertEquals(0, DailyDose.measuredDepthDays(days(listOf(0, 0, 0))))
+    }
 }

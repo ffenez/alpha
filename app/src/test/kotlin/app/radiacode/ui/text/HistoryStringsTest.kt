@@ -97,17 +97,20 @@ class HistoryStringsTest {
     }
 
     /**
-     * Полый столбец назван обозначением, а не абзацем: в легенде — два слова,
-     * полное объяснение остаётся в общем каталоге и живёт под «i».
+     * Свёрнутая доза — три числа и одна строка, а не абзац.
+     *
+     * Легенда полого столбца ушла вместе со справкой карточки: блок сведён к
+     * тому, ради чего его открывают. Проверяется, что оставшиеся строки
+     * действительно короткие — иначе «ёмко» кончится следующим абзацем.
      */
     @Test
-    fun `the partial-day legend is a label, not a paragraph`() {
+    fun `the collapsed dose lines stay short`() {
         for (catalogue in catalogues) {
-            assertTrue(catalogue.legendPartialDay.length <= 20, catalogue.legendPartialDay)
+            assertTrue(catalogue.measuredFor("15 ч 33 мин").length <= 32)
+            assertTrue(catalogue.recordedOfPeriod("15 ч 33 мин").length <= 48)
+            assertTrue(catalogue.doseGlance("2,36", "2,36", "2,36").length <= 48)
             assertTrue(catalogue.infoTitle.isNotBlank())
         }
-        assertEquals("неполный день", HistoryRu.legendPartialDay)
-        assertEquals("partial day", HistoryEn.legendPartialDay)
     }
 
     @Test

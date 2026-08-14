@@ -64,6 +64,8 @@ import app.radiacode.data.export.ProcessingMetadata
 import app.radiacode.data.export.RcXml
 import app.radiacode.data.export.SpectrumExport
 import app.radiacode.device.DoseUnits
+import app.radiacode.ui.components.DisclosureArrow
+import app.radiacode.ui.components.NavArrow
 import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
@@ -388,17 +390,32 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
     val type = LocalAppTypography.current
     // Свёрнута по умолчанию: на Историю приходят за последними записями, а
     // накопленная доза занимала графиком, проекцией и объяснениями половину
-    // первого экрана. Свёрнутая она отвечает на тот же вопрос тремя числами.
+    // первого экрана. Свёрнутая она отвечает на тот же вопрос числами.
     var expanded by rememberSaveable { mutableStateOf(false) }
-    var infoOpen by rememberSaveable { mutableStateOf(false) }
-    if (infoOpen) {
-        AccumulatedDoseInfoDialog(onClose = { infoOpen = false })
-    }
     // Период графика: 7 · 30 · 90 дней, по умолчанию месяц.
     var periodIndex by rememberSaveable { mutableIntStateOf(1) }
     val periodDays = DOSE_PERIODS[periodIndex]
     val days = model.dailyDose.takeLast(periodDays)
     val measuredSeconds = days.sumOf { it.measuredSeconds }
+
+    // Период показывается, только если измерения ДО него были. Иначе он не
+    // добавляет ни одного измерения к более короткому и повторяет его число:
+    // «2,36 · 2,36 · 2,36» на пятнадцати часах истории выглядело поломкой.
+    val depthDays = remember(model.dailyDose) { DailyDose.measuredDepthDays(model.dailyDose) }
+    val cells = buildList {
+        add(
+            StatCell(
+                DoseFormat.dose(model.doseTodayMicroSv, unit),
+                strings.todayWithUnit(DoseFormat.doseUnitLabel(unit, s = strings)),
+            ),
+        )
+        if (depthDays >= 1) {
+            add(StatCell(DoseFormat.dose(model.dose7dMicroSv, unit), strings.days7))
+        }
+        if (depthDays >= 7) {
+            add(StatCell(DoseFormat.dose(model.dose30dMicroSv, unit), strings.days30))
+        }
+    }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
@@ -418,30 +435,12 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                     color = colors.ink2,
                 )
                 Spacer(Modifier.weight(1f))
-                // Метки «расчёт» в заголовке больше нет: она ничего не
-                // добавляла к трём числам, а происхождение объясняет «i».
-                if (expanded) {
-                    Chip(
-                        text = "i",
-                        color = colors.ink2,
-                        onClick = { infoOpen = true },
-                        modifier = Modifier.padding(end = Dimens.space2),
-                    )
-                }
-                Text(
-                    text = if (expanded) "⌃" else "⌄",
-                    style = type.value,
-                    color = colors.ink2,
-                )
+                DisclosureArrow(expanded = expanded)
             }
 
             if (!expanded) {
                 Text(
-                    text = h.doseGlance(
-                        today = DoseFormat.dose(model.doseTodayMicroSv, unit),
-                        week = DoseFormat.dose(model.dose7dMicroSv, unit),
-                        month = DoseFormat.dose(model.dose30dMicroSv, unit),
-                    ),
+                    text = cells.joinToString(" · ") { "${it.value} ${it.key}" },
                     style = type.value,
                     color = colors.ink,
                 )
@@ -455,16 +454,7 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                 return@Column
             }
 
-            StatGrid(
-                cells = listOf(
-                    StatCell(
-                        DoseFormat.dose(model.doseTodayMicroSv, unit),
-                        strings.todayWithUnit(DoseFormat.doseUnitLabel(unit, s = strings)),
-                    ),
-                    StatCell(DoseFormat.dose(model.dose7dMicroSv, unit), strings.days7),
-                    StatCell(DoseFormat.dose(model.dose30dMicroSv, unit), strings.days30),
-                ),
-            )
+            StatGrid(cells = cells)
             Segmented(
                 options = listOf(strings.days7, strings.days30, h.days90),
                 selectedIndex = periodIndex,
@@ -494,17 +484,7 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                     height = 72.dp,
                 )
             }
-            Text(
-                text = h.recordedOfPeriod(HistoryFormat.duration(measuredSeconds, h)),
-                style = type.footnote,
-                color = colors.ink2,
-            )
-            AppDivider()
-            DoseProjectionBlock(
-                doseMicroSv = days.sumOf { it.microSv.toDouble() },
-                measuredSeconds = measuredSeconds,
-                unit = unit,
-            )
+            Hint(text = h.recordedOfPeriod(HistoryFormat.duration(measuredSeconds, h)))
         }
     }
 }
@@ -512,161 +492,8 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
 /** Периоды графика накопленной дозы, дни. */
 private val DOSE_PERIODS = listOf(7, 30, 90)
 
-/**
- * Легенда полого столбца: сам знак и два слова.
- *
- * Знак рисуется теми же средствами, что и столбец на графике (контур цветом
- * данных, толщина рамки — из скина), поэтому в «8-bit» он остаётся прямым
- * углом, а не превращается в чужой символ из шрифта.
- */
-@Composable
-private fun PartialDayLegend() {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val metrics = LocalAppMetrics.current
-    val h = HistoryCatalogue.of(LocalStrings.current.language)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
-    ) {
-        Box(
-            Modifier
-                .size(width = 7.dp, height = 10.dp)
-                .border(
-                    width = metrics.border,
-                    color = colors.data,
-                    shape = RoundedCornerShape(if (metrics.radiusChip > 0.dp) 2.dp else 0.dp),
-                ),
-        )
-        Hint(text = h.legendPartialDay)
-    }
-}
 
-/**
- * Второй уровень карточки накопленной дозы: что именно посчитано, почему
- * неполный день выглядит иначе и что в проекцию не входит.
- *
- * Ни одна оговорка не исчезла — они переехали сюда с рабочего экрана.
- */
-@Composable
-private fun AccumulatedDoseInfoDialog(onClose: () -> Unit) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val strings = LocalStrings.current
-    val h = HistoryCatalogue.of(strings.language)
-    Dialog(onDismissRequest = onClose) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = h.infoTitle, style = type.title, color = colors.ink)
-                Text(
-                    text = strings.accumulatedDoseNote,
-                    style = type.bodySmall,
-                    color = colors.ink2,
-                )
-                PartialDayLegend()
-                Hint(
-                    text = strings.partialDayNote,
-                    style = type.bodySmall,
-                    color = colors.ink2,
-                )
-                AppDivider()
-                Text(
-                    text = strings.doseProjection,
-                    style = type.label,
-                    color = colors.ink,
-                )
-                Hint(
-                    text = HistoryFormat.doseProjectionCaveat(h),
-                    style = type.bodySmall,
-                    color = colors.muted,
-                )
-                AppButton(
-                    text = strings.close,
-                    onClick = onClose,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-    }
-}
 
-/**
- * «Если такой уровень сохранится» (спец §6): D ≈ Ḋ·t как ЧИСТАЯ экстраполяция
- * измеренной средней мощности дозы.
- *
- * Заголовок называет УСЛОВИЕ, а не приём: «проекция дозы» рядом с числом в
- * миллизивертах читается как измеренная годовая доза человека, чем она не
- * является. Сам блок свёрнут — на первом уровне карточки его нет вовсе, — а
- * формулировка вывода задана спецификацией и не упрощается.
- */
-@Composable
-private fun DoseProjectionBlock(
-    doseMicroSv: Double,
-    measuredSeconds: Long,
-    unit: DoseUnitSetting,
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val h = HistoryCatalogue.of(strings.language)
-    val type = LocalAppTypography.current
-    var open by rememberSaveable { mutableStateOf(false) }
-    val projection = remember(doseMicroSv, measuredSeconds) {
-        DoseProjection.fromIntegral(doseMicroSv, measuredSeconds)
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = Dimens.touchTarget)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { open = !open },
-                ),
-        ) {
-            Text(text = h.ifLevelHolds, style = type.label, color = colors.ink)
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = if (open) "⌃" else "›",
-                style = type.value,
-                color = colors.ink2,
-            )
-        }
-        if (!open) return@Column
-        if (projection == null) {
-            Text(
-                text = HistoryFormat.doseProjectionUnavailable(measuredSeconds, h),
-                style = type.bodySmall,
-                color = colors.muted,
-            )
-            return@Column
-        }
-        Text(
-            text = HistoryFormat.doseProjectionSentence(
-                DoseFormat.doseCoarseWithUnit(projection.doseMicroSv, unit, s = strings),
-                h,
-            ),
-            style = type.body,
-            color = colors.ink,
-        )
-        // Основание проекции и отказ — пояснения: числа выше от них не
-        // зависят, а перечень того, что в расчёт не входит, лежит в «i».
-        Hint(
-            text = HistoryFormat.doseProjectionBasis(
-                // Та же точность, из которой посчитана проекция: иначе
-                // видимые числа её не воспроизводят.
-                DoseFormat.rateBasisWithUnit(projection.meanRateMicroSvPerHour, unit, s = strings),
-                projection.measuredSeconds,
-                h,
-            ),
-            style = type.bodySmall,
-            color = colors.ink2,
-        )
-        Hint(text = HistoryFormat.doseProjectionCaveatShort(h))
-    }
-}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -728,11 +555,8 @@ private fun SessionRow(
             )
             // Строка открывается — и это видно, а не угадывается.
             if (!selectionActive) {
-                Text(
-                    text = "›",
-                    style = type.value,
-                    color = colors.ink2,
-                    modifier = Modifier.padding(start = 6.dp),
+                NavArrow(
+                                        modifier = Modifier.padding(start = 6.dp),
                 )
             }
         }

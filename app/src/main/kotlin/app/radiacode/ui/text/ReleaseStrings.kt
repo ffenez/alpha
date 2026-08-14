@@ -66,10 +66,10 @@ object ReleaseRu : ReleaseStrings {
 
     override val v034Title = "Накопленная доза не занимает пол-экрана"
     override val v034Summary =
-        "Блок свёрнут: три числа — сегодня, за неделю, за месяц — и время, за " +
-        "которое они измерены. Раскрывается нажатием: столбики по дням за 7, 30 " +
-        "или 90 суток, неполные дни отличаются от полных, дни без записи остаются " +
-        "пустыми, а годовая оценка спрятана под «Если такой уровень сохранится»."
+        "Блок свёрнут: числа за сегодня, неделю и месяц одной строкой, и время, за " +
+        "которое они измерены. Раскрывается нажатием — столбики по дням за 7, 30 " +
+        "или 90 суток, где день без записи остаётся пустым, а период не " +
+        "показывается, пока за ним нет измерений."
 
     override val v033Title = "История больше не рассыпается на куски"
     override val v033Summary =
@@ -162,10 +162,10 @@ object ReleaseEn : ReleaseStrings {
 
     override val v034Title = "Accumulated dose stops taking half the screen"
     override val v034Summary =
-        "The block is collapsed: three numbers — today, this week, this month — and " +
+        "The block is collapsed: today, this week and this month on one line, with " +
         "the time they were measured over. One tap opens daily bars over 7, 30 or 90 " +
-        "days, where partial days differ from full ones and days without recording " +
-        "stay empty, with the yearly estimate tucked under «If this level holds»."
+        "days, where a day without recording stays empty and a period is not offered " +
+        "until there is history behind it."
 
     override val v033Title = "History stops falling apart"
     override val v033Summary =

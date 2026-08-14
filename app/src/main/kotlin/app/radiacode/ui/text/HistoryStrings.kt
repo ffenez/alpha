@@ -50,7 +50,6 @@ interface HistoryStrings {
     val days90: String
 
     /** Заголовок раскрываемой годовой оценки — условие, а не термин. */
-    val ifLevelHolds: String
 
     /**
      * Склеенная запись: сколько кусков и сколько перерыва внутри.
@@ -61,7 +60,6 @@ interface HistoryStrings {
      */
     fun mergedPieces(pieces: Int, gap: String): String
 
-    val legendPartialDay: String
 
     /** Заголовок справки «i» карточки накопленной дозы. */
     val infoTitle: String
@@ -128,11 +126,9 @@ object HistoryRu : HistoryStrings {
     override fun measuredFor(duration: String) = "измерено $duration"
     override fun recordedOfPeriod(duration: String) = "записано $duration из выбранного периода"
     override val days90 = "90 д"
-    override val ifLevelHolds = "Если такой уровень сохранится"
 
     override fun mergedPieces(pieces: Int, gap: String) = "с перерывами · $gap без записи"
 
-    override val legendPartialDay = "неполный день"
 
     override val infoTitle = "Как это посчитано"
 
@@ -230,11 +226,9 @@ object HistoryEn : HistoryStrings {
     override fun measuredFor(duration: String) = "measured for $duration"
     override fun recordedOfPeriod(duration: String) = "$duration recorded within the period"
     override val days90 = "90 d"
-    override val ifLevelHolds = "If this level holds"
 
     override fun mergedPieces(pieces: Int, gap: String) = "with breaks · $gap not recorded"
 
-    override val legendPartialDay = "partial day"
 
     override val infoTitle = "How this is counted"
 
@@ -304,8 +298,7 @@ fun HistoryStrings.allTexts(): List<String> = months + listOf(
     admissionYes, admissionPartial(minutes(12), MonitorRu.exclusionQuarantine), admissionNoData,
     admissionNo(MonitorRu.exclusionQuarantine),
     doseGlance("2,36", "2,36", "2,36"), measuredFor("15 ч 33 мин"),
-    recordedOfPeriod("15 ч 33 мин"), days90, ifLevelHolds,
-    mergedPieces(3, "12 мин"), legendPartialDay, infoTitle,
+    recordedOfPeriod("15 ч 33 мин"), days90, mergedPieces(3, "12 мин"), infoTitle,
     doseProjection("1,4 мЗв"), doseProjectionBasis("0,155", hours(23)),
     doseProjectionCaveatShort, doseProjectionCaveat, doseProjectionUnavailable(minutes(12)),
     delete, deleteCount(3), deleteSelectedTitle, deleteSpectraTitle(2), deleteSessionsTitle(3),

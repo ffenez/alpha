@@ -53,6 +53,7 @@ import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.EnergyWindowSpec
 import app.radiacode.analysis.EnergyWindows
 import app.radiacode.analysis.SpectrumDisplay
+import app.radiacode.ui.components.DisclosureArrow
 import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
@@ -143,11 +144,7 @@ fun SpectralRangesCard(
                         )
                     }
                 }
-                Text(
-                    text = if (expanded) "▴" else "▾",
-                    style = type.axis,
-                    color = colors.muted,
-                )
+                DisclosureArrow(expanded = expanded)
             }
 
             AnimatedVisibility(

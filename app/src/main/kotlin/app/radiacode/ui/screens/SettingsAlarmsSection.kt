@@ -63,6 +63,7 @@ import app.radiacode.data.db.ProfileNetworkEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DeviceModel
 import app.radiacode.service.Notifications
+import app.radiacode.ui.components.NavArrow
 import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
@@ -276,7 +277,7 @@ internal fun AlarmSoundRow() {
                 color = colors.muted,
             )
         }
-        Text(text = "›", style = type.title, color = colors.ink2)
+        NavArrow()
     }
 }
 

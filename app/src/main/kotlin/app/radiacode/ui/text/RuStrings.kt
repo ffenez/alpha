@@ -247,16 +247,11 @@ object RuStrings : Strings {
             "и закрывается при отключении."
     override val showMore = "Показать ещё"
     override val accumulatedDose = "Накопленная доза"
-    override val partialDayNote =
-        "полые столбцы — день измерен не полностью: доза накоплена только за время " +
-            "записи, а не за сутки"
 
     override fun todayWithUnit(unit: String) = "сегодня, $unit"
 
     override val days7 = "7 дней"
     override val days30 = "30 дней"
-    override val accumulatedDoseNote =
-        "Сумма мощности дозы по секундам измерения — не путать с текущей мощностью дозы."
     override val doseProjection = "Проекция дозы"
     override val noProfile = "Без профиля"
     override val runningCannotDelete = "· идёт, нельзя удалить"
