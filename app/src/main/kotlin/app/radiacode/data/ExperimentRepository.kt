@@ -99,6 +99,10 @@ class ExperimentRepository(
         profileId: Long?,
         geometry: String,
         note: String = "",
+        distanceCm: Int? = null,
+        placement: String = "",
+        orientation: String = "",
+        plannedSeconds: Long = 0,
         windowSpecs: List<EnergyWindowSpec> = EnergyWindows.DEFAULTS,
     ): Long = experimentDao.insert(
         ExperimentEntity(
@@ -107,6 +111,10 @@ class ExperimentRepository(
             createdAt = clock(),
             note = note,
             geometry = geometry,
+            distanceCm = distanceCm,
+            placement = placement,
+            orientation = orientation,
+            plannedSeconds = plannedSeconds,
             algorithmVersion = AlgorithmVersions.AB_ANALYSIS,
             params = paramsJson(windowSpecs),
         ),

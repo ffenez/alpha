@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProfileFingerprintEntity::class,
         SpectrogramSliceEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -107,6 +107,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MigrationSql.FROM_11_TO_12.forEach(db::execSQL)
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "radiacode.db")
                 .addMigrations(
@@ -120,6 +126,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_8_9,
                     MIGRATION_9_10,
                     MIGRATION_10_11,
+                    MIGRATION_11_12,
                 )
                 .build()
     }

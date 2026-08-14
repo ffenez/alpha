@@ -94,6 +94,7 @@ object ExperimentFormat {
         ExperimentEntity.KIND_PLACE_VS_PLACE -> s.kindPlaceVsPlace
         ExperimentEntity.KIND_DISTANCE -> s.kindDistance
         ExperimentEntity.KIND_SHIELDING -> s.kindShielding
+        ExperimentEntity.KIND_CUSTOM -> s.scenarioCustom
         else -> kind
     }
 
@@ -102,6 +103,7 @@ object ExperimentFormat {
         ExperimentEntity.KIND_PLACE_VS_PLACE -> s.hintPlaceVsPlace
         ExperimentEntity.KIND_DISTANCE -> s.hintDistance
         ExperimentEntity.KIND_SHIELDING -> s.hintShielding
+        ExperimentEntity.KIND_CUSTOM -> s.scenarioCustomHint
         else -> ""
     }
 

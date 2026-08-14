@@ -349,11 +349,32 @@ data class ExperimentEntity(
     /** Free-form note by the user. */
     val note: String = "",
     /**
-     * Geometry as the user described it once, shown again during every later
-     * run so «одинаково документированная геометрия» (spec §16) is something
-     * the user can actually reproduce. The app cannot verify it.
+     * Geometry as one human sentence, shown again during every later run so
+     * «одинаково документированная геометрия» (spec §16) is something the user
+     * can actually reproduce. The app cannot verify it.
+     *
+     * Для новых опытов это ИЗЛОЖЕНИЕ полей ниже, собранное один раз при
+     * создании; у опытов, созданных до структурирования условий, — то, что
+     * человек написал руками. Поэтому колонка остаётся источником текста для
+     * списка и отчёта, а поля — источником данных для напоминания «повторите
+     * условия».
      */
     val geometry: String = "",
+    /**
+     * Расстояние до объекта, см; null — не задано.
+     *
+     * Одно свободное поле «геометрия» человек заполнял один раз и по-своему, а
+     * повторить условия по фразе «тарелка на столе, 5 см» через неделю можно
+     * только приблизительно. Разложенные условия повторяются буквально — и
+     * приложение может показать их перед КАЖДЫМ следующим прогоном.
+     */
+    val distanceCm: Int? = null,
+    /** Код положения прибора (`table`, `hand`, …); «» — не задано. */
+    val placement: String = "",
+    /** Код ориентации прибора (`screen_up`, …); «» — не задано. */
+    val orientation: String = "",
+    /** Плановая длительность прогона, с; 0 — не задана. */
+    val plannedSeconds: Long = 0,
     /** [app.radiacode.analysis.AlgorithmVersions.AB_ANALYSIS] at creation time. */
     val algorithmVersion: Int,
     /** Analysis parameters as flat JSON ([app.radiacode.data.JsonMap]). */
@@ -372,11 +393,15 @@ data class ExperimentEntity(
         /** Одна конфигурация без/с материалом (spec §16 Shielding). */
         const val KIND_SHIELDING = "shielding"
 
+        /** Свои условия: что такое A и B, называет сам человек. */
+        const val KIND_CUSTOM = "custom"
+
         val KINDS = listOf(
             KIND_BACKGROUND_VS_OBJECT,
             KIND_PLACE_VS_PLACE,
             KIND_DISTANCE,
             KIND_SHIELDING,
+            KIND_CUSTOM,
         )
     }
 }

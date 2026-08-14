@@ -140,6 +140,42 @@ interface ExperimentStrings {
 
     // --- сценарии ---
 
+    /**
+     * Сценарии: три ответа на вопрос «что с чем сравниваем».
+     *
+     * Прежний список из четырёх пунктов смешивал два разных вопроса — что с
+     * чем («фон и объект», «место и место») и что меняется между прогонами
+     * («расстояние», «экранирование»). Вопросов два, поэтому и выборов два.
+     */
+    val scenarioObject: String
+    val scenarioObjectHint: String
+    val scenarioPlaces: String
+    val scenarioPlacesHint: String
+    val scenarioCustom: String
+    val scenarioCustomHint: String
+    val templateDistance: String
+    val templateShielding: String
+    val templateOther: String
+
+    // --- условия опыта, разложенные на повторяемые части ---
+    val conditionsTitle: String
+    val conditionDistance: String
+    val conditionPlacement: String
+    val conditionOrientation: String
+    val conditionDuration: String
+    val conditionsUnset: String
+    val placementTable: String
+    val placementHand: String
+    val placementTripod: String
+    val placementFloor: String
+    val orientationScreenUp: String
+    val orientationScreenToObject: String
+    val orientationBackToObject: String
+    val orientationEdge: String
+
+    /** «Повторите условия A · 5 см · прибор на столе · 10 мин». */
+    fun repeatConditions(letter: String, summary: String): String
+
     val kindBackgroundVsObject: String
     val kindPlaceVsPlace: String
     val kindDistance: String
@@ -324,6 +360,34 @@ object ExperimentRu : ExperimentStrings {
     override fun methodExplanationChiSquare(minCounts: Int) =
         "импульсов достаточно (≥ $minCounts в каждом прогоне) — использован χ²-подобный " +
             "критерий z = нетто/σ"
+
+    override val scenarioObject = "Объект"
+    override val scenarioObjectHint = "A — фон без объекта, B — тот же замер с объектом."
+    override val scenarioPlaces = "Два места"
+    override val scenarioPlacesHint = "A — первое место, B — второе. Прибор и время одинаковы."
+    override val scenarioCustom = "Свои условия"
+    override val scenarioCustomHint = "Что такое A и B, называете вы. Между прогонами меняется одно."
+    override val templateDistance = "расстояние"
+    override val templateShielding = "экранирование"
+    override val templateOther = "другое"
+
+    override val conditionsTitle = "Условия"
+    override val conditionDistance = "Расстояние"
+    override val conditionPlacement = "Положение прибора"
+    override val conditionOrientation = "Ориентация"
+    override val conditionDuration = "Длительность прогона"
+    override val conditionsUnset = "условия не заданы"
+    override val placementTable = "на столе"
+    override val placementHand = "в руке"
+    override val placementTripod = "на штативе"
+    override val placementFloor = "на полу"
+    override val orientationScreenUp = "экраном вверх"
+    override val orientationScreenToObject = "экраном к объекту"
+    override val orientationBackToObject = "тыльной стороной к объекту"
+    override val orientationEdge = "боком"
+
+    override fun repeatConditions(letter: String, summary: String) =
+        "Повторите условия $letter · $summary"
 
     override val kindBackgroundVsObject = "Фон и объект"
     override val kindPlaceVsPlace = "Место и место"
@@ -534,6 +598,34 @@ object ExperimentEn : ExperimentStrings {
     override fun methodExplanationChiSquare(minCounts: Int) =
         "counts are sufficient (≥ $minCounts in each run) — the χ²-like test z = net/σ was used"
 
+    override val scenarioObject = "Object"
+    override val scenarioObjectHint = "A is the background without the object, B is the same measurement with it."
+    override val scenarioPlaces = "Two places"
+    override val scenarioPlacesHint = "A is the first place, B the second. Same instrument, same duration."
+    override val scenarioCustom = "Your own conditions"
+    override val scenarioCustomHint = "You name what A and B are. One thing changes between runs."
+    override val templateDistance = "distance"
+    override val templateShielding = "shielding"
+    override val templateOther = "something else"
+
+    override val conditionsTitle = "Conditions"
+    override val conditionDistance = "Distance"
+    override val conditionPlacement = "Instrument placement"
+    override val conditionOrientation = "Orientation"
+    override val conditionDuration = "Run duration"
+    override val conditionsUnset = "conditions not described"
+    override val placementTable = "on a table"
+    override val placementHand = "in the hand"
+    override val placementTripod = "on a tripod"
+    override val placementFloor = "on the floor"
+    override val orientationScreenUp = "screen up"
+    override val orientationScreenToObject = "screen towards the object"
+    override val orientationBackToObject = "back towards the object"
+    override val orientationEdge = "on its edge"
+
+    override fun repeatConditions(letter: String, summary: String) =
+        "Repeat the conditions of $letter · $summary"
+
     override val kindBackgroundVsObject = "Background and object"
     override val kindPlaceVsPlace = "Place and place"
     override val kindDistance = "Distance"
@@ -623,6 +715,13 @@ fun ExperimentStrings.allTexts(): List<String> = listOf(
     headlineConsistent("A", "B"), headlineChanged("A", "B"), headlineStrongEvidence("A", "B"),
     methodPoisson, methodChiSquare,
     methodExplanationPoisson(25), methodExplanationChiSquare(25),
+    scenarioObject, scenarioObjectHint, scenarioPlaces, scenarioPlacesHint,
+    scenarioCustom, scenarioCustomHint, templateDistance, templateShielding, templateOther,
+    conditionsTitle, conditionDistance, conditionPlacement, conditionOrientation,
+    conditionDuration, conditionsUnset,
+    placementTable, placementHand, placementTripod, placementFloor,
+    orientationScreenUp, orientationScreenToObject, orientationBackToObject, orientationEdge,
+    repeatConditions("A", "5 см · на столе · 10 мин"),
     kindBackgroundVsObject, kindPlaceVsPlace, kindDistance, kindShielding,
     hintBackgroundVsObject, hintPlaceVsPlace, hintDistance, hintShielding,
     roleObject, roleBackground, roleWithoutMaterial, roleWithMaterial,

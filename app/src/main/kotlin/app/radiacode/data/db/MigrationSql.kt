@@ -11,6 +11,21 @@ package app.radiacode.data.db
 object MigrationSql {
 
     /**
+     * v11 → v12: условия A/B-опыта разложены на поля.
+     *
+     * Strategy — **add only, nothing parsed**: старая колонка `geometry` это
+     * фраза, написанная человеком, и разбирать её на расстояние с ориентацией
+     * значило бы угадывать. Существующие опыты остаются с этой фразой; поля
+     * заполняются у новых. Ни одна строка не переписывается.
+     */
+    val FROM_11_TO_12: List<String> = listOf(
+        "ALTER TABLE `experiments` ADD COLUMN `distanceCm` INTEGER",
+        "ALTER TABLE `experiments` ADD COLUMN `placement` TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE `experiments` ADD COLUMN `orientation` TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE `experiments` ADD COLUMN `plannedSeconds` INTEGER NOT NULL DEFAULT 0",
+    )
+
+    /**
      * v10 → v11: постоянная история спектрограммы (ADR 007) — `spectrogram_slices`.
      *
      * Strategy — add only, and **start empty**: пересчитать историю в миграции

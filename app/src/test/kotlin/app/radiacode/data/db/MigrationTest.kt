@@ -187,6 +187,55 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 11 to 12 produces exactly the exported v12 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(11))
+            MigrationSql.FROM_11_TO_12.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(12))
+        }
+    }
+
+    /**
+     * Опыт, поставленный до разложения условий, обязан пережить обновление
+     * СО СВОЕЙ фразой. Разбирать её на расстояние и ориентацию миграция не
+     * пытается: «тарелка на столе, 5 см» — текст человека, а не данные, и
+     * угаданное расстояние выглядело бы как измеренное.
+     */
+    @Test
+    fun `migration 11 to 12 keeps the hand-written geometry and adds empty fields`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(11))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO experiments (kind, profileId, createdAt, note, geometry, " +
+                        "algorithmVersion, params) VALUES ('background_vs_object', NULL, 100, " +
+                        "'керамика', 'тарелка на столе, 5 см', 1, '{}')",
+                )
+            }
+
+            MigrationSql.FROM_11_TO_12.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT geometry, distanceCm, placement, orientation, plannedSeconds " +
+                        "FROM experiments",
+                )
+                assertTrue(rows.next())
+                assertEquals("тарелка на столе, 5 см", rows.getString("geometry"))
+                rows.getInt("distanceCm")
+                assertTrue(rows.wasNull(), "расстояние не выдумывается из фразы")
+                assertEquals("", rows.getString("placement"))
+                assertEquals("", rows.getString("orientation"))
+                assertEquals(0L, rows.getLong("plannedSeconds"))
+            }
+        }
+    }
+
+    @Test
     fun `migration 10 to 11 produces exactly the exported v11 schema`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(10))

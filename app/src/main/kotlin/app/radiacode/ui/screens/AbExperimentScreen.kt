@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package app.radiacode.ui.screens
 
 import androidx.activity.compose.BackHandler
@@ -7,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -63,6 +66,9 @@ import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.components.RadioMark
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.logic.Evidence
+import app.radiacode.ui.logic.ExperimentConditions
+import app.radiacode.ui.logic.ExperimentConditionsFormat
+import app.radiacode.ui.logic.ExperimentScenario
 import app.radiacode.ui.logic.ExperimentFormat
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.text.ExperimentCatalogue
@@ -237,9 +243,20 @@ private fun CreateExperiment(
     val t = ExperimentCatalogue.of(LocalStrings.current.language)
     val scope = rememberCoroutineScope()
 
-    var kind by rememberSaveable { mutableStateOf(ExperimentEntity.KIND_BACKGROUND_VS_OBJECT) }
-    var geometry by rememberSaveable { mutableStateOf("") }
+    var scenario by rememberSaveable { mutableStateOf(ExperimentScenario.OBJECT) }
+    var template by rememberSaveable { mutableStateOf(ExperimentEntity.KIND_DISTANCE) }
+    var distance by rememberSaveable { mutableStateOf("") }
+    var placement by rememberSaveable { mutableStateOf("") }
+    var orientation by rememberSaveable { mutableStateOf("") }
+    var plannedSeconds by rememberSaveable { mutableLongStateOf(RUN_DURATION_SECONDS[1]) }
     var note by rememberSaveable { mutableStateOf("") }
+    val kind = if (scenario == ExperimentScenario.CUSTOM) template else scenario.kind
+    val conditions = ExperimentConditions(
+        distanceCm = distance.trim().toIntOrNull(),
+        placement = placement,
+        orientation = orientation,
+        plannedSeconds = plannedSeconds,
+    )
     val activeProfile by graph.profileRepository.activeProfile().collectAsState(initial = null)
     val windowsRaw by graph.settings.energyWindowsRaw.collectAsState(initial = null)
 
@@ -248,7 +265,10 @@ private fun CreateExperiment(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(text = t.scenario, style = type.label, color = colors.ink)
-                ExperimentEntity.KINDS.forEach { option ->
+                // Сценарий отвечает на вопрос «что с чем», шаблон — на вопрос
+                // «что меняется между прогонами». Это два разных вопроса, и
+                // одним списком из четырёх пунктов они не задаются.
+                ExperimentScenario.entries.forEach { option ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
@@ -258,38 +278,93 @@ private fun CreateExperiment(
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                                onClick = { kind = option },
+                                onClick = { scenario = option },
                             ),
                     ) {
-                        RadioMark(kind == option)
+                        RadioMark(scenario == option)
                         Text(
-                            text = ExperimentFormat.kindLabel(option, t),
+                            text = ExperimentConditionsFormat.scenarioLabel(option, t),
                             style = type.label,
                             color = colors.ink,
                         )
                     }
                 }
                 Text(
-                    text = ExperimentFormat.kindHint(kind, t),
+                    text = ExperimentConditionsFormat.scenarioHint(scenario, t),
                     style = type.footnote,
                     color = colors.muted,
                 )
+                if (scenario == ExperimentScenario.CUSTOM) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                        ExperimentScenario.TEMPLATES.forEach { option ->
+                            Chip(
+                                text = ExperimentConditionsFormat.templateLabel(option, t),
+                                color = if (template == option) colors.dataText else colors.ink2,
+                                selected = template == option,
+                                onClick = { template = option },
+                            )
+                        }
+                    }
+                    Text(
+                        text = ExperimentFormat.kindHint(template, t),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
             }
         }
 
+        // Условия разложены на части, которые можно повторить буквально.
+        // Одна фраза «геометрия» описывала постановку один раз и по-своему, а
+        // повторить её через неделю по памяти нельзя — при том что весь смысл
+        // A/B в том, что между прогонами меняется РОВНО ОДНО.
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = t.geometry, style = type.label, color = colors.ink)
-                Text(
-                    text = t.geometryPrompt,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
+                Text(text = t.conditionsTitle, style = type.label, color = colors.ink)
+                Text(text = t.geometryPrompt, style = type.footnote, color = colors.muted)
+
+                Text(text = t.conditionDistance, style = type.labelSmall, color = colors.ink2)
                 AppTextField(
-                    value = geometry,
-                    onValueChange = { geometry = it },
-                    placeholder = t.geometryPlaceholder,
+                    value = distance,
+                    onValueChange = { value -> distance = value.filter { it.isDigit() }.take(4) },
+                    placeholder = t.centimeters(5),
                 )
+
+                Text(text = t.conditionPlacement, style = type.labelSmall, color = colors.ink2)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                    ExperimentConditions.PLACEMENTS.forEach { code ->
+                        Chip(
+                            text = ExperimentConditionsFormat.placementLabel(code, t),
+                            color = if (placement == code) colors.dataText else colors.ink2,
+                            selected = placement == code,
+                            // Повторное нажатие снимает выбор: условие может
+                            // быть и не задано, и это честнее подставленного.
+                            onClick = { placement = if (placement == code) "" else code },
+                        )
+                    }
+                }
+
+                Text(text = t.conditionOrientation, style = type.labelSmall, color = colors.ink2)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                    ExperimentConditions.ORIENTATIONS.forEach { code ->
+                        Chip(
+                            text = ExperimentConditionsFormat.orientationLabel(code, t),
+                            color = if (orientation == code) colors.dataText else colors.ink2,
+                            selected = orientation == code,
+                            onClick = { orientation = if (orientation == code) "" else code },
+                        )
+                    }
+                }
+
+                Text(text = t.conditionDuration, style = type.labelSmall, color = colors.ink2)
+                Segmented(
+                    options = RUN_DURATION_SECONDS.map { ExperimentFormat.duration(it, t) },
+                    selectedIndex = RUN_DURATION_SECONDS.indexOf(plannedSeconds)
+                        .coerceAtLeast(0),
+                    onSelect = { plannedSeconds = RUN_DURATION_SECONDS[it] },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
                 Text(text = t.note, style = type.label, color = colors.ink)
                 AppTextField(
                     value = note,
@@ -302,14 +377,23 @@ private fun CreateExperiment(
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             AppButton(
                 text = t.create,
-                enabled = geometry.isNotBlank(),
+                // Хотя бы одно условие названо: опыт без описанной постановки
+                // невоспроизводим, и обещать обратное нечестно.
+                enabled = !conditions.isEmpty,
                 onClick = {
                     scope.launch {
                         val id = graph.experimentRepository.create(
                             kind = kind,
                             profileId = activeProfile?.id,
-                            geometry = geometry.trim(),
+                            // Строка-изложение остаётся: её читают список и
+                            // отчёт, и она не должна зависеть от того, умеет
+                            // ли читатель разбирать поля.
+                            geometry = ExperimentConditionsFormat.summary(conditions, t),
                             note = note.trim(),
+                            distanceCm = conditions.distanceCm,
+                            placement = conditions.placement,
+                            orientation = conditions.orientation,
+                            plannedSeconds = conditions.plannedSeconds,
                             windowSpecs = EnergyWindows.parse(windowsRaw),
                         )
                         onCreated(id)
@@ -375,6 +459,17 @@ private fun ExperimentDetail(
     var pendingReport by remember { mutableStateOf<String?>(null) }
 
     val current = experiment
+    // Длительность прогона — ЧАСТЬ условий опыта, а не настройка момента:
+    // прогоны разной длины сравнимы по скорости счёта, но повторяют условия
+    // хуже, и человеку не приходится вспоминать, сколько шёл первый.
+    LaunchedEffect(current?.plannedSeconds) {
+        val stored = current?.plannedSeconds ?: 0L
+        val index = RUN_DURATION_SECONDS.indexOf(stored)
+        if (stored > 0L && index >= 0) {
+            plannedSeconds = stored
+            durationIndex = index
+        }
+    }
     val openRun = runs.firstOrNull { it.endedAt == null }
 
     // Флаг эксперимента, таймер, автостоп и снимок спектра прогона — всё это
@@ -529,15 +624,19 @@ private fun ExperimentDetail(
                         color = colors.ink,
                     )
                     if (nextIndex > 0) {
-                        Text(
-                            text = t.repeatGeometry(
-                                letter = ExperimentFormat.runLetter(0),
-                                geometry = current.geometry
-                                    .ifBlank { t.geometryUndescribedInline },
-                            ),
-                            style = type.bodySmall,
-                            color = colors.ink2,
+                        // Условия первого прогона — списком, а не по памяти.
+                        // У опытов, созданных до разложения условий, поля
+                        // пусты, и тогда показывается их прежняя фраза.
+                        val conditions = ExperimentConditions.of(current)
+                        val repeat = ExperimentConditionsFormat.repeatLine(
+                            letter = ExperimentFormat.runLetter(0),
+                            conditions = conditions,
+                            s = t,
+                        ) ?: t.repeatGeometry(
+                            letter = ExperimentFormat.runLetter(0),
+                            geometry = current.geometry.ifBlank { t.geometryUndescribedInline },
                         )
+                        Text(text = repeat, style = type.bodySmall, color = colors.ink2)
                     }
                     if (current.kind == ExperimentEntity.KIND_DISTANCE) {
                         AppTextField(
