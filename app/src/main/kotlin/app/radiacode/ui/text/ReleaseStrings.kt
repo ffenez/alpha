@@ -97,6 +97,8 @@ object ReleaseRu : ReleaseStrings {
             "выбранного нуклида — цезия, калия, радоновых продуктов, тория.",
         "В спектре: «Сохранить в историю», подписи кнопок ушли в справку, а " +
             "записанный фон рисуется серой кривой по нажатию.",
+        "Кандидат больше не делит линию с нуклидом, чья собственная яркая " +
+            "линия в спектре отсутствует.",
         "Появилась настройка «После перезагрузки» (Прибор): продолжать " +
             "измерение после включения телефона, по умолчанию выключено.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
@@ -283,6 +285,8 @@ object ReleaseEn : ReleaseStrings {
             "line window changed — caesium, potassium, radon daughters, thorium.",
         "In the spectrum: «Save to history», the button captions moved into the " +
             "help, and the recorded background is drawn on request.",
+        "A candidate no longer shares its line with a nuclide whose own strong " +
+            "line is absent from the spectrum.",
         "New setting «After a restart» (Instrument): keep measuring once the " +
             "phone boots, off by default.",
         "The state of the stream is stated once for every element of the " +

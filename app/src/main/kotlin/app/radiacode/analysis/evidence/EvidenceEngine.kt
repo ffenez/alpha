@@ -68,7 +68,15 @@ object EvidenceEngine {
         val calibration = calibrationOf(matchesByNuclide.values.flatten(), options)
 
         val candidates = matchesByNuclide.map { (nuclide, matches) ->
-            evidenceFor(nuclide, perNuclide.getValue(nuclide), matches, explained, calibration, options)
+            evidenceFor(
+                nuclide = nuclide,
+                lines = perNuclide.getValue(nuclide),
+                matches = matches,
+                explainedPeaks = explained,
+                calibration = calibration,
+                options = options,
+                observedPeaks = peaks,
+            )
         }.sortedByDescending { it.matchedLines }
 
         val matchedPeaks = matchesByNuclide.values.flatten().map { it.peak }.toSet()
@@ -136,6 +144,8 @@ object EvidenceEngine {
         explainedPeaks: Set<ObservedPeak>,
         calibration: CalibrationDiagnostic,
         options: EvidenceOptions,
+        /** Все найденные пики — по ним соперник проверяется своей яркой линией. */
+        observedPeaks: List<ObservedPeak>,
     ): NuclideEvidence {
         // Опорная линия — найденная с наибольшей нетто-площадью: от неё
         // считается ожидаемая площадь всех остальных линий.
@@ -165,7 +175,13 @@ object EvidenceEngine {
             .filter { it.match == null && it.observability == LineObservability.EXPECTED_OBSERVABLE }
             .map { it.line }
         val ambiguities = matches.mapNotNull {
-            ResolutionAmbiguities.ambiguityFor(it.peak, it.line, options.resolution, options.library)
+            ResolutionAmbiguities.ambiguityFor(
+                peak = it.peak,
+                matched = it.line,
+                resolution = options.resolution,
+                lines = options.library,
+                observedPeaks = observedPeaks,
+            )
         }
         val intensity = IntensityConsistencyEvaluator.evaluate(matches, options.efficiency)
         val contradictions = buildList {

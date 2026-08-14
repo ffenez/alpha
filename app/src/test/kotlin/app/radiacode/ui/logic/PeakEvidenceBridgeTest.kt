@@ -54,18 +54,29 @@ class PeakEvidenceBridgeTest {
     }
 
     @Test
-    fun `a lone Cs-137 line falls into the 637 keV group of this library`() {
-        // Честное следствие консервативного критерия Рэлея (ADR 006) на
-        // текущей библиотеке: 637,0 кэВ (I-131) лежит ближе одной FWHM к
-        // 661,7 кэВ, поэтому одиночной линии Cs-137 победитель не назначается
-        // — показывается группа, всё так же без слова «обнаружен».
+    fun `a lone Cs-137 line is no longer shared with iodine that stayed silent`() {
+        // По энергиям прибор 661,7 и 637,0 кэВ действительно не разводит, и
+        // раньше одиночная линия цезия уходила в группу с I-131. Но у иода
+        // есть 364,5 кэВ с выходом 81 % против 7 % у 637,0: будь он здесь,
+        // сильная линия была бы в спектре заведомо. Её нет — соперник
+        // опровергнут собственным молчанием, и группа распадается.
         val verdict = analyse(listOf(peak(661.7f)))
         val match = verdict.rows.single().match
-        assertTrue(match is PeakMatch.AmbiguousGroup, "$match")
-        assertEquals(listOf("Cs-137", "I-131"), match.nuclides)
-        assertTrue(
-            SpectrumFormat.matchNotes(match).any { it.contains("не разделяет") },
-        )
+
+        assertTrue(match !is PeakMatch.AmbiguousGroup, "$match")
+        assertEquals("Cs-137", verdict.evidence.candidates.single().nuclide)
+    }
+
+    @Test
+    fun `a rival that also shows its strong line keeps the group honest`() {
+        // Правило не превращается в «всегда назначать победителя»: если
+        // сильная линия соперника В СПЕКТРЕ ЕСТЬ, группа остаётся, и
+        // победитель по-прежнему не назначается.
+        val verdict = analyse(listOf(peak(661.7f), peak(364.5f)))
+        val group = verdict.rows.first { it.peak.energyKeV > 600f }.match
+
+        assertTrue(group is PeakMatch.AmbiguousGroup, "$group")
+        assertTrue(group.nuclides.contains("I-131"), "${group.nuclides}")
     }
 
     @Test
