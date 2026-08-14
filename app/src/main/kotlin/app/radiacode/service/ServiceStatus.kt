@@ -123,6 +123,31 @@ class ServiceStatus {
     private val _trackRecording = MutableStateFlow<TrackRecording?>(null)
     val trackRecording: StateFlow<TrackRecording?> = _trackRecording.asStateFlow()
 
+    /**
+     * Почему в следе ещё нет точек.
+     *
+     * Полевой отчёт: «Жду первые точки» не пропадало никогда. Ждать можно
+     * по-разному — можно ждать спутников, а можно ждать разрешения, которого
+     * никто не даст, и от бесконечного ожидания второе неотличимо. Экран
+     * обязан назвать причину, а не молчать с многоточием.
+     */
+    enum class TrackLocation {
+        /** Идёт запись, фиксов ещё не было — обычное ожидание спутников. */
+        WAITING,
+
+        /** Разрешения на местоположение нет: ждать нечего. */
+        NO_PERMISSION,
+
+        /** Ни один источник координат не включён в системе. */
+        NO_PROVIDER,
+
+        /** Точки приходят. */
+        RECEIVING,
+    }
+
+    private val _trackLocation = MutableStateFlow(TrackLocation.WAITING)
+    val trackLocation: StateFlow<TrackLocation> = _trackLocation.asStateFlow()
+
     internal fun onServiceStarted() {
         _serviceRunning.value = true
         serviceStartedAtMillis = System.currentTimeMillis()
@@ -140,6 +165,11 @@ class ServiceStatus {
 
     internal fun onTrackRecording(recording: TrackRecording?) {
         _trackRecording.value = recording
+        if (recording == null) _trackLocation.value = TrackLocation.WAITING
+    }
+
+    internal fun onTrackLocation(state: TrackLocation) {
+        _trackLocation.value = state
     }
 
     /**

@@ -51,6 +51,7 @@ import app.radiacode.data.db.EventEntity
 import app.radiacode.data.db.TrackPointEntity
 import app.radiacode.device.DoseUnits
 import app.radiacode.service.MeasurementService
+import app.radiacode.service.ServiceStatus
 import app.radiacode.ui.components.AppButton
 import app.radiacode.data.export.SeriesExport
 import app.radiacode.ui.components.Card
@@ -196,6 +197,9 @@ fun MapScreen(graph: AppGraph) {
     val uiScope = rememberCoroutineScope()
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     val recording by graph.serviceStatus.trackRecording.collectAsState()
+    // Почему в следе ещё нет точек: ждём спутников, нет разрешения или
+    // определение места выключено в системе.
+    val trackLocation by graph.serviceStatus.trackLocation.collectAsState()
 
     var metricIndex by rememberSaveable { mutableIntStateOf(0) }
     val metric = if (metricIndex == 0) TrackMetric.DOSE else TrackMetric.CPS
@@ -407,6 +411,7 @@ fun MapScreen(graph: AppGraph) {
                         scope = scope,
                         recording = recording != null,
                         hasRecordings = hasRecordings,
+                        location = trackLocation,
                     )
                 }
             },
@@ -1092,13 +1097,26 @@ private fun AreaSummaryCard(
  * ли карта следа?» — plainly: nothing is written unless a recording is on.
  */
 @Composable
-private fun MapEmptyState(scope: MapTrackScope, recording: Boolean, hasRecordings: Boolean) {
+private fun MapEmptyState(
+    scope: MapTrackScope,
+    recording: Boolean,
+    hasRecordings: Boolean,
+    location: ServiceStatus.TrackLocation = ServiceStatus.TrackLocation.WAITING,
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val t = MapCatalogue.of(LocalStrings.current.language)
     val title: String
     val body: String
     when {
+        recording && location == ServiceStatus.TrackLocation.NO_PERMISSION -> {
+            title = t.emptyNoPermissionTitle
+            body = t.emptyNoPermissionBody
+        }
+        recording && location == ServiceStatus.TrackLocation.NO_PROVIDER -> {
+            title = t.emptyNoProviderTitle
+            body = t.emptyNoProviderBody
+        }
         recording -> {
             title = t.emptyWaitingTitle
             body = t.emptyWaitingBody

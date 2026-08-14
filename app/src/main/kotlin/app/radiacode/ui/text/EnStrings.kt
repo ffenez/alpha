@@ -572,7 +572,6 @@ object EnStrings : Strings {
 
     override fun streamNoNewData(seconds: Long) = "no new data · $seconds s"
 
-    override val streamReconnecting = "reconnecting"
     override val streamLost = "the link to the instrument is lost"
     override val streamNoDataYet = "no current data"
 

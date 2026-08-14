@@ -776,11 +776,45 @@ class MeasurementService : Service() {
         }
     }
 
+    /**
+     * Подписка на координаты для записи следа.
+     *
+     * ## Что было сломано
+     *
+     * Запрашивался ОДИН источник — GPS. В помещении, в машине с плёнкой на
+     * стёклах, на телефоне без свежего альманаха фикса нет минутами, и след
+     * не получал ни одной точки: «Жду первые точки» висело вечно. При этом
+     * синяя точка на карте появлялась — её подписка (`ui/map/MapLocation`)
+     * с самого начала слушала и сетевого провайдера. Теперь оба места
+     * спрашивают одно и то же.
+     *
+     * `PASSIVE_PROVIDER` добавлен третьим: он ничего не включает сам и отдаёт
+     * фиксы, которые в этот момент запросил кто-то другой, — на устройстве без
+     * сервисов Google это иногда единственный источник в помещении.
+     *
+     * Причина отсутствия точек уходит в статус: ждать спутников и ждать
+     * разрешения, которого нет, — разные вещи, и экран обязан их различать.
+     */
     private fun registerLocationUpdates(sessionId: Long) {
-        if (!hasLocationPermission()) return
-        val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        if (!hasLocationPermission() || locationManager == null) {
+            graph.serviceStatus.onTrackLocation(ServiceStatus.TrackLocation.NO_PERMISSION)
+            return
+        }
+        var lastAcceptedAt = 0L
+        var lastAccuracy = Float.MAX_VALUE
         val listener = LocationListener { location ->
+            // Источников несколько, и они присылают одно и то же место с
+            // разной точностью. Точка принимается, если прошла секунда — или
+            // если она ТОЧНЕЕ предыдущей: иначе сетевой фикс с точностью в
+            // километр вытеснял бы спутниковый.
+            val fresh = location.time - lastAcceptedAt >= LOCATION_INTERVAL_MILLIS
+            val better = location.accuracy < lastAccuracy
+            if (!fresh && !better) return@LocationListener
+            lastAcceptedAt = location.time
+            lastAccuracy = location.accuracy
             lastLocation = location
+            graph.serviceStatus.onTrackLocation(ServiceStatus.TrackLocation.RECEIVING)
             val sample = lastSample
             scope.launch {
                 graph.trackRepository.addPoint(
@@ -797,16 +831,34 @@ class MeasurementService : Service() {
             }
         }
         locationListener = listener
-        try {
-            locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER,
-                LOCATION_INTERVAL_MILLIS,
-                0f,
-                listener,
-                mainLooper,
-            )
-        } catch (_: SecurityException) {
+        var subscribed = 0
+        for (provider in LOCATION_PROVIDERS) {
+            runCatching {
+                if (!locationManager.isProviderEnabled(provider)) return@runCatching
+                locationManager.requestLocationUpdates(
+                    provider,
+                    LOCATION_INTERVAL_MILLIS,
+                    0f,
+                    listener,
+                    mainLooper,
+                )
+                subscribed += 1
+            }
+        }
+        if (subscribed == 0) {
             locationListener = null
+            graph.serviceStatus.onTrackLocation(ServiceStatus.TrackLocation.NO_PROVIDER)
+            return
+        }
+        graph.serviceStatus.onTrackLocation(ServiceStatus.TrackLocation.WAITING)
+        // Последний известный фикс — первая точка следа сразу, а не через
+        // минуту ожидания спутников. Он несёт СВОЁ время, поэтому старый
+        // виден как старый, а не выдаётся за текущий.
+        runCatching {
+            LOCATION_PROVIDERS
+                .mapNotNull { locationManager.getLastKnownLocation(it) }
+                .maxByOrNull { it.time }
+                ?.let { listener.onLocationChanged(it) }
         }
     }
 
@@ -901,6 +953,17 @@ class MeasurementService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val ALARM_NOTIFICATION_ID = 2
         private const val LOCATION_INTERVAL_MILLIS = 1_000L
+
+        /**
+         * Источники координат следа — все, что есть у устройства без сервисов
+         * Google. Пассивный ничего не включает сам: он отдаёт фиксы, которые
+         * в этот момент запросил кто-то другой.
+         */
+        private val LOCATION_PROVIDERS = listOf(
+            LocationManager.GPS_PROVIDER,
+            LocationManager.NETWORK_PROVIDER,
+            LocationManager.PASSIVE_PROVIDER,
+        )
 
         private val TRACK_NAME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
         private const val BASELINE_REFRESH_MILLIS = 10L * 60_000L

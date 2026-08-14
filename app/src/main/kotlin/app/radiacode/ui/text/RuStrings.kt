@@ -565,7 +565,6 @@ object RuStrings : Strings {
 
     override fun streamNoNewData(seconds: Long) = "нет новых данных · $seconds с"
 
-    override val streamReconnecting = "связь восстанавливается"
     override val streamLost = "связь с прибором потеряна"
     override val streamNoDataYet = "нет текущих данных"
 

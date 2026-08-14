@@ -510,7 +510,6 @@ interface Strings {
 
     /** Состояние потока (`ui/logic/StreamState`): одна строка на состояние. */
     fun streamNoNewData(seconds: Long): String
-    val streamReconnecting: String
     val streamLost: String
     val streamNoDataYet: String
     fun lastMeasurementAgo(seconds: Long): String
@@ -686,7 +685,7 @@ fun Strings.allTexts(): List<String> = listOf(
     bluetoothConnected, bluetoothConnecting, bluetoothNoLink,
     startOnBootTitle, startOnBootNote,
     serviceStopped, instrumentBattery, temperature,
-    stream, streamActive, streamNoNewData(8), streamReconnecting, streamLost,
+    stream, streamActive, streamNoNewData(8), streamLost,
     streamNoDataYet, lastMeasurementAgo(120), unitsTitle,
     unitMicroSv, unitMicroR,
     unitDoseMicroSv, unitDoseMicroR, interfaceTitle,

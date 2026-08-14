@@ -21,7 +21,8 @@ import app.radiacode.device.ConnectionState
  *
  * - [Live] — данные идут; о разрыве не говорится ничего;
  * - [Stale] — короткая запинка: возраст назван, потому что он ещё информация;
- * - [Reconnecting] — связь восстанавливается (прибор в процессе подключения);
+ * - [Reconnecting] — прибор переподключается; на экране это только цвет точки
+ *   связи: словами приложение о своей работе не отчитывается;
  * - [Disconnected] — устойчивое состояние: связи нет либо данные давно не
  *   приходят. Возраст здесь ВТОРИЧЕН и живёт отдельной подписью.
  *
@@ -97,7 +98,11 @@ sealed interface StreamState {
 fun streamStatusLine(state: StreamState, s: app.radiacode.ui.text.Strings): String? = when (state) {
     StreamState.Live -> null
     is StreamState.Stale -> s.streamNoNewData(state.ageSeconds)
-    StreamState.Reconnecting -> s.streamReconnecting
+    // Переподключение не называется словами: это НЕ состояние прибора, а
+    // работа приложения, и человеку от неё ничего не требуется. Точка связи в
+    // шапке уже показывает, что связи сейчас нет, а надпись про неё появлялась
+    // и исчезала сама по себе — и оставалась в памяти как мигание.
+    StreamState.Reconnecting -> null
     is StreamState.Disconnected ->
         if (state.ageSeconds == null) s.streamNoDataYet else s.streamLost
 }

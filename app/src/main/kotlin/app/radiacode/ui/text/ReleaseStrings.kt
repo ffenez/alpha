@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v037Title: String
+    val v037Summary: String
+
     val v036Title: String
     val v036Summary: String
 
@@ -70,12 +73,20 @@ interface ReleaseStrings {
 
 object ReleaseRu : ReleaseStrings {
 
+    override val v037Title = "Видно, когда Bluetooth выключен"
+    override val v037Summary =
+        "Главная предупреждает, если Bluetooth выключен: прибор в этот момент не " +
+        "подключится ничем, а раньше это было видно только в отчёте о связи. " +
+        "«Связь восстанавливается» с экрана убрано — о том, что связи нет, " +
+        "говорит цвет точки в шапке."
+
     override val v036Title = "История короче, и пояснений больше нет по умолчанию"
     override val v036Summary =
         "Запись в журнале — место, время, среднее, доза и сколько времени были " +
-        "данные; всё остальное внутри записи. Пояснения теперь выключены с самого " +
-        "начала: экран показывает результат, числа и действия, а объяснения " +
-        "включаются в Настройках → Вид."
+        "данные; всё остальное внутри записи, а пояснения выключены с самого " +
+        "начала. След на карте больше не ждёт вечно: он пишется по всем " +
+        "источникам координат, а не только по спутникам, и называет причину, " +
+        "если точек нет."
 
     override val v035Title = "Вкладки листаются пальцем"
     override val v035Summary =
@@ -179,12 +190,20 @@ object ReleaseRu : ReleaseStrings {
 
 object ReleaseEn : ReleaseStrings {
 
+    override val v037Title = "It is visible when Bluetooth is off"
+    override val v037Summary =
+        "Home warns when Bluetooth is off: the instrument cannot connect at all in " +
+        "that state, and until now it showed only in the connection report. " +
+        "«Reconnecting» is gone from the screen — the colour of the link dot says " +
+        "that the link is down."
+
     override val v036Title = "История is shorter, and explanations start off"
     override val v036Summary =
         "A journal row is the place, the time, the average, the dose and how long " +
-        "there was data; everything else lives inside the record. Explanations are " +
-        "now off from the start: the screen shows the result, the numbers and the " +
-        "actions, and the text is switched on in Settings → Appearance."
+        "there was data; everything else lives inside the record, and explanations " +
+        "start off. A track no longer waits forever: it is written from every source " +
+        "of coordinates, not satellites alone, and it names the reason when there " +
+        "are no points."
 
     override val v035Title = "Tabs move under your finger"
     override val v035Summary =
@@ -292,6 +311,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v037Title, v037Summary,
     v036Title, v036Summary,
     v035Title, v035Summary,
     v034Title, v034Summary,

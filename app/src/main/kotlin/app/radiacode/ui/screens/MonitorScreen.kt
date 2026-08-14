@@ -20,6 +20,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import android.bluetooth.BluetoothAdapter
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import android.provider.Settings
+import androidx.core.content.ContextCompat
+import android.content.Context
+import app.radiacode.device.BluetoothState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +69,7 @@ import app.radiacode.data.db.ProfileEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
 import app.radiacode.service.BatteryOptimization
+import app.radiacode.ui.components.StatusRow
 import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppIcons
@@ -590,6 +599,7 @@ fun MonitorScreen(
             )
         }
 
+        BluetoothBanner()
         BatteryBanner()
     }
 
@@ -1198,6 +1208,66 @@ private fun MetricChartCard(
     }
 }
 
+
+/**
+ * Bluetooth выключен — и это сказано на Главной, а не в отчёте о связи.
+ *
+ * В диагностике это выглядело как «Bluetooth was STATE_OFF, but STATE_ON was
+ * required»: фраза системы, по которой человеку нечего сделать, да и найти её
+ * можно только специально. Прибор в этот момент не подключится ничем, поэтому
+ * состояние стоит там же, где его последствие, — над показаниями, и рядом
+ * кнопка, которая ведёт туда, где его меняют.
+ *
+ * Приложение НЕ включает Bluetooth само: с Android 13 включение чужим кодом
+ * запрещено, а до неё это было бы решением за человека о радиомодуле его
+ * телефона.
+ */
+@Composable
+private fun BluetoothBanner() {
+    val context = LocalContext.current
+    var enabled by remember { mutableStateOf(BluetoothState.isEnabled(context)) }
+    // Состояние адаптера меняется снаружи приложения, поэтому оно слушается, а
+    // не спрашивается один раз: включив Bluetooth в шторке, человек ждёт, что
+    // предупреждение исчезнет само.
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ignored: Context?, intent: Intent?) {
+                if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                    enabled = BluetoothState.isEnabled(context)
+                }
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    if (enabled) return
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val t = MonitorCatalogue.of(LocalStrings.current.language)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            StatusRow(text = t.bluetoothOffTitle, color = colors.warn)
+            Text(text = t.bluetoothOffBody, style = type.bodySmall, color = colors.ink2)
+            AppButton(
+                text = t.bluetoothOffAction,
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier.align(Alignment.End),
+            )
+        }
+    }
+}
 
 @Composable
 private fun BatteryBanner() {

@@ -73,10 +73,10 @@ class StreamStateTest {
             StreamState.Reconnecting,
             state(500, ConnectionState.Reconnecting(attempt = 2, delayMillis = 1_000L)),
         )
-        assertEquals(
-            "связь восстанавливается",
-            streamStatusLine(StreamState.Reconnecting, RuStrings),
-        )
+        // …и молчит об этом: переподключение — работа приложения, а не
+        // состояние прибора, и человеку от неё ничего не требуется. О том, что
+        // связи сейчас нет, говорит цвет точки в шапке.
+        assertNull(streamStatusLine(StreamState.Reconnecting, RuStrings))
     }
 
     @Test

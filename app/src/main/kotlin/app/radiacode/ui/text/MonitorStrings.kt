@@ -64,6 +64,18 @@ interface MonitorStrings {
     val statMin: String
     val statMedian: String
     val statMax: String
+    /**
+     * Bluetooth выключен — прибор не подключится, и это не отказ приложения.
+     *
+     * В отчёте о связи это выглядело как «Bluetooth was STATE_OFF, but STATE_ON
+     * was required» — фраза системы, по которой человеку нечего сделать. На
+     * экране должно стоять состояние и кнопка, которая ведёт туда, где его
+     * меняют.
+     */
+    val bluetoothOffTitle: String
+    val bluetoothOffBody: String
+    val bluetoothOffAction: String
+
     val batteryBannerBody: String
     val batteryBannerAction: String
 
@@ -218,6 +230,11 @@ object MonitorRu : MonitorStrings {
     override val statMin = "мин"
     override val statMedian = "медиана"
     override val statMax = "макс"
+    override val bluetoothOffTitle = "Bluetooth выключен"
+    override val bluetoothOffBody =
+        "Прибор подключается по Bluetooth — пока он выключен, измерения не идут."
+    override val bluetoothOffAction = "Включить"
+
     override val batteryBannerBody =
         "Android может остановить измерение в фоне. Чтобы запись шла непрерывно, " +
             "исключите приложение из оптимизации батареи."
@@ -392,6 +409,11 @@ object MonitorEn : MonitorStrings {
     override val statMin = "min"
     override val statMedian = "median"
     override val statMax = "max"
+    override val bluetoothOffTitle = "Bluetooth is off"
+    override val bluetoothOffBody =
+        "The instrument connects over Bluetooth — while it is off, no measurements arrive."
+    override val bluetoothOffAction = "Turn on"
+
     override val batteryBannerBody =
         "Android may stop the measurement in the background. To keep the recording " +
             "continuous, exclude the app from battery optimisation."

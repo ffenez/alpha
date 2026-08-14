@@ -82,6 +82,15 @@ interface MapStrings {
     // --- пустые состояния ---
     val emptyWaitingTitle: String
     val emptyWaitingBody: String
+
+    /**
+     * Ждать можно по-разному: спутников — или разрешения, которого не будет.
+     * Второе от бесконечного ожидания неотличимо, поэтому названо словами.
+     */
+    val emptyNoPermissionTitle: String
+    val emptyNoPermissionBody: String
+    val emptyNoProviderTitle: String
+    val emptyNoProviderBody: String
     val emptyAreaTitle: String
     val emptyAreaBody: String
     val emptyTrackTitle: String
@@ -166,6 +175,15 @@ object MapRu : MapStrings {
     override fun onlyAccurateFixes(meters: Int) = "только фиксы точнее $meters м"
     override fun builtFromPoints(points: String) =
         "картинка построена по $points точкам — приблизьте карту"
+
+    override val emptyNoPermissionTitle = "Нет доступа к местоположению"
+    override val emptyNoPermissionBody =
+        "След пишется по координатам телефона. Разрешение выдаётся в настройках " +
+            "системы для этого приложения."
+    override val emptyNoProviderTitle = "Определение места выключено"
+    override val emptyNoProviderBody =
+        "Ни один источник координат сейчас не включён. Включите определение " +
+            "местоположения в настройках телефона — след начнёт писаться сам."
 
     override val emptyWaitingTitle = "Жду первые точки"
     override val emptyWaitingBody =
@@ -268,6 +286,15 @@ object MapEn : MapStrings {
     override fun builtFromPoints(points: String) =
         "the picture is built from $points points — zoom in"
 
+    override val emptyNoPermissionTitle = "No access to location"
+    override val emptyNoPermissionBody =
+        "A track is written from the phone's coordinates. The permission is granted " +
+            "in the system settings for this app."
+    override val emptyNoProviderTitle = "Location is switched off"
+    override val emptyNoProviderBody =
+        "No source of coordinates is enabled right now. Turn location on in the " +
+            "phone settings and the track starts writing itself."
+
     override val emptyWaitingTitle = "Waiting for the first points"
     override val emptyWaitingBody =
         "Recording is on. Points appear as soon as GPS gives coordinates."
@@ -331,7 +358,9 @@ fun MapStrings.allTexts(): List<String> = listOf(
     trackPoint, excursionPoint, usuallyHere("0,12"), steadyReadings("2 мин"),
     statAvg, statMax, statMedian, statPoints, statCells, statMarkers, inThisView,
     recordedFromTo("12:00", "12:30"), onlyAccurateFixes(50), builtFromPoints("50 000"),
-    emptyWaitingTitle, emptyWaitingBody, emptyAreaTitle, emptyAreaBody,
+    emptyWaitingTitle, emptyWaitingBody,
+    emptyNoPermissionTitle, emptyNoPermissionBody, emptyNoProviderTitle, emptyNoProviderBody,
+    emptyAreaTitle, emptyAreaBody,
     emptyTrackTitle, emptyTrackBody, emptyNoTracksTitle, emptyNoTracksBody,
     locationTitle, locationBody, locationAllow,
     waitingGps, fixAgo("2 мин"), meWithAccuracy("±12 м"), accuracyUnknown,

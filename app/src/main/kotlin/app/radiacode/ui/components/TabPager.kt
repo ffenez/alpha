@@ -5,6 +5,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 
@@ -43,13 +44,23 @@ fun TabPager(
 
     // Нажатие в нижнем меню и жест — одно и то же перемещение, поэтому
     // выбранная вкладка и страница держатся друг за друга в обе стороны.
+    //
+    // Обе величины читаются ЧЕРЕЗ `rememberUpdatedState`: подписка живёт
+    // дольше одной сборки, и захваченные ею `selected` с `onSelected`
+    // остались бы теми, какими были в момент запуска, — из-за чего нижнее
+    // меню после свайпа показывало прежнюю вкладку.
+    val current = rememberUpdatedState(selected)
+    val select = rememberUpdatedState(onSelected)
     LaunchedEffect(selected, tabs) {
         val index = tabs.indexOf(selected)
         if (index >= 0 && index != state.currentPage) state.animateScrollToPage(index)
     }
     LaunchedEffect(state, tabs) {
-        snapshotFlow { state.settledPage }.collect { page ->
-            tabs.getOrNull(page)?.let { if (it != selected) onSelected(it) }
+        // `currentPage`, а не `settledPage`: страница считается сменённой,
+        // когда пересекла середину, — меню переключается вместе с картинкой,
+        // а не через полсекунды после того, как палец уже отпущен.
+        snapshotFlow { state.currentPage }.collect { page ->
+            tabs.getOrNull(page)?.let { if (it != current.value) select.value(it) }
         }
     }
 
