@@ -91,6 +91,7 @@ import app.radiacode.ui.text.HistoryCatalogue
 import app.radiacode.ui.text.HistoryRu
 import app.radiacode.ui.text.HistoryStrings
 import app.radiacode.ui.text.ChartAxisCatalogue
+import app.radiacode.ui.text.ChartTextCatalogue
 import app.radiacode.ui.text.ChartAxisRu
 import app.radiacode.ui.text.ChartAxisStrings
 import app.radiacode.ui.text.LocalStrings
@@ -230,6 +231,11 @@ fun MonitorScreen(
             if (blocks.hardnessChart) add(ChartMetric.HARDNESS)
         }
     }
+    // Вьюпорты живут ЗДЕСЬ, а не внутри карточки: окно, которое человек увёл
+    // пальцем в прошлое, должно видеть ЗАГРУЗЧИК. Пока он грузил живое окно,
+    // сдвиг уводил картинку в диапазон, который никто не читал, — карточка
+    // пустела и говорила «накапливаем измерения» при полной базе.
+    var viewports by remember { mutableStateOf<Map<ChartMetric, ChartViewport>>(emptyMap()) }
     var charts by remember { mutableStateOf<Map<ChartMetric, LoadedChart>>(emptyMap()) }
     var trend by remember { mutableStateOf<TrendAvailability?>(null) }
     var doseTodayMicroSv by remember { mutableStateOf<Double?>(null) }
@@ -278,7 +284,7 @@ fun MonitorScreen(
         ChartWindows.refreshMillis(shortestBucket)
     }
     val liveTick = live?.receivedAtMillis?.let { it / liveTickMillis }
-    LaunchedEffect(chartMetrics, savedSpans, resumeTick, liveTick) {
+    LaunchedEffect(chartMetrics, savedSpans, resumeTick, liveTick, viewports) {
         while (true) {
             val now = System.currentTimeMillis()
             val outcome = runCatching {
@@ -288,10 +294,17 @@ fun MonitorScreen(
                     // вместе с историей. Один запрос по индексу на весь проход.
                     val earliest = graph.measurementRepository.earliestSampleMillis()
                     chartMetrics.associateWith { metric ->
-                        val window = ChartWindows.limitedByHistory(
-                            ChartMetrics.startWindow(metric, savedSpans, now),
-                            earliest,
-                        )
+                        val viewport = viewports[metric]
+                        val chosen = viewport?.window(now)
+                            ?: ChartMetrics.startWindow(metric, savedSpans, now)
+                        // Подтяжка к началу истории — только у живого края:
+                        // если человек сам увёл окно в прошлое, оно принадлежит
+                        // ему, и двигать его границы значит отбирать управление.
+                        val window = if (viewport == null || viewport.follow) {
+                            ChartWindows.limitedByHistory(chosen, earliest)
+                        } else {
+                            chosen
+                        }
                         val snapshot = loadSnapshot(graph, window, metric)
                         // Трасса конвейера: три среза ОДНОГО окна — база,
                         // снимок, кадр. По картинке нельзя сказать, на каком
@@ -462,16 +475,15 @@ fun MonitorScreen(
             // ступень, правый край и слежение за «сейчас». Пока оно жило в
             // двух местах, возможна была картина «большой живой, мелкий
             // замерший» — данные общие, край двигался у одного.
-            var viewport by remember(metric) {
-                mutableStateOf(
-                    ChartViewport.atLiveEdge(
-                        ChartWindows.nearestPeriodIndex(
-                            ChartMetrics.startWindow(metric, savedSpans, nowMillis).spanMillis,
-                            ChartMetrics.periodIndices(metric),
-                        ),
-                        nowMillis,
-                    ),
-                )
+            val viewport = viewports[metric] ?: ChartViewport.atLiveEdge(
+                ChartWindows.nearestPeriodIndex(
+                    ChartMetrics.startWindow(metric, savedSpans, nowMillis).spanMillis,
+                    ChartMetrics.periodIndices(metric),
+                ),
+                nowMillis,
+            )
+            fun setViewport(next: ChartViewport) {
+                viewports = viewports + (metric to next)
             }
             // Правый край кадра идёт за «сейчас» КАЖДУЮ СЕКУНДУ, не дожидаясь
             // следующего чтения базы: снимок неизменен, а окно — арифметика по
@@ -515,16 +527,18 @@ fun MonitorScreen(
                     if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
                 },
                 following = viewport.follow,
-                onBackToNow = { viewport = ChartViewport.jumpToNow(viewport, nowMillis) },
+                onBackToNow = { setViewport(ChartViewport.jumpToNow(viewport, nowMillis)) },
                 onTransform = { panFraction, zoomFactor, _ ->
                     // Жест меняет ВРЕМЯ, а не картинку: из состояния получается
                     // окно, окно идёт в загрузку и в кадр. Готовое изображение
                     // не растягивается — иначе агрегация перестала бы отвечать
                     // масштабу, а геометрия графика у нас следует времени.
-                    viewport = ChartViewport.zoom(
-                        ChartViewport.pan(viewport, panFraction, nowMillis),
-                        zoomFactor,
-                        nowMillis,
+                    setViewport(
+                        ChartViewport.zoom(
+                            ChartViewport.pan(viewport, panFraction, nowMillis),
+                            zoomFactor,
+                            nowMillis,
+                        ),
                     )
                 },
             )
@@ -1038,6 +1052,7 @@ private fun MetricChartCard(
     val strings = LocalStrings.current
     val t = MonitorCatalogue.of(strings.language)
     val cursor = remember { mutableStateOf<Float?>(null) }
+    val emptyWindowText = ChartTextCatalogue.of(strings.language).emptyWindow
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1080,8 +1095,12 @@ private fun MetricChartCard(
             }
 
             if (frame == null || frame.spec.buckets.isEmpty()) {
+                // «Накапливаем измерения» — про НАЧАЛО записи, и говорить это
+                // человеку, который сам увёл окно в прошлое, неправда: там
+                // измерений не было, а не «ещё не набралось». Ответ зависит от
+                // того, кто выбрал окно.
                 Text(
-                    text = t.collectingMeasurements,
+                    text = if (following) t.collectingMeasurements else emptyWindowText,
                     style = type.bodySmall,
                     color = colors.muted,
                 )

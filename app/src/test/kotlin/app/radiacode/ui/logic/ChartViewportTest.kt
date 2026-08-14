@@ -123,4 +123,25 @@ class ChartViewportTest {
             ChartViewport.zoom(longest, scale = 0.1f, nowMillis = now).stepIndex,
         )
     }
+
+    @Test
+    fun `a panned window is what the loader must ask the database for`() {
+        // Полевой дефект: карточка грузила ЖИВОЕ окно, а рисовала то, куда его
+        // увели пальцем. Сдвиг уводил картинку в диапазон, который никто не
+        // читал, и карточка пустела с надписью «накапливаем измерения» при
+        // полной базе. Окно кадра и окно загрузки — одно и то же число.
+        val viewport = ChartViewport.pan(
+            ChartViewport.atLiveEdge(fiveMinutes, now),
+            fractionOfWindow = 4f,
+            nowMillis = now,
+        )
+
+        val window = viewport.window(now)
+
+        assertFalse(viewport.follow)
+        assertEquals(now - 4 * 5 * 60_000L, window.toMillis)
+        assertEquals(5 * 60_000L, window.spanMillis)
+        // И «сейчас» на этом окне уже не правый край: подпись обязана это знать.
+        assertTrue(window.toMillis < now)
+    }
 }

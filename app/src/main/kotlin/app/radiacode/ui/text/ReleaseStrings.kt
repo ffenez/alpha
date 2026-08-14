@@ -91,6 +91,8 @@ object ReleaseRu : ReleaseStrings {
             "видно сразу; нужное окно по-прежнему выбирается и запоминается.",
         "Графиком на Главной можно управлять пальцами: щипок меняет окно, " +
             "перетаскивание уводит в прошлое, двойное нажатие возвращает к «сейчас».",
+        "Уведённый в прошлое график догружается: раньше он пустел и писал " +
+            "«накапливаем измерения», хотя данные за тот период есть.",
         "Короче формулировки состояния: «Ниже порога тревоги», «Обычно для " +
             "этого места», «Уровень изменился».",
         "Новый разбор «Линия во времени»: как менялся счёт в окне линии " +
@@ -279,6 +281,8 @@ object ReleaseEn : ReleaseStrings {
             "visible at once; any window is still yours to pick and is remembered.",
         "The Monitor chart takes gestures: pinch changes the window, dragging " +
             "goes back in time, a double tap returns to now.",
+        "A chart dragged into the past now loads it: before, it went blank and " +
+            "said «collecting measurements» although the data was there.",
         "Shorter status wording: «Below the alarm threshold», «Usual for this " +
             "place», «The level has changed».",
         "New «A line over time» analysis: how the count in a chosen nuclide's " +
