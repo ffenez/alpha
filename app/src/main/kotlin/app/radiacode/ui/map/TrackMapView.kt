@@ -39,7 +39,6 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.Projection
 import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.Overlay
-import org.osmdroid.views.overlay.Polyline
 
 /** Parsed tap on a rendered feature; null tap dismisses the info card. */
 sealed interface MapTapInfo {
@@ -62,7 +61,6 @@ sealed interface MapTapInfo {
 
 /** Colors the map overlays take from the app theme (ARGB ints). */
 data class MapLayerColors(
-    val route: Int,
     val ramp: List<Int>,
     val metricMissing: Int,
     val hotspotFill: Int,
@@ -76,10 +74,9 @@ data class MapLayerColors(
 data class TileStats(val loaded: Int, val failed: Int)
 
 /**
- * osmdroid bridge: raster OSM tiles with the track drawn as a route polyline
- * plus one small ramp-colored dot per fix, hotspot markers on top, feature
- * taps forwarded, and the camera following the track bounds until the user
- * pans.
+ * osmdroid bridge: raster OSM tiles with the track drawn as a continuous line
+ * colored by the measurement, hotspot markers on top, feature taps forwarded,
+ * and the camera following the track bounds until the user pans.
  *
  * Why raster osmdroid and not a vector GL engine: MapLibre GL Native rendered
  * a grey screen on the target device twice (Vulkan artifact, then the OpenGL
@@ -100,7 +97,9 @@ fun TrackMapView(
     /** Already downsampled to [TrackMap.MAX_RENDERED_POINTS] by the caller. */
     points: List<MapTrackPoint>,
     metric: TrackMetric,
-    thresholds: TrackMap.RampThresholds?,
+    scale: TrackMap.RampScale?,
+    /** Где след прерывается: индексы без отрезка к предыдущей точке. */
+    lineBreaks: BooleanArray,
     hotspots: List<MapHotspot>,
     bounds: MapBounds?,
     /** Increment to re-enable auto-fit after the user panned away. */
@@ -111,7 +110,7 @@ fun TrackMapView(
     /** Accumulated map: aggregated cells instead of individual fixes. */
     cells: List<GridCell> = emptyList(),
     cellMeters: Double = 0.0,
-    cellThresholds: TrackMap.RampThresholds? = null,
+    cellScale: TrackMap.RampScale? = null,
     /** Own position; null = nothing to draw (no permission or no fix yet). */
     position: PositionFix? = null,
     /** A fix that stopped refreshing is drawn dimmed, never silently removed. */
@@ -135,8 +134,8 @@ fun TrackMapView(
         },
         update = {
             holder.applyTheme(dark, layerColors)
-            holder.setData(points, metric, thresholds, hotspots)
-            holder.setCells(cells, cellMeters, cellThresholds)
+            holder.setData(points, metric, scale, lineBreaks, hotspots)
+            holder.setCells(cells, cellMeters, cellScale)
             holder.setPosition(position, positionStale)
             holder.fitBounds(bounds, recenterTick)
             holder.centerOnPosition(centerOnPositionTick)
@@ -168,7 +167,8 @@ fun TrackMapView(
 private const val TAP_SLOP_DP = 16f
 private const val POINT_RADIUS_DP = 3.5f
 private const val HOTSPOT_RADIUS_DP = 7f
-private const val ROUTE_WIDTH_DP = 2.5f
+/** Ширина следа: линия читается на тайлах и остаётся целью для пальца. */
+private const val ROUTE_WIDTH_DP = 4.5f
 private const val FIT_PADDING_DP = 40f
 private const val DEGENERATE_ZOOM = 16.0
 private const val DEFAULT_ZOOM = 4.0
@@ -209,7 +209,6 @@ private class MapHolder(
     private var hotspotOverlay: DotOverlay<MapHotspot>? = null
     private var cellOverlay: CellOverlay? = null
     private var positionOverlay: PositionOverlay? = null
-    private var route: Polyline? = null
     private var appliedDark: Boolean? = null
     private var userGestured = false
     private var fittedBounds: MapBounds? = null
@@ -249,23 +248,14 @@ private class MapHolder(
         cellOverlay = cells
         mapView.overlays.add(cells)
 
-        // Plain Polyline (no MapView argument): no default info window, and
-        // the click listener returns false so a tap near the line falls
-        // through to the dot layers instead of being swallowed.
-        val routeLine = Polyline().apply {
-            outlinePaint.strokeWidth = ROUTE_WIDTH_DP * density
-            outlinePaint.isAntiAlias = true
-            outlinePaint.strokeCap = Paint.Cap.ROUND
-            outlinePaint.strokeJoin = Paint.Join.ROUND
-            setOnClickListener { _, _, _ -> false }
-        }
-        route = routeLine
-        mapView.overlays.add(routeLine)
-
+        // Один слой на весь след: непрерывная линия, окрашенная по измерению,
+        // и она же держит попадание пальца. Отдельной серой подложки под ней
+        // больше нет — линия сама и есть маршрут, а не украшение поверх точек.
         val trackDots = DotOverlay<MapTrackPoint>(
             radiusPx = POINT_RADIUS_DP * density,
             slopPx = TAP_SLOP_DP * density,
             strokeWidthPx = 0f,
+            lineWidthPx = ROUTE_WIDTH_DP * density,
             latitude = { it.latitude },
             longitude = { it.longitude },
         ) { point ->
@@ -376,7 +366,6 @@ private class MapHolder(
         cellOverlay?.fallbackColor = colors.metricMissing
         positionOverlay?.fillColor = colors.position
         positionOverlay?.ringColor = colors.positionRing
-        route?.outlinePaint?.color = colors.route
         if (appliedDark != dark) {
             appliedDark = dark
             // Light theme: raster OSM tiles are already a light map, so no
@@ -391,19 +380,20 @@ private class MapHolder(
     fun setData(
         points: List<MapTrackPoint>,
         metric: TrackMetric,
-        thresholds: TrackMap.RampThresholds?,
+        scale: TrackMap.RampScale?,
+        lineBreaks: BooleanArray,
         hotspots: List<MapHotspot>,
     ) {
         val mapView = mapView ?: return
         val dots = pointsOverlay ?: return
-        if (!dots.sameItems(points) || dots.metric != metric || dots.thresholds != thresholds) {
+        if (!dots.sameItems(points) || dots.metric != metric || dots.scale != scale) {
             dots.metric = metric
-            dots.thresholds = thresholds
+            dots.scale = scale
+            dots.breaks = lineBreaks
             dots.setItems(points) { point ->
                 val value = TrackMap.metricValue(point, metric)
-                if (value != null && thresholds != null) TrackMap.bucket(value, thresholds) else -1
+                if (value != null && scale != null) TrackMap.bucket(value, scale) else -1
             }
-            route?.setPoints(points.map { GeoPoint(it.latitude, it.longitude) })
             mapView.invalidate()
         }
         val hotspotDots = hotspotOverlay ?: return
@@ -416,12 +406,12 @@ private class MapHolder(
     fun setCells(
         cells: List<GridCell>,
         cellMeters: Double,
-        thresholds: TrackMap.RampThresholds?,
+        scale: TrackMap.RampScale?,
     ) {
         val mapView = mapView ?: return
         val overlay = cellOverlay ?: return
-        if (overlay.sameCells(cells) && overlay.thresholds == thresholds) return
-        overlay.setCells(cells, cellMeters, thresholds)
+        if (overlay.sameCells(cells) && overlay.scale == scale) return
+        overlay.setCells(cells, cellMeters, scale)
         mapView.invalidate()
     }
 
@@ -492,7 +482,6 @@ private class MapHolder(
         hotspotOverlay = null
         cellOverlay = null
         positionOverlay = null
-        route = null
     }
 }
 
@@ -510,7 +499,7 @@ private class CellOverlay(
 
     var colors: IntArray = intArrayOf()
     var fallbackColor: Int = 0
-    var thresholds: TrackMap.RampThresholds? = null
+    var scale: TrackMap.RampScale? = null
         private set
 
     private var cells: List<GridCell> = emptyList()
@@ -527,16 +516,16 @@ private class CellOverlay(
     fun setCells(
         newCells: List<GridCell>,
         meters: Double,
-        newThresholds: TrackMap.RampThresholds?,
+        newScale: TrackMap.RampScale?,
     ) {
         cells = newCells
         cellMeters = meters
-        thresholds = newThresholds
+        scale = newScale
     }
 
     override fun draw(canvas: Canvas, projection: Projection) {
         if (cells.isEmpty()) return
-        val ramp = thresholds
+        val ramp = scale
         val width = canvas.width
         val height = canvas.height
         for (cell in cells) {
@@ -656,6 +645,11 @@ private class DotOverlay<T>(
     private val radiusPx: Float,
     private val slopPx: Float,
     strokeWidthPx: Float,
+    /**
+     * Ширина линии следа. Ноль — слой рисует только точки (метки превышений):
+     * они не последовательность, соединять их нечем.
+     */
+    lineWidthPx: Float = 0f,
     private val latitude: (T) -> Double,
     private val longitude: (T) -> Double,
     private val onSelect: (T) -> Unit,
@@ -665,7 +659,15 @@ private class DotOverlay<T>(
     var fallbackColor: Int = 0
     var strokeColor: Int = 0
     var metric: TrackMetric? = null
-    var thresholds: TrackMap.RampThresholds? = null
+    var scale: TrackMap.RampScale? = null
+
+    /**
+     * Разрывы следа: на этих индексах отрезок к предыдущей точке не рисуется,
+     * потому что координат в этом промежутке не было. Точка, у которой нет
+     * соседей ни с одной стороны, рисуется кружком — иначе одиночный фикс
+     * после долгого пропуска исчез бы с карты совсем.
+     */
+    var breaks: BooleanArray = BooleanArray(0)
 
     private var items: List<T> = emptyList()
     private var colorIndex: IntArray = IntArray(0)
@@ -678,7 +680,14 @@ private class DotOverlay<T>(
         style = Paint.Style.STROKE
         strokeWidth = strokeWidthPx
     }
+    private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = lineWidthPx
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
     private val hasStroke = strokeWidthPx > 0f
+    private val hasLine = lineWidthPx > 0f
     private val reusablePoint = Point()
     private val reusableGeoPoint = GeoPoint(0.0, 0.0)
 
@@ -696,18 +705,45 @@ private class DotOverlay<T>(
         if (items.isEmpty()) return
         val width = canvas.width
         val height = canvas.height
-        val margin = radiusPx + strokePaint.strokeWidth
+        val margin = radiusPx + strokePaint.strokeWidth + linePaint.strokeWidth
+        // Сначала проекция всех точек: отрезок соединяет соседей, и рисовать
+        // его можно только когда обе экранные координаты уже посчитаны.
         for (i in items.indices) {
             reusableGeoPoint.setCoords(latitude(items[i]), longitude(items[i]))
             projection.toPixels(reusableGeoPoint, reusablePoint)
-            val x = reusablePoint.x.toFloat()
-            val y = reusablePoint.y.toFloat()
-            xs[i] = x
-            ys[i] = y
-            if (x < -margin || y < -margin || x > width + margin || y > height + margin) continue
-            fillPaint.color = colorIndex[i].let { index ->
+            xs[i] = reusablePoint.x.toFloat()
+            ys[i] = reusablePoint.y.toFloat()
+        }
+        for (i in items.indices) {
+            val x = xs[i]
+            val y = ys[i]
+            val color = colorIndex[i].let { index ->
                 if (index in colors.indices) colors[index] else fallbackColor
             }
+            val broken = breaks.getOrElse(i) { true }
+            val nextBroken = breaks.getOrElse(i + 1) { true }
+            if (hasLine && !broken) {
+                val previousX = xs[i - 1]
+                val previousY = ys[i - 1]
+                val visible = !(
+                    (x < -margin && previousX < -margin) ||
+                        (y < -margin && previousY < -margin) ||
+                        (x > width + margin && previousX > width + margin) ||
+                        (y > height + margin && previousY > height + margin)
+                    )
+                if (visible) {
+                    // Цвет отрезка — по точке, В КОТОРУЮ он приходит: это
+                    // измерение и есть то, что здесь намерено.
+                    linePaint.color = color
+                    canvas.drawLine(previousX, previousY, x, y, linePaint)
+                }
+            }
+            // Кружком рисуется либо слой без линии (метки), либо точка, у
+            // которой нет соседей: одиночный фикс обязан остаться видимым.
+            val isolated = broken && nextBroken
+            if (hasLine && !isolated) continue
+            if (x < -margin || y < -margin || x > width + margin || y > height + margin) continue
+            fillPaint.color = color
             canvas.drawCircle(x, y, radiusPx, fillPaint)
             if (hasStroke) {
                 strokePaint.color = strokeColor

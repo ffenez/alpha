@@ -79,6 +79,7 @@ import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.logic.DoseTint
+import app.radiacode.ui.logic.MapColorScale
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.NavConfig
 import app.radiacode.ui.logic.ProfileTree
@@ -1265,6 +1266,40 @@ private fun InterfaceSection(graph: AppGraph) {
                         modifier = Modifier.weight(1.4f),
                     )
                 }
+            }
+
+            // Чем заданы границы цвета следа на карте. Растяжение по маршруту
+            // — аналитический режим: оно находит малые различия, но красит
+            // ровную прогулку во всю шкалу, поэтому выбирается осознанно.
+            val mapScale by graph.settings.mapColorScale
+                .collectAsState(initial = MapColorScale.ABSOLUTE)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = strings.mapScaleTitle,
+                    style = type.label,
+                    color = colors.ink,
+                    modifier = Modifier.weight(1f),
+                )
+                Segmented(
+                    options = listOf(strings.mapScaleAbsolute, strings.mapScaleContrast),
+                    selectedIndex = if (mapScale == MapColorScale.ROUTE_CONTRAST) 1 else 0,
+                    onSelect = { index ->
+                        scope.launch {
+                            graph.settings.setMapColorScale(
+                                if (index == 1) {
+                                    MapColorScale.ROUTE_CONTRAST
+                                } else {
+                                    MapColorScale.ABSOLUTE
+                                },
+                            )
+                        }
+                    },
+                    modifier = Modifier.weight(1.4f),
+                )
             }
 
             Row(

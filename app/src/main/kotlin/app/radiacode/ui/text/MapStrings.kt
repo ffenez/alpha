@@ -31,6 +31,8 @@ interface MapStrings {
     val sessionTrack: String
     val noTrackInSession: String
     val gpsOff: String
+    /** Строка над картой: состояние И действие в одной короткой фразе. */
+    val gpsOffAction: String
     fun lastRecording(stamp: String): String
     fun recordingFor(duration: String): String
 
@@ -38,6 +40,8 @@ interface MapStrings {
     val back: String
     val showAllRecordings: String
     val startRecording: String
+    /** На экране уже лежит маршрут — кнопка заводит НОВЫЙ, и говорит это. */
+    val startNewRecording: String
     val stopRecording: String
     val routeMine: String
     val route: String
@@ -49,6 +53,12 @@ interface MapStrings {
     val centerOnAll: String
     val metricDose: String
     val metricCps: String
+    /** Единица скорости счёта — только в легенде шкалы, где величин две. */
+    val unitCps: String
+
+    // --- чем заданы границы цвета ---
+    val scaleAbsolute: String
+    val scaleContrast: String
 
     // --- легенда и клетка ---
     /** «клетка ≈ 20 м» — размер уже отформатирован вместе с единицей. */
@@ -71,6 +81,8 @@ interface MapStrings {
     val statMax: String
     val statMedian: String
     val statPoints: String
+    /** Измерение вдоль маршрута — не то же самое, что точка на карте. */
+    val statMeasurements: String
     val statCells: String
     val statMarkers: String
     val inThisView: String
@@ -133,12 +145,14 @@ object MapRu : MapStrings {
     override val sessionTrack = "Трек сессии"
     override val noTrackInSession = "трек в этой сессии не записан"
     override val gpsOff = "GPS выключен"
+    override val gpsOffAction = "определение места выключено · включить"
     override fun lastRecording(stamp: String) = "последняя · $stamp"
     override fun recordingFor(duration: String) = "запись · $duration"
 
     override val back = "← Назад"
     override val showAllRecordings = "Показать все записи"
-    override val startRecording = "Начать запись маршрута"
+    override val startRecording = "Начать маршрут"
+    override val startNewRecording = "Начать новый маршрут"
     override val stopRecording = "Остановить запись"
     override val routeMine = "Мой маршрут"
     override val route = "Маршрут"
@@ -150,6 +164,10 @@ object MapRu : MapStrings {
     override val centerOnAll = "⌖ всё"
     override val metricDose = "Доза"
     override val metricCps = "CPS"
+    override val unitCps = "с⁻¹"
+
+    override val scaleAbsolute = "цвет — по обычному фону места"
+    override val scaleContrast = "цвет растянут по этому маршруту"
 
     override fun cellSize(size: String) = "клетка ≈ $size"
     override val median = "медиана"
@@ -171,6 +189,7 @@ object MapRu : MapStrings {
     override val statMax = "макс"
     override val statMedian = "медиана"
     override val statPoints = "точек"
+    override val statMeasurements = "измерений"
     override val statCells = "клеток"
     override val statMarkers = "меток"
     override val inThisView = "В этом виде"
@@ -246,12 +265,14 @@ object MapEn : MapStrings {
     override val sessionTrack = "Session track"
     override val noTrackInSession = "no track was recorded in this session"
     override val gpsOff = "GPS is off"
+    override val gpsOffAction = "location is switched off · turn on"
     override fun lastRecording(stamp: String) = "latest · $stamp"
     override fun recordingFor(duration: String) = "recording · $duration"
 
     override val back = "← Back"
     override val showAllRecordings = "Show all recordings"
-    override val startRecording = "Start recording a route"
+    override val startRecording = "Start a route"
+    override val startNewRecording = "Start a new route"
     override val stopRecording = "Stop recording"
     override val routeMine = "My route"
     override val route = "Route"
@@ -263,6 +284,10 @@ object MapEn : MapStrings {
     override val centerOnAll = "⌖ all"
     override val metricDose = "Dose"
     override val metricCps = "CPS"
+    override val unitCps = "s⁻¹"
+
+    override val scaleAbsolute = "colour follows the usual background of the place"
+    override val scaleContrast = "colour is stretched over this route"
 
     override fun cellSize(size: String) = "cell ≈ $size"
     override val median = "median"
@@ -284,6 +309,7 @@ object MapEn : MapStrings {
     override val statMax = "max"
     override val statMedian = "median"
     override val statPoints = "points"
+    override val statMeasurements = "measurements"
     override val statCells = "cells"
     override val statMarkers = "markers"
     override val inThisView = "In this view"
@@ -356,16 +382,16 @@ val MapCatalogue = AreaCatalogue(ru = MapRu, en = MapEn)
  */
 fun MapStrings.allTexts(): List<String> = listOf(
     exportGpx, exportSaved, exportFailed,
-    scopeCurrent, scopeAll, mapTitle, sessionTrack, noTrackInSession, gpsOff,
+    scopeCurrent, scopeAll, mapTitle, sessionTrack, noTrackInSession, gpsOff, gpsOffAction,
     lastRecording("12:00"), recordingFor("2 мин"),
-    back, showAllRecordings, startRecording, stopRecording, routeMine, route,
+    back, showAllRecordings, startRecording, startNewRecording, stopRecording, routeMine, route,
     pointsAndCells("1 200", "48"), centerOnMe, centerOnRoute, centerOnAll,
-    metricDose, metricCps,
+    metricDose, metricCps, unitCps, scaleAbsolute, scaleContrast,
     cellSize("20 м"), median, paleCells(3, 5), medianValue("0,12"),
     cellSpread("0,10", "0,18", "0,09", "0,21"),
     cellCoverage("42", "12:00", "12:30"),
     trackPoint, excursionPoint, usuallyHere("0,12"), steadyReadings("2 мин"),
-    statAvg, statMax, statMedian, statPoints, statCells, statMarkers, inThisView,
+    statAvg, statMax, statMedian, statPoints, statMeasurements, statCells, statMarkers, inThisView,
     recordedFromTo("12:00", "12:30"), onlyAccurateFixes(50), builtFromPoints("50 000"),
     emptyWaitingTitle, emptyWaitingBody,
     emptyNoPermissionTitle, emptyNoPermissionBody, emptyNoProviderTitle, emptyNoProviderBody,

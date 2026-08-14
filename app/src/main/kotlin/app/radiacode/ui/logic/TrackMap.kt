@@ -12,6 +12,16 @@ import kotlin.math.sqrt
 /** Metric coloring the track (SPEC «Map»: dose rate by default, CPS toggle). */
 enum class TrackMetric { DOSE, CPS }
 
+/**
+ * Чем задаются границы цвета следа.
+ *
+ * [ABSOLUTE] — обычным фоном места: одно значение всегда одного цвета, и
+ * маршруты сравнимы между собой. [ROUTE_CONTRAST] — самим маршрутом: цвет
+ * растянут по его собственным значениям, поэтому мелкие различия видны, а
+ * сравнение с другим маршрутом теряет смысл.
+ */
+enum class MapColorScale { ABSOLUTE, ROUTE_CONTRAST }
+
 /** One track point for map logic — no Room or osmdroid types (JVM-tested). */
 data class MapTrackPoint(
     val timestamp: Long,
@@ -60,29 +70,77 @@ object TrackMap {
      */
     const val MAX_RENDERED_POINTS = 2000
 
-    /** Amber dose ramp of the design language, light→dark = low→high. */
-    const val BUCKET_COUNT = 4
+    /** Ступеней в шкале следа: зелёный → багровый (`TrackRampColors`). */
+    const val RAMP_STEPS = 7
 
     /**
-     * Ramp thresholds: quartiles (P25/P50/P75) of the visible track's values.
+     * Шкала цвета следа.
      *
-     * Quantile-based, not fixed: absolute dose ranges differ by an order of
-     * magnitude between environments (0.05–0.15 µSv/h indoors vs µSv/h-scale
-     * near sources), so any fixed steps would paint a whole ordinary walk in
-     * one color. Quartiles always spread the ramp over the variation that is
-     * actually present; the legend's min/max labels give the absolute scale.
-     * A near-constant track collapses to the lightest step — honest: there is
-     * no variation to show.
+     * [bounds] — верхние границы ступеней, кроме последней (их всегда
+     * `RAMP_STEPS - 1`), [low] и [high] — то, что подписано под шкалой.
+     * Значение выше последней границы попадает в верхнюю ступень: шкала не
+     * обрывается, она насыщается.
      */
-    data class RampThresholds(val q1: Float, val q2: Float, val q3: Float)
+    data class RampScale(
+        val bounds: List<Float>,
+        val mode: MapColorScale,
+        val low: Float,
+        val high: Float,
+    )
 
-    fun rampThresholds(values: List<Float>): RampThresholds? {
+    /**
+     * Шкала по обычному фону МЕСТА — одинаковая для всех маршрутов.
+     *
+     * Опоры не выдуманы: низ — нижняя граница обычного диапазона места,
+     * перелом — его верх (P90), а верх шкалы — тот же множитель обычного,
+     * которым окрашено главное число на Главной. Отсюда следует главное
+     * свойство: одно и то же значение получает один и тот же цвет на любом
+     * маршруте, и зелёное означает «внутри обычного для этого места», а не
+     * «мало по сравнению с соседним участком».
+     *
+     * Внутри обычного диапазона — две зелёные ступени; выше — пять, от
+     * жёлто-зелёной до багровой, и багровая начинается ровно на верху шкалы.
+     */
+    fun absoluteScale(usualLow: Float, usualHigh: Float, factor: Float): RampScale? {
+        if (!usualLow.isFinite() || !usualHigh.isFinite()) return null
+        if (usualHigh <= 0f || usualHigh <= usualLow) return null
+        val ceiling = usualHigh * factor
+        if (ceiling <= usualHigh) return null
+        val step = (ceiling - usualHigh) / 4f
+        return RampScale(
+            bounds = listOf(
+                (usualLow + usualHigh) / 2f,
+                usualHigh,
+                usualHigh + step,
+                usualHigh + 2 * step,
+                usualHigh + 3 * step,
+                ceiling,
+            ),
+            mode = MapColorScale.ABSOLUTE,
+            low = usualLow,
+            high = ceiling,
+        )
+    }
+
+    /**
+     * Шкала, растянутая по самому маршруту: границы — семичастные квантили
+     * его значений.
+     *
+     * Это аналитический режим, и он назван так на экране. Растяжение находит
+     * малые пространственные различия там, где абсолютная шкала окрашивает
+     * весь маршрут одинаково, но ценой сопоставимости: маршрут 0,14–0,16
+     * получит полную шкалу до багрового, хотя ничего не происходило. Поэтому
+     * по умолчанию он не включён, а легенда всегда называет режим.
+     */
+    fun contrastScale(values: List<Float>): RampScale? {
         if (values.isEmpty()) return null
         val sorted = values.sorted()
-        return RampThresholds(
-            q1 = quantile(sorted, 0.25),
-            q2 = quantile(sorted, 0.50),
-            q3 = quantile(sorted, 0.75),
+        val bounds = (1 until RAMP_STEPS).map { quantile(sorted, it.toDouble() / RAMP_STEPS) }
+        return RampScale(
+            bounds = bounds,
+            mode = MapColorScale.ROUTE_CONTRAST,
+            low = sorted.first(),
+            high = sorted.last(),
         )
     }
 
@@ -95,12 +153,29 @@ object TrackMap {
         return sorted[lower] + (sorted[upper] - sorted[lower]) * fraction
     }
 
-    /** Ramp bucket 0..3 for a value; degenerate thresholds collapse to 0. */
-    fun bucket(value: Float, thresholds: RampThresholds): Int = when {
-        value <= thresholds.q1 -> 0
-        value <= thresholds.q2 -> 1
-        value <= thresholds.q3 -> 2
-        else -> 3
+    /**
+     * Какая шкала красит след при выбранном режиме.
+     *
+     * Абсолютная шкала требует обычного фона места: пока его нет, сравнивать
+     * не с чем, и шкала честно становится растянутой по маршруту — легенда
+     * называет режим, поэтому подмена не остаётся незамеченной.
+     */
+    fun scaleFor(
+        mode: MapColorScale,
+        usualBand: Pair<Float, Float>?,
+        factor: Float,
+        values: List<Float>,
+    ): RampScale? {
+        if (mode == MapColorScale.ABSOLUTE && usualBand != null) {
+            absoluteScale(usualBand.first, usualBand.second, factor)?.let { return it }
+        }
+        return contrastScale(values)
+    }
+
+    /** Ступень 0..[RAMP_STEPS]-1; вырожденная шкала складывается в нижнюю. */
+    fun bucket(value: Float, scale: RampScale): Int {
+        scale.bounds.forEachIndexed { index, bound -> if (value <= bound) return index }
+        return scale.bounds.size
     }
 
     fun metricValue(point: MapTrackPoint, metric: TrackMetric): Float? = when (metric) {
@@ -174,6 +249,44 @@ object TrackMap {
             }
         }
         return total
+    }
+
+    /**
+     * Разрыв следа: дольше этого без координат — линия не рисуется.
+     *
+     * Точки пишутся раз в секунду; полторы минуты без единой означают, что
+     * координат не было, а не что человек шёл по прямой. Прямая через такой
+     * пропуск — выдуманный маршрут, и она врёт тем убедительнее, чем длиннее.
+     */
+    const val LINE_GAP_SECONDS = 90L
+
+    /**
+     * И отдельно — скачок: провайдер иногда отдаёт фикс с другого конца
+     * города через секунду после предыдущего. Такой отрезок тоже не рисуется.
+     */
+    const val LINE_JUMP_METERS = 500.0
+
+    /**
+     * Где линия прерывается: `true` на индексе i означает, что отрезка от
+     * i-1 к i нет. Первая точка всегда начинает отрезок.
+     */
+    fun lineBreaks(points: List<MapTrackPoint>): BooleanArray {
+        val breaks = BooleanArray(points.size)
+        if (points.isEmpty()) return breaks
+        breaks[0] = true
+        for (index in 1 until points.size) {
+            val previous = points[index - 1]
+            val current = points[index]
+            val seconds = (current.timestamp - previous.timestamp) / 1000
+            val jump = haversineMeters(
+                previous.latitude,
+                previous.longitude,
+                current.latitude,
+                current.longitude,
+            )
+            breaks[index] = seconds > LINE_GAP_SECONDS || jump > LINE_JUMP_METERS
+        }
+        return breaks
     }
 
     private const val EARTH_RADIUS_METERS = 6_371_000.0

@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v045Title: String
+    val v045Summary: String
+
     val v044Title: String
     val v044Summary: String
 
@@ -93,6 +96,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v045Title = "След на карте — сплошная цветная линия"
+    override val v045Summary =
+        "Маршрут рисуется линией от зелёного к багровому, а не россыпью точек, " +
+        "и пропуски координат больше не соединяются выдуманной прямой. Цвет по " +
+        "умолчанию считается от обычного фона места, поэтому одно значение " +
+        "выглядит одинаково на любом маршруте; растяжение по маршруту включается " +
+        "в Настройках → Вид."
 
     override val v044Title = "Плитка «Фон» — одно число, единиц на экране нет"
     override val v044Summary =
@@ -259,6 +270,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v045Title = "The map trace is a continuous coloured line"
+    override val v045Summary =
+        "A route is drawn as a line from green to crimson instead of scattered " +
+        "dots, and gaps in the coordinates are no longer joined by an invented " +
+        "straight line. By default the colour is measured against the usual " +
+        "background of the place, so one value looks the same on any route; " +
+        "stretching it over the route is switched on in Settings → Вид."
 
     override val v044Title = "The «Фон» tile is one number, and no units on screen"
     override val v044Summary =
@@ -432,6 +451,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v045Title, v045Summary,
     v044Title, v044Summary,
     v043Title, v043Summary,
     v042Title, v042Summary,

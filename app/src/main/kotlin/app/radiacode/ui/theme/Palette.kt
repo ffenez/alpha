@@ -116,16 +116,39 @@ val LightColors = AppColors(
 val LocalAppColors = staticCompositionLocalOf { DarkColors }
 
 /**
- * Map dose ramp (design-language.md), light→dark = low→high. One ramp for
- * both themes: the amber steps hold contrast on the dark map style and on
- * positron alike, and the legend always pairs them with min/max numbers —
- * status is never color alone.
+ * Amber ramp of the spectrogram (design-language.md), light→dark = low→high.
+ * One ramp for both themes: the amber steps hold contrast on the dark chart
+ * field and on the light one alike, and the scale always pairs them with
+ * numbers — density is never color alone.
  */
 val DoseRampColors = listOf(
     Color(0xFFE8CB93),
     Color(0xFFC4831E),
     Color(0xFF8F5312),
     Color(0xFF5C300A),
+)
+
+/**
+ * Шкала следа на карте: зелёный → багровый, семь ступеней.
+ *
+ * Своя, отдельная от янтарной шкалы спектрограммы: на карте цвет означает
+ * УРОВЕНЬ относительно шкалы, названной в легенде, и последовательная шкала
+ * читается на растровых тайлах в обеих темах, чего почти одноцветная янтарная
+ * не давала — весь маршрут выходил коричневым.
+ *
+ * Верх — багровый, а НЕ алый: алый в этом приложении принадлежит тревоге
+ * (`AppColors.crit`, метки превышений), и если бы им заканчивался обычный
+ * маршрут, верх любой прогулки читался бы как авария. Цвет здесь описывает
+ * величину и ничего не обещает: что он значит, сказано числами легенды.
+ */
+val TrackRampColors = listOf(
+    Color(0xFF2E7D32),
+    Color(0xFF65A844),
+    Color(0xFFA6B83F),
+    Color(0xFFD6A62E),
+    Color(0xFFD87524),
+    Color(0xFFB83A2D),
+    Color(0xFF6F1635),
 )
 
 

@@ -631,6 +631,10 @@ object RuStrings : Strings {
     override val doseTintTitle = "Цвет числа по фону места"
     override val doseTintFactorTitle = "Багровый при"
     override fun doseTintFactorLabel(factor: String) = "×$factor"
+
+    override val mapScaleTitle = "Цвет следа"
+    override val mapScaleAbsolute = "по месту"
+    override val mapScaleContrast = "по маршруту"
     override val stateUnknown = "состояние неизвестно"
     override val stateRejected = "прибор не принял · попробуйте ещё раз"
     override val stateOnByApp = "включено этим приложением"

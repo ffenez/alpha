@@ -2,6 +2,7 @@ package app.radiacode.data
 
 import app.radiacode.ui.logic.ChartDetailMode
 import app.radiacode.ui.logic.DoseTint
+import app.radiacode.ui.logic.MapColorScale
 import app.radiacode.ui.text.RuStrings
 import app.radiacode.ui.theme.UiScale
 import app.radiacode.ui.text.Strings
@@ -283,6 +284,25 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         }
     }
 
+    /**
+     * Чем заданы границы цвета следа на карте.
+     *
+     * По умолчанию — обычным фоном места: тогда одно значение всегда одного
+     * цвета, и два маршрута можно сравнить глазами. Растяжение по самому
+     * маршруту находит малые различия, но красит прогулку 0,14–0,16 во всю
+     * шкалу до багрового, поэтому это осознанный аналитический режим, а не
+     * умолчание.
+     */
+    val mapColorScale: Flow<MapColorScale> = dataStore.data.map { preferences ->
+        preferences[MAP_COLOR_SCALE]
+            ?.let { name -> MapColorScale.entries.firstOrNull { it.name == name } }
+            ?: MapColorScale.ABSOLUTE
+    }
+
+    suspend fun setMapColorScale(scale: MapColorScale) {
+        dataStore.edit { it[MAP_COLOR_SCALE] = scale.name }
+    }
+
     val hintsVisible: Flow<Boolean> =
         dataStore.data.map { it[HINTS_VISIBLE] ?: false }
 
@@ -547,6 +567,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val HINTS_VISIBLE = booleanPreferencesKey("hints_visible")
         private val DOSE_TINT = booleanPreferencesKey("dose_tint")
         private val DOSE_TINT_FACTOR = floatPreferencesKey("dose_tint_factor")
+        private val MAP_COLOR_SCALE = stringPreferencesKey("map_color_scale")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")

@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import app.radiacode.AppGraph
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.MapTrackScope
+import app.radiacode.baseline.BaselineState
 import app.radiacode.data.db.EventEntity
 import app.radiacode.data.db.TrackPointEntity
 import app.radiacode.device.DoseUnits
@@ -65,7 +67,9 @@ import app.radiacode.ui.logic.GridCell
 import app.radiacode.ui.logic.MIN_CONFIDENT_POINTS
 import app.radiacode.ui.logic.GridStats
 import app.radiacode.ui.logic.HistoryFormat
+import app.radiacode.ui.logic.DoseTint
 import app.radiacode.ui.logic.MapBounds
+import app.radiacode.ui.logic.MapColorScale
 import app.radiacode.ui.logic.MapHotspot
 import app.radiacode.ui.logic.MapTrackPoint
 import app.radiacode.ui.logic.MapViewport
@@ -89,7 +93,7 @@ import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.MapCatalogue
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppMetrics
-import app.radiacode.ui.theme.DoseRampColors
+import app.radiacode.ui.theme.TrackRampColors
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
 import kotlinx.coroutines.Dispatchers
@@ -131,10 +135,8 @@ private data class TrackData(
 private data class RenderModel(
     /** Downsampled for rendering; every number below is from the full list. */
     val renderedPoints: List<MapTrackPoint>,
-    val thresholds: TrackMap.RampThresholds?,
+    val scale: TrackMap.RampScale?,
     val bounds: MapBounds?,
-    /** min/max of the selected metric over the full track. */
-    val range: Pair<Float, Float>?,
     val summary: TrackMap.Summary,
     val distanceMeters: Double,
 )
@@ -148,10 +150,8 @@ private data class RenderModel(
 @Immutable
 private data class GridData(
     val cells: List<GridCell>,
-    val thresholds: TrackMap.RampThresholds?,
+    val scale: TrackMap.RampScale?,
     val cellMeters: Double,
-    /** min/max of the cell medians — what the ramp legend labels. */
-    val range: Pair<Float, Float>?,
     val stats: GridStats?,
     val pointCount: Int,
     val maxValue: Float?,
@@ -166,16 +166,16 @@ private data class GridData(
 
     companion object {
         val EMPTY = GridData(
-            emptyList(), null, 0.0, null, null, 0, null, null, null, emptyList(),
+            emptyList(), null, 0.0, null, 0, null, null, null, emptyList(),
         )
     }
 }
 
 /**
- * Карта (SPEC «Map», roadmap 6): full-bleed map with the GPS track colored by
- * dose rate (CPS by toggle) on the amber ramp, hotspot markers from events,
- * tap cards with raw values, and start/stop of track recording through
- * [MeasurementService].
+ * Карта (SPEC «Map», roadmap 6): full-bleed map with the GPS track drawn as a
+ * continuous line colored by dose rate (CPS by toggle) on the green→crimson
+ * ramp, hotspot markers from events, tap cards with raw values, and start/stop
+ * of track recording through [MeasurementService].
  *
  * Two scopes ([MapTrackScope]): «эта запись» shows the recording in progress
  * (or the newest finished one), «все записи» aggregates every fix ever
@@ -203,6 +203,22 @@ fun MapScreen(graph: AppGraph) {
 
     var metricIndex by rememberSaveable { mutableIntStateOf(0) }
     val metric = if (metricIndex == 0) TrackMetric.DOSE else TrackMetric.CPS
+
+    // Чем заданы границы цвета следа и от какого «обычно здесь» они считаются.
+    val scaleMode by graph.settings.mapColorScale.collectAsState(initial = MapColorScale.ABSOLUTE)
+    val tintFactor by graph.settings.doseTintFactor
+        .collectAsState(initial = DoseTint.DEFAULT_FACTOR)
+    val baselineState by graph.serviceStatus.baseline.collectAsState()
+    val baseline = (baselineState as? BaselineState.Active)?.baseline
+    val usualBand = baseline?.let {
+        when (metric) {
+            TrackMetric.DOSE -> it.doseLowMicroSvH to it.doseHighMicroSvH
+            TrackMetric.CPS -> it.cpsLow to it.cpsHigh
+        }
+    }
+    // Счётчик тайлов — диагностика, а не интерфейс: он виден только когда
+    // человек сам включил отладочный отчёт.
+    val debugReport by graph.settings.debugReportEnabled.collectAsState(initial = false)
 
     // Which scope to draw: the stored choice, or the default for what exists.
     // A running recording overrides it in memory only — the user's stored
@@ -320,11 +336,13 @@ fun MapScreen(graph: AppGraph) {
             gridTick++
         }
     }
-    LaunchedEffect(scope, metric, viewport, gridTick) {
+    LaunchedEffect(scope, metric, viewport, gridTick, scaleMode, usualBand, tintFactor) {
         if (scope != MapTrackScope.ALL) return@LaunchedEffect
         val current = viewport ?: return@LaunchedEffect
         delay(GRID_DEBOUNCE_MILLIS)
-        grid = withContext(Dispatchers.IO) { loadGrid(graph, current, metric) }
+        grid = withContext(Dispatchers.IO) {
+            loadGrid(graph, current, metric, scaleMode, usualBand, tintFactor)
+        }
     }
 
     // First camera of the accumulated map: everywhere the user ever recorded.
@@ -365,20 +383,6 @@ fun MapScreen(graph: AppGraph) {
                 Chip(text = t.mapTitle, color = colors.ink)
             }
             Spacer(Modifier.weight(1f))
-            if (!gpsEnabled) {
-                Chip(
-                    text = t.gpsOff,
-                    color = colors.warn,
-                    dot = colors.warn,
-                    onClick = {
-                        runCatching {
-                            context.startActivity(
-                                Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS),
-                            )
-                        }
-                    },
-                )
-            }
             val d = data
             if (
                 scope == MapTrackScope.CURRENT && recording == null &&
@@ -386,6 +390,25 @@ fun MapScreen(graph: AppGraph) {
             ) {
                 Chip(text = t.lastRecording(HistoryFormat.dayTime(d.startedAt, nowMillis, s = h)))
             }
+        }
+
+        // Тонкая строка над картой, а не badge поверх неё: выключенное
+        // определение места — это не состояние карты, а причина, по которой
+        // на ней ничего не появится, и она называет действие.
+        if (hasLocation && !gpsEnabled) {
+            Chip(
+                text = t.gpsOffAction,
+                color = colors.warn,
+                dot = colors.warn,
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+            )
         }
 
         val d = data
@@ -403,6 +426,10 @@ fun MapScreen(graph: AppGraph) {
             trackWaiting = recording != null &&
                 trackLocation == ServiceStatus.TrackLocation.WAITING,
             nowMillis = nowMillis,
+            scaleMode = scaleMode,
+            usualBand = usualBand,
+            tintFactor = tintFactor,
+            showTileStats = debugReport,
             onViewport = { viewport = it },
             emptyState = {
                 val nothingDrawn = if (scope == MapTrackScope.ALL) {
@@ -416,26 +443,6 @@ fun MapScreen(graph: AppGraph) {
                         recording = recording != null,
                         hasRecordings = hasRecordings,
                         location = trackLocation,
-                    )
-                }
-            },
-            recordingChips = {
-                val active = recording
-                if (active != null) {
-                    Chip(
-                        text = t.recordingFor(
-                            HistoryFormat.duration((nowMillis - active.startedAt) / 1000, s = h),
-                        ),
-                        color = colors.ok,
-                        dot = colors.ok,
-                    )
-                    // Сколько точек уже записано. Без этого числа «идёт 12 мин»
-                    // одинаково выглядит и когда след пишется, и когда система
-                    // не даёт ни одной координаты.
-                    val written = d?.points?.size ?: 0
-                    Chip(
-                        text = t.recordedPoints(HistoryFormat.count(written)),
-                        color = if (written > 0) colors.ink2 else colors.warn,
                     )
                 }
             },
@@ -461,17 +468,43 @@ fun MapScreen(graph: AppGraph) {
             )
         }
 
+        val active = recording
         when {
             !hasLocation -> LocationPermissionCard(
                 onRequest = { permissionLauncher.launch(arrayOf(FINE_LOCATION, COARSE_LOCATION)) },
             )
-            recording != null -> AppButton(
-                text = t.stopRecording,
-                onClick = { stopTrackRecording(context) },
+            // Идущая запись сама себе строка состояния: сколько идёт и сколько
+            // точек уже записано. Число точек здесь не украшение — без него
+            // «идёт 12 мин» выглядит одинаково и когда след пишется, и когда
+            // система не отдаёт ни одной координаты.
+            active != null -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
                 modifier = Modifier.fillMaxWidth(),
-            )
+            ) {
+                val written = d?.points?.size ?: 0
+                Chip(
+                    text = t.recordingFor(
+                        HistoryFormat.duration((nowMillis - active.startedAt) / 1000, s = h),
+                    ),
+                    color = colors.ok,
+                    dot = colors.ok,
+                )
+                Chip(
+                    text = t.recordedPoints(HistoryFormat.count(written)),
+                    color = if (written > 0) colors.ink2 else colors.warn,
+                )
+                Spacer(Modifier.weight(1f))
+                AppButton(text = t.stopRecording, onClick = { stopTrackRecording(context) })
+            }
             else -> AppButton(
-                text = t.startRecording,
+                // На экране уже лежит чужой маршрут — кнопка обязана сказать,
+                // что она заводит НОВЫЙ, а не дописывает показанный.
+                text = if (d != null && d.hasTrack && d.points.isNotEmpty()) {
+                    t.startNewRecording
+                } else {
+                    t.startRecording
+                },
                 onClick = { startTrackRecording(context) },
                 primary = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -494,6 +527,19 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
 
     var metricIndex by rememberSaveable { mutableIntStateOf(0) }
     val metric = if (metricIndex == 0) TrackMetric.DOSE else TrackMetric.CPS
+
+    // Шкала здесь та же, что на карте: маршрут, открытый через неделю, обязан
+    // выглядеть так же, как выглядел, — иначе цвет ничего не значит.
+    val scaleMode by graph.settings.mapColorScale.collectAsState(initial = MapColorScale.ABSOLUTE)
+    val tintFactor by graph.settings.doseTintFactor
+        .collectAsState(initial = DoseTint.DEFAULT_FACTOR)
+    val baselineState by graph.serviceStatus.baseline.collectAsState()
+    val usualBand = (baselineState as? BaselineState.Active)?.baseline?.let {
+        when (metric) {
+            TrackMetric.DOSE -> it.doseLowMicroSvH to it.doseHighMicroSvH
+            TrackMetric.CPS -> it.cpsLow to it.cpsHigh
+        }
+    }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -592,9 +638,11 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
                 positionState = PositionState.NO_PERMISSION,
                 trackWaiting = false,
                 nowMillis = System.currentTimeMillis(),
+                scaleMode = scaleMode,
+                usualBand = usualBand,
+                tintFactor = tintFactor,
                 onViewport = {},
                 emptyState = {},
-                recordingChips = {},
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             if (d != null && d.points.isNotEmpty()) {
@@ -621,27 +669,34 @@ private fun TrackMapCard(
     /** Карточка следа уже говорит «жду первые точки» — чип тогда молчит. */
     trackWaiting: Boolean,
     nowMillis: Long,
+    /** Чем заданы границы цвета: обычным фоном места или самим маршрутом. */
+    scaleMode: MapColorScale = MapColorScale.ABSOLUTE,
+    /** «Обычно здесь» для выбранной величины; null — сравнивать не с чем. */
+    usualBand: Pair<Float, Float>? = null,
+    tintFactor: Float = DoseTint.DEFAULT_FACTOR,
+    /** Счётчик тайлов — только при включённом отладочном отчёте. */
+    showTileStats: Boolean = false,
     onViewport: (MapViewport) -> Unit,
     emptyState: @Composable () -> Unit,
-    recordingChips: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val t = MapCatalogue.of(LocalStrings.current.language)
 
-    val render = remember(data, metric) {
+    val render = remember(data, metric, scaleMode, usualBand, tintFactor) {
         val points = data?.points.orEmpty()
         val metricValues = points.mapNotNull { TrackMap.metricValue(it, metric) }
-        val thresholds = TrackMap.rampThresholds(metricValues)
         RenderModel(
             renderedPoints = TrackMap.downsample(points),
-            thresholds = thresholds,
+            scale = TrackMap.scaleFor(scaleMode, usualBand, tintFactor, metricValues),
             bounds = TrackMap.bounds(points),
-            range = TrackMap.valueRange(points, metric),
             summary = TrackMap.summary(points),
             distanceMeters = TrackMap.distanceMeters(points),
         )
+    }
+    val lineBreaks = remember(render.renderedPoints) {
+        TrackMap.lineBreaks(render.renderedPoints)
     }
 
     var tap by remember { mutableStateOf<MapTapInfo?>(null) }
@@ -660,8 +715,7 @@ private fun TrackMapCard(
     }
 
     val layerColors = MapLayerColors(
-        route = colors.ink2.toArgb(),
-        ramp = DoseRampColors.map { it.toArgb() },
+        ramp = TrackRampColors.map { it.toArgb() },
         metricMissing = colors.muted.toArgb(),
         hotspotFill = colors.crit.toArgb(),
         hotspotStroke = colors.surface.toArgb(),
@@ -676,7 +730,8 @@ private fun TrackMapCard(
             layerColors = layerColors,
             points = if (grid != null) emptyList() else render.renderedPoints,
             metric = metric,
-            thresholds = render.thresholds,
+            scale = render.scale,
+            lineBreaks = lineBreaks,
             hotspots = grid?.hotspots ?: data?.hotspots.orEmpty(),
             bounds = fitBounds,
             recenterTick = recenterTick,
@@ -685,56 +740,33 @@ private fun TrackMapCard(
             modifier = Modifier.fillMaxSize(),
             cells = grid?.cells.orEmpty(),
             cellMeters = grid?.cellMeters ?: 0.0,
-            cellThresholds = grid?.thresholds,
+            cellScale = grid?.scale,
             position = position.takeIf { MyPosition.markerVisible(positionState, position) },
             positionStale = position != null && MyPosition.isStale(position, nowMillis),
             centerOnPositionTick = followTick,
             onViewport = onViewport,
         )
 
-        // Top-left: recording state, coverage, position and tile honesty.
+        // Сверху слева — только пройденное расстояние: единственное число,
+        // которое относится к тому, что нарисовано, и меняется по мере ходьбы.
         Column(
             verticalArrangement = Arrangement.spacedBy(Dimens.space1),
             modifier = Modifier.align(Alignment.TopStart).padding(Dimens.space2),
         ) {
-            recordingChips()
             if (grid == null && render.distanceMeters > 0) {
                 Chip(text = TrackMap.formatDistance(render.distanceMeters, t))
             }
-            if (grid != null && !grid.isEmpty) {
-                Chip(
-                    text = t.pointsAndCells(
-                        HistoryFormat.count(grid.pointCount),
-                        HistoryFormat.count(grid.cells.size),
-                    ),
-                )
-            }
-            MyPosition.chipText(
-                state = positionState,
-                fix = position,
-                nowMillis = nowMillis,
-                s = t,
-                trackWaiting = trackWaiting,
-            )?.let { text ->
-                Chip(
-                    text = text,
-                    color = if (positionState == PositionState.WAITING_FIX) {
-                        colors.ink2
-                    } else {
-                        colors.dataText
-                    },
-                    dot = if (positionState == PositionState.FIXED) colors.data else null,
-                )
-            }
-            // Honest tile state, always visible: «загружаются…» while the
-            // first tiles are on their way, a count once they arrive, and a
-            // named cause when nothing ever comes.
+            // Тайлы: сам счётчик — диагностика и живёт под отладочным отчётом,
+            // но молчать о том, что карта пустая из-за сети, нельзя: в поле у
+            // человека нет логов, и серый прямоугольник обязан назвать причину.
             val hint = TileStatus.networkHint(tiles.loaded, tiles.failed, waitedMillis, t)
-            Chip(
-                text = TileStatus.line(tiles.loaded, tiles.failed, waitedMillis, t),
-                color = if (hint != null) colors.warn else colors.ink2,
-                dot = if (hint != null) colors.warn else null,
-            )
+            if (showTileStats) {
+                Chip(
+                    text = TileStatus.line(tiles.loaded, tiles.failed, waitedMillis, t),
+                    color = if (hint != null) colors.warn else colors.ink2,
+                    dot = if (hint != null) colors.warn else null,
+                )
+            }
             if (hint != null) {
                 Card(
                     background = colors.surface,
@@ -743,54 +775,92 @@ private fun TrackMapCard(
                     Text(text = hint, style = type.footnote, color = colors.warn)
                 }
             }
+            // Ожидание координат — состояние, а не украшение: пока фикса нет,
+            // это единственное объяснение неподвижной карте.
+            MyPosition.chipText(
+                state = positionState,
+                fix = position,
+                nowMillis = nowMillis,
+                s = t,
+                trackWaiting = trackWaiting,
+            )?.takeIf { positionState == PositionState.WAITING_FIX }?.let { text ->
+                Chip(text = text, color = colors.ink2)
+            }
         }
 
-        // Top-right: back to the track, or to the user.
+        // Снизу слева — камера. Два разных действия, две разные иконки: одна
+        // ведёт к человеку, вторая показывает нарисованное целиком, и подменять
+        // друг друга они не имеют права.
         Column(
-            horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(Dimens.space1),
-            modifier = Modifier.align(Alignment.TopEnd).padding(Dimens.space2),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                // Снизу слева стоит указание авторства OpenStreetMap — это
+                // условие лицензии тайлов, а не подпись, которую можно закрыть
+                // кнопкой. Отступ оставляет её видимой.
+                .padding(start = Dimens.space2, end = Dimens.space2, bottom = ATTRIBUTION_SPACE),
         ) {
+            val fitBoundsAvailable = if (grid != null) initialBounds != null else render.bounds != null
+            if (fitBoundsAvailable) {
+                MapIconButton(
+                    glyph = FIT_GLYPH,
+                    description = if (grid != null) t.centerOnAll else t.centerOnRoute,
+                    onClick = { recenterTick++ },
+                )
+            }
             if (MyPosition.markerVisible(positionState, position)) {
-                Chip(text = t.centerOnMe, onClick = { followTick++ })
-            }
-            if (grid == null && render.bounds != null) {
-                Chip(text = t.centerOnRoute, onClick = { recenterTick++ })
-            }
-            if (grid != null && initialBounds != null) {
-                Chip(text = t.centerOnAll, onClick = { recenterTick++ })
+                MapIconButton(
+                    glyph = POSITION_GLYPH,
+                    description = t.centerOnMe,
+                    onClick = { followTick++ },
+                    tint = colors.dataText,
+                )
             }
         }
 
-        // Bottom-right: metric toggle over the ramp legend.
+        // Снизу справа — что показано и что означает цвет.
         Column(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(Dimens.space1),
             modifier = Modifier.align(Alignment.BottomEnd).padding(Dimens.space2),
         ) {
+            val scale = if (grid != null) grid.scale else render.scale
+            scale?.let {
+                LegendBar(
+                    minLabel = legendLabel(it.low, metric, unit),
+                    maxLabel = legendLabel(it.high, metric, unit) + " " +
+                        metricUnitLabel(metric, unit),
+                    // Легенда называет РЕЖИМ: одно и то же значение красится
+                    // по-разному в абсолютной шкале и в растянутой, и человек
+                    // обязан знать, какую из двух он сейчас читает.
+                    caption = listOfNotNull(
+                        when (it.mode) {
+                            MapColorScale.ABSOLUTE -> t.scaleAbsolute
+                            MapColorScale.ROUTE_CONTRAST -> t.scaleContrast
+                        },
+                        grid?.let { data ->
+                            val sparse = data.cells.count { cell ->
+                                cell.count < MIN_CONFIDENT_POINTS
+                            }
+                            listOfNotNull(
+                                t.cellSize(TrackGrid.formatCellSize(data.cellMeters, t)),
+                                t.median,
+                                if (sparse > 0) {
+                                    t.paleCells(sparse, MIN_CONFIDENT_POINTS)
+                                } else {
+                                    null
+                                },
+                            ).joinToString(" · ")
+                        },
+                    ).joinToString(" · "),
+                )
+            }
             Segmented(
                 options = listOf(t.metricDose, t.metricCps),
                 selectedIndex = metricIndex,
                 onSelect = onMetricSelect,
-                modifier = Modifier.width(150.dp),
+                modifier = Modifier.width(METRIC_TOGGLE_WIDTH),
             )
-            val legendRange = if (grid != null) grid.range else render.range
-            legendRange?.let { (min, max) ->
-                LegendBar(
-                    minLabel = legendLabel(min, metric, unit),
-                    maxLabel = legendLabel(max, metric, unit),
-                    // A cell is an area statement, so the legend says what one
-                    // cell means before its colors mean anything.
-                    caption = grid?.let {
-                        val sparse = it.cells.count { cell -> cell.count < MIN_CONFIDENT_POINTS }
-                        listOfNotNull(
-                            t.cellSize(TrackGrid.formatCellSize(it.cellMeters, t)),
-                            t.median,
-                            if (sparse > 0) t.paleCells(sparse, MIN_CONFIDENT_POINTS) else null,
-                        ).joinToString(" · ")
-                    },
-                )
-            }
         }
 
         // Empty state teaches the first action (design language).
@@ -812,7 +882,43 @@ private fun TrackMapCard(
     }
 }
 
-/** Ramp swatches with the honest min/max of what is drawn. */
+/** «Показать целиком» и «я здесь» — разные глифы, разные действия. */
+private const val FIT_GLYPH = "⤢"
+private const val POSITION_GLYPH = "⌖"
+
+/** Место под указание авторства OSM в нижнем левом углу карты. */
+private val ATTRIBUTION_SPACE = 22.dp
+
+/** Переключатель величины: по содержимому, а не во всю ширину карты. */
+private val METRIC_TOGGLE_WIDTH = 132.dp
+
+/**
+ * Круглая кнопка поверх карты: глиф маленький, цель нажатия — обычного
+ * мобильного размера. Подпись остаётся только для доступности: текст рядом с
+ * иконкой отъедал бы карту ради слова, которое иконка уже сказала.
+ */
+@Composable
+private fun MapIconButton(
+    glyph: String,
+    description: String,
+    onClick: () -> Unit,
+    tint: androidx.compose.ui.graphics.Color? = null,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(colors.surface)
+            .clickable(onClickLabel = description, onClick = onClick),
+    ) {
+        Text(text = glyph, style = type.value, color = tint ?: colors.ink)
+    }
+}
+
+/** Ramp swatches with the honest bounds of the scale that is drawn. */
 @Composable
 private fun LegendBar(minLabel: String, maxLabel: String, caption: String? = null) {
     val colors = LocalAppColors.current
@@ -830,21 +936,27 @@ private fun LegendBar(minLabel: String, maxLabel: String, caption: String? = nul
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(text = minLabel, style = type.axis, color = colors.ink2)
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                DoseRampColors.forEach { step ->
-                    Box(
-                        Modifier
-                            .size(width = 14.dp, height = 8.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(step),
-                    )
+            // Ступени вплотную: это одна шкала, а не набор образцов.
+            Row {
+                TrackRampColors.forEach { step ->
+                    Box(Modifier.size(width = 10.dp, height = 8.dp).background(step))
                 }
             }
             Text(text = maxLabel, style = type.axis, color = colors.ink2)
         }
-        caption?.let {
+        caption?.takeIf { it.isNotBlank() }?.let {
             Text(text = it, style = type.footnote, color = colors.muted)
         }
+    }
+}
+
+/** Единица шкалы: у двух величин она разная, и легенда обязана её назвать. */
+@Composable
+private fun metricUnitLabel(metric: TrackMetric, unit: DoseUnitSetting): String {
+    val strings = LocalStrings.current
+    return when (metric) {
+        TrackMetric.DOSE -> DoseFormat.rateUnitLabel(unit, s = strings)
+        TrackMetric.CPS -> MapCatalogue.of(strings.language).unitCps
     }
 }
 
@@ -1021,7 +1133,7 @@ private fun RouteSummaryCard(data: TrackData, unit: DoseUnitSetting, title: Stri
                 )
             }
             StatGrid(
-                cells = listOf(
+                cells = listOfNotNull(
                     StatCell(
                         summary.avgDoseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
                         t.statAvg,
@@ -1030,8 +1142,15 @@ private fun RouteSummaryCard(data: TrackData, unit: DoseUnitSetting, title: Stri
                         summary.maxDoseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
                         t.statMax,
                     ),
-                    StatCell(HistoryFormat.count(summary.pointCount), t.statPoints),
-                    StatCell(HistoryFormat.count(data.hotspots.size), t.statMarkers),
+                    // «Измерений», а не «точек»: географическая точка и
+                    // радиометрическое измерение — разные вещи, а число здесь
+                    // считает именно измерения вдоль маршрута.
+                    StatCell(HistoryFormat.count(summary.pointCount), t.statMeasurements),
+                    // «0 меток» — не факт о маршруте, а пустое место в сетке:
+                    // клетка появляется, когда есть первая метка.
+                    data.hotspots.size.takeIf { it > 0 }?.let {
+                        StatCell(HistoryFormat.count(it), t.statMarkers)
+                    },
                 ),
             )
         }
@@ -1249,6 +1368,9 @@ private suspend fun loadGrid(
     graph: AppGraph,
     viewport: MapViewport,
     metric: TrackMetric,
+    scaleMode: MapColorScale,
+    usualBand: Pair<Float, Float>?,
+    tintFactor: Float,
 ): GridData {
     val query = TrackGrid.query(viewport)
     val useDose = metric == TrackMetric.DOSE
@@ -1297,9 +1419,8 @@ private suspend fun loadGrid(
     val medians = cells.map { it.median }
     return GridData(
         cells = cells,
-        thresholds = TrackMap.rampThresholds(medians),
+        scale = TrackMap.scaleFor(scaleMode, usualBand, tintFactor, medians),
         cellMeters = query.cellMeters,
-        range = medians.minOrNull()?.let { min -> min to (medians.maxOrNull() ?: min) },
         stats = if (histogram.isEmpty()) null else TrackGrid.stats(histogram),
         pointCount = summary.valueCount,
         maxValue = maxValue * factor,

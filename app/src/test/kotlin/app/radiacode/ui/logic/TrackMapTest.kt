@@ -23,58 +23,179 @@ private fun point(
     cps = cps,
 )
 
-class RampThresholdsTest {
+class RampScaleTest {
 
+    /**
+     * Главное свойство абсолютной шкалы: её границы не зависят от маршрута.
+     * Поэтому одно и то же значение красится одинаково и в прогулке по двору,
+     * и в поездке — иначе цвет нельзя было бы сравнивать вообще ни с чем.
+     */
     @Test
-    fun `quartiles of a uniform ramp`() {
-        val values = (1..9).map { it.toFloat() } // 1..9
-        val t = TrackMap.rampThresholds(values)
-        assertNotNull(t)
-        assertEquals(3f, t.q1)
-        assertEquals(5f, t.q2)
-        assertEquals(7f, t.q3)
+    fun `the absolute scale does not depend on what was measured`() {
+        val scale = TrackMap.absoluteScale(usualLow = 0.09f, usualHigh = 0.14f, factor = 2f)
+        assertNotNull(scale)
+        assertEquals(MapColorScale.ABSOLUTE, scale.mode)
+        assertEquals(TrackMap.RAMP_STEPS - 1, scale.bounds.size)
+        // Внутри обычного диапазона — только зелёные ступени.
+        assertEquals(0, TrackMap.bucket(0.09f, scale))
+        assertEquals(1, TrackMap.bucket(0.14f, scale))
+        // Выше обычного цвет уходит вверх, а на верху шкалы — багровый.
+        assertTrue(TrackMap.bucket(0.16f, scale) >= 2)
+        assertEquals(TrackMap.RAMP_STEPS - 1, TrackMap.bucket(0.29f, scale))
+        assertEquals(TrackMap.RAMP_STEPS - 1, TrackMap.bucket(3f, scale))
+        assertEquals(0.09f, scale.low)
+        assertEquals(0.28f, scale.high)
+    }
+
+    /** Множитель человека двигает ВЕРХ шкалы, а не её смысл. */
+    @Test
+    fun `the ceiling follows the multiplier`() {
+        val gentle = TrackMap.absoluteScale(0.09f, 0.14f, factor = 3f)
+        assertNotNull(gentle)
+        assertEquals(0.42f, gentle.high, 1e-4f)
+        // То же значение при более далёком верхе — ступенью ниже.
+        val strict = TrackMap.absoluteScale(0.09f, 0.14f, factor = 1.5f)
+        assertNotNull(strict)
+        assertTrue(TrackMap.bucket(0.20f, gentle) < TrackMap.bucket(0.20f, strict))
     }
 
     @Test
-    fun `interpolates between ranks`() {
-        val t = TrackMap.rampThresholds(listOf(0f, 1f)) // positions 0.25, 0.5, 0.75
-        assertNotNull(t)
-        assertEquals(0.25f, t.q1)
-        assertEquals(0.5f, t.q2)
-        assertEquals(0.75f, t.q3)
+    fun `a degenerate band has no absolute scale`() {
+        assertNull(TrackMap.absoluteScale(0.14f, 0.14f, 2f))
+        assertNull(TrackMap.absoluteScale(0.20f, 0.14f, 2f))
+        assertNull(TrackMap.absoluteScale(0f, 0f, 2f))
+        assertNull(TrackMap.absoluteScale(Float.NaN, 0.14f, 2f))
+    }
+
+    /** Растяжение по маршруту: границы — семичастные квантили его значений. */
+    @Test
+    fun `the route contrast spreads the ramp over the route itself`() {
+        val values = (1..7).map { it.toFloat() }
+        val scale = TrackMap.contrastScale(values)
+        assertNotNull(scale)
+        assertEquals(MapColorScale.ROUTE_CONTRAST, scale.mode)
+        assertEquals(1f, scale.low)
+        assertEquals(7f, scale.high)
+        assertEquals(0, TrackMap.bucket(1f, scale))
+        assertEquals(TrackMap.RAMP_STEPS - 1, TrackMap.bucket(7f, scale))
+        // Порядок на входе не важен — считается по отсортированным.
+        assertEquals(scale, TrackMap.contrastScale(values.reversed()))
     }
 
     @Test
-    fun `empty values give no thresholds`() {
-        assertNull(TrackMap.rampThresholds(emptyList()))
+    fun `empty values give no scale`() {
+        assertNull(TrackMap.contrastScale(emptyList()))
     }
 
+    /**
+     * Ровный маршрут складывается в нижнюю ступень и в растянутом режиме:
+     * показывать разброс там, где его нет, значило бы рисовать событие.
+     */
     @Test
-    fun `unsorted input is handled`() {
-        val t = TrackMap.rampThresholds(listOf(9f, 1f, 5f, 3f, 7f))
-        assertNotNull(t)
-        assertEquals(3f, t.q1)
-        assertEquals(5f, t.q2)
-        assertEquals(7f, t.q3)
+    fun `a near-constant track collapses to the lowest step`() {
+        val scale = TrackMap.contrastScale(List(50) { 0.11f })
+        assertNotNull(scale)
+        assertEquals(0, TrackMap.bucket(0.11f, scale))
     }
 
     @Test
     fun `bucket edges are inclusive on the low side`() {
-        val t = TrackMap.RampThresholds(q1 = 1f, q2 = 2f, q3 = 3f)
-        assertEquals(0, TrackMap.bucket(0.5f, t))
-        assertEquals(0, TrackMap.bucket(1f, t))
-        assertEquals(1, TrackMap.bucket(1.5f, t))
-        assertEquals(1, TrackMap.bucket(2f, t))
-        assertEquals(2, TrackMap.bucket(2.5f, t))
-        assertEquals(2, TrackMap.bucket(3f, t))
-        assertEquals(3, TrackMap.bucket(3.1f, t))
+        val scale = TrackMap.RampScale(
+            bounds = listOf(1f, 2f, 3f, 4f, 5f, 6f),
+            mode = MapColorScale.ROUTE_CONTRAST,
+            low = 0f,
+            high = 7f,
+        )
+        assertEquals(0, TrackMap.bucket(1f, scale))
+        assertEquals(1, TrackMap.bucket(1.5f, scale))
+        assertEquals(5, TrackMap.bucket(6f, scale))
+        assertEquals(6, TrackMap.bucket(6.1f, scale))
+    }
+}
+
+class ScaleChoiceTest {
+
+    private val values = listOf(0.10f, 0.12f, 0.14f, 0.30f)
+
+    @Test
+    fun `the chosen mode decides, and the place band is what absolute needs`() {
+        val absolute = TrackMap.scaleFor(
+            MapColorScale.ABSOLUTE,
+            usualBand = 0.09f to 0.14f,
+            factor = 2f,
+            values = values,
+        )
+        assertNotNull(absolute)
+        assertEquals(MapColorScale.ABSOLUTE, absolute.mode)
+
+        val contrast = TrackMap.scaleFor(
+            MapColorScale.ROUTE_CONTRAST,
+            usualBand = 0.09f to 0.14f,
+            factor = 2f,
+            values = values,
+        )
+        assertNotNull(contrast)
+        assertEquals(MapColorScale.ROUTE_CONTRAST, contrast.mode)
+    }
+
+    /**
+     * Без обычного фона места абсолютная шкала не на чём держится, и
+     * приложение не выдумывает опоры: оно переходит к растяжению и говорит об
+     * этом режимом в легенде.
+     */
+    @Test
+    fun `without a place band the absolute mode falls back and says so`() {
+        val scale = TrackMap.scaleFor(
+            MapColorScale.ABSOLUTE,
+            usualBand = null,
+            factor = 2f,
+            values = values,
+        )
+        assertNotNull(scale)
+        assertEquals(MapColorScale.ROUTE_CONTRAST, scale.mode)
     }
 
     @Test
-    fun `near-constant track collapses to the lightest bucket`() {
-        val t = TrackMap.rampThresholds(List(50) { 0.11f })
-        assertNotNull(t)
-        assertEquals(0, TrackMap.bucket(0.11f, t))
+    fun `nothing measured, nothing to colour`() {
+        assertNull(TrackMap.scaleFor(MapColorScale.ABSOLUTE, null, 2f, emptyList()))
+    }
+}
+
+/**
+ * Пропуск координат не соединяется прямой: линия через дыру утверждает, что
+ * человек прошёл именно так, а этого никто не измерял.
+ */
+class LineBreaksTest {
+
+    @Test
+    fun `a continuous walk has no breaks except its start`() {
+        val points = (0..5).map { point(timestamp = it * 1_000L, lat = 55.0 + it * 0.0001) }
+        val breaks = TrackMap.lineBreaks(points)
+        assertTrue(breaks[0])
+        assertTrue(breaks.drop(1).none { it })
+    }
+
+    @Test
+    fun `a long silence breaks the line`() {
+        val points = listOf(
+            point(timestamp = 0L),
+            point(timestamp = (TrackMap.LINE_GAP_SECONDS + 1) * 1_000L, lat = 55.001),
+        )
+        assertTrue(TrackMap.lineBreaks(points)[1])
+    }
+
+    @Test
+    fun `a teleport breaks the line even without a time gap`() {
+        val points = listOf(
+            point(timestamp = 0L, lat = 55.0),
+            point(timestamp = 1_000L, lat = 55.1),
+        )
+        assertTrue(TrackMap.lineBreaks(points)[1])
+    }
+
+    @Test
+    fun `no points, no breaks`() {
+        assertEquals(0, TrackMap.lineBreaks(emptyList()).size)
     }
 }
 
