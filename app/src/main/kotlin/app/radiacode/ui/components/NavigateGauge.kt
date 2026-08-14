@@ -51,11 +51,22 @@ data class NavigateGaugeSpec(
     /** Half-span of the scale: the ends are ×factor and ×1/factor. */
     val factor: Double,
     val trend: NavigateTrend,
-    /** «отсчёт» — a mark without a name is a scratch on the glass. */
+    /** «1×» — a mark without a name is a scratch on the glass. */
     val referenceLabel: String,
-    /** End labels, e.g. «×0,25» and «×4». */
+    /** End labels, e.g. «0,25×» and «4×». */
     val lowLabel: String,
     val highLabel: String,
+    /**
+     * Смысловая строка под числами: «слабее — отсчёт — сильнее».
+     *
+     * Числа говорят, во сколько раз, и молчат о том, что это значит для
+     * человека, который сейчас переставляет прибор. Слово под числом и есть
+     * ответ, и оно же делает середину шкалы главной отметкой: ×1 — не «одна из
+     * засечек», а то место, откуда пошли. Null — строки нет.
+     */
+    val lowCaption: String? = null,
+    val referenceCaption: String? = null,
+    val highCaption: String? = null,
 )
 
 /**
@@ -103,8 +114,12 @@ fun NavigateGauge(
         val border = metrics.border.toPx()
         val padding = 10.dp.toPx()
         val labelHeight = textMeasurer.measure("0", axisStyle).size.height.toFloat()
+        val captions = spec.lowCaption != null ||
+            spec.referenceCaption != null ||
+            spec.highCaption != null
+        val labelRows = if (captions) 2f else 1f
         // The 60° cap is `radius` wide and `radius·(1 − cos 30°)` tall.
-        val vertical = size.height - labelHeight - 3f * padding
+        val vertical = size.height - labelRows * labelHeight - 3f * padding
         val radius = minOf(size.width - 2f * padding, vertical / SAGITTA)
         if (radius <= 0f) return@Canvas
         val centerX = size.width / 2f
@@ -185,33 +200,72 @@ fun NavigateGauge(
             )
         }
 
-        // The needle, drawn last so nothing crosses it.
+        // The needle, drawn last so nothing crosses it. Line and head are ONE
+        // pointer: the estimate has to read as a single thing against the
+        // shaded interval it sits in and against the ×1 tick it is measured
+        // from. The held maximum keeps its own smaller mark further in, so the
+        // two can never be taken for each other.
         spec.ratio?.let { ratio ->
+            val angle = NavigateArc.angleDegrees(ratio, spec.factor)
             radial(
-                angleDegrees = NavigateArc.angleDegrees(ratio, spec.factor),
+                angleDegrees = angle,
                 from = radius - 30.dp.toPx(),
                 to = radius + 4.dp.toPx(),
                 color = needleColor,
                 width = border * 3f,
             )
+            val head = 6.dp.toPx()
+            val apex = point(angle, radius + 4.dp.toPx())
+            val left = point(angle - 3.2f, radius - head)
+            val right = point(angle + 3.2f, radius - head)
+            drawPath(
+                path = Path().apply {
+                    moveTo(apex.x, apex.y)
+                    lineTo(left.x, left.y)
+                    lineTo(right.x, right.y)
+                    close()
+                },
+                color = needleColor,
+            )
         }
 
-        // Bottom row: both ends of the scale and the name of its centre.
-        val baseline = size.height - labelHeight - padding / 2f
-        val low = textMeasurer.measure(spec.lowLabel, axisStyle)
-        drawText(low, color = colors.muted, topLeft = Offset(padding, baseline))
-        val high = textMeasurer.measure(spec.highLabel, axisStyle)
-        drawText(
-            textLayoutResult = high,
-            color = colors.muted,
-            topLeft = Offset(size.width - high.size.width - padding, baseline),
-        )
-        val middle = textMeasurer.measure(spec.referenceLabel, axisStyle)
-        drawText(
-            textLayoutResult = middle,
-            color = colors.ink2,
-            topLeft = Offset(centerX - middle.size.width / 2f, baseline),
-        )
+        // Bottom rows: both ends of the scale, the name of its centre, and —
+        // under the numbers — what each end means for the person walking.
+        val captionBaseline = size.height - labelHeight - padding / 2f
+        val baseline = captionBaseline - (labelRows - 1f) * labelHeight
+
+        fun row(low: String?, middle: String?, high: String?, y: Float, color: Color) {
+            low?.let {
+                drawText(textMeasurer.measure(it, axisStyle), color = color, topLeft = Offset(padding, y))
+            }
+            high?.let {
+                val measured = textMeasurer.measure(it, axisStyle)
+                drawText(
+                    textLayoutResult = measured,
+                    color = color,
+                    topLeft = Offset(size.width - measured.size.width - padding, y),
+                )
+            }
+            middle?.let {
+                val measured = textMeasurer.measure(it, axisStyle)
+                drawText(
+                    textLayoutResult = measured,
+                    color = if (color == colors.muted) colors.ink2 else color,
+                    topLeft = Offset(centerX - measured.size.width / 2f, y),
+                )
+            }
+        }
+
+        row(spec.lowLabel, spec.referenceLabel, spec.highLabel, baseline, colors.muted)
+        if (captions) {
+            row(
+                spec.lowCaption,
+                spec.referenceCaption,
+                spec.highCaption,
+                captionBaseline,
+                colors.muted,
+            )
+        }
     }
 }
 

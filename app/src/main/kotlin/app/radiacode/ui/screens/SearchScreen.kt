@@ -172,10 +172,11 @@ fun SearchScreen(
     // clocks is what turns «сейчас» into that base. Recomputed on every reading.
     var deviceClockOffset by remember { mutableLongStateOf(0L) }
     var whyOpen by remember { mutableStateOf(false) }
-    // Карточка «i»: свёрнута по умолчанию — она объясняет экран, а не измеряет.
-    // «Наведение» держит своё состояние здесь, а не внутри секции: переключение
-    // режима не должно стирать точку отсчёта и зафиксированный максимум.
-    var navigate by remember { mutableStateOf(NavigateState()) }
+    // «Наведение» держит своё состояние в графе, а не в композиции: точку
+    // отсчёта ставит человек, и уход на другую вкладку не имеет права её
+    // отменить — раньше она молча пропадала вместе с экраном.
+    val navigateSession = graph.navigateSession
+    var navigate by navigateSession::state
 
     // --- Geiger-style feedback: foreground-only, this screen only ---
     val clicker = remember { GeigerClicker(context) }

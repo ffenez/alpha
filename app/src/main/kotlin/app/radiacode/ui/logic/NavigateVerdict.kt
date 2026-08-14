@@ -18,6 +18,16 @@ import kotlin.math.roundToInt
  */
 object NavigateVerdict {
 
+    /**
+     * Состояние и величина ОДНОЙ строкой: «→ Без заметного изменения · 1,01×».
+     *
+     * Раньше это были две строки под большим числом — сначала состояние,
+     * потом отношение, — и карточка занимала треть экрана, отвечая на один
+     * вопрос: какой сейчас счёт.
+     */
+    fun trendLine(state: NavigateState, t: SearchStrings = SearchRu): String =
+        t.navTrendLine(trendLabel(state.trend, t), localRatio(state.trendComparison, t))
+
     /** The one line under the big number. */
     fun trendLabel(trend: NavigateTrend, t: SearchStrings = SearchRu): String = when (trend) {
         NavigateTrend.COLLECTING -> t.navTrendCollecting
@@ -42,11 +52,14 @@ object NavigateVerdict {
     }
 
     /**
-     * «×1,00 к локальному уровню» — the one ratio the main card shows.
+     * «1,00× к недавнему уровню» — the one ratio the main card shows.
      *
      * The denominator is named **in the same string** as the number: a bare
-     * «×1,00» would be a ratio to nothing in particular, and the local level is
-     * not the profile's фон.
+     * «1,00×» would be a ratio to nothing in particular. It is called «недавний
+     * уровень» and not «локальный»: the word has to say that this level is
+     * computed by the app from the seconds just before, which is a different
+     * thing from the точка отсчёта the operator froze by hand — and the screen
+     * shows both.
      */
     fun localRatio(comparison: RateComparisonResult?, t: SearchStrings = SearchRu): String? {
         if (comparison == null || comparison.test == RateTest.NONE) return null
@@ -73,18 +86,27 @@ object NavigateVerdict {
     }
 
     /**
-     * The **one** big number of the guidance module: a percentage, or a dash.
+     * The **one** big number of the guidance module: how many times the current
+     * rate differs from the точка отсчёта.
      *
-     * A dash is not a missing value here, it is the answer: until the exact
-     * test resolves a difference from the точка отсчёта there is no percentage
-     * that would be true, and [deltaCaption] says which of the four reasons
-     * applies.
+     * It is the ratio and not a percentage of change, and it is shown even
+     * before the test resolves a difference — with the direction line saying
+     * «Разница пока не подтверждена» above it. Those are two different
+     * statements: the number is the estimate the windows produced, the line is
+     * whether it may be relied on. The percentage stays out of the working
+     * screen entirely and lives in «Почему такой вывод», where it appears only
+     * once the test has resolved the difference: «+31 %» that cannot be told
+     * from noise is worse than no number at all.
      */
-    fun deltaHeadline(delta: ReferenceDelta, t: SearchStrings = SearchRu): String =
-        when (delta) {
-            is ReferenceDelta.Resolved -> "${signed(delta.percent)} %"
-            else -> t.navDeltaDash
-        }
+    fun ratioHeadline(state: NavigateState, t: SearchStrings = SearchRu): String {
+        val ratio = state.referenceRatio ?: return t.navDeltaDash
+        if (!ratio.isFinite() || ratio <= 0.0) return t.navDeltaDash
+        return "${num2(ratio)}×"
+    }
+
+    /** «+31 %» — only once the exact test resolved a difference; else null. */
+    fun percentLabel(delta: ReferenceDelta): String? =
+        (delta as? ReferenceDelta.Resolved)?.let { "${signed(it.percent)} %" }
 
     /**
      * The direction line of the guidance module — **against the точка
@@ -103,14 +125,90 @@ object NavigateVerdict {
             is ReferenceDelta.Resolved -> if (delta.percent >= 0) t.navRefAbove else t.navRefBelow
         }
 
-    /** The quiet line under [deltaHeadline]: the denominator, or the reason. */
-    fun deltaCaption(delta: ReferenceDelta, t: SearchStrings = SearchRu): String = when (delta) {
-        ReferenceDelta.NoReference -> t.navDeltaCaptionNoReference
+    /**
+     * The quiet line under the big number: **the denominator by name and by
+     * value**, or the reason there is no comparison yet.
+     *
+     * «к точке отсчёта 25,1» — a ratio whose denominator is not on the screen
+     * is a ratio to nothing in particular, and the reference is the one number
+     * on this screen the operator chose themselves.
+     */
+    fun deltaCaption(
+        state: NavigateState,
+        delta: ReferenceDelta,
+        t: SearchStrings = SearchRu,
+    ): String = when (delta) {
+        ReferenceDelta.NoReference -> t.navRefNone
         ReferenceDelta.Collecting -> t.navDeltaCaptionCollecting
-        is ReferenceDelta.Unresolved ->
-            t.navDeltaCaptionUnresolved(num2(delta.low), num2(delta.high))
+        else -> state.reference
+            ?.let { t.navRefBase(num1(it.ratePerSecond)) }
+            ?: t.navDeltaCaptionCollecting
+    }
 
-        is ReferenceDelta.Resolved -> t.navDeltaCaptionResolved(num2(delta.ratio))
+    /**
+     * Что происходит, пока разница не подтверждена — одной фразой без чисел.
+     *
+     * Числа этой фразы (интервал и то, что он накрывает 1×) стоят в «Почему
+     * такой вывод»: на рабочем экране они были главной строкой, хотя человек
+     * в этот момент несёт прибор, а не разбирает статистику.
+     */
+    fun unresolvedNote(delta: ReferenceDelta, t: SearchStrings = SearchRu): String? =
+        (delta as? ReferenceDelta.Unresolved)?.let { t.navUnresolvedNote }
+
+    /**
+     * Разбор вывода наведения — то, что раньше стояло на рабочем экране.
+     *
+     * Порядок отвечает на вопрос, с которым сюда приходят: **что сейчас → с
+     * чем сравнивается → во сколько раз → насколько это надёжно → на чём
+     * посчитано**. Ни одно число не потеряно при уборке экрана; исчезло только
+     * требование разбирать статистику, стоя с прибором в руке.
+     */
+    fun whyLines(
+        state: NavigateState,
+        delta: ReferenceDelta,
+        cps: Float?,
+        t: SearchStrings = SearchRu,
+    ): List<WhyLine> {
+        val lines = mutableListOf<WhyLine>()
+        if (cps != null) lines += WhyLine(t.navWhyNow, num1(cps.toDouble()))
+        state.reference?.let { lines += WhyLine(t.navWhyReference, num1(it.ratePerSecond)) }
+        state.referenceRatio?.takeIf { it.isFinite() && it > 0.0 }?.let {
+            lines += WhyLine(t.navWhyRatio, "${num2(it)}×")
+        }
+        val comparison = state.referenceComparison
+        if (comparison != null &&
+            comparison.ratioLow.isFinite() &&
+            comparison.ratioHigh.isFinite()
+        ) {
+            lines += WhyLine(
+                label = t.navWhyInterval,
+                value = "${num2(comparison.ratioLow)}–${num2(comparison.ratioHigh)}×",
+                note = if (delta is ReferenceDelta.Unresolved) t.navWhyIntervalNote else null,
+            )
+        }
+        // Процент печатается ТОЛЬКО когда тест разрешил различие: «+31 %»,
+        // неотличимое от шума, хуже отсутствия числа.
+        percentLabel(delta)?.let { lines += WhyLine(t.navWhyDifference, it) }
+        state.local?.ratePerSecond?.let {
+            lines += WhyLine(t.navWhyRecent, num1(it), note = t.navWhyRecentNote)
+        }
+        windowsNote(state, t)?.let { lines += WhyLine(t.navWhyWindows, it) }
+        lines += WhyLine(
+            label = t.navWhyCriterion,
+            value = t.navWhyCriterionValue(percentOfAlpha()),
+            note = t.navWhyCriterionNote,
+        )
+        return lines
+    }
+
+    /** α как процент — «1» для 0,01: порог называется числом, а не словом. */
+    private fun percentOfAlpha(): String {
+        val percent = NavigateEngine.ALPHA * 100.0
+        return if (percent >= 1.0) {
+            String.format(Locale.US, "%.0f", percent)
+        } else {
+            String.format(Locale.US, "%.1f", percent).replace('.', ',')
+        }
     }
 
     /**

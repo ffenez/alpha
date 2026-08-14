@@ -8,6 +8,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -23,10 +24,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.NavigateGauge
 import app.radiacode.ui.components.NavigateGaugeSpec
 import app.radiacode.ui.components.NavigateTrace
 import app.radiacode.ui.components.NavigateTraceSpec
+import app.radiacode.ui.components.NavigateWhySheet
 import app.radiacode.ui.components.StatusRow
 import app.radiacode.ui.logic.NavigateArc
 import app.radiacode.ui.logic.NavigateEngine
@@ -84,6 +87,7 @@ fun NavigateSection(
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     var moreOpen by remember { mutableStateOf(false) }
+    var whyOpen by remember { mutableStateOf(false) }
 
     val trendColor = when (state.trend) {
         NavigateTrend.RISING -> colors.warn
@@ -108,8 +112,17 @@ fun NavigateSection(
         ?.takeIf { it.ratioLow.isFinite() && it.ratioHigh.isFinite() }
         ?.let { (it.confidenceLevel * 100).roundToInt() }
 
+    if (whyOpen) {
+        NavigateWhySheet(
+            headline = NavigateVerdict.referenceDirection(delta, t),
+            explanation = NavigateVerdict.unresolvedNote(delta, t),
+            lines = NavigateVerdict.whyLines(state, delta, cps, t),
+            onDismiss = { whyOpen = false },
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
-        Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space4) {
+        Card(modifier = Modifier.fillMaxWidth()) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth(),
@@ -126,30 +139,24 @@ fun NavigateSection(
                     color = if (cps != null) colors.ink else colors.muted,
                     textAlign = TextAlign.Center,
                 )
-
+                // Состояние и величина ОДНОЙ строкой. Их было две, между ними
+                // стоял отступ, и карточка занимала треть экрана ради ответа
+                // на один вопрос — какой сейчас счёт. Знаменатель по-прежнему
+                // назван в самой строке: «недавний уровень» это то, что
+                // приложение считает само, и он НЕ точка отсчёта.
                 StatusRow(
-                    text = NavigateVerdict.trendLabel(state.trend, t),
+                    text = NavigateVerdict.trendLine(state, t),
                     color = trendColor,
-                    modifier = Modifier.padding(top = Dimens.space2),
                 )
-                // Одно отношение с интервалом — и знаменатель назван в той же
-                // строке. Окна решения уехали под «i»: они описывают алгоритм,
-                // а карточка отвечает на вопрос «какой сейчас счёт».
-                NavigateVerdict.localRatio(state.trendComparison, t)?.let {
-                    Text(text = it, style = type.value, color = trendColor)
-                }
-                // Интервал отношения и доза с экрана сняты. Наведение отвечает
-                // на один вопрос — «куда вести прибор сейчас», — и обе строки
-                // на него не отвечали: интервал разбирают, когда сомневаются в
-                // выводе (он в «Почему»), а доза в наведении не участвует
-                // вовсе — её не читают ни окна, ни тест, ни дуга.
             }
         }
 
         // -------------------------------------------------- the guidance module
-        // Direction, one number, the scale, the last seconds and the interval —
-        // in ONE card. They were three, and the same ratio appeared in all of
-        // them: as a big number, as a sentence and as a needle.
+        // Пока сравнивать не с чем, модуль НЕ сравнивает. Раньше здесь стояла
+        // почти пустая дуга и «точка отсчёта не поставлена» крупным планом:
+        // половина экрана уходила на сообщение о том, что экран пока не
+        // работает. Теперь это место занимает то единственное, что человеку
+        // здесь нужно сделать, — и оно объясняет, что даст.
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(
@@ -157,65 +164,100 @@ fun NavigateSection(
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Dimens.space1),
-                ) {
-                    // Направление здесь считается ОТ ТОЧКИ ОТСЧЁТА, а состояние
-                    // на карточке выше — от локального уровня: знаменатели
-                    // разные, поэтому это не одна и та же фраза дважды.
-                    StatusRow(
-                        text = NavigateVerdict.referenceDirection(delta, t),
-                        color = deltaColor,
+                if (state.reference == null) {
+                    StatusRow(text = t.navSetupTitle, color = colors.ink)
+                    Text(text = t.navSetupBody, style = type.bodySmall, color = colors.ink2)
+                    // Главное действие живёт ВНУТРИ своего блока, а не отдельной
+                    // кнопкой внизу экрана: там было не видно, к чему оно.
+                    AppButton(
+                        text = t.navMark,
+                        onClick = onMark,
+                        primary = true,
+                        enabled = cps != null,
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                    Text(
-                        text = NavigateVerdict.deltaHeadline(delta, t),
-                        style = type.valueHero.copy(fontSize = 34.sp, lineHeight = 36.sp),
-                        color = deltaColor,
-                        textAlign = TextAlign.Center,
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+                    ) {
+                        // Направление здесь считается ОТ ТОЧКИ ОТСЧЁТА, а
+                        // состояние на карточке выше — от недавнего уровня:
+                        // знаменатели разные, и это не одна фраза дважды.
+                        StatusRow(
+                            text = NavigateVerdict.referenceDirection(delta, t),
+                            color = deltaColor,
+                        )
+                        Text(
+                            text = NavigateVerdict.ratioHeadline(state, t),
+                            style = type.valueHero.copy(fontSize = 34.sp, lineHeight = 36.sp),
+                            color = deltaColor,
+                            textAlign = TextAlign.Center,
+                        )
+                        Text(
+                            text = NavigateVerdict.deltaCaption(state, delta, t),
+                            style = type.footnote,
+                            color = colors.ink2,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    NavigateGauge(
+                        spec = NavigateGaugeSpec(
+                            ratio = referenceRatio,
+                            peakRatio = peakRatio,
+                            factor = factor,
+                            trend = state.trend,
+                            referenceLabel = "1×",
+                            lowLabel = "${factorLabel(1.0 / factor)}×",
+                            highLabel = "${factorLabel(factor)}×",
+                            referenceCaption = t.navScaleReference,
+                            lowCaption = t.navScaleWeaker,
+                            highCaption = t.navScaleStronger,
+                            intervalLow = state.referenceComparison
+                                ?.ratioLow?.takeIf { it.isFinite() },
+                            intervalHigh = state.referenceComparison
+                                ?.ratioHigh?.takeIf { it.isFinite() },
+                        ),
+                        height = 124.dp,
                     )
-                    Text(
-                        text = NavigateVerdict.deltaCaption(delta, t),
-                        style = type.footnote,
-                        color = colors.ink2,
-                        textAlign = TextAlign.Center,
-                    )
+                    // Одна фраза о том, можно ли на вывод опереться, и кнопка
+                    // с числами. Интервал и порог сняты с рабочего экрана: их
+                    // разбирают, когда сомневаются, а не пока несут прибор.
+                    NavigateVerdict.unresolvedNote(delta, t)?.let {
+                        Text(text = it, style = type.footnote, color = colors.muted)
+                    }
+                    Chip(text = t.navWhy, color = colors.dataText, onClick = { whyOpen = true })
                 }
-                NavigateGauge(
-                    spec = NavigateGaugeSpec(
-                        ratio = referenceRatio,
-                        peakRatio = peakRatio,
-                        factor = factor,
-                        trend = state.trend,
-                        referenceLabel = t.navScaleReference,
-                        lowLabel = "×${factorLabel(1.0 / factor)}",
-                        highLabel = "×${factorLabel(factor)}",
-                        intervalLow = state.referenceComparison?.ratioLow?.takeIf { it.isFinite() },
-                        intervalHigh = state.referenceComparison
-                            ?.ratioHigh?.takeIf { it.isFinite() },
-                    ),
-                    height = 112.dp,
-                )
                 if (state.trace.isEmpty()) {
                     Text(text = t.waitingStream, style = type.bodySmall, color = colors.muted)
                 } else {
+                    // Пунктир ленты — то, С ЧЕМ идёт сравнение прямо сейчас:
+                    // поставленная точка отсчёта, а до неё — уровень, который
+                    // приложение считает само. Две линии сразу означали бы на
+                    // картинке два разных сравнения одновременно.
+                    val referenceRate = state.reference?.ratePerSecond
                     NavigateTrace(
                         spec = NavigateTraceSpec(
                             points = state.trace,
                             nowMillis = state.trace.last().timeMillis,
                             spanMillis = NavigateEngine.TRACE_MILLIS,
-                            localLevel = state.local?.ratePerSecond?.toFloat(),
-                            localLabel = state.local?.ratePerSecond
-                                ?.let { t.navLocalLevel(Uncertainty.num1(it.toFloat())) },
+                            localLevel = (referenceRate ?: state.local?.ratePerSecond)
+                                ?.toFloat(),
+                            localLabel = referenceRate
+                                ?.let { t.navReferenceLevel(Uncertainty.num1(it.toFloat())) }
+                                ?: state.local?.ratePerSecond
+                                    ?.let { t.navLocalLevel(Uncertainty.num1(it.toFloat())) },
                             startLabel = t.navTraceStart,
                             endLabel = strings.nowLabel,
                         ),
-                        height = 72.dp,
+                        height = if (state.reference != null) 96.dp else 72.dp,
                     )
                 }
                 // Максимум остаётся вторичной подписью и только когда он есть:
-                // с направлением изменения он не соревнуется.
+                // с направлением изменения он не соревнуется. Назван он
+                // сессией, а не окном ленты: держится он с начала прогона, и
+                // «68 с назад» под окном в 20 с читалось как противоречие.
                 NavigateVerdict.peakLine(state, nowMillis, t)?.let {
                     Text(text = it, style = type.footnoteMono, color = colors.ink2)
                 }
@@ -295,26 +337,19 @@ fun NavigateSection(
         }
 
         // ---------------------------------------------------------- the actions
-        // Пока отсчёта нет — одно действие во всю ширину. Как только он
-        // поставлен, кнопка превращается в СОСТОЯНИЕ: величина, момент и
-        // «Обновить» рядом. «⋯» стоит здесь же — отдельная квадратная кнопка
-        // в пустом месте не сообщала, к чему она относится.
+        // Пока отсчёта нет, здесь нет и ряда: единственное действие стоит в
+        // своём блоке выше, рядом с объяснением, что оно даёт. Как только
+        // отсчёт поставлен, ряд становится его СОСТОЯНИЕМ — величина, момент
+        // и два действия над ним. Названия говорят, что произойдёт:
+        // «Обновить» читалось как «обновить данные», а «Снять» — как «снять
+        // измерение», то есть ровно наоборот.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
         ) {
-            val referenceLine = NavigateVerdict.referenceLine(state.reference, referenceTime, t)
-            if (referenceLine == null) {
-                AppButton(
-                    text = t.navMark,
-                    onClick = onMark,
-                    primary = true,
-                    enabled = cps != null,
-                    modifier = Modifier.weight(1f),
-                )
-            } else {
+            NavigateVerdict.referenceLine(state.reference, referenceTime, t)?.let { line ->
                 Text(
-                    text = referenceLine,
+                    text = line,
                     style = type.value,
                     color = colors.ink,
                     modifier = Modifier.weight(1f),
@@ -324,7 +359,7 @@ fun NavigateSection(
                 // отсчёт стоял, дуга и отклик считали ОТ НЕГО, и единственным
                 // способом вернуться к обычному наведению был уход с экрана.
                 AppButton(text = t.navMarkClear, onClick = onClearMark)
-            }
+            } ?: Spacer(Modifier.weight(1f))
             AppButton(text = t.navMore, onClick = { moreOpen = !moreOpen })
         }
         AnimatedVisibility(

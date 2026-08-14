@@ -65,8 +65,11 @@ interface SearchStrings {
     fun navRatio(value: String, interval: String?): String
     fun navRatioInterval(level: Int, low: String, high: String): String
 
-    /** «×1,00 к локальному уровню» — отношение всегда со знаменателем. */
+    /** «1,01× к недавнему уровню» — отношение всегда со знаменателем. */
     fun navRatioToLocal(ratio: String): String
+
+    /** Состояние и величина ОДНОЙ строкой под большим числом. */
+    fun navTrendLine(trend: String, ratio: String?): String
 
     /** Оба окна названы: слово «растёт» без окон не значит ничего. */
     fun navWindows(fast: String, local: String): String
@@ -89,10 +92,42 @@ interface SearchStrings {
     val navRefUnresolved: String
     val navRefAbove: String
     val navRefBelow: String
-    val navDeltaCaptionNoReference: String
     val navDeltaCaptionCollecting: String
-    fun navDeltaCaptionUnresolved(low: String, high: String): String
-    fun navDeltaCaptionResolved(ratio: String): String
+
+    /**
+     * Что происходит, пока разница не подтверждена — словами, без чисел.
+     *
+     * Интервал отношения и то, что он накрывает 1, живут в «Почему такой
+     * вывод»: на рабочем экране это была главная строка, хотя человек в этот
+     * момент несёт прибор, а не разбирает статистику.
+     */
+    val navUnresolvedNote: String
+
+    /** «к точке отсчёта 25,1» — знаменатель большого числа, под ним. */
+    fun navRefBase(rate: String): String
+
+    /** До точки отсчёта модуль не сравнивает, а учит первому действию. */
+    val navSetupTitle: String
+    val navSetupBody: String
+
+    /** Открыть разбор вывода: числа, интервал и критерий. */
+    val navWhy: String
+
+    // --- Наведение: «Почему такой вывод» ---
+    val navWhyTitle: String
+    val navWhyNow: String
+    val navWhyReference: String
+    val navWhyRatio: String
+    val navWhyInterval: String
+    val navWhyIntervalNote: String
+    val navWhyDifference: String
+    val navWhyRecent: String
+    val navWhyRecentNote: String
+    val navWhyWindows: String
+    val navWhyCriterion: String
+    fun navWhyCriterionValue(percent: String): String
+    val navWhyCriterionNote: String
+    val navWhyLimit: String
 
     fun navPeakValue(rate: String, agoSeconds: Int): String
 
@@ -103,8 +138,22 @@ interface SearchStrings {
     /** Затенение на дуге — интервал отношения; линия без имени просто линия. */
     val navScaleReference: String
     val navScalePeak: String
+
+    /**
+     * Смысловые подписи концов дуги.
+     *
+     * Числа «0,5×» и «2×» говорят, во сколько раз, но не говорят, в какую
+     * сторону это для человека с прибором. Слово под числом и отвечает на это,
+     * а середина названа отдельно, потому что ×1 — единственная отметка,
+     * которая означает что-то сама по себе.
+     */
+    val navScaleWeaker: String
+    val navScaleStronger: String
     val navTraceStart: String
     fun navLocalLevel(rate: String): String
+
+    /** Пунктир ленты, когда точка отсчёта поставлена: сравнение идёт с ней. */
+    fun navReferenceLevel(rate: String): String
 
     // --- Наведение: действия ---
     val navMark: String
@@ -335,10 +384,13 @@ object SearchRu : SearchStrings {
     override val modeNavigate = "Наведение"
     override val modeVerify = "Проверка"
 
-    override val navTrendCollecting = "… набираю статистику"
-    override val navTrendNoChange = "→ без явного изменения"
-    override val navTrendRising = "↑ растёт"
-    override val navTrendFalling = "↓ падает"
+    override val navTrendCollecting = "… Пока недостаточно данных"
+    override val navTrendNoChange = "→ Без заметного изменения"
+    // Здесь сравниваются последние секунды с секундами перед ними, то есть
+    // изменение ВО ВРЕМЕНИ, — поэтому «усиливается», а не «выше»: «выше» в
+    // этом экране занято сравнением с точкой отсчёта.
+    override val navTrendRising = "↑ Сигнал усиливается"
+    override val navTrendFalling = "↓ Сигнал ослабевает"
 
     override fun navRatio(value: String, interval: String?) =
         "×$value" + (interval?.let { " ($it)" } ?: "")
@@ -346,47 +398,80 @@ object SearchRu : SearchStrings {
     override fun navRatioInterval(level: Int, low: String, high: String) =
         "$level % интервал $low–$high"
 
-    override fun navRatioToLocal(ratio: String) = "×$ratio к локальному уровню"
+    override fun navRatioToLocal(ratio: String) = "$ratio× к недавнему уровню"
+    override fun navTrendLine(trend: String, ratio: String?) =
+        if (ratio == null) trend else "$trend · $ratio"
 
     override fun navWindows(fast: String, local: String) =
         "по последним $fast с против $local с до них"
 
     override val navDeltaDash = "—"
 
-    override val navRefNone = "точка отсчёта не поставлена"
-    override val navRefCollecting = "… набираю статистику"
-    override val navRefUnresolved = "→ различие не разрешено"
-    override val navRefAbove = "↑ выше точки отсчёта"
-    override val navRefBelow = "↓ ниже точки отсчёта"
+    override val navRefNone = "Точка отсчёта не задана"
+    override val navRefCollecting = "… Пока недостаточно данных"
+    override val navRefUnresolved = "→ Разница пока не подтверждена"
+    override val navRefAbove = "↑ Выше точки отсчёта"
+    override val navRefBelow = "↓ Ниже точки отсчёта"
 
-    override val navDeltaCaptionNoReference =
-        "поставьте отсчёт — модуль ведёт прибор по отношению к нему"
     override val navDeltaCaptionCollecting =
         "окно ещё пересекается с самой точкой отсчёта"
 
-    override fun navDeltaCaptionUnresolved(low: String, high: String) =
-        "интервал $low–$high включает 1"
+    override val navUnresolvedNote =
+        "Наблюдаемое изменение может быть обычным колебанием счёта."
 
-    override fun navDeltaCaptionResolved(ratio: String) = "к точке отсчёта · ×$ratio"
+    override fun navRefBase(rate: String) = "к точке отсчёта $rate"
+
+    override val navSetupTitle = "Задайте точку отсчёта"
+    override val navSetupBody =
+        "Запомните уровень там, где стоите сейчас. Дальше приложение " +
+            "показывает, становится сигнал сильнее или слабее."
+
+    override val navWhy = "Почему?"
+
+    override val navWhyTitle = "Почему такой вывод"
+    override val navWhyNow = "Сейчас"
+    override val navWhyReference = "Точка отсчёта"
+    override val navWhyRatio = "Отношение к точке отсчёта"
+    override val navWhyInterval = "Оценочный интервал"
+    override val navWhyIntervalNote =
+        "Значение 1× лежит внутри интервала: данных пока не хватает, чтобы " +
+            "уверенно сказать, что уровень изменился."
+    override val navWhyDifference = "Отличие от точки отсчёта"
+    override val navWhyRecent = "Недавний уровень"
+    override val navWhyRecentNote =
+        "Считается сам — по секундам перед последним окном. Точка отсчёта, " +
+            "наоборот, запомнена кнопкой и не меняется. Это разные величины."
+    override val navWhyWindows = "Окна расчёта"
+    override val navWhyCriterion = "Порог"
+    override fun navWhyCriterionValue(percent: String) = "$percent %"
+    override val navWhyCriterionNote =
+        "Направление показывается, когда случайность такого расхождения ниже " +
+            "порога и весь интервал лежит по одну сторону от 1×."
+    override val navWhyLimit =
+        "Это скорость счёта, а не доза и не нуклид. Пара окон говорит, куда " +
+            "вести прибор, а не что за место."
 
     override fun navPeakValue(rate: String, agoSeconds: Int) =
-        "максимум $rate · $agoSeconds с назад"
+        "Максимум за сессию: $rate · $agoSeconds с назад"
 
     override val navModuleTitle = "Наведение"
 
 
     override val navScaleReference = "отсчёт"
     override val navScalePeak = "макс"
+    override val navScaleWeaker = "слабее"
+    override val navScaleStronger = "сильнее"
     override val navTraceStart = "−20 с"
 
-    override fun navLocalLevel(rate: String) = "локальный уровень $rate"
+    override fun navLocalLevel(rate: String) = "недавний уровень $rate"
+    override fun navReferenceLevel(rate: String) = "точка отсчёта $rate"
 
-    override val navMark = "Установить отсчёт"
+    override val navMark = "Запомнить текущий уровень"
 
-    override fun navReferenceSet(rate: String, time: String) = "Отсчёт $rate с⁻¹ · $time"
+    override fun navReferenceSet(rate: String, time: String) = "Точка отсчёта: $rate · $time"
 
-    override val navMarkUpdate = "Обновить"
-    override val navMarkClear = "Снять"
+    override val navMarkUpdate = "Задать заново"
+    override val navMarkClear = "Удалить"
     override val navMore = "⋯"
     override val navResetPeak = "Сбросить максимум"
 
@@ -686,7 +771,9 @@ object SearchEn : SearchStrings {
     override fun navRatioInterval(level: Int, low: String, high: String) =
         "$level % interval $low–$high"
 
-    override fun navRatioToLocal(ratio: String) = "×$ratio to the local level"
+    override fun navRatioToLocal(ratio: String) = "$ratio× vs the recent level"
+    override fun navTrendLine(trend: String, ratio: String?) =
+        if (ratio == null) trend else "$trend · $ratio"
 
     override fun navWindows(fast: String, local: String) =
         "last $fast s against the $local s before them"
@@ -699,34 +786,66 @@ object SearchEn : SearchStrings {
     override val navRefAbove = "↑ above the reference point"
     override val navRefBelow = "↓ below the reference point"
 
-    override val navDeltaCaptionNoReference =
-        "set a reference — the module guides relative to it"
     override val navDeltaCaptionCollecting =
         "the window still overlaps the reference point itself"
 
-    override fun navDeltaCaptionUnresolved(low: String, high: String) =
-        "the interval $low–$high contains 1"
+    override val navUnresolvedNote =
+        "What you see may be the ordinary scatter of counting."
 
-    override fun navDeltaCaptionResolved(ratio: String) = "to the reference point · ×$ratio"
+    override fun navRefBase(rate: String) = "vs the reference point $rate"
+
+    override val navSetupTitle = "Set a reference point"
+    override val navSetupBody =
+        "Remember the level where you are standing now. After that the app " +
+            "shows whether the signal is getting stronger or weaker."
+
+    override val navWhy = "Why?"
+
+    override val navWhyTitle = "Why this conclusion"
+    override val navWhyNow = "Now"
+    override val navWhyReference = "Reference point"
+    override val navWhyRatio = "Ratio to the reference point"
+    override val navWhyInterval = "Estimated interval"
+    override val navWhyIntervalNote =
+        "The value 1× lies inside the interval: there is not enough data yet " +
+            "to say the level has changed."
+    override val navWhyDifference = "Difference from the reference point"
+    override val navWhyRecent = "Recent level"
+    override val navWhyRecentNote =
+        "Computed by the app itself, from the seconds before the last window. " +
+            "The reference point is what you remembered with the button and " +
+            "does not move. These are two different quantities."
+    override val navWhyWindows = "Windows of the test"
+    override val navWhyCriterion = "Threshold"
+    override fun navWhyCriterionValue(percent: String) = "$percent %"
+    override val navWhyCriterionNote =
+        "A direction is shown when a difference this large is less likely than " +
+            "the threshold by chance and the whole interval sits on one side of 1×."
+    override val navWhyLimit =
+        "This is a count rate, not a dose and not a nuclide. A pair of windows " +
+            "says where to move the probe, not what the place is."
 
     override fun navPeakValue(rate: String, agoSeconds: Int) =
-        "maximum $rate · $agoSeconds s ago"
+        "Session maximum: $rate · $agoSeconds s ago"
 
     override val navModuleTitle = "Navigation"
 
 
     override val navScaleReference = "ref"
     override val navScalePeak = "max"
+    override val navScaleWeaker = "weaker"
+    override val navScaleStronger = "stronger"
     override val navTraceStart = "−20 s"
 
-    override fun navLocalLevel(rate: String) = "local level $rate"
+    override fun navLocalLevel(rate: String) = "recent level $rate"
+    override fun navReferenceLevel(rate: String) = "reference point $rate"
 
-    override val navMark = "Set reference"
+    override val navMark = "Remember the current level"
 
-    override fun navReferenceSet(rate: String, time: String) = "Reference $rate s⁻¹ · $time"
+    override fun navReferenceSet(rate: String, time: String) = "Reference point: $rate · $time"
 
-    override val navMarkUpdate = "Update"
-    override val navMarkClear = "Clear"
+    override val navMarkUpdate = "Set again"
+    override val navMarkClear = "Delete"
     override val navMore = "⋯"
     override val navResetPeak = "Reset the maximum"
 
@@ -1012,9 +1131,13 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     navRatio("1,60", navRatioInterval(95, "1,20", "2,10")), navRatio("1,60", null),
     navRatioInterval(95, "1,20", "2,10"), navRatioToLocal("1,00"), navWindows("1,8", "16,0"),
     navDeltaDash, navRefNone, navRefCollecting, navRefUnresolved, navRefAbove, navRefBelow,
-    navDeltaCaptionNoReference,
-    navDeltaCaptionCollecting, navDeltaCaptionUnresolved("0,92", "1,31"),
-    navDeltaCaptionResolved("1,31"), navPeakValue("47,6", 18), navModuleTitle, navScaleReference, navScalePeak,
+    navDeltaCaptionCollecting, navUnresolvedNote, navRefBase("25,1"),
+    navSetupTitle, navSetupBody, navWhy, navWhyTitle, navWhyNow, navWhyReference, navWhyRatio,
+    navWhyInterval, navWhyIntervalNote, navWhyDifference, navWhyRecent, navWhyRecentNote,
+    navWhyWindows, navWhyCriterion, navWhyCriterionValue("1"), navWhyCriterionNote, navWhyLimit,
+    navTrendLine(navTrendNoChange, "1,01×"), navReferenceLevel("25,1"),
+    navScaleWeaker, navScaleStronger,
+    navPeakValue("47,6", 18), navModuleTitle, navScaleReference, navScalePeak,
     navTraceStart, navLocalLevel("24,8"),
     navMark, navReferenceSet("26,0", "11:44"), navMarkUpdate, navMarkClear,
     navMore, navResetPeak, navMeasureHere(10), navSpotProgress(6, 10), navSpotNote,

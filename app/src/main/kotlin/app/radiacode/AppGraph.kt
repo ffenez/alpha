@@ -33,6 +33,7 @@ import app.radiacode.service.FastPollHub
 import app.radiacode.service.SearchPresenceHub
 import app.radiacode.service.StreamTrace
 import app.radiacode.ui.logic.ChartCache
+import app.radiacode.ui.logic.NavigateSession
 import app.radiacode.ui.logic.ChartTrace
 import app.radiacode.service.LocalBackgroundRecorder
 import app.radiacode.service.SpotMeasureRecorder
@@ -202,6 +203,12 @@ class AppGraph private constructor(
      * из композиции, и всё, что она помнила, умирало вместе с ней.
      */
     val chartCache: ChartCache = ChartCache()
+
+    /**
+     * «Наведение»: точка отсчёта и максимум переживают уход с вкладки. То, что
+     * поставил человек, приложение само не отменяет.
+     */
+    val navigateSession: NavigateSession = NavigateSession()
 
     /** Трасса конвейера графика: на каком этапе исчезают точки. */
     val chartTrace: ChartTrace = ChartTrace()
