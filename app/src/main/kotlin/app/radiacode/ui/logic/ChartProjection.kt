@@ -24,6 +24,17 @@ class ChartPixels(
     /** Inner robust envelope Q25–Q75. */
     val q25Y: FloatArray,
     val q75Y: FloatArray,
+    /**
+     * Крайние измерения колонки — для подробного представления.
+     *
+     * Подробный ряд рисуется по НИМ, а не по медиане: когда колонка узкая
+     * (окно короткое), min и max совпадают с самим измерением, и линия идёт
+     * ровно по измерениям. Когда колонка широкая, они дают сохраняющее форму
+     * прореживание: пик и провал внутри колонки остаются на картинке, а не
+     * усредняются в ровную линию.
+     */
+    val minY: FloatArray,
+    val maxY: FloatArray,
     val plottable: BooleanArray,
     /**
      * Начинается ли в этой колонке НОВЫЙ отрезок линии.
@@ -71,7 +82,8 @@ class ChartPixels(
     companion object {
         val EMPTY = ChartPixels(
             IntArray(0), FloatArray(0), FloatArray(0), FloatArray(0),
-            FloatArray(0), FloatArray(0), FloatArray(0), BooleanArray(0), BooleanArray(0),
+            FloatArray(0), FloatArray(0), FloatArray(0), FloatArray(0), FloatArray(0),
+            BooleanArray(0), BooleanArray(0),
         )
     }
 }
@@ -135,6 +147,8 @@ object ChartProjection {
         val q90Y = FloatArray(n)
         val q25Y = FloatArray(n)
         val q75Y = FloatArray(n)
+        val minY = FloatArray(n)
+        val maxY = FloatArray(n)
         val plottable = BooleanArray(n)
         val segmentStart = BooleanArray(n)
         // Ширина колонки берётся у самих данных: снимок её знает, а сюда
@@ -167,8 +181,22 @@ object ChartProjection {
             q25Y[k] = yOf(scale.fractionOrNull(b.q25) ?: fMedian, topPx, heightPx)
             q75Y[k] = yOf(scale.fractionOrNull(b.q75) ?: fMedian, topPx, heightPx)
             q90Y[k] = yOf(scale.fractionOrNull(b.q90) ?: fMedian, topPx, heightPx)
+            minY[k] = yOf(scale.fractionOrNull(b.min) ?: fMedian, topPx, heightPx)
+            maxY[k] = yOf(scale.fractionOrNull(b.max) ?: fMedian, topPx, heightPx)
         }
-        return ChartPixels(source, x, medianY, q10Y, q90Y, q25Y, q75Y, plottable, segmentStart)
+        return ChartPixels(
+            source = source,
+            x = x,
+            medianY = medianY,
+            q10Y = q10Y,
+            q90Y = q90Y,
+            q25Y = q25Y,
+            q75Y = q75Y,
+            minY = minY,
+            maxY = maxY,
+            plottable = plottable,
+            segmentStart = segmentStart,
+        )
     }
 
     /** Fraction (0 = bottom) → pixel row inside the plot rectangle. */

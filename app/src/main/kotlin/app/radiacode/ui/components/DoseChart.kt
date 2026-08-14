@@ -55,6 +55,17 @@ import app.radiacode.ui.theme.LocalAppTypography
 data class DoseChartSpec(
     /** Drawn columns, ordered; an absent column is a gap, never interpolated. */
     val buckets: List<ChartBucket>,
+    /**
+     * Подробный ряд вместо медианы с конвертами.
+     *
+     * Линия ведётся по крайним значениям колонок: на коротком окне в колонке
+     * одно измерение, и линия идёт ровно по измерениям; на длинном она
+     * сохраняет форму — пик и провал внутри колонки остаются видны, а не
+     * усредняются. Квантильные заливки при этом не рисуются: они описывают
+     * разброс ВНУТРИ колонки, а подробный вид показывает сами измерения, и
+     * две картинки одновременно означали бы два разных утверждения.
+     */
+    val detailed: Boolean = false,
     /** Visible time range; columns are placed by wall-clock time inside it. */
     val fromMillis: Long,
     val toMillis: Long,
@@ -665,9 +676,9 @@ private fun SeriesLayer(
         Modifier
             .fillMaxSize()
             .drawWithCache {
-                val outer = bandPath(pixels, pixels.q90Y, pixels.q10Y)
-                val inner = bandPath(pixels, pixels.q75Y, pixels.q25Y)
-                val median = linePath(pixels)
+                val outer = if (spec.detailed) Path() else bandPath(pixels, pixels.q90Y, pixels.q10Y)
+                val inner = if (spec.detailed) Path() else bandPath(pixels, pixels.q75Y, pixels.q25Y)
+                val median = if (spec.detailed) detailPath(pixels) else linePath(pixels)
                 val dots = rawDotOffsets(spec, widthPx, plotTop, plotHeight)
                 var endpoint: Offset? = null
                 for (i in pixels.count - 1 downTo 0) {
@@ -851,6 +862,36 @@ private fun bandPath(pixels: ChartPixels, high: FloatArray, low: FloatArray): Pa
 }
 
 /** Median polyline; a gap breaks the pen, nothing is interpolated across it. */
+/**
+ * Подробный ряд: линия по крайним значениям колонок.
+ *
+ * В каждой колонке перо проходит от её максимума к минимуму, а к следующей
+ * колонке идёт от того значения, на котором остановилось. Когда колонка
+ * узкая — а в подробном виде она равна видимому окну, делённому на число
+ * колонок, — минимум и максимум совпадают с самим измерением, и получается
+ * линия ровно по измерениям. Когда колонка широкая, это прореживание,
+ * сохраняющее форму: пик и провал внутри колонки остаются на картинке, а не
+ * усредняются в ровную линию. Простое «каждое N-е измерение» именно их и
+ * теряет — то есть ровно то, ради чего график открывают.
+ */
+private fun detailPath(pixels: ChartPixels): Path {
+    val path = Path()
+    var penDown = false
+    for (i in 0 until pixels.count) {
+        if (!pixels.plottable[i]) {
+            penDown = false
+            continue
+        }
+        if (pixels.segmentStart[i]) penDown = false
+        val high = pixels.maxY[i]
+        val low = pixels.minY[i]
+        if (penDown) path.lineTo(pixels.x[i], high) else path.moveTo(pixels.x[i], high)
+        if (low != high) path.lineTo(pixels.x[i], low)
+        penDown = true
+    }
+    return path
+}
+
 private fun linePath(pixels: ChartPixels): Path {
     val path = Path()
     var penDown = false

@@ -53,6 +53,14 @@ interface ChartTextStrings {
     /** Кнопка второго уровня справки. */
     val showDetails: String
     val hideDetails: String
+    /**
+     * Чип подробного вида. Подсвечен = подробный вид включён; правило панели —
+     * название постоянное, меняется только подсветка.
+     */
+    val detailChip: String
+    val detailNote: String
+    val smoothedNote: String
+
     val logScaleNote: String
     fun logScaleDroppedNote(buckets: Int): String
 
@@ -193,6 +201,14 @@ object ChartTextRu : ChartTextStrings {
         "подписано отдельно."
     override val showDetails = "Подробнее"
     override val hideDetails = "Свернуть подробности"
+    override val detailChip = "подробно"
+    override val detailNote =
+        "Подробный вид: линия идёт по самим измерениям окна. На длинном окне " +
+            "она ведётся по крайним значениям интервалов, поэтому пики и провалы " +
+            "остаются видны."
+    override val smoothedNote =
+        "Сглаженный вид: линия — медиана интервала, заливки — разброс измерений " +
+            "внутри него (P25–P75 и P10–P90). Числа окна от вида не зависят."
     override val logScaleNote = "Шкала логарифмическая: равные расстояния означают равные " +
         "отношения, а не равные разности."
     override fun logScaleDroppedNote(buckets: Int) = "Шкала логарифмическая: интервалов с " +
@@ -343,6 +359,15 @@ object ChartTextEn : ChartTextStrings {
         "window is captioned separately."
     override val showDetails = "More detail"
     override val hideDetails = "Hide the details"
+    override val detailChip = "detailed"
+    override val detailNote =
+        "Detailed view: the line follows the measurements themselves. Over a long " +
+            "window it follows the extremes of each interval, so peaks and dips stay " +
+            "visible."
+    override val smoothedNote =
+        "Smoothed view: the line is the median of an interval and the fills are the " +
+            "spread of measurements inside it (P25–P75 and P10–P90). The numbers of " +
+            "the window do not depend on the view."
     override val logScaleNote = "The scale is logarithmic: equal distances mean equal ratios, " +
         "not equal differences."
     override fun logScaleDroppedNote(buckets: Int) = "The scale is logarithmic: $buckets " +
@@ -428,6 +453,7 @@ fun ChartTextStrings.allTexts(): List<String> = listOf(
     quantilesSketch("≈ 1,8 %"), quantilesSketchDetail("≈ 1,8 %"),
     quantilesSubBucketMeans, quantilesSubBucketMeansDetail,
     sampleCountNote, sampleCountDetail, showDetails, hideDetails,
+    detailChip, detailNote, smoothedNote,
     logScaleNote, logScaleDroppedNote(3),
     gestureZoomPan, gestureCursor, gestureMarkerTap, gestureDoubleTap, gestureDoubleTapRange,
     historicalRangeNote, sessionChip, sessionRangeLabel("12 авг 14:03–16:18", "2 ч 15 мин"),

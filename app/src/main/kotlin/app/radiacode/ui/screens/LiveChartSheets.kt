@@ -1,6 +1,7 @@
 package app.radiacode.ui.screens
 
 import android.content.res.Configuration
+import app.radiacode.ui.logic.ChartDetailMode
 import app.radiacode.ui.logic.ChartInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -213,6 +214,11 @@ internal fun BoxScope.ChartInfoSheet(
             method = frame?.stats?.method ?: QuantileMethod.EXACT_RAW,
             logScale = logScale,
             logDropped = frame?.logDropped ?: 0,
+            detail = if (frame?.spec?.detailed == true) {
+                ChartDetailMode.DETAILED
+            } else {
+                ChartDetailMode.SMOOTHED
+            },
             historical = historical,
             s = t,
         )

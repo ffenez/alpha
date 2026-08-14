@@ -68,6 +68,7 @@ import app.radiacode.ui.logic.ChartViewport
 import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.analysis.Hardness
 import app.radiacode.ui.logic.ChartMetric
+import app.radiacode.ui.logic.ChartDetailMode
 import app.radiacode.ui.logic.ChartMetrics
 import app.radiacode.ui.logic.ChartRange
 import app.radiacode.ui.logic.ChartRanges
@@ -211,6 +212,11 @@ fun LiveChartScreen(
     val historical = !ChartRanges.followsLiveEdge(range)
     val maxSpan = ChartMetrics.maxSpanMillis(metric)
     var logScale by rememberSaveable { mutableStateOf(false) }
+    // Вид живого графика — настройка, а не состояние экрана: карточка Главной
+    // и полноэкранный график это два размера одной картинки.
+    val detailId by graph.settings.chartDetailModeId
+        .collectAsState(initial = ChartDetailMode.DEFAULT.id)
+    val detail = remember(detailId) { ChartDetailMode.of(detailId) }
     var follow by rememberSaveable(historical) { mutableStateOf(!historical) }
     var cursorActive by rememberSaveable { mutableStateOf(false) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
@@ -283,6 +289,7 @@ fun LiveChartScreen(
     val axisStrings = ChartAxisCatalogue.of(LocalStrings.current.language)
     val frame = remember(
         snapshot, window, unit, logScale, thresholds, baseline, endpointAlert, metric, follow,
+        detail,
         axisStrings,
     ) {
         snapshot?.let {
@@ -300,6 +307,7 @@ fun LiveChartScreen(
                 // край уже не текущий момент, и подпись «сейчас» соврала бы.
                 nowMillis = window.toMillis.takeIf { range == null && follow },
                 axisStrings = axisStrings,
+                detail = detail,
             )
         }
     }
@@ -474,6 +482,18 @@ fun LiveChartScreen(
                     logScale = logScale,
                     onSelectPeriod = ::selectPeriod,
                     onToggleScale = { logScale = !logScale },
+                    detailed = detail == ChartDetailMode.DETAILED,
+                    onToggleDetail = {
+                        settingsScope.launch {
+                            graph.settings.setChartDetailMode(
+                                if (detail == ChartDetailMode.DETAILED) {
+                                    ChartDetailMode.SMOOTHED.id
+                                } else {
+                                    ChartDetailMode.DETAILED.id
+                                },
+                            )
+                        }
+                    },
                     onOpenDetails = { detailsOpen = true },
                     availablePeriods = periodIndices,
                     periodExact = periodExact,
@@ -544,6 +564,18 @@ fun LiveChartScreen(
                 logScale = logScale,
                 onSelectPeriod = ::selectPeriod,
                 onToggleScale = { logScale = !logScale },
+                detailed = detail == ChartDetailMode.DETAILED,
+                onToggleDetail = {
+                    settingsScope.launch {
+                        graph.settings.setChartDetailMode(
+                            if (detail == ChartDetailMode.DETAILED) {
+                                ChartDetailMode.SMOOTHED.id
+                            } else {
+                                ChartDetailMode.DETAILED.id
+                            },
+                        )
+                    }
+                },
                 onOpenDetails = { detailsOpen = true },
                 availablePeriods = periodIndices,
                 periodExact = periodExact,
@@ -896,8 +928,10 @@ private fun landscapeStatsLine(
 private fun RowScope.ControlChips(
     periodIndex: Int,
     logScale: Boolean,
+    detailed: Boolean,
     onSelectPeriod: (Int) -> Unit,
     onToggleScale: () -> Unit,
+    onToggleDetail: () -> Unit,
     onOpenDetails: () -> Unit,
     availablePeriods: List<Int> = ChartWindows.PERIODS.indices.toList(),
     periodExact: Boolean = true,
@@ -963,6 +997,14 @@ private fun RowScope.ControlChips(
         color = if (logScale) colors.dataText else colors.ink2,
         selected = logScale,
         onClick = onToggleScale,
+    )
+    Spacer(Modifier.width(Dimens.space1))
+    // Рядом с «лог» и по тому же правилу: подсвечен — подробный вид включён.
+    Chip(
+        text = ChartTextCatalogue.of(LocalStrings.current.language).detailChip,
+        color = if (detailed) colors.dataText else colors.ink2,
+        selected = detailed,
+        onClick = onToggleDetail,
     )
     Spacer(Modifier.width(Dimens.space1))
     // «Подробнее» было хвостом строки чисел — то есть кнопкой, не похожей на

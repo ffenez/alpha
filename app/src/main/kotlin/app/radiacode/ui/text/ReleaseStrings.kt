@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v031Title: String
+    val v031Summary: String
+
     val v030Title: String
     val v030Summary: String
 
@@ -51,6 +54,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v031Title = "График снова показывает измерения"
+    override val v031Summary =
+        "На пяти минутах видно каждое измерение, а не десяток усреднённых узлов: " +
+        "ширину интервала задаёт видимое окно, а не запас, который читается " +
+        "заранее ради плавного перелистывания. Чипом «подробно» рядом с «лог» " +
+        "можно вернуть сглаженный вид с полосами разброса — данные и числа окна " +
+        "у обоих видов одни."
 
     override val v030Title = "Выводы словами, числа под ними"
     override val v030Summary =
@@ -119,6 +130,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v031Title = "The chart shows the measurements again"
+    override val v031Summary =
+        "Over five minutes every measurement is visible instead of a dozen averaged " +
+        "nodes: the interval width comes from the visible window, not from the " +
+        "read-ahead kept for smooth panning. The «detailed» chip next to «log» " +
+        "brings back the smoothed view with its spread bands — both views draw the " +
+        "same data and report the same numbers."
 
     override val v030Title = "Conclusions in words, numbers underneath"
     override val v030Summary =
@@ -192,6 +211,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v031Title, v031Summary,
     v030Title, v030Summary,
     v021Title, v021Summary,
     v020Title, v020Summary,

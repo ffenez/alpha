@@ -1,5 +1,6 @@
 package app.radiacode.data
 
+import app.radiacode.ui.logic.ChartDetailMode
 import app.radiacode.ui.text.RuStrings
 import app.radiacode.ui.theme.UiScale
 import app.radiacode.ui.text.Strings
@@ -243,6 +244,19 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         dataStore.edit { it[LANGUAGE] = language.id }
     }
 
+    /**
+     * Как рисуется живой график: подробно или сглаженно.
+     *
+     * Настройка ОДНА на карточку Главной и на полноэкранный график: это два
+     * размера одной картинки, и разойтись они не имеют права.
+     */
+    val chartDetailModeId: Flow<String> =
+        dataStore.data.map { it[CHART_DETAIL] ?: ChartDetailMode.DEFAULT.id }
+
+    suspend fun setChartDetailMode(id: String) {
+        dataStore.edit { it[CHART_DETAIL] = id }
+    }
+
     /** Масштаб оси спектра: режим и степень (для степенного). */
     val spectrumScaleId: Flow<String> =
         dataStore.data.map { it[SPECTRUM_SCALE] ?: "log" }
@@ -483,6 +497,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val THEME = stringPreferencesKey("theme")
         private val LANGUAGE = stringPreferencesKey("language")
         private val SKIN = stringPreferencesKey("skin")
+        private val CHART_DETAIL = stringPreferencesKey("chart_detail")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")

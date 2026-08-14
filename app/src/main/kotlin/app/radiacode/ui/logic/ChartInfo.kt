@@ -50,6 +50,8 @@ object ChartInfo {
         method: QuantileMethod,
         logScale: Boolean,
         logDropped: Int,
+        /** Каким видом нарисована картинка — подробным или сглаженным. */
+        detail: ChartDetailMode = ChartDetailMode.DEFAULT,
         /** Открыт фиксированный диапазон из Истории, а не живой край. */
         historical: Boolean = false,
         s: ChartTextStrings = ChartTextRu,
@@ -59,7 +61,15 @@ object ChartInfo {
 
         // Порядок — от того, на что человек смотрит, к тому, чем это
         // нарисовано: линия → полосы → пропуски → устройство оси.
-        val anatomy = mutableListOf(s.anatomyMedianLine, s.anatomyEnvelopes)
+        // Заливки не остаются без определения: что именно значат линия и
+        // полосы, зависит от вида, и вид называется первым.
+        val anatomy = mutableListOf(
+            if (detail == ChartDetailMode.DETAILED) s.detailNote else s.smoothedNote,
+        )
+        if (detail == ChartDetailMode.SMOOTHED) {
+            anatomy += s.anatomyMedianLine
+            anatomy += s.anatomyEnvelopes
+        }
         if (metric == ChartMetric.HARDNESS) {
             anatomy += s.anatomyHardnessRatio
         }

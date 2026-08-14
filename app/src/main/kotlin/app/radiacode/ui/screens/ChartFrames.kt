@@ -10,6 +10,7 @@ import app.radiacode.data.db.MinuteRollup
 import app.radiacode.device.DoseUnits
 import app.radiacode.ui.components.DoseChartSpec
 import app.radiacode.ui.logic.ChartBackground
+import app.radiacode.ui.logic.ChartDetailMode
 import app.radiacode.ui.logic.ChartMapping
 import app.radiacode.ui.logic.ChartMetric
 import app.radiacode.ui.logic.ChartMetrics
@@ -107,6 +108,8 @@ internal fun buildFrame(
      * поля есть право на подпись, и отказ от неё — решение, а не умолчание.
      */
     showUnit: Boolean = false,
+    /** Как из одних и тех же измерений собирается картинка. */
+    detail: ChartDetailMode = ChartDetailMode.DEFAULT,
 ): ChartFrame {
     // Колонка — это ИНТЕРВАЛ, и в окно она попадает пересечением, а не
     // серединой.
@@ -118,7 +121,30 @@ internal fun buildFrame(
     // минуты), и единственная колонка со свежими данными имеет середину ПОЗЖЕ
     // «сейчас» — фильтр по середине выбрасывал её целиком. Чем длиннее окно,
     // тем вернее пропадала вся картинка.
-    val visible = snapshot.buckets.filter {
+    // Подробное представление пересобирает колонки по ВИДИМОМУ окну.
+    //
+    // Ширину колонки задавал загруженный диапазон — окно плюс час запаса с
+    // каждой стороны, который читается ради мгновенного перелистывания. На
+    // пяти минутах это давало колонку в 37 секунд: триста измерений
+    // превращались в восемь узлов, хотя лежали в том же снимке посекундно.
+    // Запас чтения — решение о производительности, и менять из-за него
+    // разрешение картинки он не имеет права. Второго запроса здесь нет:
+    // складываются те же подсекундные агрегаты, что уже прочитаны.
+    val detailed = detail == ChartDetailMode.DETAILED
+    val columns = if (detailed && snapshot.method != QuantileMethod.KLL_SKETCH) {
+        val fine = ChartSeriesModel.bucketMillis(window.spanMillis)
+        val alignedFrom = ChartMapping.alignedFrom(window.toMillis, window.spanMillis, fine)
+        ChartSeriesModel.fold(
+            aggregates = snapshot.aggregates,
+            alignedFromMillis = alignedFrom,
+            bucketMillis = fine,
+            bucketCount = ChartSeriesModel.bucketCount(window.spanMillis, fine),
+            subBucketMillis = snapshot.subBucketMillis,
+        ).ifEmpty { snapshot.buckets }
+    } else {
+        snapshot.buckets
+    }
+    val visible = columns.filter {
         it.endMillis > window.fromMillis && it.startMillis < window.toMillis
     }
     // Порог L1 задан в единицах дозы: на счёте и на отношении его линии нет —
@@ -133,7 +159,9 @@ internal fun buildFrame(
     // (Q10/Q90): один всплеск не сжимает весь ряд, а далёкий порог не
     // растягивает ось (CHART SPEC §7 + `DoseScales`). Выброс не теряется — его
     // несут маркер над полем и карточка курсора.
-    val dotsVisible = ChartSeriesModel.rawDotsVisible(snapshot.bucketMillis)
+    // Точки отдельных измерений — только у сглаженного вида: в подробном сама
+    // линия идёт по измерениям, и точки дублировали бы её.
+    val dotsVisible = !detailed && ChartSeriesModel.rawDotsVisible(snapshot.bucketMillis)
     val scale = DoseScales.of(
         logarithmic = logScale,
         lows = snapshot.buckets.map { it.q10 },
@@ -174,6 +202,7 @@ internal fun buildFrame(
     return ChartFrame(
         spec = DoseChartSpec(
             buckets = visible,
+            detailed = detailed,
             fromMillis = padded.fromMillis,
             toMillis = padded.toMillis,
             scale = scale,

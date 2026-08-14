@@ -72,6 +72,7 @@ import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.components.StatusDot
 import app.radiacode.ui.components.WhySheet
 import app.radiacode.ui.logic.ChartMapping
+import app.radiacode.ui.logic.ChartDetailMode
 import app.radiacode.ui.logic.ChartMetric
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.Freshness
@@ -196,6 +197,9 @@ fun MonitorScreen(
     val thresholds by graph.settings.alarmThresholds
         .collectAsState(initial = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f))
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
+    val chartDetailId by graph.settings.chartDetailModeId
+        .collectAsState(initial = ChartDetailMode.DEFAULT.id)
+    val chartDetail = remember(chartDetailId) { ChartDetailMode.of(chartDetailId) }
     val blocks by graph.settings.monitorBlocks.collectAsState(initial = MonitorBlocks())
     val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
     val activeProfile by graph.profileRepository.activeProfile().collectAsState(initial = null)
@@ -518,7 +522,9 @@ fun MonitorScreen(
             // замершей: данные у обоих были одни и те же, а край двигался
             // только у него.
             val liveSecond = nowMillis / 1_000L
-            val frame = remember(loaded, unit, thresholds, baseline, alert, liveSecond, viewport) {
+            val frame = remember(
+                loaded, unit, thresholds, baseline, alert, liveSecond, viewport, chartDetail,
+            ) {
                 loaded?.let {
                     val liveWindow = ChartWindows.limitedByHistory(
                         viewport.window(nowMillis),
@@ -539,6 +545,9 @@ fun MonitorScreen(
                         nowMillis = nowMillis,
                         axisStrings = ChartAxisCatalogue.of(strings.language),
                         showUnit = false,
+                        // Карточка и полноэкранный график — два размера одной
+                        // картинки, поэтому вид у них общий.
+                        detail = chartDetail,
                     )
                 }
             }

@@ -1,5 +1,6 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.ChartTextRu
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -19,9 +20,38 @@ class ChartInfoTest {
         logScale: Boolean = false,
         logDropped: Int = 0,
         historical: Boolean = false,
+        // Справка описывает КАРТИНКУ, а картинка бывает двух видов; по
+        // умолчанию проверяется сглаженный — тот, у которого есть заливки.
+        detail: ChartDetailMode = ChartDetailMode.SMOOTHED,
     ) = ChartInfo.sections(
-        metric, band, markers, episodes, method, logScale, logDropped, historical,
+        metric = metric,
+        hasBaselineBand = band,
+        hasExtremeMarkers = markers,
+        hasEpisodes = episodes,
+        method = method,
+        logScale = logScale,
+        logDropped = logDropped,
+        detail = detail,
+        historical = historical,
     )
+
+    /**
+     * Справка описывает ТУ картинку, что на экране.
+     *
+     * В подробном виде квантильных заливок нет вовсе, и объяснять их — значит
+     * объяснять пустое место; в сглаженном они есть, и без определения
+     * оставлять их нельзя.
+     */
+    @Test
+    fun `the view is named and only its own anatomy is explained`() {
+        val detailed = allText(sections(detail = ChartDetailMode.DETAILED))
+        val smoothed = allText(sections(detail = ChartDetailMode.SMOOTHED))
+
+        assertTrue(detailed.any { it == ChartTextRu.detailNote }, "$detailed")
+        assertTrue(detailed.none { it == ChartTextRu.anatomyEnvelopes }, "$detailed")
+        assertTrue(smoothed.any { it == ChartTextRu.smoothedNote }, "$smoothed")
+        assertTrue(smoothed.any { it == ChartTextRu.anatomyEnvelopes }, "$smoothed")
+    }
 
     /** Первый уровень: то, что видно сразу. */
     private fun lines(sections: List<ChartInfoSection>) = sections.flatMap { it.lines }
