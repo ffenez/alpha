@@ -35,6 +35,19 @@ interface SpectrumStrings {
     /** Вход в ряд нетто-счёта по линии выбранного нуклида. */
     /** Показать записанный фон серой кривой поверх спектра. */
     val showBackgroundCurve: String
+
+    /**
+     * Нажали то, что работает от записанного фона, а фона нет.
+     *
+     * Выключенная кнопка молчит: человек нажимает, ничего не происходит, и
+     * почему — неоткуда узнать. Поэтому действие остаётся живым и объясняет
+     * СВОЙ вход: что оно делает, чего ему не хватает и как это исправить.
+     */
+    val needBackgroundTitle: String
+    val needBackgroundSubtract: String
+    val needBackgroundCurve: String
+    val needBackgroundHow: String
+    val needBackgroundNoDevice: String
     val infoActionsTitle: String
     val toolLineTitle: String
     val toolLineSubtitle: String
@@ -322,6 +335,17 @@ interface SpectrumStrings {
 object SpectrumRu : SpectrumStrings {
 
     override val showBackgroundCurve = "фон"
+    override val needBackgroundTitle = "Фон ещё не записан"
+    override val needBackgroundSubtract =
+        "Режим «− фон» показывает, чем спектр здесь отличается от записанного " +
+            "фона. Пока фона нет, вычитать не из чего."
+    override val needBackgroundCurve =
+        "Серая кривая — это записанный фон поверх текущего спектра. Пока фона " +
+            "нет, рисовать нечего."
+    override val needBackgroundHow =
+        "Наберите спектр там, где обстановка обычная, и нажмите «Сделать фоном». " +
+            "Прибор при этом стоит неподвижно."
+    override val needBackgroundNoDevice = "Прибор не подключён — фон записывать нечем."
     override val infoActionsTitle = "Что делают кнопки"
     override val toolLineTitle = "Линия во времени"
     override val toolLineSubtitle = "как менялся счёт в окне линии выбранного нуклида"
@@ -650,6 +674,17 @@ object SpectrumRu : SpectrumStrings {
 object SpectrumEn : SpectrumStrings {
 
     override val showBackgroundCurve = "background"
+    override val needBackgroundTitle = "No background recorded yet"
+    override val needBackgroundSubtract =
+        "Mode «− background» shows how the spectrum here differs from the recorded " +
+            "background. With no background there is nothing to subtract."
+    override val needBackgroundCurve =
+        "The grey curve is the recorded background drawn over the current spectrum. " +
+            "With no background there is nothing to draw."
+    override val needBackgroundHow =
+        "Collect a spectrum where the surroundings are ordinary and press «Set as " +
+            "background». Keep the instrument still while it collects."
+    override val needBackgroundNoDevice = "No instrument connected — nothing to record a background with."
     override val infoActionsTitle = "What the buttons do"
     override val toolLineTitle = "A line over time"
     override val toolLineSubtitle = "how the count in a chosen nuclide's line window changed"
@@ -988,6 +1023,8 @@ val SpectrumCatalogue = AreaCatalogue(ru = SpectrumRu, en = SpectrumEn)
  */
 fun SpectrumStrings.allTexts(): List<String> = listOf(
     toolLineTitle, toolLineSubtitle, infoActionsTitle, showBackgroundCurve,
+    needBackgroundTitle, needBackgroundSubtract, needBackgroundCurve, needBackgroundHow,
+    needBackgroundNoDevice,
     decayFamilyRadon("Pb-214, Bi-214"), decayFamilyChain("Pb-212, Tl-208", "Th-232"),
     rangesSettingsNote, boundsNeedSpectrum,
     spectrumLoading, importNotSaved,

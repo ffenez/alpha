@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.radiacode.AppGraph
 import app.radiacode.analysis.EnergyCalibration
@@ -180,7 +181,8 @@ private fun PairRow(marker: String, entity: SpectrumSnapshotEntity) {
                 text = SpectrumExport.title(entity),
                 style = type.label,
                 color = colors.ink,
-                maxLines = 1,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = HistoryFormat.dayTime(entity.timestamp, now, s = h) +
@@ -586,7 +588,8 @@ private fun RowScope.CompareHeader(text: String, weight: Float) {
         text = text.uppercase(),
         style = LocalAppTypography.current.overline,
         color = LocalAppColors.current.muted,
-        maxLines = 1,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(weight),
     )
 }
@@ -598,6 +601,7 @@ private fun RowScope.CompareCell(text: String, weight: Float, color: Color) {
         style = LocalAppTypography.current.valueSmall,
         color = color,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(weight),
     )
 }

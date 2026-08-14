@@ -241,7 +241,7 @@ fun SpectrumFullScreen(
                         text = t.snapshotViewTag,
                         style = type.label,
                         color = colors.ink,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -258,6 +258,7 @@ fun SpectrumFullScreen(
                     style = type.footnoteMono,
                     color = colors.ink2,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Chip(text = "i", color = colors.ink2, onClick = { infoOpen = true })
             }

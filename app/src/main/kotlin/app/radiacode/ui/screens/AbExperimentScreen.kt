@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
@@ -1048,7 +1049,8 @@ private fun RowScope.AbHeader(text: String, weight: Float) {
         text = text.uppercase(),
         style = LocalAppTypography.current.overline,
         color = LocalAppColors.current.muted,
-        maxLines = 1,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(weight),
     )
 }
@@ -1060,6 +1062,7 @@ private fun RowScope.AbCell(text: String, weight: Float, color: Color) {
         style = LocalAppTypography.current.valueSmall,
         color = color,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(weight),
     )
 }

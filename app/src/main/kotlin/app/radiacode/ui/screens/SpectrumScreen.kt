@@ -64,6 +64,7 @@ import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.components.Chip
+import app.radiacode.ui.components.NeedBackgroundDialog
 import app.radiacode.ui.components.Segmented
 import androidx.compose.material3.Slider
 import app.radiacode.ui.logic.SpectrumScale
@@ -651,6 +652,24 @@ private fun SpectrumContent(
     // СРАВНЕНИЕ, и начинает его человек, когда оно ему нужно. Постоянная
     // вторая кривая поверх данных читается как часть измерения.
     var showBackground by rememberSaveable { mutableStateOf(false) }
+
+    // Что именно нажали без записанного фона; null — ничего не нажимали.
+    // Выключенная кнопка молчала, и «почему не работает» человеку было
+    // неоткуда узнать.
+    var needBackground by remember { mutableStateOf<String?>(null) }
+    needBackground?.let { what ->
+        NeedBackgroundDialog(
+            what = what,
+            // Записать фон можно только живым прибором: у снимка из Истории и
+            // без соединения предлагать это действие было бы обманом.
+            onRecord = if (connected && !viewingSnapshot) {
+                { graph.spectrumHub.request(SpectrumHub.Command.RECORD_BACKGROUND) }
+            } else {
+                null
+            },
+            onDismiss = { needBackground = null },
+        )
+    }
     var smoothing by rememberSaveable { mutableStateOf(false) }
     var window by remember { mutableStateOf<EnergyWindow?>(null) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
@@ -687,8 +706,16 @@ private fun SpectrumContent(
         Segmented(
             options = listOf(strings.spectrumModeRaw, strings.spectrumModeMinusBackground),
             selectedIndex = if (subtractOn) 1 else 0,
-            onSelect = { minusBackground = it == 1 },
-            enabled = { it == 0 || background != null },
+            // Режим «− фон» ЖИВОЙ и без записанного фона: на нажатие он
+            // объясняет, чего ему не хватает, и предлагает это записать.
+            // Выключенным он выглядел как поломка.
+            onSelect = { index ->
+                when {
+                    index == 0 -> minusBackground = false
+                    background != null -> minusBackground = true
+                    else -> needBackground = t.needBackgroundSubtract
+                }
+            },
             modifier = Modifier.weight(1.7f),
         )
         Segmented(
@@ -987,12 +1014,18 @@ private fun SpectrumContent(
                             .align(Alignment.TopEnd)
                             .padding(Dimens.space1),
                     ) {
-                        if (background != null && !subtractOn) {
+                        if (!subtractOn) {
                             Chip(
                                 text = t.showBackgroundCurve,
                                 color = if (showBackground) colors.dataText else colors.ink2,
                                 selected = showBackground,
-                                onClick = { showBackground = !showBackground },
+                                onClick = {
+                                    if (background == null) {
+                                        needBackground = t.needBackgroundCurve
+                                    } else {
+                                        showBackground = !showBackground
+                                    }
+                                },
                             )
                         }
                         Chip(

@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppMetrics
@@ -66,11 +68,20 @@ fun AppButton(
             .padding(horizontal = Dimens.space3, vertical = Dimens.space2),
         contentAlignment = Alignment.Center,
     ) {
+        // Подпись кнопки НЕ обрезается посреди слова.
+        //
+        // Полевой дефект: при увеличенном системном шрифте «Сохранить в
+        // историю» превращалось в «Сохранить в» — одна строка с обрезкой по
+        // краю выглядит как другое, более короткое действие, а не как
+        // не поместившийся текст. Кнопка теперь РАСТЁТ во вторую строку, и
+        // только если не хватило и её, обрезка честно помечается многоточием.
         Text(
             text = text,
             style = LocalAppTypography.current.label,
             color = foreground,
-            maxLines = 1,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -126,7 +137,9 @@ fun Segmented(
                         selected -> colors.ink
                         else -> colors.ink2
                     },
-                    maxLines = 1,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
                 )
             }
         }

@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
@@ -37,13 +38,15 @@ fun StatGrid(cells: List<StatCell>, modifier: Modifier = Modifier) {
                         style = type.value,
                         color = colors.ink,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
                     )
                     Text(
                         text = cell.key.uppercase(),
                         style = type.overline,
                         color = colors.muted,
-                        maxLines = 1,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
                     )
                 }

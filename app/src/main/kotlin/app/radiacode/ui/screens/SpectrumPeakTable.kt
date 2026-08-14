@@ -217,9 +217,9 @@ internal fun RowScope.TableHeader(
         text = text.uppercase(),
         style = LocalAppTypography.current.overline,
         color = LocalAppColors.current.muted,
-        maxLines = 1,
         // Заголовок никогда не переносится и не растит строку: на узком экране
         // он усечётся многоточием, а таблица останется таблицей.
+        maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(weight),
     )
@@ -236,6 +236,7 @@ internal fun RowScope.TableCell(
         style = LocalAppTypography.current.valueSmall,
         color = color,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(weight),
     )
 }

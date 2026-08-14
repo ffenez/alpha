@@ -711,7 +711,7 @@ private fun PortraitTopBar(
                 text = "$metricTitle · $periodLabel".uppercase(),
                 style = type.labelSmall,
                 color = colors.ink2,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
@@ -841,7 +841,8 @@ private fun BoxScope.LandscapeTopBar(
             text = "$metricTitle · $periodLabel".uppercase(),
             style = type.labelSmall,
             color = colors.ink2,
-            maxLines = 1,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
         if (range != null) RangeLabel(range)
         Spacer(Modifier.weight(1f))
@@ -856,6 +857,7 @@ private fun BoxScope.LandscapeTopBar(
                 style = type.footnote,
                 color = colors.ink2,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,

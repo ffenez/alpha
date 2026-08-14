@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -316,7 +317,8 @@ private fun RowScope.RangeHeader(text: String, weight: Float) {
         text = text,
         style = LocalAppTypography.current.overline,
         color = LocalAppColors.current.muted,
-        maxLines = 1,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(weight),
     )
 }
@@ -328,6 +330,7 @@ private fun RowScope.RangeCell(text: String, weight: Float, color: Color) {
         style = LocalAppTypography.current.valueSmall,
         color = color,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(weight),
     )
 }

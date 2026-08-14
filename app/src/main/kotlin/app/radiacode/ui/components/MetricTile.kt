@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -45,15 +46,28 @@ fun MetricTileBox(tile: MetricTile, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(text = tile.label.uppercase(), style = type.overline, color = colors.muted, maxLines = 1)
+        Text(
+            text = tile.label.uppercase(),
+            style = type.overline,
+            color = colors.muted,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
         Text(
             text = tile.value,
             style = type.value,
             color = tile.valueColor ?: colors.ink,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         tile.note?.let {
-            Text(text = it, style = type.footnote, color = colors.muted, maxLines = 1)
+            Text(
+                text = it,
+                style = type.footnote,
+                color = colors.muted,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
