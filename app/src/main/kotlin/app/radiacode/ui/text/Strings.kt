@@ -565,6 +565,10 @@ interface Strings {
     /** Выключатель окраски главного числа (Настройки → Вид → Интерфейс). */
     val doseTintTitle: String
 
+    /** «Багровый при ×2 от обычного» — где цвет числа насыщается. */
+    val doseTintFactorTitle: String
+    fun doseTintFactorLabel(factor: String): String
+
     val stateUnknown: String
 
     /** Прибор отказал в записи: молчащая кнопка неотличима от сломанной. */
@@ -610,7 +614,7 @@ fun Strings.allTexts(): List<String> = listOf(
     deviceSignals, deviceSignalsNote, deviceSound, deviceVibro,
     deviceSignalsUnknownNote, deviceSignalsOfflineNote,
     baselineStats("0,12", "0,11–0,14", "0,01", 26),
-    hintsTitle, doseTintTitle, stateUnknown, stateRejected, stateOnByApp, stateOffByApp, on, off,
+    hintsTitle, doseTintTitle, doseTintFactorTitle, doseTintFactorLabel("2"), stateUnknown, stateRejected, stateOnByApp, stateOffByApp, on, off,
     onboardingBrand, onboardingConnectTitle, onboardingConnectBody, onboardingPermissions,
     onboardingBluetoothDenied, retry, start, onboardingBackgroundTitle, onboardingBackgroundBody,
     onboardingBatteryNote, later, allow, onboardingScanTitle, scanning, onboardingScanBody,

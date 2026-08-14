@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v044Title: String
+    val v044Summary: String
+
     val v043Title: String
     val v043Summary: String
 
@@ -90,6 +93,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v044Title = "Плитка «Фон» — одно число, единиц на экране нет"
+    override val v044Summary =
+        "«Фон» показывает середину обычного для этого места — медиану, а не " +
+        "среднее: один всплеск среднее сдвигает, а середину нет. Подписи " +
+        "«мкЗв/ч» и «с⁻¹» с Главной и Поиска убраны (единицы названы в " +
+        "«Информации»), а насколько выше обычного число становится цветным, " +
+        "задаётся в Настройках → Вид."
 
     override val v043Title = "Плитки называются одним словом"
     override val v043Summary =
@@ -248,6 +259,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v044Title = "The «Фон» tile is one number, and no units on screen"
+    override val v044Summary =
+        "«Фон» shows the middle of what is usual for the place — the median, not " +
+        "the mean: a single spike moves the mean and leaves the middle where it " +
+        "was. The «мкЗв/ч» and «с⁻¹» labels are gone from Home and Search (the " +
+        "units are named in «Информация»), and how far above the usual a number " +
+        "turns coloured is set in Settings → Вид."
 
     override val v043Title = "A tile is named by one word"
     override val v043Summary =
@@ -413,6 +432,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v044Title, v044Summary,
     v043Title, v043Summary,
     v042Title, v042Summary,
     v041Title, v041Summary,

@@ -54,7 +54,9 @@ class BackgroundCardTest {
     fun `a usable background is three short facts and no argument`() {
         val model = card(BackgroundCheck.USABLE)
 
-        assertEquals("Фон: 24,1 имп/с", model.level)
+        // Единицы на экране Поиска нет: все числа здесь — одна и та же
+        // скорость счёта, и подпись у каждого из них ничего не различает.
+        assertEquals("Фон: 24,1", model.level)
         assertEquals("Записан 12.08 в 15:04", model.basis)
         assertNull(model.reason, "пригодный фон ничего не требует")
         assertTrue(model.usable)
@@ -160,7 +162,7 @@ class BackgroundCardTest {
             t = app.radiacode.ui.text.SearchEn,
         )
 
-        assertEquals("Background: 24.1 counts/s", model.level)
+        assertEquals("Background: 24.1", model.level)
         assertEquals("Recorded on 12.08 at 15:04", model.basis)
         assertTrue(assertNotNull(model.reason).contains("refresh it"))
         assertEquals("Refresh the background", model.action)
@@ -185,5 +187,24 @@ class BackgroundCardTest {
             }
         }
         assertEquals(BackgroundCardRu.allTexts().size, BackgroundCardEn.allTexts().size)
+    }
+
+    /**
+     * На экране Поиска у чисел нет подписи единицы: величина здесь ровно одна —
+     * скорость счёта, и «имп/с» у каждого числа ничего не различает. Название
+     * единицы живёт там, где число объясняют, — в «Информации».
+     */
+    @Test
+    fun `the on-screen level names no unit`() {
+        assertEquals("Фон: 24,1", BackgroundCardRu.level("24,1"))
+        assertEquals("Background: 24.1", BackgroundCardEn.level("24.1"))
+        val units = listOf("имп/с", "с⁻¹", "counts/s", "s⁻¹", "cps")
+        for (catalogue in BackgroundCardCatalogue.all) {
+            for (text in catalogue.allTexts()) {
+                for (unit in units) {
+                    assertTrue(!text.contains(unit), "«$unit»: $text")
+                }
+            }
+        }
     }
 }

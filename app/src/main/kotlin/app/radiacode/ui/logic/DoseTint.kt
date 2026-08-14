@@ -33,11 +33,11 @@ object DoseTint {
     fun fraction(
         doseMicroSvH: Float?,
         baseline: Baseline?,
-        alarmMicroSvH: Float?,
+        factor: Float = DEFAULT_FACTOR,
     ): Float? = of(
         value = doseMicroSvH,
         usualHigh = baseline?.doseHighMicroSvH,
-        top = alarmMicroSvH,
+        factor = factor,
     )
 
     /**
@@ -48,23 +48,43 @@ object DoseTint {
      * раз: два экрана, красящие числа по-разному, означали бы две разные
      * шкалы под одинаковыми цветами.
      */
-    fun of(value: Float?, usualHigh: Float?, top: Float?): Float? {
+    fun of(value: Float?, usualHigh: Float?, factor: Float = DEFAULT_FACTOR): Float? {
         val current = value ?: return null
         if (!current.isFinite()) return null
         val high = usualHigh ?: return null
         if (!high.isFinite() || high <= 0f) return null
         if (current <= high) return 0f
-        // Верх ниже обычного — не шкала, а противоречие: тогда единственная
-        // честная привязка это само «обычно».
-        val ceiling = top?.takeIf { it.isFinite() && it > high } ?: (high * FALLBACK_TOP)
+        val ceiling = high * factor.coerceIn(MIN_FACTOR, MAX_FACTOR)
+        // На верху и выше — ровно единица, без деления: у float частное
+        // 0,07/0,07 бывает 0,99999976, и цвет не доходил бы до края шкалы.
+        if (current >= ceiling) return 1f
         return ((current - high) / (ceiling - high)).coerceIn(0f, 1f)
     }
 
     /**
-     * Во сколько раз выше P90 стоит верх шкалы, когда порога тревоги нет.
-     * **Инженерный параметр**: вдвое. Тот же множитель, которым «выше
-     * обычного» отличается от «сильно выше» в остальных местах приложения, и
-     * он не выдумывает нового смысла — просто задаёт, где цвет насытится.
+     * Во сколько раз выше обычного цвет насыщается — по умолчанию вдвое.
+     *
+     * Множитель ОБЫЧНОГО, а не абсолютное значение: у каждого места свой
+     * уровень, и «багровое от 0,30» в одном месте означало бы вдвое выше
+     * обычного, а в другом — вдесятеро. Настраивается в приложении: насколько
+     * рано цвет должен тревожить, решает человек, а не шкала.
      */
-    const val FALLBACK_TOP = 2f
+    const val DEFAULT_FACTOR = 2f
+
+    /** Ниже этого множителя цвет насыщался бы внутри обычного разброса. */
+    const val MIN_FACTOR = 1.2f
+
+    /** Выше — цвет перестаёт меняться на всём, что человек реально увидит. */
+    const val MAX_FACTOR = 10f
+
+    /** Ступени множителя в настройках. */
+    val FACTORS = listOf(1.5f, 2f, 3f, 5f)
+
+    /** «1,5» и «2» — множитель без хвостовых нулей. */
+    fun factorLabel(factor: Float): String =
+        if (factor == factor.toInt().toFloat()) {
+            factor.toInt().toString()
+        } else {
+            String.format(java.util.Locale.US, "%.1f", factor).replace('.', ',')
+        }
 }

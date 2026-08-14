@@ -222,7 +222,6 @@ interface SearchStrings {
     // --- замер и карточка записанного фона ---
     fun backgroundRunTitle(collected: Int, target: Int): String
     val backgroundRunNote: String
-    fun backgroundRecorded(rate: String, time: String): String
     fun backgroundDetail(samples: Int, seconds: Int, quality: String, profile: String?): String
     val noBackgroundTitle: String
     fun noBackgroundNote(seconds: Int): String
@@ -486,7 +485,7 @@ object SearchRu : SearchStrings {
 
     override val navSpotTitle = "Замер в точке"
 
-    override fun navSpotResult(rate: String, sigma: String) = "$rate ±$sigma с⁻¹ (1σ)"
+    override fun navSpotResult(rate: String, sigma: String) = "$rate ±$sigma (1σ)"
 
     override fun navSpotExposure(seconds: Int) = "измерялось $seconds с"
 
@@ -548,9 +547,6 @@ object SearchRu : SearchStrings {
         "Отойдите от предполагаемого источника и держите прибор " +
             "неподвижно. Замер продолжается на других вкладках и при " +
             "погасшем экране — результат будет здесь."
-
-    override fun backgroundRecorded(rate: String, time: String) =
-        "Фон $rate с⁻¹ · записан $time"
 
     override fun backgroundDetail(samples: Int, seconds: Int, quality: String, profile: String?) =
         "$samples показаний · фон измерялся $seconds с · качество: $quality" +
@@ -860,7 +856,7 @@ object SearchEn : SearchStrings {
 
     override val navSpotTitle = "Spot measurement"
 
-    override fun navSpotResult(rate: String, sigma: String) = "$rate ±$sigma s⁻¹ (1σ)"
+    override fun navSpotResult(rate: String, sigma: String) = "$rate ±$sigma (1σ)"
 
     override fun navSpotExposure(seconds: Int) = "measured for $seconds s"
 
@@ -920,9 +916,6 @@ object SearchEn : SearchStrings {
         "Step away from the suspected source and hold the instrument still. " +
             "The measurement continues on other tabs and with the screen off — " +
             "the result will be here."
-
-    override fun backgroundRecorded(rate: String, time: String) =
-        "Background $rate s⁻¹ · taken at $time"
 
     override fun backgroundDetail(samples: Int, seconds: Int, quality: String, profile: String?) =
         "$samples readings · background measured for $seconds s · recording: $quality" +
@@ -1149,7 +1142,7 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     statMean60, statMax, statDecisionWindow, statBackgroundTaken,
     openSpectrum, shapeInvitation, shapeNotEnough("z = 1,2"), shapeConsistent("z = 1,2"),
     shapeChanged("z = 4,1"),
-    backgroundRunTitle(12, 45), backgroundRunNote, backgroundRecorded("25,5", "14:03"),
+    backgroundRunTitle(12, 45), backgroundRunNote,
     backgroundDetail(45, 45, qualityGood, "Дом"), backgroundDetail(45, 45, qualityGood, null),
     noBackgroundTitle, noBackgroundNote(45), hide, measureBackground(45), remeasureBackground(45),
     statusUsable, statusAged, statusProfileChanged, statusDeviceChanged, statusLowQuality,

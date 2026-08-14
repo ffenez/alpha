@@ -821,6 +821,11 @@ class MeasurementService : Service() {
      * Причина отсутствия точек уходит в статус: ждать спутников и ждать
      * разрешения, которого нет, — разные вещи, и экран обязан их различать.
      */
+    // Разрешение проверяется первой же строкой тела: подписка без него не
+    // доходит до `requestLocationUpdates`, а экран получает NO_PERMISSION.
+    // Lint не видит проверку через собственные `has*Permission()`, поэтому
+    // предупреждение снято здесь, а не обойдено ослаблением проверки.
+    @android.annotation.SuppressLint("MissingPermission")
     private fun registerLocationUpdates(sessionId: Long) {
         val locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         val precise = hasLocationPermission()

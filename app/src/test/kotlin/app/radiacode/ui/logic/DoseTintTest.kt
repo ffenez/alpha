@@ -32,39 +32,51 @@ class DoseTintTest {
 
     @Test
     fun `without a place band there is no colour at all`() {
-        assertNull(DoseTint.fraction(0.30f, baseline = null, alarmMicroSvH = 0.30f))
-        assertNull(DoseTint.fraction(null, baseline = baseline, alarmMicroSvH = 0.30f))
-        assertNull(DoseTint.fraction(Float.NaN, baseline, 0.30f))
+        assertNull(DoseTint.fraction(0.30f, baseline = null))
+        assertNull(DoseTint.fraction(null, baseline = baseline))
+        assertNull(DoseTint.fraction(Float.NaN, baseline))
     }
 
     /** Внутри обычного диапазона значения не «лучше» и не «хуже» друг друга. */
     @Test
     fun `everything inside the usual range looks the same`() {
-        assertEquals(0f, DoseTint.fraction(0.05f, baseline, 0.30f))
-        assertEquals(0f, DoseTint.fraction(0.12f, baseline, 0.30f))
-        assertEquals(0f, DoseTint.fraction(0.14f, baseline, 0.30f))
-    }
-
-    @Test
-    fun `above the range the colour walks towards the threshold and stops there`() {
-        val middle = DoseTint.fraction(0.22f, baseline, 0.30f)!!
-        assertTrue(middle > 0f && middle < 1f, "$middle")
-        assertEquals(1f, DoseTint.fraction(0.30f, baseline, 0.30f))
-        // За порогом цвет уже не меняется: дальше говорит вывод, а не оттенок.
-        assertEquals(1f, DoseTint.fraction(3.0f, baseline, 0.30f))
+        assertEquals(0f, DoseTint.fraction(0.05f, baseline))
+        assertEquals(0f, DoseTint.fraction(0.12f, baseline))
+        assertEquals(0f, DoseTint.fraction(0.14f, baseline))
     }
 
     /**
-     * Порог ниже обычного диапазона — не шкала, а противоречие: тогда
-     * единственная честная привязка это сам диапазон.
+     * Верх шкалы — МНОЖИТЕЛЬ обычного, и его задаёт человек: у каждого места
+     * свой уровень, и абсолютное «багровое от 0,30» означало бы в одном месте
+     * вдвое выше обычного, а в другом — вдесятеро.
      */
     @Test
-    fun `a threshold below the place band is not used as the top`() {
-        val withBadThreshold = DoseTint.fraction(0.28f, baseline, alarmMicroSvH = 0.10f)!!
-        val withoutThreshold = DoseTint.fraction(0.28f, baseline, alarmMicroSvH = null)!!
+    fun `the top of the scale is a multiple of the usual, and it is settable`() {
+        // По умолчанию вдвое: 0,14 → 0,28.
+        val middle = DoseTint.fraction(0.21f, baseline)!!
+        assertTrue(middle > 0f && middle < 1f, "$middle")
+        assertEquals(1f, DoseTint.fraction(0.28f, baseline))
+        // За верхом цвет уже не меняется: дальше говорит вывод, а не оттенок.
+        assertEquals(1f, DoseTint.fraction(3.0f, baseline))
 
-        assertEquals(withoutThreshold, withBadThreshold)
-        // Верх без порога — вдвое выше P90, то есть 0,28 и есть насыщение.
-        assertEquals(1f, withoutThreshold)
+        // Множитель втрое отодвигает насыщение: то же значение уже не багровое.
+        assertTrue(DoseTint.fraction(0.28f, baseline, factor = 3f)!! < 1f)
+        // …и наоборот, полтора — приближает. Допуск здесь не косметика:
+        // 0,14 × 1,5 у float чуть больше, чем 0,21, и требовать точной
+        // единицы значило бы проверять представление чисел, а не шкалу.
+        assertEquals(1f, DoseTint.fraction(0.21f, baseline, factor = 1.5f)!!, 1e-4f)
+    }
+
+    @Test
+    fun `an absurd multiplier cannot break the scale`() {
+        // Множитель внутри обычного разброса выправляется до допустимого.
+        assertTrue(DoseTint.of(0.15f, 0.14f, factor = 0.5f)!! in 0f..1f)
+        assertTrue(DoseTint.of(0.15f, 0.14f, factor = 1_000f)!! in 0f..1f)
+    }
+
+    @Test
+    fun `the multiplier is written without trailing zeros`() {
+        assertEquals("2", DoseTint.factorLabel(2f))
+        assertEquals("1,5", DoseTint.factorLabel(1.5f))
     }
 }

@@ -218,6 +218,8 @@ fun MonitorScreen(
         .collectAsState(initial = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f))
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     val doseTint by graph.settings.doseTint.collectAsState(initial = true)
+    val doseTintFactor by graph.settings.doseTintFactor
+        .collectAsState(initial = DoseTint.DEFAULT_FACTOR)
     val connectedAt by graph.serviceStatus.connectedAtMillis.collectAsState()
     val chartDetailId by graph.settings.chartDetailModeId
         .collectAsState(initial = ChartDetailMode.DEFAULT.id)
@@ -524,7 +526,7 @@ fun MonitorScreen(
             onWhy = { showWhy = true },
             onOpenDose = onOpenDose,
             tintEnabled = doseTint,
-            alarmMicroSvH = thresholds.l1MicroSvH.takeIf { it > 0f },
+            tintFactor = doseTintFactor,
         )
 
         val baseline = (baselineState as? BaselineState.Active)?.baseline
@@ -864,8 +866,8 @@ private fun HeroCard(
     frozen: Boolean = false,
     /** Красить ли главное число по отношению к обычному фону места. */
     tintEnabled: Boolean = true,
-    /** Порог тревоги — верх цветовой шкалы. */
-    alarmMicroSvH: Float? = null,
+    /** Во сколько раз выше обычного цвет насыщается. */
+    tintFactor: Float = DoseTint.DEFAULT_FACTOR,
     onWhy: () -> Unit = {},
     /** Плитка накопленного открывает свой экран. */
     onOpenDose: () -> Unit = {},
@@ -901,7 +903,7 @@ private fun HeroCard(
                     DoseTint.fraction(
                         doseMicroSvH,
                         (baselineState as? BaselineState.Active)?.baseline,
-                        alarmMicroSvH,
+                        tintFactor,
                     )
                 } else {
                     null
@@ -971,10 +973,13 @@ private fun HeroCard(
                         // переноса, а перенесённый заголовок перестаёт быть
                         // заголовком.
                         label = strings.backgroundTag,
-                        value = band?.let {
-                            DoseFormat.range(it.doseLowMicroSvH, it.doseHighMicroSvH, unit)
-                        } ?: "—",
-                        note = DoseFormat.rateUnitLabel(unit, s = strings),
+                        // Одно число, а не диапазон: плитка отвечает «сколько
+                        // здесь обычно», и диапазон в ней читается как второй
+                        // показатель. Это МЕДИАНА места, а не среднее:
+                        // один всплеск сдвигает среднее и не сдвигает медиану,
+                        // поэтому весь движок обычного фона считает медианой
+                        // (ADR 002), и плитка обязана показывать то же самое.
+                        value = band?.let { DoseFormat.rate(it.doseMedianMicroSvH, unit) } ?: "—",
                     ),
                 )
                 if (blocks.trend) {
@@ -1016,8 +1021,6 @@ private fun HeroCard(
                             // величины: он уходит вниз вместе с единицей.
                             label = strings.dose,
                             value = doseTodayMicroSv?.let { DoseFormat.dose(it, unit) } ?: "—",
-                            note = DoseFormat.doseUnitLabel(unit, s = strings) + " · " +
-                                strings.doseToday.lowercase(),
                             onClick = onOpenDose,
                         ),
                     )

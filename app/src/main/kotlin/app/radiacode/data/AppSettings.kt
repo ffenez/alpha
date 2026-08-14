@@ -1,6 +1,7 @@
 package app.radiacode.data
 
 import app.radiacode.ui.logic.ChartDetailMode
+import app.radiacode.ui.logic.DoseTint
 import app.radiacode.ui.text.RuStrings
 import app.radiacode.ui.theme.UiScale
 import app.radiacode.ui.text.Strings
@@ -266,6 +267,22 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         dataStore.edit { it[DOSE_TINT] = enabled }
     }
 
+    /**
+     * Во сколько раз выше обычного цвет числа насыщается.
+     *
+     * Множитель обычного, а не абсолютное значение: у каждого места свой
+     * уровень, и «багровое от 0,30» означало бы в одном месте вдвое выше
+     * обычного, а в другом — вдесятеро.
+     */
+    val doseTintFactor: Flow<Float> =
+        dataStore.data.map { (it[DOSE_TINT_FACTOR] ?: DoseTint.DEFAULT_FACTOR) }
+
+    suspend fun setDoseTintFactor(factor: Float) {
+        dataStore.edit {
+            it[DOSE_TINT_FACTOR] = factor.coerceIn(DoseTint.MIN_FACTOR, DoseTint.MAX_FACTOR)
+        }
+    }
+
     val hintsVisible: Flow<Boolean> =
         dataStore.data.map { it[HINTS_VISIBLE] ?: false }
 
@@ -529,6 +546,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val CHART_DETAIL = stringPreferencesKey("chart_detail")
         private val HINTS_VISIBLE = booleanPreferencesKey("hints_visible")
         private val DOSE_TINT = booleanPreferencesKey("dose_tint")
+        private val DOSE_TINT_FACTOR = floatPreferencesKey("dose_tint_factor")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")

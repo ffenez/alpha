@@ -629,6 +629,8 @@ object RuStrings : Strings {
         "медиана $median · P25–P75 $iqr · MAD $mad · n $buckets минутных интервалов"
     override val hintsTitle = "Пояснения на экранах"
     override val doseTintTitle = "Цвет числа по фону места"
+    override val doseTintFactorTitle = "Багровый при"
+    override fun doseTintFactorLabel(factor: String) = "×$factor"
     override val stateUnknown = "состояние неизвестно"
     override val stateRejected = "прибор не принял · попробуйте ещё раз"
     override val stateOnByApp = "включено этим приложением"

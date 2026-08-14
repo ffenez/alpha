@@ -78,6 +78,7 @@ import app.radiacode.service.DeviceControlHub
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
+import app.radiacode.ui.logic.DoseTint
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.NavConfig
 import app.radiacode.ui.logic.ProfileTree
@@ -1229,6 +1230,41 @@ private fun InterfaceSection(graph: AppGraph) {
                     selected = tint,
                     onClick = { scope.launch { graph.settings.setDoseTint(!tint) } },
                 )
+            }
+
+            // Где цвет насыщается — во сколько раз выше обычного. Множитель, а
+            // не абсолютное значение: у каждого места свой уровень, и «от
+            // 0,30» означало бы в одном месте вдвое выше обычного, а в другом
+            // — вдесятеро.
+            val tintOn by graph.settings.doseTint.collectAsState(initial = true)
+            if (tintOn) {
+                val factor by graph.settings.doseTintFactor
+                    .collectAsState(initial = DoseTint.DEFAULT_FACTOR)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = strings.doseTintFactorTitle,
+                        style = type.label,
+                        color = colors.ink,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Segmented(
+                        options = DoseTint.FACTORS.map {
+                            strings.doseTintFactorLabel(DoseTint.factorLabel(it))
+                        },
+                        selectedIndex = DoseTint.FACTORS.indexOfFirst { it == factor }
+                            .coerceAtLeast(0),
+                        onSelect = { index ->
+                            scope.launch {
+                                graph.settings.setDoseTintFactor(DoseTint.FACTORS[index])
+                            }
+                        },
+                        modifier = Modifier.weight(1.4f),
+                    )
+                }
             }
 
             Row(

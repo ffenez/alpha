@@ -20,7 +20,13 @@ package app.radiacode.ui.text
  */
 interface BackgroundCardStrings {
 
-    /** Главная строка: «Фон: 24,1 имп/с». */
+    /**
+     * Главная строка: «Фон: 24,1».
+     *
+     * Без единицы: на экране Поиска все числа — одна и та же скорость счёта,
+     * и подпись «имп/с» у каждого из них ничего не различает, а место занимает.
+     * Единица названа там, где число объясняют, — в «Информации».
+     */
     fun level(rate: String): String
 
     /** Основание: «Записан в 15:04 · измерение 45 с». */
@@ -56,7 +62,7 @@ interface BackgroundCardStrings {
 
 object BackgroundCardRu : BackgroundCardStrings {
 
-    override fun level(rate: String) = "Фон: $rate имп/с"
+    override fun level(rate: String) = "Фон: $rate"
 
     override fun recordedAt(day: String, time: String) = "Записан $day в $time"
 
@@ -87,7 +93,7 @@ object BackgroundCardRu : BackgroundCardStrings {
 
 object BackgroundCardEn : BackgroundCardStrings {
 
-    override fun level(rate: String) = "Background: $rate counts/s"
+    override fun level(rate: String) = "Background: $rate"
 
     override fun recordedAt(day: String, time: String) = "Recorded on $day at $time"
 

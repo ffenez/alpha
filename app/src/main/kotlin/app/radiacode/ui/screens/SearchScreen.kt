@@ -177,6 +177,8 @@ fun SearchScreen(
     var deviceClockOffset by remember { mutableLongStateOf(0L) }
     var whyOpen by remember { mutableStateOf(false) }
     val doseTint by graph.settings.doseTint.collectAsState(initial = true)
+    val tintFactor by graph.settings.doseTintFactor
+        .collectAsState(initial = DoseTint.DEFAULT_FACTOR)
     // «Наведение» держит своё состояние в графе, а не в композиции: точку
     // отсчёта ставит человек, и уход на другую вкладку не имеет права её
     // отменить — раньше она молча пропадала вместе с экраном.
@@ -557,7 +559,7 @@ fun SearchScreen(
                 // с разными шкалами под одинаковыми цветами означали бы, что
                 // цвет ничего не значит.
                 val tintFraction = if (doseTint) {
-                    DoseTint.of(cps, record?.cps, null)
+                    DoseTint.of(cps, record?.cps, tintFactor)
                 } else {
                     null
                 }
@@ -597,7 +599,6 @@ fun SearchScreen(
                             tile = MetricTile(
                                 label = strings.backgroundTag,
                                 value = Uncertainty.num1(record.cps),
-                                note = t.cpsUnit,
                             ),
                             modifier = Modifier.weight(1f),
                         )
