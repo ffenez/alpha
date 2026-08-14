@@ -69,6 +69,8 @@ object SpectrumFrames {
         backgroundSeconds: Long = 0L,
         window: EnergyWindow? = null,
         subtract: Boolean = false,
+        /** Рисовать ли записанный фон серой кривой поверх спектра. */
+        overlayBackground: Boolean = true,
         smoothing: Boolean = false,
         scale: SpectrumScale = SpectrumScale.Log,
         columnCount: Int = COLUMN_COUNT,
@@ -92,7 +94,9 @@ object SpectrumFrames {
 
         // Фон показывается наложением ТОЛЬКО в обычном режиме: вычитать его и
         // одновременно рисовать — использовать одни и те же импульсы дважды.
-        val overlay = if (background == null || subtract) {
+        // И только по просьбе: серая кривая поверх данных это сравнение, а
+        // сравнение человек начинает сам, когда оно ему нужно.
+        val overlay = if (background == null || subtract || !overlayBackground) {
             null
         } else {
             SpectrumDisplay.aggregateMax(

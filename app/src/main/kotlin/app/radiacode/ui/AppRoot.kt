@@ -40,6 +40,7 @@ import app.radiacode.ui.screens.LiveChartScreen
 import app.radiacode.ui.screens.MapScreen
 import app.radiacode.ui.screens.MonitorScreen
 import app.radiacode.ui.screens.OnboardingScreen
+import app.radiacode.ui.screens.NuclideTrendScreen
 import app.radiacode.ui.screens.RadonScreen
 import app.radiacode.ui.screens.SearchScreen
 import app.radiacode.ui.screens.SessionDetailScreen
@@ -68,6 +69,7 @@ private data class ScreenKey(
     val fingerprint: Boolean,
     val spectrogram: Boolean,
     val radon: Boolean,
+    val lineTrend: Boolean,
     val experiments: Boolean,
     val trackMapId: Long?,
     val detailId: Long?,
@@ -154,6 +156,7 @@ private fun MainScaffold(graph: AppGraph) {
     var showSpectrogram by rememberSaveable { mutableStateOf(false) }
     var showExperiments by rememberSaveable { mutableStateOf(false) }
     var showRadon by rememberSaveable { mutableStateOf(false) }
+    var showLineTrend by rememberSaveable { mutableStateOf(false) }
     var sessionDetailId by rememberSaveable { mutableStateOf<Long?>(null) }
     var trackMapSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
     // «Продолжить накопление»: snapshot id the Спектр tab merges with the live
@@ -161,7 +164,7 @@ private fun MainScaffold(graph: AppGraph) {
     var continueSpectrumId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     BackHandler(
-        enabled = showSettings || showLiveChart || fullSpectrum || showSpectrogram || showRadon ||
+        enabled = showSettings || showLiveChart || fullSpectrum || showSpectrogram || showRadon || showLineTrend ||
             showExperiments || showFingerprint || sessionDetailId != null ||
             trackMapSessionId != null || spectrumSnapshotId != null,
     ) {
@@ -173,6 +176,7 @@ private fun MainScaffold(graph: AppGraph) {
             spectrumSnapshotId != null -> spectrumSnapshotId = null
             showSpectrogram -> showSpectrogram = false
             showRadon -> showRadon = false
+            showLineTrend -> showLineTrend = false
             showExperiments -> showExperiments = false
             trackMapSessionId != null -> trackMapSessionId = null
             else -> sessionDetailId = null
@@ -236,6 +240,7 @@ private fun MainScaffold(graph: AppGraph) {
                     fingerprint = showFingerprint,
                     spectrogram = showSpectrogram,
                     radon = showRadon,
+                    lineTrend = showLineTrend,
                     experiments = showExperiments,
                     trackMapId = trackMapId,
                     detailId = detailId,
@@ -270,6 +275,7 @@ private fun MainScaffold(graph: AppGraph) {
                 )
                 key.spectrogram -> SpectrogramScreen(graph, onBack = { showSpectrogram = false })
                 key.radon -> RadonScreen(graph, onBack = { showRadon = false })
+                key.lineTrend -> NuclideTrendScreen(graph, onBack = { showLineTrend = false })
                 key.experiments -> AbExperimentScreen(
                     graph = graph,
                     onBack = { showExperiments = false },
@@ -325,6 +331,7 @@ private fun MainScaffold(graph: AppGraph) {
                         graph = graph,
                         onOpenSpectrogram = { showSpectrogram = true },
                         onOpenRadon = { showRadon = true },
+                        onOpenLineTrend = { showLineTrend = true },
                         onOpenExperiments = { showExperiments = true },
                         continueSnapshotId = continueSpectrumId,
                         onStopContinuation = { continueSpectrumId = null },
@@ -352,6 +359,7 @@ private fun MainScaffold(graph: AppGraph) {
                 showLiveChart = false
                 showSpectrogram = false
                 showRadon = false
+                showLineTrend = false
                 showExperiments = false
                 sessionDetailId = null
                 trackMapSessionId = null

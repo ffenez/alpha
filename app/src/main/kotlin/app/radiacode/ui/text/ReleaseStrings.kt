@@ -93,6 +93,10 @@ object ReleaseRu : ReleaseStrings {
             "перетаскивание уводит в прошлое, двойное нажатие возвращает к «сейчас».",
         "Короче формулировки состояния: «Ниже порога тревоги», «Обычно для " +
             "этого места», «Уровень изменился».",
+        "Новый разбор «Линия во времени»: как менялся счёт в окне линии " +
+            "выбранного нуклида — цезия, калия, радоновых продуктов, тория.",
+        "В спектре: «Сохранить в историю», подписи кнопок ушли в справку, а " +
+            "записанный фон рисуется серой кривой по нажатию.",
         "Появилась настройка «После перезагрузки» (Прибор): продолжать " +
             "измерение после включения телефона, по умолчанию выключено.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
@@ -275,6 +279,10 @@ object ReleaseEn : ReleaseStrings {
             "goes back in time, a double tap returns to now.",
         "Shorter status wording: «Below the alarm threshold», «Usual for this " +
             "place», «The level has changed».",
+        "New «A line over time» analysis: how the count in a chosen nuclide's " +
+            "line window changed — caesium, potassium, radon daughters, thorium.",
+        "In the spectrum: «Save to history», the button captions moved into the " +
+            "help, and the recorded background is drawn on request.",
         "New setting «After a restart» (Instrument): keep measuring once the " +
             "phone boots, off by default.",
         "The state of the stream is stated once for every element of the " +

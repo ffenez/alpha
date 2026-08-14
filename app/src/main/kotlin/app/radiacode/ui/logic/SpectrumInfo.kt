@@ -93,6 +93,17 @@ object SpectrumInfo {
                 },
             ),
         )
+        // Что делает каждая кнопка под графиком: подписи стояли под ними
+        // постоянно, а читаются один раз. Разница между «сохранить в историю»
+        // и «сделать фоном» — не украшение: первая кладёт снимок в журнал,
+        // вторая объявляет его эталоном, который потом вычитается.
+        add(
+            SpectrumInfoSection(
+                level = SpectrumInfoLevel.WHY,
+                title = s.infoActionsTitle,
+                lines = listOf(s.saveSnapshotNote, s.setAsBackgroundNote),
+            ),
+        )
         add(
             SpectrumInfoSection(
                 level = SpectrumInfoLevel.WHY,

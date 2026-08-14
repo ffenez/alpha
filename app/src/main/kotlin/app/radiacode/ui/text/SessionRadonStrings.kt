@@ -20,6 +20,15 @@ package app.radiacode.ui.text
  */
 interface SessionRadonStrings {
 
+    /** Ряд нетто-счёта в окне линии выбранного нуклида. */
+    val lineTrendTitle: String
+    val lineNetRate: String
+    val lineSignificance: String
+    val linePoints: String
+    val lineResolved: String
+    val lineNotResolved: String
+    val lineTrendCaveat: String
+
     /** Экспорт ряда измерений сессии — открытый формат, явное действие. */
     val exportCsv: String
     val exportSaved: String
@@ -96,6 +105,20 @@ interface SessionRadonStrings {
 }
 
 object SessionRadonRu : SessionRadonStrings {
+
+    override val lineTrendTitle = "Линия во времени"
+    override val lineNetRate = "нетто, с⁻¹"
+    override val lineSignificance = "значимость"
+    override val linePoints = "точек"
+    override val lineResolved = "Линия выделяется над континуумом за всё накопленное время."
+    override val lineNotResolved =
+        "Линия не выделяется над континуумом: нетто того же порядка, что его " +
+            "собственная неопределённость."
+    override val lineTrendCaveat =
+        "Это относительная величина: без измеренной кривой эффективности прибора " +
+            "перевод в беккерели невозможен. Сравнивать можно место с местом и время " +
+            "со временем одним прибором. В окне считается всё, что попало в энергию, " +
+            "поэтому это индикатор линии, а не присутствия нуклида."
 
     override val exportCsv = "CSV"
     override val exportSaved = "файл сохранён"
@@ -195,6 +218,20 @@ object SessionRadonRu : SessionRadonStrings {
 }
 
 object SessionRadonEn : SessionRadonStrings {
+
+    override val lineTrendTitle = "A line over time"
+    override val lineNetRate = "net, s⁻¹"
+    override val lineSignificance = "significance"
+    override val linePoints = "points"
+    override val lineResolved = "The line stands out above the continuum over all the time collected."
+    override val lineNotResolved =
+        "The line does not stand out above the continuum: the net is of the same " +
+            "order as its own uncertainty."
+    override val lineTrendCaveat =
+        "This is a relative quantity: without a measured efficiency curve there is no " +
+            "conversion to becquerels. Compare place with place and time with time on " +
+            "one instrument. The window counts everything that falls into that energy, " +
+            "so it indicates a line, not the presence of a nuclide."
 
     override val exportCsv = "CSV"
     override val exportSaved = "file saved"
@@ -301,6 +338,8 @@ val SessionRadonCatalogue = AreaCatalogue(ru = SessionRadonRu, en = SessionRadon
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun SessionRadonStrings.allTexts(): List<String> = listOf(
+    lineTrendTitle, lineNetRate, lineSignificance, linePoints, lineResolved,
+    lineNotResolved, lineTrendCaveat,
     exportCsv, exportSaved, exportFailed,
     sessionTag, sessionNotFound, readingSession, runningNow, samplesLabel, doseRateLabel,
     doseRateSummary("0,15", "0,12", "0,21", "мкЗв/ч"),

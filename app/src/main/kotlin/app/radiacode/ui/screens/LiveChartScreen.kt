@@ -64,6 +64,7 @@ import app.radiacode.ui.logic.ChartBucket
 import app.radiacode.ui.logic.ChartInteraction
 import app.radiacode.ui.logic.ChartInteractions
 import app.radiacode.ui.logic.ChartWindow
+import app.radiacode.ui.logic.ChartViewport
 import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.analysis.Hardness
 import app.radiacode.ui.logic.ChartMetric
@@ -337,7 +338,32 @@ fun LiveChartScreen(
     val onTransform: (Float, Float, Float) -> Unit = { pan, zoom, focus ->
         val now = edge()
         var w = window
-        if (zoom != 1f) w = ChartWindows.zoom(w, zoom, focus, now)
+        // Зум СТУПЕНЧАТЫЙ — то же правило, что на карточке Главной
+        // ([ChartViewport]): щипок переводит на соседнюю ступень лестницы, а не
+        // растягивает окно непрерывно. Причина не в удобстве: от длины окна
+        // зависят ширина колонки и путь чтения квантилей, и при произвольных
+        // интервалах одно и то же место истории выглядит по-разному после
+        // каждого жеста. Фокус щипка сохранён — приближают то место, за которое
+        // держатся пальцы.
+        if (zoom != 1f) {
+            val direction = when {
+                zoom >= ChartViewport.STEP_ZOOM_FACTOR -> -1
+                zoom <= 1f / ChartViewport.STEP_ZOOM_FACTOR -> 1
+                else -> 0
+            }
+            if (direction != 0) {
+                val current = ChartWindows.nearestPeriodIndex(w.spanMillis, periodIndices)
+                val next = periodIndices
+                    .getOrNull(periodIndices.indexOf(current) + direction)
+                    ?: current
+                val span = ChartWindows.PERIODS[next].second
+                // Точка под пальцем остаётся на месте: окно пересобирается
+                // вокруг неё, а не вокруг края.
+                val anchor = w.fromMillis + (w.spanMillis * focus.coerceIn(0f, 1f)).toLong()
+                val from = (anchor - (span * focus.coerceIn(0f, 1f)).toLong())
+                w = ChartWindow(from, from + span)
+            }
+        }
         // Dragging right pulls earlier data into view.
         if (pan != 0f) w = ChartWindows.pan(w, -pan, now)
         // Щипок не должен выводить окно за пределы того, что величина умеет

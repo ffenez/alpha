@@ -122,6 +122,7 @@ fun SpectrumScreen(
     graph: AppGraph,
     onOpenSpectrogram: () -> Unit = {},
     onOpenRadon: () -> Unit = {},
+    onOpenLineTrend: () -> Unit = {},
     onOpenExperiments: () -> Unit = {},
     /** Snapshot id to continue accumulating on top of (История → снимок). */
     continueSnapshotId: Long? = null,
@@ -426,6 +427,7 @@ fun SpectrumScreen(
                 onOpenExperiments = onOpenExperiments,
                 onOpenSpectrogram = onOpenSpectrogram,
                 onOpenRadon = onOpenRadon,
+                onOpenLineTrend = onOpenLineTrend,
             )
         }
 
@@ -460,6 +462,7 @@ private fun AnalysisToolsSection(
     onOpenExperiments: () -> Unit,
     onOpenSpectrogram: () -> Unit,
     onOpenRadon: () -> Unit,
+    onOpenLineTrend: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -477,6 +480,7 @@ private fun AnalysisToolsSection(
             AnalysisToolRow(t.toolSpectrogramTitle, t.toolSpectrogramSubtitle, onOpenSpectrogram)
             AppDivider()
             AnalysisToolRow(t.toolRadonTitle, t.toolRadonSubtitle, onOpenRadon)
+            AnalysisToolRow(t.toolLineTitle, t.toolLineSubtitle, onOpenLineTrend)
         }
     }
 }
@@ -641,6 +645,9 @@ private fun SpectrumActionsBar(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier.weight(1f),
         ) {
+            // Подписей под кнопками нет: что делает каждая, сказано в справке
+            // «i». Постоянные две строки мелким шрифтом читаются один раз, а
+            // место у самого частого действия занимают всегда.
             AppButton(
                 text = t.saveSnapshot,
                 onClick = onSaveOverride ?: { hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
@@ -648,7 +655,6 @@ private fun SpectrumActionsBar(
                 enabled = spectrum != null && !viewingSnapshot,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text(text = t.saveSnapshotNote, style = type.footnote, color = colors.muted)
         }
         Column(
             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -660,7 +666,6 @@ private fun SpectrumActionsBar(
                 enabled = deviceActionsEnabled,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text(text = t.setAsBackgroundNote, style = type.footnote, color = colors.muted)
         }
         // Цель нажатия не меньше пальца: у кнопки из одного символа ширина
         // иначе получается вдвое меньше высоты.
@@ -1088,6 +1093,11 @@ private fun SpectrumContent(
     val scale = remember(scaleId, scaleRoot) { SpectrumScale.of(scaleId, scaleRoot) }
     val settingsScope = rememberCoroutineScope()
     var minusBackground by rememberSaveable { mutableStateOf(false) }
+
+    // Серая кривая записанного фона — по просьбе, а не всегда: наложение это
+    // СРАВНЕНИЕ, и начинает его человек, когда оно ему нужно. Постоянная
+    // вторая кривая поверх данных читается как часть измерения.
+    var showBackground by rememberSaveable { mutableStateOf(false) }
     var smoothing by rememberSaveable { mutableStateOf(false) }
     var window by remember { mutableStateOf<EnergyWindow?>(null) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
@@ -1128,6 +1138,18 @@ private fun SpectrumContent(
             enabled = { it == 0 || background != null },
             modifier = Modifier.weight(1.7f),
         )
+        // Кнопка появляется только когда фон записан: до этого показывать
+        // нечего, и место она занимала бы зря. В режиме «− фон» её тоже нет —
+        // там фон уже вычтен, и рисовать его сверху значило бы использовать
+        // одни и те же импульсы дважды.
+        if (background != null && !subtractOn) {
+            Chip(
+                text = t.showBackgroundCurve,
+                color = if (showBackground) colors.dataText else colors.ink2,
+                selected = showBackground,
+                onClick = { showBackground = !showBackground },
+            )
+        }
         Segmented(
             options = listOf(strings.scaleLinear, strings.scalePower, strings.scaleLog),
             selectedIndex = when (scale) {
@@ -1216,7 +1238,9 @@ private fun SpectrumContent(
     // Кадр — та же чистая сборка, что и на полном экране ([SpectrumFrames]):
     // окно, каналы, колонки, наложение фона и верх оси. Две картинки одного
     // спектра обязаны считаться одним кодом.
-    val frame = remember(spectrum, background, subtractOn, smoothing, window, scale) {
+    val frame = remember(
+        spectrum, background, subtractOn, smoothing, window, scale, showBackground,
+    ) {
         SpectrumFrames.build(
             counts = spectrum.counts,
             durationSeconds = spectrum.durationSeconds,
@@ -1225,6 +1249,7 @@ private fun SpectrumContent(
             backgroundSeconds = background?.durationSeconds ?: 0L,
             window = window,
             subtract = subtractOn,
+            overlayBackground = showBackground,
             smoothing = smoothing,
             scale = scale,
         )

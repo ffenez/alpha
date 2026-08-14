@@ -32,6 +32,13 @@ package app.radiacode.ui.text
  */
 interface SpectrumStrings {
 
+    /** Вход в ряд нетто-счёта по линии выбранного нуклида. */
+    /** Показать записанный фон серой кривой поверх спектра. */
+    val showBackgroundCurve: String
+    val infoActionsTitle: String
+    val toolLineTitle: String
+    val toolLineSubtitle: String
+
     /**
      * «Pb-214 и Bi-214 — дочерние продукты радона, один ряд распада».
      *
@@ -314,6 +321,11 @@ interface SpectrumStrings {
 
 object SpectrumRu : SpectrumStrings {
 
+    override val showBackgroundCurve = "фон"
+    override val infoActionsTitle = "Что делают кнопки"
+    override val toolLineTitle = "Линия во времени"
+    override val toolLineSubtitle = "как менялся счёт в окне линии выбранного нуклида"
+
     override fun decayFamilyRadon(members: String) =
         "$members — дочерние продукты радона: один ряд распада, вместе они и встречаются"
     override fun decayFamilyChain(members: String, chain: String) =
@@ -322,7 +334,7 @@ object SpectrumRu : SpectrumStrings {
     override val legendMinusBackground = "−фон"
     override val noLinkLastSpectrum = "нет соединения — показан последний прочитанный спектр"
 
-    override val saveSnapshot = "Сохранить снимок"
+    override val saveSnapshot = "Сохранить в историю"
     override val saveSnapshotNote = "спектр уйдёт в журнал: История, экспорт, сравнение"
     override val setAsBackground = "Сделать фоном"
     override val setAsBackgroundNote =
@@ -637,6 +649,11 @@ object SpectrumRu : SpectrumStrings {
 
 object SpectrumEn : SpectrumStrings {
 
+    override val showBackgroundCurve = "background"
+    override val infoActionsTitle = "What the buttons do"
+    override val toolLineTitle = "A line over time"
+    override val toolLineSubtitle = "how the count in a chosen nuclide's line window changed"
+
     override fun decayFamilyRadon(members: String) =
         "$members are radon daughters: one decay chain, and they occur together"
     override fun decayFamilyChain(members: String, chain: String) =
@@ -645,7 +662,7 @@ object SpectrumEn : SpectrumStrings {
     override val legendMinusBackground = "−background"
     override val noLinkLastSpectrum = "no link — showing the last spectrum that was read"
 
-    override val saveSnapshot = "Save snapshot"
+    override val saveSnapshot = "Save to history"
     override val saveSnapshotNote = "the spectrum goes to the journal: History, export, comparison"
     override val setAsBackground = "Set as background"
     override val setAsBackgroundNote =
@@ -970,6 +987,7 @@ val SpectrumCatalogue = AreaCatalogue(ru = SpectrumRu, en = SpectrumEn)
  * забытая строка означала бы непроверенный текст.
  */
 fun SpectrumStrings.allTexts(): List<String> = listOf(
+    toolLineTitle, toolLineSubtitle, infoActionsTitle, showBackgroundCurve,
     decayFamilyRadon("Pb-214, Bi-214"), decayFamilyChain("Pb-212, Tl-208", "Th-232"),
     rangesSettingsNote, boundsNeedSpectrum,
     spectrumLoading, importNotSaved,
