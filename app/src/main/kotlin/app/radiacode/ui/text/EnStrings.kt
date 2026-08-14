@@ -56,36 +56,35 @@ object EnStrings : Strings {
     override val languageTitle = "Language"
     override val languageSystem = "System"
 
-    override val statusNoData = "No data"
-    override val statusAboveL1 = "Above the alarm threshold"
-    override val statusBelowL1 = "Below the alarm threshold"
-    override val statusUsual = "Usual for this place"
+    override val statusNoData = "No measurements"
+    override val statusAboveL1 = "Above your threshold"
+    override val statusBelowL1 = "Below your threshold"
+    override val statusUsual = "Usual here"
     override val statusUsualShort = "Usual here"
     override val statusAboveUsual = "Above usual"
-    override val statusAboveThreshold = "Above the alarm threshold"
+    override val statusAboveThreshold = "Above your threshold"
     override val statusAboveThresholdShort = "Above threshold"
     override val statusAlert = "The level has changed"
 
     override fun detailNoBaseline(threshold: String) =
-        "L1 threshold $threshold · this place's historical range is not collected yet"
+        "your threshold $threshold · not much measured here yet"
 
     override fun detailUsual(range: String, unit: String, collected: String) =
-        "P10–P90: $range $unit · observations: $collected"
+        "usually here $range $unit"
 
     override fun detailAboveUsual(range: String, unit: String, held: String) =
-        "place P10–P90: $range $unit · $held"
+        "usually here $range $unit · $held"
 
-    override fun detailAboveThreshold(threshold: String, heldSeconds: Long, requiredSeconds: Long) =
-        "L1 threshold $threshold exceeded · held ${heldSeconds}s of the ${requiredSeconds}s " +
-            "needed for an alarm"
+    override fun detailAboveThreshold(threshold: String, held: String, required: String) =
+        "your threshold $threshold · $held of $required"
 
     override fun detailAlert(reference: String, held: String) = "$reference · $held"
 
-    override fun referenceThreshold(threshold: String) = "L1 threshold $threshold"
+    override fun referenceThreshold(threshold: String) = "your threshold $threshold"
 
-    override fun referenceProfileBand(range: String, unit: String) = "place P10–P90: $range $unit"
+    override fun referenceProfileBand(range: String, unit: String) = "usually here $range $unit"
 
-    override fun held(text: String) = "held for $text"
+    override fun held(text: String) = "for $text already"
 
     override fun seconds(value: Long) = "${value}s"
 

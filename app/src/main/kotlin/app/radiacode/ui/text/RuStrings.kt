@@ -48,36 +48,42 @@ object RuStrings : Strings {
     override val languageTitle = "Язык"
     override val languageSystem = "Системный"
 
-    override val statusNoData = "Нет данных"
-    override val statusAboveL1 = "Выше порога тревоги"
-    override val statusBelowL1 = "Ниже порога тревоги"
-    override val statusUsual = "Обычно для этого места"
+    // Вывод — то, что человек читает мельком: два-три слова, из которых
+    // понятно, с чем сравнили. «Порог тревоги» назван ВАШИМ, потому что его
+    // задал человек, а не приложение.
+    override val statusNoData = "Нет измерений"
+    override val statusAboveL1 = "Выше вашего порога"
+    override val statusBelowL1 = "Ниже вашего порога"
+    override val statusUsual = "Обычно здесь"
     override val statusUsualShort = "Обычно здесь"
     override val statusAboveUsual = "Выше обычного"
-    override val statusAboveThreshold = "Выше порога тревоги"
+    override val statusAboveThreshold = "Выше вашего порога"
     override val statusAboveThresholdShort = "Выше порога"
     override val statusAlert = "Уровень изменился"
 
+    // Вторая строка называет, С ЧЕМ сравнили, — и только это. «P10–P90»,
+    // «L1» и «наблюдений» — внутренние имена: человек их не заказывал, а
+    // место они занимали в каждом состоянии. Числа и критерий целы, они в
+    // «Почему такой вывод».
     override fun detailNoBaseline(threshold: String) =
-        "порог L1 $threshold · обычный диапазон профиля ещё не собран"
+        "ваш порог $threshold · здесь пока мало измерений"
 
     override fun detailUsual(range: String, unit: String, collected: String) =
-        "P10–P90: $range $unit · наблюдений: $collected"
+        "обычно здесь $range $unit"
 
     override fun detailAboveUsual(range: String, unit: String, held: String) =
-        "P10–P90 профиля: $range $unit · $held"
+        "обычно здесь $range $unit · $held"
 
-    override fun detailAboveThreshold(threshold: String, heldSeconds: Long, requiredSeconds: Long) =
-        "порог L1 $threshold превышен · держится $heldSeconds с из $requiredSeconds с до тревоги"
+    override fun detailAboveThreshold(threshold: String, held: String, required: String) =
+        "ваш порог $threshold · $held из $required"
 
     override fun detailAlert(reference: String, held: String) = "$reference · $held"
 
-    override fun referenceThreshold(threshold: String) = "порог L1 $threshold"
+    override fun referenceThreshold(threshold: String) = "ваш порог $threshold"
 
-    override fun referenceProfileBand(range: String, unit: String) =
-        "P10–P90 профиля: $range $unit"
+    override fun referenceProfileBand(range: String, unit: String) = "обычно здесь $range $unit"
 
-    override fun held(text: String) = "держится $text"
+    override fun held(text: String) = "уже $text"
 
     override fun seconds(value: Long) = "$value с"
 

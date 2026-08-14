@@ -37,7 +37,7 @@ class MonitorStatusTest {
     fun `no reading - unknown regardless of baseline`() {
         val status = MonitorStatus.of(null, active, calm, thresholds, nowMillis = 0)
         assertEquals(MonitorStatus.Unknown, status)
-        assertEquals("Нет данных", statusHeadline(status))
+        assertEquals("Нет измерений", statusHeadline(status))
         assertNull(statusDetail(status, DoseUnitSetting.MICRO_SIEVERT))
     }
 
@@ -45,18 +45,18 @@ class MonitorStatusTest {
     fun `no baseline - fixed threshold fallback`() {
         val below = MonitorStatus.of(0.12f, null, calm, thresholds, 0)
         assertEquals(MonitorStatus.Fixed(above = false, thresholdMicroSvH = 0.30f), below)
-        assertEquals("Ниже порога тревоги", statusHeadline(below))
+        assertEquals("Ниже вашего порога", statusHeadline(below))
         // The reference is shown even before a baseline exists (spec §18).
         assertEquals(
-            "порог L1 0,30 мкЗв/ч · обычный диапазон профиля ещё не собран",
+            "ваш порог 0,30 мкЗв/ч · здесь пока мало измерений",
             statusDetail(below, DoseUnitSetting.MICRO_SIEVERT),
         )
 
         val above = MonitorStatus.of(0.35f, null, calm, thresholds, 0)
         assertEquals(MonitorStatus.Fixed(above = true, thresholdMicroSvH = 0.30f), above)
-        assertEquals("Выше порога тревоги", statusHeadline(above))
+        assertEquals("Выше вашего порога", statusHeadline(above))
         assertTrue(
-            statusDetail(above, DoseUnitSetting.MICRO_SIEVERT)!!.startsWith("порог L1 0,30 мкЗв/ч"),
+            statusDetail(above, DoseUnitSetting.MICRO_SIEVERT)!!.startsWith("ваш порог 0,30 мкЗв/ч"),
         )
     }
 
@@ -73,10 +73,10 @@ class MonitorStatusTest {
         assertEquals(MonitorStatus.Usual(baseline), status)
         // 14.md §8: «обычны», а не «нормальны» — «норма» читается как
         // санитарная норма, а это статистика конкретного места.
-        assertEquals("Обычно для этого места", statusHeadline(status))
+        assertEquals("Обычно здесь", statusHeadline(status))
         assertEquals("Обычно здесь", statusHeadlineShort(status))
         assertEquals(
-            "P10–P90: 0,09–0,14 мкЗв/ч · наблюдений: 26 ч",
+            "обычно здесь 0,09–0,14 мкЗв/ч",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -97,7 +97,7 @@ class MonitorStatusTest {
         assertEquals(MonitorStatus.AboveUsual(baseline, heldSeconds = 240), status)
         assertEquals("Выше обычного", statusHeadline(status))
         assertEquals(
-            "P10–P90 профиля: 0,09–0,14 мкЗв/ч · держится 4 мин",
+            "обычно здесь 0,09–0,14 мкЗв/ч · уже 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -113,7 +113,7 @@ class MonitorStatusTest {
         )
         assertEquals("Уровень изменился", statusHeadline(status))
         assertEquals(
-            "P10–P90 профиля: 0,09–0,14 мкЗв/ч · держится 4 мин",
+            "обычно здесь 0,09–0,14 мкЗв/ч · уже 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -124,16 +124,16 @@ class MonitorStatusTest {
         val alert = DeviationSnapshot(alertSince = now - 130_000)
         val status = MonitorStatus.of(0.35f, null, alert, thresholds, now)
         assertEquals(
-            "порог L1 0,30 мкЗв/ч · держится 2 мин",
+            "ваш порог 0,30 мкЗв/ч · уже 2 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
 
     @Test
     fun `held wording scales units`() {
-        assertEquals("держится 45 с", heldWording(45))
-        assertEquals("держится 4 мин", heldWording(255))
-        assertEquals("держится 1 ч 12 мин", heldWording(4320))
+        assertEquals("уже 45 с", heldWording(45))
+        assertEquals("уже 4 мин", heldWording(255))
+        assertEquals("уже 1 ч 12 мин", heldWording(4320))
     }
 
     @Test
@@ -190,7 +190,7 @@ class MonitorStatusTest {
             MonitorStatus.Alert(baseline, heldSeconds = 60, thresholdMicroSvH = 0.3f),
         )) {
             val detail = statusDetail(status, DoseUnitSetting.MICRO_SIEVERT)!!
-            assertTrue(detail.contains("P10–P90"), detail)
+            assertTrue(detail.contains("обычно здесь"), detail)
             assertTrue(detail.contains("мкЗв/ч"), detail)
         }
     }

@@ -135,7 +135,7 @@ interface Strings {
     fun detailAboveUsual(range: String, unit: String, held: String): String
 
     /** «порог L1 … превышен · держится 40 с из 120 с до тревоги». */
-    fun detailAboveThreshold(threshold: String, heldSeconds: Long, requiredSeconds: Long): String
+    fun detailAboveThreshold(threshold: String, held: String, required: String): String
 
     fun detailAlert(reference: String, held: String): String
     fun referenceThreshold(threshold: String): String
@@ -594,7 +594,7 @@ fun Strings.allTexts(): List<String> = listOf(
     statusAlert, streamRunning, streamInterruptedFor,
     detailNoBaseline("0,30"), detailUsual("0,09–0,14", "мкЗв/ч", "26 ч"),
     detailAboveUsual("0,09–0,14", "мкЗв/ч", held(minutes(4))),
-    detailAboveThreshold("0,30", 40L, 120),
+    detailAboveThreshold("0,30", held(seconds(40)), minutes(2)),
     detailAlert(referenceThreshold("0,30"), held(seconds(45))),
     referenceProfileBand("0,09–0,14", "мкЗв/ч"),
     held(seconds(45)), seconds(45), minutes(4), hoursMinutes(1, 12),

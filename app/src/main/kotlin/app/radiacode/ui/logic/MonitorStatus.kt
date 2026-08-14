@@ -167,8 +167,8 @@ fun statusDetail(
         // выглядит как «приложение ничего не заметило».
         s.detailAboveThreshold(
             DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit, s = s),
-            status.heldSeconds,
-            status.requiredSeconds,
+            heldWording(status.heldSeconds, s),
+            spanWording(status.requiredSeconds, s),
         )
     is MonitorStatus.Alert -> {
         val reference = status.baseline
@@ -183,15 +183,16 @@ fun statusDetail(
 private fun baselineRange(baseline: Baseline, unit: DoseUnitSetting): String =
     DoseFormat.range(baseline.doseLowMicroSvH, baseline.doseHighMicroSvH, unit)
 
-/** «держится 45 с» / «держится 4 мин» / «держится 1 ч 12 мин». */
-fun heldWording(heldSeconds: Long, s: Strings = RuStrings): String {
-    val text = when {
-        heldSeconds < 60 -> s.seconds(heldSeconds)
-        heldSeconds < 3600 -> s.minutes(heldSeconds / 60)
-        else -> s.hoursMinutes(heldSeconds / 3600, heldSeconds % 3600 / 60)
-    }
-    return s.held(text)
+/** «45 с» / «4 мин» / «1 ч 12 мин» — длительность без приставки. */
+fun spanWording(seconds: Long, s: Strings = RuStrings): String = when {
+    seconds < 60 -> s.seconds(seconds)
+    seconds < 3600 -> s.minutes(seconds / 60)
+    else -> s.hoursMinutes(seconds / 3600, seconds % 3600 / 60)
 }
+
+/** «уже 45 с» / «уже 4 мин» / «уже 1 ч 12 мин». */
+fun heldWording(heldSeconds: Long, s: Strings = RuStrings): String =
+    s.held(spanWording(heldSeconds, s))
 
 /** Learning progress: «изучаю обычный фон — 1,5 ч из 3». */
 fun learningWording(state: BaselineState.Learning, s: MonitorStrings = MonitorRu): String =

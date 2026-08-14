@@ -29,7 +29,7 @@ class WhyExplainTest {
     @Test
     fun `verdict repeats the main screen headline verbatim`() {
         assertEquals(
-            "Обычно для этого места",
+            "Обычно здесь",
             statusHeadline(MonitorStatus.Usual(baseline)),
         )
         assertEquals(
