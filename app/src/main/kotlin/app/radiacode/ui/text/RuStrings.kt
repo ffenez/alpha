@@ -247,7 +247,6 @@ object RuStrings : Strings {
             "и закрывается при отключении."
     override val showMore = "Показать ещё"
     override val accumulatedDose = "Накопленная доза"
-    override val calculatedTag = "расчёт"
     override val partialDayNote =
         "полые столбцы — день измерен не полностью: доза накоплена только за время " +
             "записи, а не за сутки"

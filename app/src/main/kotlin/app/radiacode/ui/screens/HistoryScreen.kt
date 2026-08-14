@@ -72,7 +72,6 @@ import app.radiacode.ui.components.BarChartSpec
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.CheckMark
 import app.radiacode.ui.components.Chip
-import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.components.RadioMark
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
@@ -100,7 +99,12 @@ import kotlinx.coroutines.launch
 
 private const val PAGE_SIZE = 20
 private const val REFRESH_MILLIS = 30_000L
-private const val DOSE_DAYS = 30
+/**
+ * Глубина суточной истории дозы: самый длинный период графика.
+ * Час — одна строка предагрегата, поэтому девяносто дней это ~2160 строк:
+ * дешевле одного экрана списка.
+ */
+private const val DOSE_DAYS = 90
 
 /** One chronological row of История. */
 private sealed interface HistoryItem {
@@ -382,49 +386,75 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
     val strings = LocalStrings.current
     val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
-    // Объяснения карточки живут под «i»: на экране История первым делом
-    // показывает данные, а не рассказывает о них.
+    // Свёрнута по умолчанию: на Историю приходят за последними записями, а
+    // накопленная доза занимала графиком, проекцией и объяснениями половину
+    // первого экрана. Свёрнутая она отвечает на тот же вопрос тремя числами.
+    var expanded by rememberSaveable { mutableStateOf(false) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
     if (infoOpen) {
         AccumulatedDoseInfoDialog(onClose = { infoOpen = false })
     }
+    // Период графика: 7 · 30 · 90 дней, по умолчанию месяц.
+    var periodIndex by rememberSaveable { mutableIntStateOf(1) }
+    val periodDays = DOSE_PERIODS[periodIndex]
+    val days = model.dailyDose.takeLast(periodDays)
+    val measuredSeconds = days.sumOf { it.measuredSeconds }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { expanded = !expanded },
+                    ),
+            ) {
                 Text(
                     text = strings.accumulatedDose.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
                 Spacer(Modifier.weight(1f))
-                Text(text = strings.calculatedTag, style = type.footnote, color = colors.muted)
-                Chip(
-                    text = "i",
+                // Метки «расчёт» в заголовке больше нет: она ничего не
+                // добавляла к трём числам, а происхождение объясняет «i».
+                if (expanded) {
+                    Chip(
+                        text = "i",
+                        color = colors.ink2,
+                        onClick = { infoOpen = true },
+                        modifier = Modifier.padding(end = Dimens.space2),
+                    )
+                }
+                Text(
+                    text = if (expanded) "⌃" else "⌄",
+                    style = type.value,
                     color = colors.ink2,
-                    onClick = { infoOpen = true },
-                    modifier = Modifier.padding(start = Dimens.space2),
                 )
             }
-            val dailyMax = model.dailyDose.maxOfOrNull { it.microSv } ?: 0f
-            if (dailyMax > 0f) {
-                BarChart(
-                    spec = BarChartSpec(
-                        values = model.dailyDose.map { it.microSv.takeIf { v -> v > 0f } },
-                        // Полый столбик = день измерен не полностью: доза
-                        // накоплена только за время записи, и сравнивать её с
-                        // полным днём как равную нельзя.
-                        partial = model.dailyDose.map { !it.full },
-                        yMax = dailyMax * 1.15f,
-                        emphasizeLast = true,
-                        xStartLabel = HistoryFormat.day(model.fromMillis, s = h),
-                        xEndLabel = HistoryFormat.day(model.toMillis, s = h),
+
+            if (!expanded) {
+                Text(
+                    text = h.doseGlance(
+                        today = DoseFormat.dose(model.doseTodayMicroSv, unit),
+                        week = DoseFormat.dose(model.dose7dMicroSv, unit),
+                        month = DoseFormat.dose(model.dose30dMicroSv, unit),
                     ),
-                    height = 55.dp,
+                    style = type.value,
+                    color = colors.ink,
                 )
-                // Обозначение полого столбца ушло под «i» — вместе с
-                // объяснением, которое там и так лежало. Под картинкой не
-                // остаётся ни одной поясняющей строки.
+                Text(
+                    text = h.measuredFor(
+                        HistoryFormat.duration(model.dailyDose.sumOf { it.measuredSeconds }, h),
+                    ),
+                    style = type.footnote,
+                    color = colors.ink2,
+                )
+                return@Column
             }
+
             StatGrid(
                 cells = listOf(
                     StatCell(
@@ -435,11 +465,52 @@ private fun AccumulatedDoseCard(model: HistoryModel, unit: DoseUnitSetting) {
                     StatCell(DoseFormat.dose(model.dose30dMicroSv, unit), strings.days30),
                 ),
             )
+            Segmented(
+                options = listOf(strings.days7, strings.days30, h.days90),
+                selectedIndex = periodIndex,
+                onSelect = { periodIndex = it },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val dailyMax = days.maxOfOrNull { it.microSv } ?: 0f
+            if (dailyMax > 0f) {
+                BarChart(
+                    spec = BarChartSpec(
+                        // День без измерений — ПУСТОЕ место, а не нулевая
+                        // доза: прибор в этот день не работал, и рисовать за
+                        // него ноль значит утверждать, что дозы не было.
+                        values = days.map { it.microSv.takeIf { v -> v > 0f } },
+                        // Полый столбик = день измерен не полностью: доза
+                        // накоплена только за время записи, и сравнивать её с
+                        // полным днём как равную нельзя.
+                        partial = days.map { !it.full },
+                        yMax = dailyMax * 1.15f,
+                        emphasizeLast = true,
+                        xStartLabel = HistoryFormat.day(
+                            model.toMillis - periodDays.toLong() * 86_400_000L,
+                            s = h,
+                        ),
+                        xEndLabel = HistoryFormat.day(model.toMillis, s = h),
+                    ),
+                    height = 72.dp,
+                )
+            }
+            Text(
+                text = h.recordedOfPeriod(HistoryFormat.duration(measuredSeconds, h)),
+                style = type.footnote,
+                color = colors.ink2,
+            )
             AppDivider()
-            DoseProjectionBlock(model, unit)
+            DoseProjectionBlock(
+                doseMicroSv = days.sumOf { it.microSv.toDouble() },
+                measuredSeconds = measuredSeconds,
+                unit = unit,
+            )
         }
     }
 }
+
+/** Периоды графика накопленной дозы, дни. */
+private val DOSE_PERIODS = listOf(7, 30, 90)
 
 /**
  * Легенда полого столбца: сам знак и два слова.
@@ -520,73 +591,79 @@ private fun AccumulatedDoseInfoDialog(onClose: () -> Unit) {
 }
 
 /**
- * Проекция дозы (спец §6): D ≈ Ḋ·t как ЧИСТАЯ экстраполяция измеренной
- * средней мощности дозы. Формулировка задана спецификацией и не подлежит
- * упрощению: это не «годовая доза человека», а ответ на вопрос «сколько
- * набежит, если мощность останется такой же».
+ * «Если такой уровень сохранится» (спец §6): D ≈ Ḋ·t как ЧИСТАЯ экстраполяция
+ * измеренной средней мощности дозы.
+ *
+ * Заголовок называет УСЛОВИЕ, а не приём: «проекция дозы» рядом с числом в
+ * миллизивертах читается как измеренная годовая доза человека, чем она не
+ * является. Сам блок свёрнут — на первом уровне карточки его нет вовсе, — а
+ * формулировка вывода задана спецификацией и не упрощается.
  */
 @Composable
-private fun DoseProjectionBlock(model: HistoryModel, unit: DoseUnitSetting) {
+private fun DoseProjectionBlock(
+    doseMicroSv: Double,
+    measuredSeconds: Long,
+    unit: DoseUnitSetting,
+) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
     val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
-    var windowIndex by rememberSaveable { mutableIntStateOf(1) }
-
-    val doseMicroSv = if (windowIndex == 0) model.dose7dMicroSv else model.dose30dMicroSv
-    val measuredSeconds =
-        if (windowIndex == 0) model.measured7dSeconds else model.measured30dSeconds
+    var open by rememberSaveable { mutableStateOf(false) }
     val projection = remember(doseMicroSv, measuredSeconds) {
         DoseProjection.fromIntegral(doseMicroSv, measuredSeconds)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = Dimens.touchTarget)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { open = !open },
+                ),
+        ) {
+            Text(text = h.ifLevelHolds, style = type.label, color = colors.ink)
+            Spacer(Modifier.weight(1f))
             Text(
-                text = strings.doseProjection.uppercase(),
-                style = type.labelSmall,
+                text = if (open) "⌃" else "›",
+                style = type.value,
                 color = colors.ink2,
             )
-            EvidenceTag(Evidence.CALCULATED, Modifier.padding(start = 6.dp))
-            Spacer(Modifier.weight(1f))
-            Segmented(
-                options = listOf(strings.days7, strings.days30),
-                selectedIndex = windowIndex,
-                onSelect = { windowIndex = it },
-                modifier = Modifier.weight(1.1f),
-            )
         }
+        if (!open) return@Column
         if (projection == null) {
             Text(
                 text = HistoryFormat.doseProjectionUnavailable(measuredSeconds, h),
                 style = type.bodySmall,
                 color = colors.muted,
             )
-        } else {
-            Text(
-                text = HistoryFormat.doseProjectionSentence(
-                    DoseFormat.doseCoarseWithUnit(projection.doseMicroSv, unit, s = strings),
-                    h,
-                ),
-                style = type.body,
-                color = colors.ink,
-            )
-            // Основание проекции — то, из чего она посчитана; вместе с
-            // отказом ниже это пояснение, и уходит оно тоже.
-            Hint(
-                text = HistoryFormat.doseProjectionBasis(
-                    // Та же точность, из которой посчитана проекция: иначе
-                    // видимые числа её не воспроизводят.
-                    DoseFormat.rateBasisWithUnit(projection.meanRateMicroSvPerHour, unit, s = strings),
-                    projection.measuredSeconds,
-                    h,
-                ),
-                style = type.bodySmall,
-                color = colors.ink2,
-            )
+            return@Column
         }
-        // Перечень того, что в проекцию не входит, целиком лежит в справке
-        // «i» — здесь один отказ, и он тоже пояснение.
+        Text(
+            text = HistoryFormat.doseProjectionSentence(
+                DoseFormat.doseCoarseWithUnit(projection.doseMicroSv, unit, s = strings),
+                h,
+            ),
+            style = type.body,
+            color = colors.ink,
+        )
+        // Основание проекции и отказ — пояснения: числа выше от них не
+        // зависят, а перечень того, что в расчёт не входит, лежит в «i».
+        Hint(
+            text = HistoryFormat.doseProjectionBasis(
+                // Та же точность, из которой посчитана проекция: иначе
+                // видимые числа её не воспроизводят.
+                DoseFormat.rateBasisWithUnit(projection.meanRateMicroSvPerHour, unit, s = strings),
+                projection.measuredSeconds,
+                h,
+            ),
+            style = type.bodySmall,
+            color = colors.ink2,
+        )
         Hint(text = HistoryFormat.doseProjectionCaveatShort(h))
     }
 }
@@ -1198,11 +1275,11 @@ private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryMode
 
     val zone = ZoneId.systemDefault()
     val startOfDay = LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli()
-    val from30d = now - DOSE_DAYS.toLong() * 24 * 3600_000
+    val fromDaily = now - DOSE_DAYS.toLong() * 24 * 3600_000
     // Hour buckets across the 30-day span feed both the totals and the
     // per-day bars (AVG×COUNT integration is exact for any bucket width).
-    val buckets30 = graph.measurementRepository.downsampledSamples(
-        from = from30d,
+    val bucketsDaily = graph.measurementRepository.downsampledSamples(
+        from = fromDaily,
         to = now,
         bucketMillis = 3_600_000L,
     )
@@ -1215,17 +1292,18 @@ private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryMode
         bucketMillis = 60_000L,
     )
 
-    val buckets7 = buckets30.filter { it.bucketStart >= now - 7L * 24 * 3600_000 }
+    val buckets7 = bucketsDaily.filter { it.bucketStart >= now - 7L * 24 * 3600_000 }
+    val buckets30 = bucketsDaily.filter { it.bucketStart >= now - 30L * 24 * 3600_000 }
     return HistoryModel(
         doseTodayMicroSv = ChartMapping.integrateDoseMicroSv(todayBuckets),
         dose7dMicroSv = ChartMapping.integrateDoseMicroSv(buckets7),
         dose30dMicroSv = ChartMapping.integrateDoseMicroSv(buckets30),
-        dailyDose = DailyDose.perDay(buckets30, now, zone, DOSE_DAYS),
+        dailyDose = DailyDose.perDay(bucketsDaily, now, zone, DOSE_DAYS),
         // 1 Hz sampling: one sample ≈ one measured second, the same assumption
         // the dose integral itself uses (ChartMapping.integrateDoseMicroSv).
         measured7dSeconds = buckets7.sumOf { it.sampleCount.toLong() },
         measured30dSeconds = buckets30.sumOf { it.sampleCount.toLong() },
-        fromMillis = from30d,
+        fromMillis = fromDaily,
         toMillis = now,
         items = items,
         totalSessions = totalSessions,

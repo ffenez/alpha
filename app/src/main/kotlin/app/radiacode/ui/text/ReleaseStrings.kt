@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v034Title: String
+    val v034Summary: String
+
     val v033Title: String
     val v033Summary: String
 
@@ -60,6 +63,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v034Title = "Накопленная доза не занимает пол-экрана"
+    override val v034Summary =
+        "Блок свёрнут: три числа — сегодня, за неделю, за месяц — и время, за " +
+        "которое они измерены. Раскрывается нажатием: столбики по дням за 7, 30 " +
+        "или 90 суток, неполные дни отличаются от полных, дни без записи остаются " +
+        "пустыми, а годовая оценка спрятана под «Если такой уровень сохранится»."
 
     override val v033Title = "История больше не рассыпается на куски"
     override val v033Summary =
@@ -149,6 +159,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v034Title = "Accumulated dose stops taking half the screen"
+    override val v034Summary =
+        "The block is collapsed: three numbers — today, this week, this month — and " +
+        "the time they were measured over. One tap opens daily bars over 7, 30 or 90 " +
+        "days, where partial days differ from full ones and days without recording " +
+        "stay empty, with the yearly estimate tucked under «If this level holds»."
 
     override val v033Title = "History stops falling apart"
     override val v033Summary =
@@ -243,6 +260,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v034Title, v034Summary,
     v033Title, v033Summary,
     v032Title, v032Summary,
     v031Title, v031Summary,

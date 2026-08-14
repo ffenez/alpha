@@ -59,7 +59,6 @@ import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
-import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.logic.EnergyBounds
 import app.radiacode.ui.logic.Evidence
 import app.radiacode.ui.logic.SpectrumFormat
@@ -132,8 +131,7 @@ fun SpectralRangesCard(
                             style = type.labelSmall,
                             color = colors.ink2,
                         )
-                        EvidenceTag(Evidence.CALCULATED, Modifier.padding(start = 6.dp))
-                    }
+                                            }
                     if (!expanded) {
                         Text(
                             text = t.rangesSummary(

@@ -1073,8 +1073,7 @@ private fun DistanceCard(series: List<AbExperiment.DistancePoint>) {
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
-                EvidenceTag(Evidence.CALCULATED, Modifier.padding(start = 6.dp))
-            }
+                            }
             Row(Modifier.fillMaxWidth()) {
                 AbHeader("r", 1f)
                 AbHeader(t.columnMeasured, 1.6f)

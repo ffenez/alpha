@@ -240,7 +240,6 @@ interface Strings {
     val sessionExplained: String
     val showMore: String
     val accumulatedDose: String
-    val calculatedTag: String
     val partialDayNote: String
     fun todayWithUnit(unit: String): String
     val days7: String
@@ -620,7 +619,7 @@ fun Strings.allTexts(): List<String> = listOf(
     cancel, edgeCounts("8 421"),
     noSpectrumBackground,
     sessionsCount(12), selectAll, clearAll, selectedCount(3), readingJournal, noSessionsYet,
-    sessionExplained, showMore, accumulatedDose, calculatedTag, partialDayNote,
+    sessionExplained, showMore, accumulatedDose, partialDayNote,
     todayWithUnit("мкЗв"), days7, days30, accumulatedDoseNote, doseProjection, noProfile,
     runningCannotDelete, running, avg, max, dose, track, spectrum, flight,
     noSamplesInSession, profileEllipsis, sessionProfileTitle, sessionProfileBody("12:00"),

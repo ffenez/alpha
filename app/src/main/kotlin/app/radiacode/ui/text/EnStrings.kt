@@ -255,7 +255,6 @@ object EnStrings : Strings {
             "instrument connects and closes when it disconnects."
     override val showMore = "Show more"
     override val accumulatedDose = "Accumulated dose"
-    override val calculatedTag = "calc."
     override val partialDayNote =
         "hollow bars — the day was measured only in part: the dose accumulated over the " +
             "recording time, not over the whole day"
