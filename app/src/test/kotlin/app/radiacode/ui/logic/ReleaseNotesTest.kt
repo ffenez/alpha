@@ -12,12 +12,29 @@ import kotlin.test.assertTrue
 class ReleaseNotesTest {
 
     private val text: List<String> = ReleaseNotes.shown
-        .flatMap { listOf(it.title, it.version) + it.lines }
+        .flatMap { listOf(it.title, it.version, it.summary) }
 
     @Test
     fun `the screen shows exactly the promised number of updates`() {
         assertEquals(ReleaseNotes.SHOWN, ReleaseNotes.shown.size)
-        assertTrue(ReleaseNotes.shown.all { it.lines.isNotEmpty() })
+        assertTrue(ReleaseNotes.shown.all { it.summary.isNotBlank() })
+    }
+
+    /**
+     * Запись — ВЫЖИМКА, а не журнал изменений.
+     *
+     * Перечень из двух десятков пунктов был отчётом о проделанной работе:
+     * «О приложении» открывают, чтобы за несколько секунд понять, что
+     * поменялось. Поэтому две фразы — потолок, и он проверяется.
+     */
+    @Test
+    fun `an update is one or two sentences, not a changelog`() {
+        for (note in ReleaseNotes.all) {
+            val sentences = note.summary.count { it == '.' || it == '!' }
+            assertTrue(sentences in 1..2, "${note.version}: предложений $sentences")
+            assertTrue(note.summary.length <= 420, "${note.version}: ${note.summary.length} знаков")
+            assertTrue(!note.summary.contains("\n"), note.version)
+        }
     }
 
     @Test

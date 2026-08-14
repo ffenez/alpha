@@ -16,8 +16,15 @@ data class ReleaseNote(
      */
     val version: String,
     val title: String,
-    /** Что изменилось, человеческими фразами и без внутренних имён. */
-    val lines: List<String>,
+    /**
+     * Что изменилось — ОДНОЙ-ДВУМЯ фразами, без внутренних имён.
+     *
+     * Список пунктов на два десятка строк был отчётом о проделанной работе:
+     * человек открывает «О приложении», чтобы за несколько секунд понять, что
+     * поменялось, а не читать журнал изменений. Полная история — в
+     * репозитории, и она никуда не делась.
+     */
+    val summary: String,
 )
 
 /**
@@ -53,15 +60,16 @@ object ReleaseNotes {
      * Номера версий и их порядок живут здесь, в одном месте на все языки.
      */
     fun notes(s: ReleaseStrings = ReleaseRu): List<ReleaseNote> = listOf(
-        ReleaseNote("0.2.1", s.v021Title, s.v021Lines),
-        ReleaseNote("0.2.0", s.v020Title, s.v020Lines),
-        ReleaseNote("0.1.0", s.v010Title, s.v010Lines),
-        ReleaseNote("0.0.9", s.v009Title, s.v009Lines),
-        ReleaseNote("0.0.8", s.v008Title, s.v008Lines),
-        ReleaseNote("0.0.7", s.v007Title, s.v007Lines),
-        ReleaseNote("0.0.6", s.v006Title, s.v006Lines),
-        ReleaseNote("0.0.5", s.v005Title, s.v005Lines),
-        ReleaseNote("0.0.1", s.v001Title, s.v001Lines),
+        ReleaseNote("0.3.0", s.v030Title, s.v030Summary),
+        ReleaseNote("0.2.1", s.v021Title, s.v021Summary),
+        ReleaseNote("0.2.0", s.v020Title, s.v020Summary),
+        ReleaseNote("0.1.0", s.v010Title, s.v010Summary),
+        ReleaseNote("0.0.9", s.v009Title, s.v009Summary),
+        ReleaseNote("0.0.8", s.v008Title, s.v008Summary),
+        ReleaseNote("0.0.7", s.v007Title, s.v007Summary),
+        ReleaseNote("0.0.6", s.v006Title, s.v006Summary),
+        ReleaseNote("0.0.5", s.v005Title, s.v005Summary),
+        ReleaseNote("0.0.1", s.v001Title, s.v001Summary),
     )
 
     /** Все записи по-русски — значение по умолчанию для тестов и отчётов. */

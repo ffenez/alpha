@@ -62,13 +62,24 @@ class ReleaseStringsTest {
         }
     }
 
+    /**
+     * Отказ утверждать совпадение переживает и перевод, и сокращение.
+     *
+     * Записи сжались до одной-двух фраз, а из выжимки первой вылетает
+     * оговорка. Здесь вылететь она не имеет права: запись описывает вывод,
+     * который отказывается утверждать совпадение, и без оговорки описание
+     * превращается в обещание.
+     */
     @Test
-    fun `the refusal to claim a match survives translation`() {
-        // Две записи существуют ради отказа утверждать совпадение. По-английски
-        // они обязаны отказываться так же, иначе перевод усилил бы вывод.
-        assertTrue(ReleaseEn.v010Lines.any { it.contains("does not prove a match") })
-        assertTrue(ReleaseEn.v005Lines.any { it.contains("does not prove") })
-        assertTrue(ReleaseEn.v005Lines.any { it.contains("does not name the cause") })
+    fun `the refusal to claim a match survives translation and shortening`() {
+        assertTrue(
+            ReleaseEn.v005Summary.contains("does not prove a match"),
+            ReleaseEn.v005Summary,
+        )
+        assertTrue(
+            ReleaseRu.v005Summary.contains("не доказывает совпадение"),
+            ReleaseRu.v005Summary,
+        )
     }
 
     @Test

@@ -244,13 +244,7 @@ internal fun ReleaseNotesList() {
                     Text(text = note.version, style = type.axis, color = colors.ink2)
                     Text(text = note.title, style = type.label, color = colors.ink)
                 }
-                for (line in note.lines) {
-                    Text(
-                        text = "· $line",
-                        style = type.bodySmall,
-                        color = colors.muted,
-                    )
-                }
+                Text(text = note.summary, style = type.bodySmall, color = colors.muted)
             }
         }
     }
