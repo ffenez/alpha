@@ -782,14 +782,20 @@ private fun ConnectionChip(
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    // Когда связь есть и данные идут — в шапке НЕТ НИЧЕГО.
+    //
+    // Зелёная точка висела там всегда и через день переставала читаться; а
+    // значит, переставала читаться и её пропажа — ровно в тот момент, когда
+    // она единственное, что сообщает о беде. Момент подключения при этом не
+    // теряется: его показывает «Подключено», которое гаснет само.
+    //
+    // То же правило уже действует у строки состояния потока: молчание и есть
+    // сообщение «всё идёт».
     val (dot, text: String?) = when {
-        // Модель берётся у прибора, а не вписана в код: приложение работает
-        // со всей серией, и чужому прибору нельзя приписывать чужое имя.
-        // Подключён — достаточно зелёной точки: модель и частота опроса не
-        // меняются во время работы, и повторять их на главном экране незачем.
-        // Они есть в Настройках → Прибор.
-        connection is ConnectionState.Connected ->
-            (if (stream.live) colors.ok else colors.warn) to null
+        connection is ConnectionState.Connected && stream.live -> return
+        // Связь стоит, а поток встал — янтарная точка: зелёная рядом с «нет
+        // новых данных» читалась бы как «всё работает».
+        connection is ConnectionState.Connected -> colors.warn to null
         connection is ConnectionState.Connecting -> colors.warn to strings.connecting
         connection is ConnectionState.Reconnecting -> colors.warn to strings.reconnecting
         !serviceRunning -> colors.muted to strings.serviceOff

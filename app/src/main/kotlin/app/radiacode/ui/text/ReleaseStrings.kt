@@ -86,8 +86,8 @@ object ReleaseRu : ReleaseStrings {
     override val v040Summary =
         "Главное число окрашено по отношению к обычному фону места: от зелёного " +
         "внутри обычного диапазона до багрового у вашего порога, дальше цвет не " +
-        "меняется. Кружок под ним убран, разбор открывается нажатием на само " +
-        "число, а окраску можно выключить в Настройках → Вид."
+        "меняется. Кружки убраны совсем: пока связь есть и данные идут, шапка " +
+        "молчит, а момент подключения показывает надпись, которая гаснет сама."
 
     override val v039Title = "Вкладка открывается та, на которую нажали"
     override val v039Summary =
@@ -224,8 +224,9 @@ object ReleaseEn : ReleaseStrings {
     override val v040Summary =
         "The main number is tinted by its relation to the usual background of the " +
         "place: green inside the usual range, crimson at your threshold, and no " +
-        "further change beyond it. The dot under it is gone, the report opens by " +
-        "tapping the number, and the tint can be switched off in Settings."
+        "further change beyond it. The dots are gone: while the link is up and data " +
+        "flows the header says nothing, and a connection is greeted by a line that " +
+        "fades out by itself."
 
     override val v039Title = "The tab you tapped is the tab that opens"
     override val v039Summary =
