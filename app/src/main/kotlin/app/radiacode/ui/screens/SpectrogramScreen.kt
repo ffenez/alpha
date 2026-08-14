@@ -559,5 +559,3 @@ private fun LegendRamp(shapeMode: Boolean, scaleTop: Float, t: SpectrogramString
     }
 }
 
-private fun timeOfDay(millis: Long): String =
-    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(HH_MM_SS)

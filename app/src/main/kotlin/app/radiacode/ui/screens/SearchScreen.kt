@@ -825,5 +825,3 @@ fun SearchScreen(
 }
 
 
-private fun timeOfDay(millis: Long): String =
-    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(HH_MM)
