@@ -36,6 +36,16 @@ object Uncertainty {
      */
     fun cpsWithSigmaBare(cps: Float): String = "${num1(cps)} ±${num1(cpsSigma(cps))}"
 
+    /**
+     * Только счёт, без ±: плитка Главной.
+     *
+     * Пуассоновская σ никуда не делась — она в «Почему такой вывод», где стоит
+     * рядом с окном, по которому посчитана. На плитке шириной в треть экрана
+     * «24,9 ±5,0» читается как одно длинное число, а не как измерение с
+     * неопределённостью.
+     */
+    fun cpsPlain(cps: Float): String = num1(cps)
+
     /** «±3,6 с⁻¹ (1σ Пуассон)» — the Search hero subtitle. */
     fun cpsSigmaLine(cps: Float): String = "±${num1(cpsSigma(cps))} с⁻¹ (1σ Пуассон)"
 

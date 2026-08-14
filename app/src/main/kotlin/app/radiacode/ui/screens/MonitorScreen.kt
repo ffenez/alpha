@@ -785,15 +785,10 @@ private fun HeroCard(
                         textAlign = TextAlign.Center,
                     )
                 }
-                Text(
-                    text = listOfNotNull(
-                        DoseFormat.rateUnitLabel(unit, s = strings),
-                        Uncertainty.errPercentLabel(errPercent),
-                    ).joinToString(" · "),
-                    style = type.footnote,
-                    color = colors.ink2,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                // Под числом не осталось ничего: ни единицы, ни погрешности
+                // прибора. Обе висели здесь постоянно, а прочитываются один
+                // раз — и обе живут в «Почему такой вывод», где строка дозы
+                // называет и величину, и чья это ±.
                 // Чья это ± — объясняет «Почему такой вывод» (строка дозы), а
                 // не постоянная подпись под главным числом: на Главной она
                 // висела всегда, а прочитывается один раз. Правило прежнее
@@ -900,7 +895,7 @@ private fun HeroCard(
                 add(
                     HeroTile(
                         label = t.countTile,
-                        value = cps?.let { Uncertainty.cpsWithSigmaBare(it) } ?: "—",
+                        value = cps?.let { Uncertainty.cpsPlain(it) } ?: "—",
                     ),
                 )
                 if (blocks.trend) {
@@ -913,10 +908,14 @@ private fun HeroCard(
                             // Прочерк без причины неотличим от поломки: плитка
                             // говорит, чего именно не хватает — или за какое
                             // окно посчитан показанный наклон.
-                            note = when {
-                                trend == null -> null
-                                slope != null -> trendWindowLabel?.let { t.overWindow(it) }
-                                else -> TrendFit.unavailableShort(trend)
+                            // Окно тренда («за 1 ч») с плитки убрано: оно не
+                            // меняется и названо в «Почему такой вывод».
+                            // Причина ПРОЧЕРКА остаётся: он без объяснения
+                            // неотличим от поломки.
+                            note = if (trend != null && slope == null) {
+                                TrendFit.unavailableShort(trend)
+                            } else {
+                                null
                             },
                         ),
                     )
@@ -924,9 +923,12 @@ private fun HeroCard(
                 if (blocks.doseToday) {
                     add(
                         HeroTile(
-                            label = strings.doseToday,
-                            value = doseTodayMicroSv?.let { DoseFormat.doseWithUnit(it, unit, s = strings) }
-                                ?: "—",
+                            // Единица — в подписи, как у счёта: в значении она
+                            // повторялась у каждого числа, а меняется вместе с
+                            // настройкой один раз на всё приложение.
+                            label = strings.doseToday + ", " +
+                                DoseFormat.doseUnitLabel(unit, s = strings),
+                            value = doseTodayMicroSv?.let { DoseFormat.dose(it, unit) } ?: "—",
                         ),
                     )
                 }
