@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v033Title: String
+    val v033Summary: String
+
     val v032Title: String
     val v032Summary: String
 
@@ -57,6 +60,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v033Title = "История больше не рассыпается на куски"
+    override val v033Summary =
+        "Разрыв связи и перезапуск службы больше не заканчивают измерение: за три " +
+        "часа дома получалась одна запись с названными перерывами, а не восемь " +
+        "почти одинаковых. Строка журнала стала короче — среднее и накопленная " +
+        "доза, остальное внутри записи, — а правка профиля переехала туда же."
 
     override val v032Title = "Пояснения можно выключить"
     override val v032Summary =
@@ -139,6 +149,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v033Title = "History stops falling apart"
+    override val v033Summary =
+        "A lost link or a restarted service no longer ends a measurement: three hours " +
+        "at home are one record with its breaks named, not eight near-identical ones. " +
+        "A journal row now carries the average and the accumulated dose, the rest " +
+        "lives inside the record — and so does changing its profile."
 
     override val v032Title = "Explanations can be switched off"
     override val v032Summary =
@@ -226,6 +243,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v033Title, v033Summary,
     v032Title, v032Summary,
     v031Title, v031Summary,
     v030Title, v030Summary,

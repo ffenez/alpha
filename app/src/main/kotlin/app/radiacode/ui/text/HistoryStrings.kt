@@ -36,6 +36,15 @@ interface HistoryStrings {
      * измерен не полностью и с полным днём физически не сравним, — но на
      * рабочем экране он теперь назван, а объяснён в справке.
      */
+    /**
+     * Склеенная запись: сколько кусков и сколько перерыва внутри.
+     *
+     * Склейка не имеет права быть незаметной: человек должен видеть, что
+     * измерение шло с перерывом, а не гадать, почему числа не сходятся с
+     * длительностью.
+     */
+    fun mergedPieces(pieces: Int, gap: String): String
+
     val legendPartialDay: String
 
     /** Заголовок справки «i» карточки накопленной дозы. */
@@ -89,14 +98,16 @@ object HistoryRu : HistoryStrings {
 
     override fun hoursMinutes(hours: Long, minutes: Long) = "$hours ч $minutes мин"
 
-    override val admissionYes = "в обычный фон: да"
+    override val admissionYes = "учтено в обычном фоне"
 
     override fun admissionPartial(excluded: String, reason: String) =
-        "в обычный фон: частично · вне обучения $excluded — $reason"
+        "в обычный фон: не всё ($excluded — $reason)"
 
-    override val admissionNoData = "в обычный фон: нет измерений"
+    override val admissionNoData = "измерений нет"
 
-    override fun admissionNo(reason: String) = "в обычный фон: нет — $reason"
+    override fun admissionNo(reason: String) = "не учтено в обычном фоне: $reason"
+
+    override fun mergedPieces(pieces: Int, gap: String) = "с перерывами · $gap без записи"
 
     override val legendPartialDay = "неполный день"
 
@@ -182,14 +193,16 @@ object HistoryEn : HistoryStrings {
 
     override fun hoursMinutes(hours: Long, minutes: Long) = "$hours h $minutes min"
 
-    override val admissionYes = "into the usual background: yes"
+    override val admissionYes = "counted in the usual background"
 
     override fun admissionPartial(excluded: String, reason: String) =
-        "into the usual background: partly · outside collection $excluded — $reason"
+        "not all of it counted in the usual background ($excluded — $reason)"
 
-    override val admissionNoData = "into the usual background: no measurements"
+    override val admissionNoData = "no measurements"
 
-    override fun admissionNo(reason: String) = "into the usual background: no — $reason"
+    override fun admissionNo(reason: String) = "not counted in the usual background: $reason"
+
+    override fun mergedPieces(pieces: Int, gap: String) = "with breaks · $gap not recorded"
 
     override val legendPartialDay = "partial day"
 
@@ -260,7 +273,7 @@ fun HistoryStrings.allTexts(): List<String> = months + listOf(
     // языке человека, а не имя механизма движка.
     admissionYes, admissionPartial(minutes(12), MonitorRu.exclusionQuarantine), admissionNoData,
     admissionNo(MonitorRu.exclusionQuarantine),
-    legendPartialDay, infoTitle,
+    mergedPieces(3, "12 мин"), legendPartialDay, infoTitle,
     doseProjection("1,4 мЗв"), doseProjectionBasis("0,155", hours(23)),
     doseProjectionCaveatShort, doseProjectionCaveat, doseProjectionUnavailable(minutes(12)),
     delete, deleteCount(3), deleteSelectedTitle, deleteSpectraTitle(2), deleteSessionsTitle(3),

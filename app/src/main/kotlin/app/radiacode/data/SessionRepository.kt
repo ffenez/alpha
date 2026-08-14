@@ -139,12 +139,46 @@ class SessionRepository(
     suspend fun open(profileId: Long?): Long =
         sessionDao.insert(MeasurementSessionEntity(profileId = profileId, startedAt = clock()))
 
+    /**
+     * Продолжить последнюю запись или начать новую.
+     *
+     * Перезапуск службы — не решение человека. Системе ничего не стоит убить
+     * фоновый процесс и поднять его заново, и каждый такой круг раньше
+     * добавлял в журнал новую запись: за три часа в одном месте их набиралось
+     * восемь. Здесь запись продолжается, если она о ТОМ ЖЕ месте и с её конца
+     * прошло меньше [graceMillis]; иначе честно закрывается и открывается
+     * новая.
+     *
+     * Возврат: id записи, в которую пишем дальше.
+     */
+    suspend fun resumeOrOpen(profileId: Long?, graceMillis: Long): Long {
+        val now = clock()
+        val latest = sessionDao.latest()
+        val lastActivity = latest?.let { it.endedAt ?: sampleDao.latestTimestamp() ?: it.startedAt }
+        val continuable = latest != null &&
+            latest.profileId == profileId &&
+            lastActivity != null &&
+            now - lastActivity <= graceMillis
+        if (continuable) {
+            if (latest.endedAt != null) sessionDao.reopen(latest.id)
+            return latest.id
+        }
+        if (latest?.endedAt == null && latest != null) {
+            sessionDao.close(latest.id, lastActivity ?: now)
+        }
+        return open(profileId)
+    }
+
     suspend fun close(sessionId: Long, endedAt: Long = clock()) =
         sessionDao.close(sessionId, endedAt)
 
     /**
      * Crash recovery on service start: sessions left open by a killed process
      * end at the last recorded sample (honest end, not "now").
+     *
+     * Закрытие здесь — только уборка следов падения. Продолжится ли запись,
+     * решает [resumeOrOpen] при первом же подключении: закрытая полминуты
+     * назад запись о том же месте — та же самая запись.
      */
     suspend fun closeStale() {
         val endedAt = sampleDao.latestTimestamp() ?: clock()

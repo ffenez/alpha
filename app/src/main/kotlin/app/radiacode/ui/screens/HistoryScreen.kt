@@ -51,6 +51,9 @@ import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.SpectrumMerge
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.SessionSummary
+import app.radiacode.service.SessionGate
+import app.radiacode.ui.logic.SessionGroups
+import app.radiacode.ui.logic.SessionGroup
 import app.radiacode.data.toSpectrum
 import app.radiacode.protocol.Spectrum
 import app.radiacode.data.db.EventEntity
@@ -103,8 +106,8 @@ private const val DOSE_DAYS = 30
 private sealed interface HistoryItem {
     val timestamp: Long
 
-    data class Session(val summary: SessionSummary) : HistoryItem {
-        override val timestamp: Long get() = summary.startedAt
+    data class Session(val group: SessionGroup) : HistoryItem {
+        override val timestamp: Long get() = group.startedAt
     }
 
     data class Deviation(val event: EventEntity) : HistoryItem {
@@ -183,25 +186,9 @@ fun HistoryScreen(
         )
     }
 
-    // Спец §20: профиль сессии можно поправить задним числом; вместе с ним
-    // пересчитывается участие сессии в обучении обычного фона.
-    var reassigning by remember { mutableStateOf<SessionSummary?>(null) }
-    val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
-    reassigning?.let { session ->
-        SessionProfileDialog(
-            session = session,
-            profiles = profiles,
-            onPick = { profileId ->
-                scope.launch {
-                    graph.sessionRepository.reassignProfile(session.id, profileId)
-                    reassigning = null
-                    reload += 1
-                }
-            },
-            onDismiss = { reassigning = null },
-        )
-    }
-
+    // Правка профиля сессии переехала в саму сессию (spec §20): чип «профиль…»
+    // повторялся в КАЖДОЙ строке журнала и обрезался многоточием, хотя нужен
+    // он редко и относится к одной конкретной записи.
     // Comparator flow is self-contained in История: picking two snapshots
     // swaps the screen for the comparator; back returns to the list.
     var comparePair by remember { mutableStateOf<Pair<Long, Long>?>(null) }
@@ -249,8 +236,8 @@ fun HistoryScreen(
             // «выбрано 13» при двенадцати удаляемых было бы неправдой.
             val selectableSessions = model?.items.orEmpty()
                 .filterIsInstance<HistoryItem.Session>()
-                .filter { it.summary.endedAt != null }
-                .map { it.summary.id }
+                .filter { !it.group.running }
+                .flatMap { it.group.ids }
             val selectableSpectra = savedSpectra.map { it.id }
             val allSelected = selection.isAllSelected(selectableSessions, selectableSpectra)
             Row(
@@ -318,25 +305,28 @@ fun HistoryScreen(
                             if (index > 0) AppDivider()
                             when (item) {
                                 is HistoryItem.Session -> SessionRow(
-                                    summary = item.summary,
+                                    group = item.group,
                                     unit = unit,
                                     selectionActive = selection.active,
-                                    selected = item.summary.id in selection.sessions,
+                                    // Склейка выбирается целиком: строка на
+                                    // экране одна, и «выбрано наполовину» о
+                                    // ней сказать нечего.
+                                    selected = item.group.ids.all { it in selection.sessions },
                                     onClick = {
                                         if (selection.active) {
                                             // A session still being written to
                                             // cannot be deleted: the data is
                                             // arriving as we speak.
-                                            if (item.summary.endedAt != null) {
-                                                selection = selection.toggleSession(
-                                                    item.summary.id,
-                                                )
+                                            if (!item.group.running) {
+                                                selection = item.group.ids.fold(selection) {
+                                                    acc, id ->
+                                                    acc.toggleSession(id)
+                                                }
                                             }
                                         } else {
-                                            onOpenSession(item.summary.id)
+                                            onOpenSession(item.group.ids.last())
                                         }
                                     },
-                                    onReassign = { reassigning = item.summary },
                                 )
                                 is HistoryItem.Deviation -> DeviationRow(item.event, unit)
                             }
@@ -581,7 +571,9 @@ private fun DoseProjectionBlock(model: HistoryModel, unit: DoseUnitSetting) {
                 style = type.body,
                 color = colors.ink,
             )
-            Text(
+            // Основание проекции — то, из чего она посчитана; вместе с
+            // отказом ниже это пояснение, и уходит оно тоже.
+            Hint(
                 text = HistoryFormat.doseProjectionBasis(
                     // Та же точность, из которой посчитана проекция: иначе
                     // видимые числа её не воспроизводят.
@@ -593,24 +585,18 @@ private fun DoseProjectionBlock(model: HistoryModel, unit: DoseUnitSetting) {
                 color = colors.ink2,
             )
         }
-        // Три строки: результат, основание и один отказ. Перечень того, что в
-        // проекцию не входит, целиком лежит в справке «i» — сокращено
-        // перечисление, а не сам отказ.
-        Text(
-            text = HistoryFormat.doseProjectionCaveatShort(h),
-            style = type.footnote,
-            color = colors.muted,
-        )
+        // Перечень того, что в проекцию не входит, целиком лежит в справке
+        // «i» — здесь один отказ, и он тоже пояснение.
+        Hint(text = HistoryFormat.doseProjectionCaveatShort(h))
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SessionRow(
-    summary: SessionSummary,
+    group: SessionGroup,
     unit: DoseUnitSetting,
     onClick: () -> Unit,
-    onReassign: () -> Unit,
     selectionActive: Boolean = false,
     selected: Boolean = false,
 ) {
@@ -619,8 +605,8 @@ private fun SessionRow(
     val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
-    val endedAt = summary.endedAt
-    val durationSeconds = ((endedAt ?: now) - summary.startedAt) / 1000L
+    val endedAt = group.endedAt
+    val durationSeconds = ((endedAt ?: now) - group.startedAt) / 1000L
 
     Column(
         modifier = Modifier
@@ -635,7 +621,7 @@ private fun SessionRow(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (selectionActive) {
-                if (endedAt == null) {
+                if (group.running) {
                     // Nothing to tick: a running session is still being written.
                     Spacer(Modifier.size(18.dp))
                 } else {
@@ -644,11 +630,11 @@ private fun SessionRow(
                 Spacer(Modifier.size(Dimens.space2))
             }
             Text(
-                text = summary.profileName ?: strings.noProfile,
+                text = group.profileName ?: strings.noProfile,
                 style = type.label,
-                color = if (selectionActive && endedAt == null) colors.muted else colors.ink,
+                color = if (selectionActive && group.running) colors.muted else colors.ink,
             )
-            if (endedAt == null) {
+            if (group.running) {
                 Text(
                     text = if (selectionActive) strings.runningCannotDelete else strings.running,
                     style = type.label,
@@ -658,14 +644,12 @@ private fun SessionRow(
             }
             Spacer(Modifier.weight(1f))
             Text(
-                text = HistoryFormat.dayTime(summary.startedAt, now, s = h) +
+                text = HistoryFormat.dayTime(group.startedAt, now, s = h) +
                     " · " + HistoryFormat.duration(durationSeconds, h),
                 style = type.footnote,
                 color = colors.ink2,
             )
-            // Строка открывается — и это видно, а не угадывается. Тот же
-            // шеврон, что у строк Настроек; в режиме уборки его место занимает
-            // отметка, и обещать открытие там было бы неправдой.
+            // Строка открывается — и это видно, а не угадывается.
             if (!selectionActive) {
                 Text(
                     text = "›",
@@ -676,7 +660,12 @@ private fun SessionRow(
             }
         }
 
-        val stats = summary.stats
+        // Две величины вместо шести. «ср 0,15 макс 0,18 доза 0,01 мкЗв n 254
+        // спектр» читалось как технический дамп: максимум, число измерений и
+        // пометки о треке и спектре отвечают на вопросы, которые задают уже
+        // ВНУТРИ записи, а строка списка отвечает на один — «сколько тут было
+        // и сколько накопилось».
+        val stats = group.stats
         val avgMicroSvH = stats.avgDoseRateMicroSvH
         if (stats.sampleCount > 0 && avgMicroSvH != null) {
             FlowRow(
@@ -684,21 +673,10 @@ private fun SessionRow(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 DataItem(strings.avg, DoseFormat.rate(avgMicroSvH, unit))
-                DataItem(strings.max, DoseFormat.rate(stats.maxDoseRateMicroSvH ?: 0f, unit))
-                DataItem(strings.dose, DoseFormat.doseWithUnit(summary.doseMicroSv, unit, s = strings))
-                DataItem("n", HistoryFormat.count(stats.sampleCount))
-                val badges = listOfNotNull(
-                    strings.track.takeIf { summary.hasTrack },
-                    strings.spectrum.takeIf { summary.hasSpectrum },
-                    strings.flight.takeIf { summary.hasFlight },
+                DataItem(
+                    strings.dose,
+                    DoseFormat.doseWithUnit(group.doseMicroSv, unit, s = strings),
                 )
-                if (badges.isNotEmpty()) {
-                    Text(
-                        text = badges.joinToString(" · "),
-                        style = type.valueSmall,
-                        color = colors.ink2,
-                    )
-                }
             }
         } else {
             Text(
@@ -708,90 +686,25 @@ private fun SessionRow(
             )
         }
 
-        // Спец §20: журнал обязан говорить, учила ли сессия обычный фон.
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-        ) {
+        // Склейка не бывает незаметной: если запись шла с перерывами, это
+        // сказано — иначе числа не сойдутся с длительностью.
+        if (group.pieces > 1) {
             Text(
-                text = HistoryFormat.admissionLine(summary.admission, h),
+                text = h.mergedPieces(group.pieces, HistoryFormat.duration(group.gapSeconds, h)),
                 style = type.footnote,
-                color = if (summary.admission.included) colors.muted else colors.ink2,
-                modifier = Modifier.weight(1f),
+                color = colors.muted,
             )
-            Chip(text = strings.profileEllipsis, color = colors.ink2, onClick = onReassign)
         }
+
+        // Спец §20: журнал обязан говорить, учила ли запись обычный фон, —
+        // но это ПОЯСНЕНИЕ, и оно уходит вместе с остальными.
+        Hint(
+            text = HistoryFormat.admissionLine(group.admission, h),
+            color = if (group.admission.included) colors.muted else colors.ink2,
+        )
     }
 }
 
-/**
- * Поздняя правка профиля сессии (spec §20). Диалог честно предупреждает, что
- * меняется не подпись, а принадлежность измерений: сессия перейдёт в
- * статистику другого профиля.
- */
-@Composable
-private fun SessionProfileDialog(
-    session: SessionSummary,
-    profiles: List<ProfileEntity>,
-    onPick: (Long?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val h = HistoryCatalogue.of(strings.language)
-    val type = LocalAppTypography.current
-    Dialog(onDismissRequest = onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = strings.sessionProfileTitle, style = type.title, color = colors.ink)
-                Text(
-                    text = strings.sessionProfileBody(
-                        HistoryFormat.dayTime(session.startedAt, System.currentTimeMillis(), s = h),
-                    ),
-                    style = type.bodySmall,
-                    color = colors.muted,
-                )
-                ProfileTree.visible(profiles).forEach { profile ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .defaultMinSize(minHeight = Dimens.touchTarget)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { onPick(profile.id) },
-                            ),
-                    ) {
-                        RadioMark(profile.id == session.profileId)
-                        Text(
-                            text = ProfileTree.displayName(profile, profiles),
-                            style = type.label,
-                            color = colors.ink,
-                        )
-                    }
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .defaultMinSize(minHeight = Dimens.touchTarget)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { onPick(null) },
-                        ),
-                ) {
-                    RadioMark(session.profileId == null)
-                    Text(text = strings.noProfile, style = type.label, color = colors.ink)
-                }
-                AppButton(text = strings.cancel, onClick = onDismiss, modifier = Modifier.fillMaxWidth())
-            }
-        }
-    }
-}
 
 @Composable
 private fun DataItem(label: String, value: String, valueColor: Color? = null) {
@@ -1271,8 +1184,16 @@ private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryMode
     val eventsFrom = sessions.lastOrNull()?.startedAt ?: (now - 24L * 3600_000)
     val events = repo.deviationEvents(from = eventsFrom, to = now)
 
+    // Подряд идущие записи одного места показываются одной строкой: рвали их
+    // разрывы связи и перезапуски службы, а не решение человека. Журнал в базе
+    // при этом не переписывается — склейка живёт только в показе.
+    val groups = SessionGroups.merge(
+        sessions = sessions,
+        graceMillis = SessionGate.DEFAULT_GRACE_MILLIS,
+        nowMillis = now,
+    )
     val items = (
-        sessions.map { HistoryItem.Session(it) } + events.map { HistoryItem.Deviation(it) }
+        groups.map { HistoryItem.Session(it) } + events.map { HistoryItem.Deviation(it) }
         ).sortedByDescending { it.timestamp }
 
     val zone = ZoneId.systemDefault()

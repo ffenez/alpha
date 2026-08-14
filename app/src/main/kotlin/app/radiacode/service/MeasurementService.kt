@@ -478,8 +478,14 @@ class MeasurementService : Service() {
         }
         when (action) {
             SessionGate.Action.None -> Unit
+            // Первое подключение после запуска службы ПРОДОЛЖАЕТ последнюю
+            // запись, если она о том же месте и только что шла: перезапуск
+            // процесса системой — не решение человека закончить измерение.
             SessionGate.Action.Open -> scope.launch {
-                sessionId = graph.sessionRepository.open(activeProfileId)
+                sessionId = graph.sessionRepository.resumeOrOpen(
+                    profileId = activeProfileId,
+                    graceMillis = SessionGate.DEFAULT_GRACE_MILLIS,
+                )
             }
             is SessionGate.Action.Reopen -> scope.launch {
                 sessionId?.let { graph.sessionRepository.close(it, action.closeAt) }

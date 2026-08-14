@@ -500,7 +500,9 @@ private fun AnalysisToolRow(title: String, subtitle: String, onClick: () -> Unit
     ) {
         Column(Modifier.weight(1f)) {
             Text(text = title, style = type.label, color = colors.ink)
-            Text(text = subtitle, style = type.footnote, color = colors.muted)
+            // Подпись инструмента объясняет, что он делает; название и так
+            // называет его, поэтому подпись уходит вместе с пояснениями.
+            Hint(text = subtitle)
         }
         Text(text = "›", style = type.value, color = colors.ink2)
     }

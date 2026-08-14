@@ -80,4 +80,20 @@ class SessionGateTest {
         assertEquals(SessionGate.Action.None, gate.onLinkLost(0))
         assertEquals(SessionGate.Action.Open, gate.onConnected(1 * minute, null))
     }
+
+    /**
+     * Полевой отчёт: за три часа в одном месте журнал показал восемь записей.
+     * Заминка связи — не конец измерения, и порог по умолчанию обязан быть
+     * длиннее любой возни с переподключением.
+     */
+    @Test
+    fun `the default grace outlasts a reconnect storm`() {
+        val gate = SessionGate()
+        gate.onConnected(0, null)
+
+        gate.onLinkLost(10 * minute)
+        // Двадцать минут переподключений — это всё ещё одно измерение.
+        assertEquals(SessionGate.Action.None, gate.onConnected(30 * minute, 10 * minute))
+        assertEquals(30L * minute, SessionGate.DEFAULT_GRACE_MILLIS)
+    }
 }

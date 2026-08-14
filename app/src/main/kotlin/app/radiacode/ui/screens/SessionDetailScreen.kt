@@ -21,6 +21,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -119,10 +120,32 @@ fun SessionDetailScreen(
 
     var detail by remember { mutableStateOf<SessionDetail?>(null) }
     var missing by remember { mutableStateOf(false) }
-    LaunchedEffect(sessionId) {
+    var reload by remember { mutableIntStateOf(0) }
+    LaunchedEffect(sessionId, reload) {
         val loaded = loadDetail(graph, sessionId)
         detail = loaded
         missing = loaded == null
+    }
+
+    // Спец §20: профиль записи правится задним числом, вместе с её участием в
+    // обучении обычного фона.
+    var reassigning by remember { mutableStateOf(false) }
+    val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
+    val summaryForProfile = detail?.summary
+    if (reassigning && summaryForProfile != null) {
+        SessionProfileDialog(
+            startedAt = summaryForProfile.startedAt,
+            profileId = summaryForProfile.profileId,
+            profiles = profiles,
+            onPick = { profileId ->
+                scope.launch {
+                    graph.sessionRepository.reassignProfile(sessionId, profileId)
+                    reassigning = false
+                    reload += 1
+                }
+            },
+            onDismiss = { reassigning = false },
+        )
     }
 
     Column(
@@ -170,7 +193,7 @@ fun SessionDetailScreen(
                 Text(text = t.readingSession, style = type.bodySmall, color = colors.muted)
             }
             else -> {
-                SummaryCard(d.summary, unit, t, onOpenTrack)
+                SummaryCard(d.summary, unit, t, onOpenTrack) { reassigning = true }
                 ChartCard(
                     detail = d,
                     unit = unit,
@@ -197,6 +220,7 @@ private fun SummaryCard(
     unit: DoseUnitSetting,
     t: SessionRadonStrings,
     onOpenTrack: () -> Unit,
+    onReassign: () -> Unit,
 ) {
     val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
@@ -213,7 +237,17 @@ private fun SummaryCard(
                     color = colors.ink,
                 )
                 Spacer(Modifier.weight(1f))
-                if (summary.endedAt == null) Chip(text = t.runningNow, color = colors.ok)
+                if (summary.endedAt == null) {
+                    Chip(text = t.runningNow, color = colors.ok)
+                } else {
+                    // Правка профиля живёт ЗДЕСЬ, а не в каждой строке журнала:
+                    // нужна она редко и относится к одной записи.
+                    Chip(
+                        text = strings.profileEllipsis,
+                        color = colors.ink2,
+                        onClick = onReassign,
+                    )
+                }
             }
             Text(
                 text = HistoryFormat.dayTime(summary.startedAt, now, s = h) +

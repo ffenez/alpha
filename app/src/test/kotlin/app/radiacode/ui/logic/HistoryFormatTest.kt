@@ -42,11 +42,11 @@ class HistoryFormatTest {
     @Test
     fun `session journal always says whether it taught the baseline`() {
         assertEquals(
-            "в обычный фон: да",
+            "учтено в обычном фоне",
             HistoryFormat.admissionLine(SessionAdmission(3_600, emptyList())),
         )
         assertEquals(
-            "в обычный фон: нет измерений",
+            "измерений нет",
             HistoryFormat.admissionLine(SessionAdmission.EMPTY),
         )
     }
@@ -62,7 +62,7 @@ class HistoryFormatTest {
                 ),
             ),
         )
-        assertEquals("в обычный фон: нет — идёт Поиск или эксперимент", line)
+        assertEquals("не учтено в обычном фоне: идёт Поиск или эксперимент", line)
     }
 
     @Test
@@ -74,7 +74,7 @@ class HistoryFormatTest {
             ),
         )
         assertEquals(
-            "в обычный фон: частично · вне обучения 10 мин — недавно было отклонение уровня",
+            "в обычный фон: не всё (10 мин — недавно было отклонение уровня)",
             line,
         )
     }

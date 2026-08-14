@@ -489,6 +489,14 @@ interface SessionDao {
     @Query("UPDATE measurement_sessions SET endedAt = :endedAt WHERE endedAt IS NULL")
     suspend fun closeAllOpen(endedAt: Long)
 
+    /** Newest session — the candidate a restarted service continues. */
+    @Query("SELECT * FROM measurement_sessions ORDER BY startedAt DESC LIMIT 1")
+    suspend fun latest(): MeasurementSessionEntity?
+
+    /** Re-opens a session that was closed by a restart, not by a person. */
+    @Query("UPDATE measurement_sessions SET endedAt = NULL WHERE id = :sessionId")
+    suspend fun reopen(sessionId: Long)
+
     @Query("SELECT * FROM measurement_sessions WHERE id = :sessionId")
     suspend fun session(sessionId: Long): MeasurementSessionEntity?
 

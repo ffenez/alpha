@@ -4,11 +4,22 @@ package app.radiacode.service
  * Pure decision logic for measurement-session boundaries (SPEC «History»:
  * sessions are continuous measurement periods).
  *
- * A session opens on device connect and closes on disconnect/stop. Brief BLE
- * hiccups (Reconnecting shorter than [graceMillis]) do not split a session —
- * the measurement period is still continuous in intent; a reconnect after a
- * longer outage closes the stale session at the last real sample and opens a
- * new one.
+ * ## Что заканчивает сессию
+ *
+ * Сессию заканчивает РЕШЕНИЕ ЧЕЛОВЕКА — остановка записи — или разрыв,
+ * который уже нельзя назвать заминкой. Всё остальное (потеря связи с
+ * переподключением, сворачивание приложения, перезапуск службы системой)
+ * происходит не по его воле, и превращать это в новую запись журнала значит
+ * рассказывать про его день то, чего он не делал.
+ *
+ * Полевой отчёт, из-за которого это переписано: за три часа в одном месте
+ * журнал показал восемь записей «Дом» — 4, 8, 58, 17, 12, 32, 33 и 19 минут.
+ * Внутри каждой измерения шли ровно раз в секунду, то есть терялись не
+ * данные, а границы.
+ *
+ * Короткий разрыв остаётся ДЫРОЙ ВНУТРИ сессии: график и статистика уже умеют
+ * показывать пропуск как пропуск, и это честнее, чем восемь почти одинаковых
+ * карточек подряд.
  */
 class SessionGate(private val graceMillis: Long = DEFAULT_GRACE_MILLIS) {
 
@@ -58,6 +69,17 @@ class SessionGate(private val graceMillis: Long = DEFAULT_GRACE_MILLIS) {
     }
 
     companion object {
-        const val DEFAULT_GRACE_MILLIS = 5L * 60_000L
+        /**
+         * Насколько долгим должен быть разрыв, чтобы считаться новой записью.
+         *
+         * **Инженерный параметр.** Пять минут не работали: переподключение с
+         * нарастающей паузой, уход прибора из радиуса и возвращение, перезапуск
+         * службы системой — всё это укладывается в них редко, и журнал
+         * рассыпался на куски по несколько минут. Полчаса — это уже не заминка
+         * связи, а перерыв: человек ушёл, отложил телефон, сменил занятие.
+         * Внутри одной записи получасовая дыра видна и на графике, и в числе
+         * измерений, поэтому склейка ничего не скрывает.
+         */
+        const val DEFAULT_GRACE_MILLIS = 30L * 60_000L
     }
 }
