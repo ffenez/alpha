@@ -33,6 +33,7 @@ import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.SessionSummary
 import app.radiacode.data.db.EventEntity
 import app.radiacode.device.DoseUnits
+import app.radiacode.ui.components.LocalHintsVisible
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.data.export.SeriesExport
@@ -48,6 +49,9 @@ import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.FlightDetect
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.TimeAxis
+import androidx.compose.runtime.saveable.rememberSaveable
+import app.radiacode.ui.text.ChartTextCatalogue
+import app.radiacode.ui.text.SearchCatalogue
 import app.radiacode.ui.text.HistoryCatalogue
 import app.radiacode.ui.text.HistoryRu
 import app.radiacode.ui.text.HistoryStrings
@@ -163,6 +167,8 @@ fun SessionDetailScreen(
             // системный диалог, как и у спектров.
             detail?.let { d ->
                 Chip(
+                    // Действие названо действием: «CSV» само по себе — формат,
+                    // а не то, что произойдёт по нажатию.
                     text = t.exportCsv,
                     color = colors.dataText,
                     onClick = {
@@ -179,9 +185,7 @@ fun SessionDetailScreen(
                         }
                     },
                 )
-                Spacer(Modifier.width(Dimens.space2))
             }
-            Chip(text = t.sessionTag, color = colors.ink)
         }
 
         val d = detail
@@ -242,8 +246,10 @@ private fun SummaryCard(
                 } else {
                     // Правка профиля живёт ЗДЕСЬ, а не в каждой строке журнала:
                     // нужна она редко и относится к одной записи.
+                    // «Профиль…» многоточием обещало продолжение мысли, а не
+                    // выбор: шеврон говорит, что откроется список.
                     Chip(
-                        text = strings.profileEllipsis,
+                        text = "${strings.profile} ›",
                         color = colors.ink2,
                         onClick = onReassign,
                     )
@@ -257,6 +263,13 @@ private fun SummaryCard(
             )
             AppDivider()
 
+            // Сетка вместо строк «мощность дозы: ср 0,15 · мин 0,12 · макс 0,18».
+            //
+            // Длинная собранная строка ломалась на узком экране в «мкЗв/» и «ч»
+            // на разных строках и склеивала подпись со значением. Здесь подпись
+            // и число — отдельные элементы одной колонки, и переносить нечего.
+            // Минимум, максимум и разброс уехали в «Подробнее»: карточка
+            // отвечает на вопрос «сколько тут было», а не описывает выборку.
             val stats = summary.stats
             val avgMicroSvH = stats.avgDoseRateMicroSvH
             if (stats.sampleCount == 0 || avgMicroSvH == null) {
@@ -266,26 +279,35 @@ private fun SummaryCard(
                     color = colors.muted,
                 )
             } else {
-                DetailRow(t.samplesLabel, HistoryFormat.count(stats.sampleCount))
-                DetailRow(
-                    t.doseRateLabel,
-                    t.doseRateSummary(
-                        avg = DoseFormat.rate(avgMicroSvH, unit),
-                        min = DoseFormat.rate(stats.minDoseRateMicroSvH ?: 0f, unit),
-                        max = DoseFormat.rate(stats.maxDoseRateMicroSvH ?: 0f, unit),
-                        unit = DoseFormat.rateUnitLabel(unit, s = strings),
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = DoseFormat.dose(summary.doseMicroSv, unit),
+                        style = type.valueHero,
+                        color = colors.ink,
+                    )
+                    Text(
+                        text = t.sessionDoseLabel + ", " +
+                            DoseFormat.doseUnitLabel(unit, s = strings),
+                        style = type.overline,
+                        color = colors.muted,
+                    )
+                }
+                StatGrid(
+                    cells = listOf(
+                        StatCell(
+                            DoseFormat.rate(avgMicroSvH, unit),
+                            t.doseRateLabel + ", " + DoseFormat.rateUnitLabel(unit, s = strings),
+                        ),
+                        StatCell(
+                            "${(stats.avgCountRate ?: 0f).toInt()}",
+                            t.countRateLabel + ", " + SearchCatalogue.of(strings.language).cpsUnit,
+                        ),
+                        StatCell(HistoryFormat.count(stats.sampleCount), t.samplesLabel),
                     ),
-                )
-                DetailRow(
-                    t.countRateLabel,
-                    t.countRateSummary(
-                        avg = "${(stats.avgCountRate ?: 0f).toInt()}",
-                        max = "${(stats.maxCountRate ?: 0f).toInt()}",
-                    ),
-                )
-                DetailRow(
-                    t.sessionDoseLabel,
-                    DoseFormat.doseWithUnit(summary.doseMicroSv, unit, s = strings),
                 )
             }
 
@@ -323,6 +345,9 @@ private fun ChartCard(
     val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val h = HistoryCatalogue.of(strings.language)
+    val labels = ChartTextCatalogue.of(strings.language)
+    var more by rememberSaveable { mutableStateOf(false) }
     // Оговорки о статистике не исчезли, а переехали под «i»: линия здесь —
     // СРЕДНЕЕ интервала, а полный экран считает те же измерения медианой с
     // конвертами. Молчать об этом нельзя, но и держать две строки под каждой
@@ -340,12 +365,28 @@ private fun ChartCard(
                     color = colors.ink2,
                     modifier = Modifier.weight(1f),
                 )
-                // Явное действие рядом с картинкой: тап по самому графику
-                // делает то же, но по одной картинке это не видно.
+                // Длительность вторичным текстом, а не подписью «вся сессия»:
+                // это и есть весь ответ на вопрос «за какой срок картинка».
+                Text(
+                    text = HistoryFormat.duration(
+                        (detail.toMillis - detail.fromMillis) / 1000L,
+                        s = h,
+                    ),
+                    style = type.footnote,
+                    color = colors.muted,
+                    modifier = Modifier.padding(end = Dimens.space2),
+                )
                 if (detail.stats != null) {
-                    Chip(text = t.openFullChart, color = colors.dataText, onClick = onOpenChart)
+                    Chip(text = "↗", color = colors.dataText, onClick = onOpenChart)
                 }
-                Chip(text = "i", color = colors.ink2, onClick = { info = true })
+                if (LocalHintsVisible.current) {
+                    Chip(
+                        text = "i",
+                        color = colors.ink2,
+                        onClick = { info = true },
+                        modifier = Modifier.padding(start = Dimens.space1),
+                    )
+                }
             }
             val stats = detail.stats
             if (stats == null) {
@@ -375,18 +416,35 @@ private fun ChartCard(
                         ),
                     )
                 }
+                // Между какими значениями держалось и сколько измерений — то,
+                // что спрашивают о ряде. Крайние точки и разброс отвечают на
+                // другой вопрос и ждут в «Подробнее».
                 StatGrid(
                     cells = listOf(
-                        StatCell(DoseFormat.rate(stats.min, unit), t.statMin),
+                        StatCell(DoseFormat.rate(stats.p10, unit), "P10"),
                         StatCell(DoseFormat.rate(stats.median, unit), t.statMedian),
-                        StatCell(DoseFormat.rate(stats.max, unit), t.statMax),
-                        StatCell(
-                            DoseFormat.rate(stats.sigma, unit),
-                            t.sdWithUnit(DoseFormat.rateUnitLabel(unit, s = strings)),
-                        ),
+                        StatCell(DoseFormat.rate(stats.p90, unit), "P90"),
                         StatCell(HistoryFormat.count(detail.summary.stats.sampleCount), "n"),
                     ),
                 )
+                Chip(
+                    text = if (more) labels.hideDetails else labels.showDetails,
+                    color = colors.dataText,
+                    selected = more,
+                    onClick = { more = !more },
+                )
+                if (more) {
+                    StatGrid(
+                        cells = listOf(
+                            StatCell(DoseFormat.rate(stats.min, unit), t.statMin),
+                            StatCell(DoseFormat.rate(stats.max, unit), t.statMax),
+                            StatCell(
+                                DoseFormat.rate(stats.sigma, unit),
+                                t.sdWithUnit(DoseFormat.rateUnitLabel(unit, s = strings)),
+                            ),
+                        ),
+                    )
+                }
             }
         }
     }

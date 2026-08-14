@@ -172,7 +172,7 @@ object SessionRadonRu : SessionRadonStrings {
 
     override fun countRateSummary(avg: String, max: String) = "ср $avg · макс $max с⁻¹"
 
-    override val sessionDoseLabel = "доза за сессию · расчёт"
+    override val sessionDoseLabel = "доза за сессию"
     override val trackOnMap = "трек · на карте"
 
     override val chartTitle = "Мощность дозы · вся сессия"
@@ -323,7 +323,7 @@ object SessionRadonEn : SessionRadonStrings {
 
     override fun countRateSummary(avg: String, max: String) = "avg $avg · max $max s⁻¹"
 
-    override val sessionDoseLabel = "dose over the session · calculated"
+    override val sessionDoseLabel = "dose over the session"
     override val trackOnMap = "track · on the map"
 
     override val chartTitle = "Dose rate · whole session"

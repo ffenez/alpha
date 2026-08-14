@@ -16,7 +16,7 @@ import app.radiacode.ui.theme.LocalAppTypography
  * прибор каждый день, они через неделю превращаются в шум, и просьба их убрать
  * — не про минимализм, а про то, что экран перестаёт помещаться.
  */
-val LocalHintsVisible = staticCompositionLocalOf { true }
+val LocalHintsVisible = staticCompositionLocalOf { false }
 
 /**
  * Пояснение: строка, без которой экран остаётся понятным.

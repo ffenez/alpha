@@ -60,6 +60,15 @@ interface HistoryStrings {
      */
     fun mergedPieces(pieces: Int, gap: String): String
 
+    /** «начата 14 авг 01:29» — у идущей записи важно, когда она началась. */
+    fun startedAt(moment: String): String
+
+    /** «данных 15 ч 56 мин» — сколько времени прибор действительно писал. */
+    fun dataFor(duration: String): String
+
+    /** «пропуски 9 мин» — и сколько времени в записи его нет. */
+    fun gapsFor(duration: String): String
+
 
     /** Заголовок справки «i» карточки накопленной дозы. */
     val infoTitle: String
@@ -128,6 +137,9 @@ object HistoryRu : HistoryStrings {
     override val days90 = "90 д"
 
     override fun mergedPieces(pieces: Int, gap: String) = "с перерывами · $gap без записи"
+    override fun startedAt(moment: String) = "начата $moment"
+    override fun dataFor(duration: String) = "данных $duration"
+    override fun gapsFor(duration: String) = "пропуски $duration"
 
 
     override val infoTitle = "Как это посчитано"
@@ -228,6 +240,9 @@ object HistoryEn : HistoryStrings {
     override val days90 = "90 d"
 
     override fun mergedPieces(pieces: Int, gap: String) = "with breaks · $gap not recorded"
+    override fun startedAt(moment: String) = "started $moment"
+    override fun dataFor(duration: String) = "$duration of data"
+    override fun gapsFor(duration: String) = "$duration missing"
 
 
     override val infoTitle = "How this is counted"

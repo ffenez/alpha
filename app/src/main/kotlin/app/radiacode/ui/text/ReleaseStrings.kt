@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v036Title: String
+    val v036Summary: String
+
     val v035Title: String
     val v035Summary: String
 
@@ -66,6 +69,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v036Title = "История короче, и пояснений больше нет по умолчанию"
+    override val v036Summary =
+        "Запись в журнале — место, время, среднее, доза и сколько времени были " +
+        "данные; всё остальное внутри записи. Пояснения теперь выключены с самого " +
+        "начала: экран показывает результат, числа и действия, а объяснения " +
+        "включаются в Настройках → Вид."
 
     override val v035Title = "Вкладки листаются пальцем"
     override val v035Summary =
@@ -168,6 +178,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v036Title = "История is shorter, and explanations start off"
+    override val v036Summary =
+        "A journal row is the place, the time, the average, the dose and how long " +
+        "there was data; everything else lives inside the record. Explanations are " +
+        "now off from the start: the screen shows the result, the numbers and the " +
+        "actions, and the text is switched on in Settings → Appearance."
 
     override val v035Title = "Tabs move under your finger"
     override val v035Summary =
@@ -275,6 +292,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v036Title, v036Summary,
     v035Title, v035Summary,
     v034Title, v034Summary,
     v033Title, v033Summary,

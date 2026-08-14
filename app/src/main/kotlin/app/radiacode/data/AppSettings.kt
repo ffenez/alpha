@@ -247,12 +247,12 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     /**
      * Показывать ли пояснения — серые строки, объясняющие происходящее.
      *
-     * По умолчанию включены: человек, открывший приложение впервые, не должен
-     * догадываться сам. Тому, кто носит прибор каждый день, они через неделю
-     * становятся шумом, и выключатель — про место на экране, а не про вкус.
+     * По умолчанию ВЫКЛЮЧЕНЫ: экран прибора показывает результат, числа и
+     * действия, а не рассказывает о себе. Кому нужно, чем измерено и почему
+     * такой вывод, — включает и получает то же самое с объяснениями.
      */
     val hintsVisible: Flow<Boolean> =
-        dataStore.data.map { it[HINTS_VISIBLE] ?: true }
+        dataStore.data.map { it[HINTS_VISIBLE] ?: false }
 
     suspend fun setHintsVisible(visible: Boolean) {
         dataStore.edit { it[HINTS_VISIBLE] = visible }

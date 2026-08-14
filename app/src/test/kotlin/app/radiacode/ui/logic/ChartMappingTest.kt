@@ -117,4 +117,31 @@ class ChartMappingTest {
         assertNull(ChartMapping.rowForLevel(1.5f, 1f, 52))
         assertNull(ChartMapping.rowForLevel(0f, 1f, 52))
     }
+
+    /**
+     * P10 и P90 — порядковые статистики, а не интерполяция.
+     *
+     * Возвращается ИЗМЕРЕННОЕ значение: среднее двух соседних отсчётов —
+     * число, которого прибор не показывал, и на экране прибора ему не место.
+     */
+    @Test
+    fun `the band edges are measured values, not interpolations`() {
+        val columns = (1..10).map { it.toFloat() as Float? }
+
+        val stats = ChartMapping.stats(columns)!!
+
+        assertTrue(stats.p10 in columns.filterNotNull(), "${stats.p10}")
+        assertTrue(stats.p90 in columns.filterNotNull(), "${stats.p90}")
+        assertTrue(stats.p10 <= stats.median && stats.median <= stats.p90)
+        assertTrue(stats.min <= stats.p10 && stats.p90 <= stats.max)
+    }
+
+    @Test
+    fun `a single column is its own band`() {
+        val stats = ChartMapping.stats(listOf(0.15f))!!
+
+        assertEquals(0.15f, stats.p10)
+        assertEquals(0.15f, stats.p90)
+        assertEquals(0.15f, stats.median)
+    }
 }

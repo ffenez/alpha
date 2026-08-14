@@ -100,6 +100,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val PAGE_SIZE = 20
+
+/**
+ * С какого пропуска о нём стоит говорить.
+ * **Инженерный параметр**: минута. Секунды разницы между длительностью и
+ * числом измерений даёт округление на границах записи, и «пропуски 3 с»
+ * сообщали бы о ровно работающем приборе.
+ */
+private const val GAP_VISIBLE_SECONDS = 60L
 private const val REFRESH_MILLIS = 30_000L
 /**
  * Глубина суточной истории дозы: самый длинный период графика.
@@ -334,8 +342,11 @@ fun HistoryScreen(
             }
 
             if (m.totalSessions > m.items.count { it is HistoryItem.Session }) {
-                AppButton(
+                // Компактный чип вместо кнопки во всю ширину: догрузка — не
+                // главное действие экрана, а продолжение списка.
+                Chip(
                     text = strings.showMore,
+                    color = colors.ink2,
                     onClick = { pages += 1 },
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                 )
@@ -430,25 +441,26 @@ private fun SessionRow(
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text(
-                text = HistoryFormat.dayTime(group.startedAt, now, s = h) +
-                    " · " + HistoryFormat.duration(durationSeconds, h),
-                style = type.footnote,
-                color = colors.ink2,
-            )
-            // Строка открывается — и это видно, а не угадывается.
-            if (!selectionActive) {
-                NavArrow(
-                                        modifier = Modifier.padding(start = 6.dp),
-                )
-            }
+            if (!selectionActive) NavArrow()
         }
 
-        // Две величины вместо шести. «ср 0,15 макс 0,18 доза 0,01 мкЗв n 254
-        // спектр» читалось как технический дамп: максимум, число измерений и
-        // пометки о треке и спектре отвечают на вопросы, которые задают уже
-        // ВНУТРИ записи, а строка списка отвечает на один — «сколько тут было
-        // и сколько накопилось».
+        // Момент и длительность. У идущей записи сказано «начата»: без этого
+        // время читалось как момент окончания того, что ещё идёт.
+        Text(
+            text = (
+                if (group.running) {
+                    h.startedAt(HistoryFormat.dayTime(group.startedAt, now, s = h))
+                } else {
+                    HistoryFormat.dayTime(group.startedAt, now, s = h)
+                }
+                ) + " · " + HistoryFormat.duration(durationSeconds, h),
+            style = type.footnote,
+            color = colors.ink2,
+        )
+
+        // Две величины: сколько было в среднем и сколько накопилось. Максимум,
+        // число измерений и пометки о треке со спектром отвечают на вопросы,
+        // которые задают уже ВНУТРИ записи.
         val stats = group.stats
         val avgMicroSvH = stats.avgDoseRateMicroSvH
         if (stats.sampleCount > 0 && avgMicroSvH != null) {
@@ -456,26 +468,33 @@ private fun SessionRow(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space3),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                DataItem(strings.avg, DoseFormat.rate(avgMicroSvH, unit))
+                DataItem(strings.avg, DoseFormat.rateWithUnit(avgMicroSvH, unit, s = strings))
                 DataItem(
                     strings.dose,
                     DoseFormat.doseWithUnit(group.doseMicroSv, unit, s = strings),
                 )
             }
+            // Сколько времени прибор действительно писал и сколько его в
+            // записи нет. Строка появляется, только когда пропуски есть:
+            // «пропуски 0 мин» сообщало бы о том, чего не было.
+            // Прибор пишет раз в секунду, поэтому число измерений и есть
+            // измеренные секунды.
+            val dataSeconds = stats.sampleCount.toLong()
+            val gapSeconds = (durationSeconds - dataSeconds).coerceAtLeast(0L)
+            Text(
+                text = h.dataFor(HistoryFormat.duration(dataSeconds, h)) +
+                    if (gapSeconds >= GAP_VISIBLE_SECONDS) {
+                        " · " + h.gapsFor(HistoryFormat.duration(gapSeconds, h))
+                    } else {
+                        ""
+                    },
+                style = type.footnote,
+                color = colors.ink2,
+            )
         } else {
             Text(
                 text = strings.noSamplesInSession,
                 style = type.valueSmall,
-                color = colors.muted,
-            )
-        }
-
-        // Склейка не бывает незаметной: если запись шла с перерывами, это
-        // сказано — иначе числа не сойдутся с длительностью.
-        if (group.pieces > 1) {
-            Text(
-                text = h.mergedPieces(group.pieces, HistoryFormat.duration(group.gapSeconds, h)),
-                style = type.footnote,
                 color = colors.muted,
             )
         }
@@ -868,7 +887,9 @@ private fun SavedSpectrumRow(
                 )
             }
             Text(
-                text = SpectrumExport.title(entity),
+                // Название снимка без даты: она стоит справа в этой же
+                // строке, и повторять её в имени незачем.
+                text = entity.label ?: strings.spectrum,
                 style = type.label,
                 color = colors.ink,
                 maxLines = 2,
@@ -881,20 +902,20 @@ private fun SavedSpectrumRow(
                 color = colors.ink2,
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space3)) {
-            DataItem("Δt", SpectrumFormat.accumulationClock(entity.durationSeconds))
-            val badges = listOfNotNull(
-                strings.importedTag.takeIf { entity.origin == SpectrumSnapshotEntity.ORIGIN_IMPORT },
+        // Δt — это время НАКОПЛЕНИЯ снимка (`durationSeconds` прибора), а не
+        // момент и не интервал между снимками. Поэтому оно и пишется
+        // длительностью: «121:10:00» читалось как время суток.
+        Text(
+            text = listOfNotNull(
+                HistoryFormat.duration(entity.durationSeconds, h),
+                strings.importedTag.takeIf {
+                    entity.origin == SpectrumSnapshotEntity.ORIGIN_IMPORT
+                },
                 strings.backgroundTag.takeIf { entity.isBackgroundReference },
-            )
-            if (badges.isNotEmpty()) {
-                Text(
-                    text = badges.joinToString(" · "),
-                    style = type.valueSmall,
-                    color = colors.ink2,
-                )
-            }
-        }
+            ).joinToString(" · "),
+            style = type.footnote,
+            color = colors.ink2,
+        )
     }
 }
 

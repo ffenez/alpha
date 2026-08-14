@@ -1176,7 +1176,7 @@ private fun InterfaceSection(graph: AppGraph) {
                     color = colors.ink,
                     modifier = Modifier.weight(1f),
                 )
-                val hints by graph.settings.hintsVisible.collectAsState(initial = true)
+                val hints by graph.settings.hintsVisible.collectAsState(initial = false)
                 Chip(
                     text = if (hints) strings.on else strings.off,
                     color = if (hints) colors.dataText else colors.ink2,

@@ -42,6 +42,15 @@ object ChartMapping {
         val max: Float,
         val sigma: Float,
         val count: Int,
+        /**
+         * Края обычного разброса ряда — порядковые статистики, как и медиана.
+         *
+         * P10 и P90 отвечают на вопрос «между какими значениями держалось», а
+         * минимум с максимумом — на вопрос «какие были крайние точки». Первый
+         * задают чаще, поэтому на виду они, а крайние точки — в подробностях.
+         */
+        val p10: Float,
+        val p90: Float,
     )
 
     /** Population σ and median over present columns; null when nothing is present. */
@@ -65,7 +74,21 @@ object ChartMapping {
             max = max,
             sigma = sqrt(variance).toFloat(),
             count = values.size,
+            p10 = percentile(sorted, 0.10),
+            p90 = percentile(sorted, 0.90),
         )
+    }
+
+    /**
+     * Порядковая статистика по возрастающему ряду — ближайший ранг.
+     *
+     * Без интерполяции сознательно: возвращается ИЗМЕРЕННОЕ значение, а не
+     * среднее двух соседних, которого прибор не показывал.
+     */
+    private fun percentile(sorted: List<Float>, p: Double): Float {
+        if (sorted.isEmpty()) return 0f
+        val index = Math.round((sorted.size - 1) * p).toInt()
+        return sorted[index.coerceIn(0, sorted.size - 1)]
     }
 
     /**

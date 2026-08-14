@@ -1,6 +1,5 @@
 package app.radiacode.ui.components
 
-import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -57,11 +56,13 @@ fun TabPager(
     HorizontalPager(
         state = state,
         modifier = modifier.fillMaxSize(),
-        snapPosition = SnapPosition.Start,
-        // Соседняя страница не собирается заранее: у Главной и Карты за
-        // сборкой стоит чтение базы и карта, и держать их «на всякий случай»
-        // значило бы платить за них всё время.
-        beyondViewportPageCount = 0,
+        // Соседняя вкладка собирается ЗАРАНЕЕ, а не под пальцем.
+        //
+        // Без этого первый кадр жеста строил целый экран — с чтением базы у
+        // Главной и картой у Карты, — и рывок приходился ровно на начало
+        // движения, когда он заметнее всего. Цена — одна лишняя собранная
+        // вкладка в памяти; жест важнее.
+        beyondViewportPageCount = 1,
     ) { page ->
         content(tabs[page])
     }

@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
             // из каталога, а не из системы, поэтому переключатель в настройках
             // работает мгновенно и без пересоздания активности.
             val systemTag = LocalConfiguration.current.locales[0]?.language.orEmpty()
-            val hintsVisible by graph.settings.hintsVisible.collectAsState(initial = true)
+            val hintsVisible by graph.settings.hintsVisible.collectAsState(initial = false)
             AppTheme(
                 dark = when (theme) {
                     ThemeSetting.SYSTEM -> isSystemInDarkTheme()
