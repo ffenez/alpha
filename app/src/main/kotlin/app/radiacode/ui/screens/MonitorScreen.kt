@@ -871,6 +871,12 @@ private fun HeroCard(
             }
             // Когда всё как обычно, сказать нечего — и экран молчит.
             //
+            // Пополняется ли обычный фон прямо сейчас — вопрос о том, КАК
+            // приложение учится, а не о том, что оно намерило. Он переехал в
+            // «Информацию» целиком: на Главной эта строка стояла под каждым
+            // показанием и объясняла внутреннее устройство тому, кто просто
+            // смотрит на число.
+            //
             // «Обычно здесь» висело под каждым показанием каждый день и через
             // неделю переставало читаться: строка, которая никогда не меняется,
             // не сообщает ничего. Остаётся зелёный кружок слева — он и есть
@@ -880,7 +886,6 @@ private fun HeroCard(
             val quiet = status is MonitorStatus.Usual &&
                 stream.live &&
                 !stale &&
-                admissionNote(admission, frozen, t) == null &&
                 baselineState !is BaselineState.Learning
             if (quiet) {
                 Box(
@@ -957,22 +962,6 @@ private fun HeroCard(
                             textAlign = TextAlign.Center,
                         )
                     }
-                // Пополняется ли статистика прямо сейчас — вопрос, который
-                // человек задаёт, глядя на объём истории. Молчание означало
-                // «да», и это было незаметно; теперь ответ есть в обе стороны.
-                Text(
-                    text = admissionNote(admission, frozen, t) ?: t.usualBackgroundUpdating,
-                    style = type.footnote,
-                    color = if (
-                        (admission is Admission.Excluded && !admissionIsDeliberate(admission)) ||
-                        frozen
-                    ) {
-                        colors.warn
-                    } else {
-                        colors.muted
-                    },
-                    textAlign = TextAlign.Center,
-                )
                 // Подписи «почему такой вывод ›» нет: нажимается сама строка
                 // вывода, а приглашение к нажатию занимало место под каждым
                 // состоянием и повторяло то, что уже сообщает цвет ссылки.
@@ -1040,38 +1029,7 @@ private fun HeroCard(
     }
 }
 
-// Что показано, когда статистика места пополняется как обычно, —
-// MonitorStrings.usualBackgroundUpdating.
-
 /** Одна плитка под главным числом. */
-
-
-/**
- * One line under the status when the baseline is NOT learning right now.
- * Silence means «учится» — saying that on every screen would be noise, but
- * hiding the opposite would make the statistics quietly unexplainable.
- */
-private fun admissionNote(
-    admission: Admission,
-    frozen: Boolean,
-    s: MonitorStrings = MonitorRu,
-): String? = when {
-    // Профиль, который фон не собирает по устройству, — это его СВОЙСТВО, а не
-    // приостановка: «не пополняется» подразумевало бы, что обычно пополняется.
-    admission is Admission.Excluded &&
-        admission.reason == BaselineExclusion.LEARNING_OFF -> s.usualBackgroundNotCollected
-    // §12: причина («карантин после отклонения», «непригодно по статистике»)
-    // на Главной читалась как основной показатель прибора. Первый уровень
-    // называет ОДНО состояние; какие именно измерения исключены и почему —
-    // в «Почему такой вывод», куда ведёт нажатие на эту же строку вывода.
-    admission is Admission.Excluded -> s.usualBackgroundNotUpdating
-    frozen -> s.usualBackgroundFrozen
-    else -> null
-}
-
-/** Сбой это или заданное состояние: янтарь только там, где что-то пошло не так. */
-private fun admissionIsDeliberate(admission: Admission): Boolean =
-    admission is Admission.Excluded && admission.reason == BaselineExclusion.LEARNING_OFF
 
 @Composable
 private fun trendWarnColor(trend: Float?, status: MonitorStatus): Color? {

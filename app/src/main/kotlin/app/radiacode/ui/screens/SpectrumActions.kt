@@ -322,6 +322,10 @@ internal fun SpectrumActionsBar(
     // они есть: в строке состояния фона им места нет.
     val confirmation = buildString {
         hubState.lastSavedAtMillis?.let { append(t.snapshotSavedAt(timeOfDay(it))) }
+        hubState.lastBackgroundAtMillis?.let {
+            if (isNotEmpty()) append(" · ")
+            append(t.backgroundRecordedAt(timeOfDay(it)))
+        }
         savedAtMillis?.let { append(strings.savedToPrefix).append(timeOfDay(it)) }
     }.trim().trimStart('·').trim()
     if (confirmation.isNotBlank()) {

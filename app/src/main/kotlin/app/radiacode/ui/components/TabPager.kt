@@ -5,6 +5,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -60,15 +64,28 @@ fun TabPager(
     // меню после свайпа показывало прежнюю вкладку.
     val current = rememberUpdatedState(selected)
     val select = rememberUpdatedState(onSelected)
+    // Пока идёт НАША анимация, страница проезжает через промежуточные —
+    // и каждая из них сообщала бы о себе как о выбранной.
+    //
+    // Полевой дефект: нажатие «Карта» с Главной открывало Спектр. Анимация
+    // 0 → 3 проходила через 2, промежуточная страница объявлялась выбранной,
+    // это перенацеливало анимацию на неё же — и она там и останавливалась.
+    var animating by remember { mutableStateOf(false) }
     LaunchedEffect(selected, tabs) {
         val index = tabs.indexOf(selected)
-        if (index >= 0 && index != state.currentPage) state.animateScrollToPage(index)
+        if (index < 0 || index == state.currentPage) return@LaunchedEffect
+        animating = true
+        try {
+            state.animateScrollToPage(index)
+        } finally {
+            animating = false
+        }
     }
     LaunchedEffect(state, tabs) {
-        // `currentPage`, а не `settledPage`: страница считается сменённой,
-        // когда пересекла середину, — меню переключается вместе с картинкой,
-        // а не через полсекунды после того, как палец уже отпущен.
-        snapshotFlow { state.currentPage }.collect { page ->
+        // `settledPage`, а не `currentPage`: она меняется, когда страница
+        // ОСТАНОВИЛАСЬ, и промежуточные кадры жеста ничего не переключают.
+        snapshotFlow { state.settledPage }.collect { page ->
+            if (animating) return@collect
             tabs.getOrNull(page)?.let { if (it != current.value) select.value(it) }
         }
     }

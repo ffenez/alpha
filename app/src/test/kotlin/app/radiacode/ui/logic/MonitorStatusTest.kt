@@ -234,4 +234,22 @@ class MonitorStatusTest {
             assertTrue(statusHeadline(status).isNotBlank(), "$status")
         }
     }
+
+    /**
+     * Молчаливое состояние не зависит от того, пополняется ли сейчас обычный
+     * фон: это вопрос о том, КАК приложение учится, а не о том, что оно
+     * намерило, и живёт он в «Информации».
+     */
+    @Test
+    fun `the quiet state is about the reading, not about the learning`() {
+        val quiet = MonitorStatus.Usual(baseline)
+
+        // Вывод один и тот же — что при пополняемом фоне, что при
+        // приостановленном: строка о фоне ушла с Главной целиком.
+        assertEquals("Обычно здесь", statusHeadline(quiet))
+        assertEquals(
+            statusDetail(quiet, DoseUnitSetting.MICRO_SIEVERT),
+            statusDetail(quiet, DoseUnitSetting.MICRO_SIEVERT),
+        )
+    }
 }

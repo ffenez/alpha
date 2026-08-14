@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v039Title: String
+    val v039Summary: String
+
     val v038Title: String
     val v038Summary: String
 
@@ -75,6 +78,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v039Title = "Вкладка открывается та, на которую нажали"
+    override val v039Summary =
+        "Нажатие «Карта» с Главной открывало Спектр: анимация проезжала через " +
+        "промежуточные вкладки, и одна из них объявляла себя выбранной. Заодно " +
+        "«Сделать фоном» отвечает на нажатие, а строка о пополнении обычного " +
+        "фона ушла с Главной в «Информацию»."
 
     override val v038Title = "След пишется и с приблизительным местом"
     override val v038Summary =
@@ -199,6 +209,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v039Title = "The tab you tapped is the tab that opens"
+    override val v039Summary =
+        "Tapping «Карта» from Home opened Спектр: the animation passed through the " +
+        "tabs between them and one of them announced itself as chosen. «Set as " +
+        "background» now answers the press, and the line about the usual background " +
+        "moved from Home into «Information»."
 
     override val v038Title = "A track is written with approximate location too"
     override val v038Summary =
@@ -328,6 +345,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v039Title, v039Summary,
     v038Title, v038Summary,
     v037Title, v037Summary,
     v036Title, v036Summary,

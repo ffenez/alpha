@@ -733,6 +733,9 @@ class MeasurementService : Service() {
                     isBackgroundReference = true,
                     origin = SpectrumSnapshotEntity.ORIGIN_USER,
                 )
+                // Подтверждение — ПОСЛЕ записи: нажатие без ответа неотличимо
+                // от нажатия, которое ничего не сделало.
+                graph.spectrumHub.onBackgroundRecorded(System.currentTimeMillis())
             }
         }
     }

@@ -43,6 +43,9 @@ interface SpectrumStrings {
      * почему — неоткуда узнать. Поэтому действие остаётся живым и объясняет
      * СВОЙ вход: что оно делает, чего ему не хватает и как это исправить.
      */
+    /** «фон записан · 14:32» — ответ на нажатие «Сделать фоном». */
+    fun backgroundRecordedAt(time: String): String
+
     val needBackgroundTitle: String
     val needBackgroundSubtract: String
     val needBackgroundCurve: String
@@ -335,6 +338,8 @@ interface SpectrumStrings {
 object SpectrumRu : SpectrumStrings {
 
     override val showBackgroundCurve = "фон"
+    override fun backgroundRecordedAt(time: String) = "фон записан · $time"
+
     override val needBackgroundTitle = "Фон ещё не записан"
     override val needBackgroundSubtract =
         "Режим «− фон» показывает, чем спектр здесь отличается от записанного " +
@@ -674,6 +679,8 @@ object SpectrumRu : SpectrumStrings {
 object SpectrumEn : SpectrumStrings {
 
     override val showBackgroundCurve = "background"
+    override fun backgroundRecordedAt(time: String) = "background recorded · $time"
+
     override val needBackgroundTitle = "No background recorded yet"
     override val needBackgroundSubtract =
         "Mode «− background» shows how the spectrum here differs from the recorded " +
@@ -1023,7 +1030,7 @@ val SpectrumCatalogue = AreaCatalogue(ru = SpectrumRu, en = SpectrumEn)
  */
 fun SpectrumStrings.allTexts(): List<String> = listOf(
     toolLineTitle, toolLineSubtitle, infoActionsTitle, showBackgroundCurve,
-    needBackgroundTitle, needBackgroundSubtract, needBackgroundCurve, needBackgroundHow,
+    backgroundRecordedAt("14:32"), needBackgroundTitle, needBackgroundSubtract, needBackgroundCurve, needBackgroundHow,
     needBackgroundNoDevice,
     decayFamilyRadon("Pb-214, Bi-214"), decayFamilyChain("Pb-212, Tl-208", "Th-232"),
     rangesSettingsNote, boundsNeedSpectrum,

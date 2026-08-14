@@ -37,6 +37,8 @@ class SpectrumHub {
         val unsupportedFormatVersion: Int? = null,
         /** Wall time of the last explicit user save, for on-screen feedback. */
         val lastSavedAtMillis: Long? = null,
+    /** Когда прибор подтвердил запись фона; null — в этом сеансе не писали. */
+        val lastBackgroundAtMillis: Long? = null,
     )
 
     /** Device/persistence actions the UI may request; executed by the service. */
@@ -82,6 +84,18 @@ class SpectrumHub {
 
     internal fun onSaved(atMillis: Long) {
         _state.update { it.copy(lastSavedAtMillis = atMillis) }
+    }
+
+    /**
+     * Фон записан прибором — и это подтверждается на экране.
+     *
+     * Нажатие «Сделать фоном» не давало ни одного признака, что что-то
+     * произошло: строка состояния фона меняла дату, но заметить это, глядя на
+     * кнопку, нельзя. Момент ставится ПОСЛЕ фактической записи, а не по факту
+     * нажатия.
+     */
+    internal fun onBackgroundRecorded(atMillis: Long) {
+        _state.update { it.copy(lastBackgroundAtMillis = atMillis) }
     }
 
     /** Clears the stale spectrum right after a device-side reset. */
