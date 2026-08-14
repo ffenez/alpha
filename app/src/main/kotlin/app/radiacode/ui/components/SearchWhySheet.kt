@@ -43,7 +43,7 @@ fun SearchWhySheet(
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(text = t.whyTitle, style = type.title, color = colors.ink)
                 Text(text = headline, style = type.label, color = colors.ink2)
-                Text(text = explanation, style = type.bodySmall, color = colors.muted)
+                Hint(text = explanation, style = type.bodySmall)
                 AppDivider()
                 Column(
                     modifier = Modifier
@@ -54,15 +54,10 @@ fun SearchWhySheet(
                     SearchVerdict.whyLines(input, strings, t).forEach { WhyRow(it) }
                 }
                 AppDivider()
-                // Граница режима переехала сюда из справки «i»: справку сняли
-                // с экрана целиком, но это утверждение — не пояснение
-                // интерфейса, а ограничение вывода, и жить оно обязано рядом с
-                // самим выводом.
-                Text(
-                    text = t.infoLimit,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
+                // Граница режима: не пояснение интерфейса, а ограничение
+                // вывода — и оно тоже уходит вместе с пояснениями, потому что
+                // сам вывод ничего не утверждает сверх измеренного.
+                Hint(text = t.infoLimit)
                 Hint(
                     text = t.evidenceLegend,
                 )

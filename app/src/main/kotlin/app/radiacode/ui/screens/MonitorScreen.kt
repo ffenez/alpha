@@ -60,6 +60,7 @@ import app.radiacode.data.db.ProfileEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
 import app.radiacode.service.BatteryOptimization
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppIcons
 import app.radiacode.ui.components.Card
@@ -1170,7 +1171,7 @@ private fun BatteryBanner() {
     val t = MonitorCatalogue.of(LocalStrings.current.language)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Text(
+            Hint(
                 text = t.batteryBannerBody,
                 style = type.bodySmall,
                 color = colors.ink2,

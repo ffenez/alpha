@@ -140,10 +140,9 @@ private fun IntroStep(denied: Boolean, onContinue: () -> Unit) {
                 style = type.body,
                 color = colors.ink2,
             )
-            Text(
+            Hint(
                 text = strings.onboardingPermissions,
                 style = type.bodySmall,
-                color = colors.muted,
             )
             if (denied) {
                 Text(
@@ -221,10 +220,9 @@ private fun ScanStep(graph: AppGraph) {
                     style = type.bodySmall,
                     color = colors.ink2,
                 )
-                Text(
+                Hint(
                     text = strings.onboardingScanBody,
                     style = type.bodySmall,
-                    color = colors.muted,
                 )
             }
             if (scanError) {

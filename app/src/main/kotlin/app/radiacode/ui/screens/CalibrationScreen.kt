@@ -171,7 +171,7 @@ fun CalibrationScreen(graph: AppGraph, onBack: () -> Unit) {
         // заставляли гадать, чем они отличаются. Системный жест по-прежнему
         // закрывает сначала этот экран — за это отвечает BackHandler выше.
         Text(text = s.screenTitle, style = type.title, color = colors.ink)
-        Text(text = s.intro, style = type.bodySmall, color = colors.ink2)
+        Hint(text = s.intro, style = type.bodySmall, color = colors.ink2)
 
         val m = model
         when {
@@ -267,9 +267,9 @@ internal fun CalibrationContent(
         for (row in CalibrationView.response(model.report, s)) {
             Text(text = row, style = type.valueSmall, color = colors.ink)
         }
-        Text(text = s.responseWhy, style = type.footnote, color = colors.muted)
+        Hint(text = s.responseWhy)
         Text(text = s.responseCaveat, style = type.footnote, color = colors.warn)
-        Text(text = s.responsePointGeometry, style = type.footnote, color = colors.muted)
+        Hint(text = s.responsePointGeometry)
     }
 
     val missing = CalibrationView.missing(model.report, s, h)

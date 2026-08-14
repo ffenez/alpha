@@ -299,8 +299,8 @@ private fun RatioExplainDialog(
                         color = colors.ink2,
                     )
                 }
-                Text(text = t.ratioWhat, style = type.bodySmall, color = colors.ink2)
-                Text(text = t.ratioNotHardness, style = type.bodySmall, color = colors.ink2)
+                Hint(text = t.ratioWhat, style = type.bodySmall, color = colors.ink2)
+                Hint(text = t.ratioNotHardness, style = type.bodySmall, color = colors.ink2)
                 Hint(text = t.indexNote)
                 AppButton(
                     text = strings.close,

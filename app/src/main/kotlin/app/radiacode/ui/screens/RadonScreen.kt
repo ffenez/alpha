@@ -28,6 +28,7 @@ import app.radiacode.AppGraph
 import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.RadonTrend
 import app.radiacode.data.toSpectrum
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.BarChart
 import app.radiacode.ui.components.BarChartSpec
 import app.radiacode.ui.components.Card
@@ -146,7 +147,7 @@ fun RadonScreen(graph: AppGraph, onBack: () -> Unit) {
             else -> RadonContent(m, t)
         }
 
-        Text(text = t.ventilationCheck, style = type.footnote, color = colors.muted)
+        Hint(text = t.ventilationCheck)
     }
 }
 

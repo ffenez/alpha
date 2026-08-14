@@ -457,7 +457,7 @@ private fun DebugSection(graph: AppGraph) {
             BlockToggleRow(strings.stateReport, enabled) {
                 scope.launch { graph.settings.setDebugReportEnabled(it) }
             }
-            Text(
+            Hint(
                 text = strings.debugBundleNote,
                 style = type.bodySmall,
                 color = colors.ink2,
@@ -829,7 +829,7 @@ private fun BaselineSection(graph: AppGraph) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle(strings.usualBackgroundTitle)
-            Text(
+            Hint(
                 text = strings.usualBackgroundIntro,
                 style = type.bodySmall,
                 color = colors.ink2,
@@ -883,7 +883,7 @@ private fun DeviceSignalsSection(graph: AppGraph) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle(strings.deviceSignals)
-            Text(
+            Hint(
                 text = strings.deviceSignalsNote,
                 style = type.bodySmall,
                 color = colors.ink2,
@@ -1215,7 +1215,7 @@ private fun InterfaceSection(graph: AppGraph) {
             }
 
             AppDivider()
-            Text(
+            Hint(
                 text = strings.monitorBlocksNote,
                 style = type.bodySmall,
                 color = colors.ink2,

@@ -59,6 +59,7 @@ import app.radiacode.data.toSpectrum
 import app.radiacode.device.ConnectionState
 import app.radiacode.protocol.Spectrum
 import app.radiacode.service.SpectrumHub
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
@@ -402,10 +403,9 @@ fun SpectrumScreen(
                             style = type.bodySmall,
                             color = colors.ink2,
                         )
-                        Text(
+                        Hint(
                             text = strings.spectrumAfterConnect,
                             style = type.bodySmall,
-                            color = colors.muted,
                         )
                     }
                 }

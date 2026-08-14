@@ -62,7 +62,7 @@ fun ResultCard(
                 Text(text = it, style = type.footnoteMono, color = colors.ink2)
             }
             content?.invoke()
-            Text(text = result.meaning, style = type.bodySmall, color = colors.ink2)
+            Hint(text = result.meaning, style = type.bodySmall, color = colors.ink2)
             Text(text = result.limitation, style = type.footnote, color = colors.muted)
 
             if (result.details.isNotEmpty()) {

@@ -163,7 +163,7 @@ internal fun ProfilesSection(graph: AppGraph) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle(strings.profilesTitle)
-            Text(
+            Hint(
                 text = strings.profilesIntro,
                 style = type.bodySmall,
                 color = colors.ink2,

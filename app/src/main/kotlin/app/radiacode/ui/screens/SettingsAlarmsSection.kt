@@ -155,7 +155,7 @@ internal fun AlarmsSection(graph: AppGraph) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             SectionTitle(strings.settingsAlarms)
-            Text(
+            Hint(
                 text = strings.alarmsIntro,
                 style = type.bodySmall,
                 color = colors.ink2,

@@ -151,10 +151,8 @@ internal fun ExpandedStats(
             StatCell(stats?.let { DoseFormat.rate(it.iqr, unit) } ?: "—", "IQR, $unitLabel"),
         ),
     )
-    Text(
+    Hint(
         text = t.spreadDefinitions,
-        style = type.footnote,
-        color = colors.muted,
         modifier = Modifier.padding(
             start = Dimens.space3,
             end = Dimens.space3,

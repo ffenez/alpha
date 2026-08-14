@@ -477,7 +477,7 @@ private fun PartialDayLegend() {
                     shape = RoundedCornerShape(if (metrics.radiusChip > 0.dp) 2.dp else 0.dp),
                 ),
         )
-        Text(text = h.legendPartialDay, style = type.footnote, color = colors.muted)
+        Hint(text = h.legendPartialDay)
     }
 }
 
@@ -503,7 +503,7 @@ private fun AccumulatedDoseInfoDialog(onClose: () -> Unit) {
                     color = colors.ink2,
                 )
                 PartialDayLegend()
-                Text(
+                Hint(
                     text = strings.partialDayNote,
                     style = type.bodySmall,
                     color = colors.ink2,

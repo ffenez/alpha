@@ -164,7 +164,7 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
         // Нажимаемость строки названа один раз под таблицей: значок «›» в
         // каждой строке спорил бы с значком вердикта, а он несёт смысл.
         if (onShowOnSpectrum != null) {
-            Text(text = model.lineTapHint, style = type.footnote, color = colors.ink2)
+            Hint(text = model.lineTapHint, color = colors.ink2)
         }
         model.ratio.forEach { line ->
             Text(text = line, style = type.footnote, color = colors.muted)
@@ -193,7 +193,7 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
     }
 
     Section(model.sectionEveryday) {
-        Text(text = model.everyday, style = type.bodySmall, color = colors.ink2)
+        Hint(text = model.everyday, style = type.bodySmall, color = colors.ink2)
     }
 
     Section(model.sectionStrengthen) {
@@ -213,7 +213,7 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
 
     // 4. Одна оговорка про метод — внизу и только здесь.
     Section(model.sectionLimitation) {
-        Text(text = model.limitation, style = type.bodySmall, color = colors.muted)
+        Hint(text = model.limitation, style = type.bodySmall)
     }
 
     // 5. Второй уровень: полный список линий и происхождение чисел.

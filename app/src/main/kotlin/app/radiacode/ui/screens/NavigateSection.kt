@@ -167,7 +167,7 @@ fun NavigateSection(
                 )
                 if (state.reference == null) {
                     StatusRow(text = t.navSetupTitle, color = colors.ink)
-                    Text(text = t.navSetupBody, style = type.bodySmall, color = colors.ink2)
+                    Hint(text = t.navSetupBody, style = type.bodySmall, color = colors.ink2)
                     // Главное действие живёт ВНУТРИ своего блока, а не отдельной
                     // кнопкой внизу экрана: там было не видно, к чему оно.
                     AppButton(

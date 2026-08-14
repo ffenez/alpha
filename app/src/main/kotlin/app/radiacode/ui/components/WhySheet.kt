@@ -85,7 +85,7 @@ fun WhySheet(
 
                 // --- the answer, then the evidence for it (§2)
                 StatusRow(text = report.status, color = toneColor(report.tone))
-                Text(text = report.sentence, style = type.bodySmall, color = colors.ink2)
+                Hint(text = report.sentence, style = type.bodySmall, color = colors.ink2)
 
                 if (report.nowValue != null || report.usualValue != null) {
                     Row(modifier = Modifier.fillMaxWidth()) {
@@ -299,13 +299,10 @@ private fun SectionBlock(section: WhySection) {
             }
         }
         section.lines.forEach { WhyRow(it) }
+        // Пояснение секции — то же пояснение, что и на экранах: числа и
+        // вывод остаются, объяснение выключается вместе со всеми.
         section.note?.let {
-            Text(
-                text = it,
-                style = type.footnote,
-                color = colors.muted,
-                modifier = Modifier.padding(top = 2.dp),
-            )
+            Hint(text = it, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }
@@ -364,9 +361,7 @@ internal fun WhyRow(line: WhyLine) {
                 }
             }
         }
-        line.note?.let {
-            Text(text = it, style = type.footnote, color = colors.muted)
-        }
+        line.note?.let { Hint(text = it) }
     }
 }
 

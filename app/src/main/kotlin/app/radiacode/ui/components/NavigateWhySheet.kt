@@ -49,9 +49,7 @@ fun NavigateWhySheet(
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(text = t.navWhyTitle, style = type.title, color = colors.ink)
                 Text(text = headline, style = type.label, color = colors.ink2)
-                explanation?.let {
-                    Text(text = it, style = type.bodySmall, color = colors.muted)
-                }
+                explanation?.let { Hint(text = it, style = type.bodySmall) }
                 AppDivider()
                 Column(
                     modifier = Modifier
@@ -64,7 +62,7 @@ fun NavigateWhySheet(
                 AppDivider()
                 // Граница режима стоит рядом с выводом, а не в справке об
                 // интерфейсе: это ограничение самого вывода.
-                Text(text = t.navWhyLimit, style = type.footnote, color = colors.muted)
+                Hint(text = t.navWhyLimit)
                 AppButton(
                     text = t.understood,
                     onClick = onDismiss,
