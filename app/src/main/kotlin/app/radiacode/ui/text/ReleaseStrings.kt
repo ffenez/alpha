@@ -89,6 +89,10 @@ object ReleaseRu : ReleaseStrings {
             "движется каждую секунду, а данные читаются по ширине колонки.",
         "Графики открываются на пяти минутах вместо шести часов — движение " +
             "видно сразу; нужное окно по-прежнему выбирается и запоминается.",
+        "Графиком на Главной можно управлять пальцами: щипок меняет окно, " +
+            "перетаскивание уводит в прошлое, двойное нажатие возвращает к «сейчас».",
+        "Короче формулировки состояния: «Ниже порога тревоги», «Обычно для " +
+            "этого места», «Уровень изменился».",
         "Появилась настройка «После перезагрузки» (Прибор): продолжать " +
             "измерение после включения телефона, по умолчанию выключено.",
         "Состояние потока называется одним словом на всех элементах экрана: " +
@@ -267,6 +271,10 @@ object ReleaseEn : ReleaseStrings {
             "advances every second and data is read at the column cadence.",
         "Charts open on five minutes instead of six hours, so the motion is " +
             "visible at once; any window is still yours to pick and is remembered.",
+        "The Monitor chart takes gestures: pinch changes the window, dragging " +
+            "goes back in time, a double tap returns to now.",
+        "Shorter status wording: «Below the alarm threshold», «Usual for this " +
+            "place», «The level has changed».",
         "New setting «After a restart» (Instrument): keep measuring once the " +
             "phone boots, off by default.",
         "The state of the stream is stated once for every element of the " +

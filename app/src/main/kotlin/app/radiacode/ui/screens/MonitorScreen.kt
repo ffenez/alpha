@@ -111,6 +111,7 @@ import app.radiacode.ui.logic.coverageWording
 import app.radiacode.ui.logic.ChartSnapshot
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartTrace
+import app.radiacode.ui.logic.ChartViewport
 import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.ui.logic.TrendPoint
 import kotlinx.coroutines.Dispatchers
@@ -457,6 +458,21 @@ fun MonitorScreen(
         val alert = status is MonitorStatus.Alert
         for (metric in chartMetrics) key(metric) {
             val loaded = charts[metric]
+            // Окно карточки — то же состояние, что у полноэкранного графика:
+            // ступень, правый край и слежение за «сейчас». Пока оно жило в
+            // двух местах, возможна была картина «большой живой, мелкий
+            // замерший» — данные общие, край двигался у одного.
+            var viewport by remember(metric) {
+                mutableStateOf(
+                    ChartViewport.atLiveEdge(
+                        ChartWindows.nearestPeriodIndex(
+                            ChartMetrics.startWindow(metric, savedSpans, nowMillis).spanMillis,
+                            ChartMetrics.periodIndices(metric),
+                        ),
+                        nowMillis,
+                    ),
+                )
+            }
             // Правый край кадра идёт за «сейчас» КАЖДУЮ СЕКУНДУ, не дожидаясь
             // следующего чтения базы: снимок неизменен, а окно — арифметика по
             // полутора сотням колонок. Ровно так живёт полноэкранный график, и
@@ -464,10 +480,10 @@ fun MonitorScreen(
             // замершей: данные у обоих были одни и те же, а край двигался
             // только у него.
             val liveSecond = nowMillis / 1_000L
-            val frame = remember(loaded, unit, thresholds, baseline, alert, liveSecond) {
+            val frame = remember(loaded, unit, thresholds, baseline, alert, liveSecond, viewport) {
                 loaded?.let {
                     val liveWindow = ChartWindows.limitedByHistory(
-                        ChartMetrics.startWindow(metric, savedSpans, nowMillis),
+                        viewport.window(nowMillis),
                         it.earliestMillis,
                     )
                     buildFrame(
@@ -497,6 +513,19 @@ fun MonitorScreen(
                 showStats = blocks.stats,
                 onOpen = {
                     if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
+                },
+                following = viewport.follow,
+                onBackToNow = { viewport = ChartViewport.jumpToNow(viewport, nowMillis) },
+                onTransform = { panFraction, zoomFactor, _ ->
+                    // Жест меняет ВРЕМЯ, а не картинку: из состояния получается
+                    // окно, окно идёт в загрузку и в кадр. Готовое изображение
+                    // не растягивается — иначе агрегация перестала бы отвечать
+                    // масштабу, а геометрия графика у нас следует времени.
+                    viewport = ChartViewport.zoom(
+                        ChartViewport.pan(viewport, panFraction, nowMillis),
+                        zoomFactor,
+                        nowMillis,
+                    )
                 },
             )
         }
@@ -985,9 +1014,10 @@ private fun trendWarnColor(trend: Float?, status: MonitorStatus): Color? {
  * тот же фон с пропусками и границей истории, то же окно и те же правила
  * честности. Раньше здесь жил свой усреднённый ряд по своим корзинам, и тап
  * по карточке ПОДМЕНЯЛ картинку другой — человеку приходилось заново искать
- * на большом графике то, что он увидел на маленьком. Различие осталось одно:
- * миниатюрой нельзя управлять, её единственное действие — открыть во весь
- * экран.
+ * на большом графике то, что он увидел на маленьком. Теперь совпадает и
+ * управление: щипок меняет ступень окна, перетаскивание уводит в прошлое,
+ * двойное нажатие возвращает к «сейчас». Различие осталось одно — размер поля
+ * и то, что одиночное нажатие открывает график во весь экран.
  */
 @Composable
 private fun MetricChartCard(
@@ -998,6 +1028,10 @@ private fun MetricChartCard(
     unit: DoseUnitSetting,
     showStats: Boolean,
     onOpen: () -> Unit,
+    /** Держится ли окно живого края — от этого зависит кнопка возврата. */
+    following: Boolean = true,
+    onBackToNow: () -> Unit = {},
+    onTransform: ((panFraction: Float, zoomFactor: Float, focusFraction: Float) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -1034,6 +1068,13 @@ private fun MetricChartCard(
                 // рядом с «МОЩНОСТЬ ДОЗЫ» была шумом — как и «(мкрем/ч)/(имп/с)»
                 // рядом с «ЖЁСТКОСТЬ», где она к тому же длиннее заголовка.
                 Spacer(Modifier.weight(1f))
+                // «Сейчас» появляется, только когда график ушёл от живого края:
+                // пока он следит, кнопка возврата — это кнопка «ничего не
+                // делать», и место она занимала бы постоянно.
+                if (!following) {
+                    Chip(text = t.backToNow, color = colors.dataText, onClick = onBackToNow)
+                    Spacer(Modifier.width(Dimens.space1))
+                }
                 // Tap affordance: the card opens the fullscreen live chart.
                 Text(text = "⤢", style = type.label, color = colors.ink2)
             }
@@ -1048,7 +1089,12 @@ private fun MetricChartCard(
                 DoseChart(
                     spec = frame.spec,
                     cursorFraction = cursor,
-                    interactive = false,
+                    // Щипок меняет ступень, перетаскивание уводит в прошлое,
+                    // двойное нажатие возвращает к «сейчас» — те же жесты, что
+                    // на полноэкранном, и то же состояние окна за ними.
+                    interactive = true,
+                    onTransform = onTransform,
+                    onResetScale = onBackToNow,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(if (metric == ChartMetric.DOSE) 168.dp else 132.dp),

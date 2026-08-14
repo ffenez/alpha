@@ -29,11 +29,11 @@ class WhyExplainTest {
     @Test
     fun `verdict repeats the main screen headline verbatim`() {
         assertEquals(
-            "Показания обычны для этого места",
+            "Обычно для этого места",
             statusHeadline(MonitorStatus.Usual(baseline)),
         )
         assertEquals(
-            "Уровень радиации изменился",
+            "Уровень изменился",
             statusHeadline(MonitorStatus.Alert(baseline, 300, 0.3f)),
         )
     }

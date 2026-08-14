@@ -41,7 +41,7 @@ class DebugReportTest {
         sampleAgeSeconds = 1,
         profileName = "Дом",
         contextWording = "AutoKnown",
-        statusHeadline = "Выше вашего порога тревоги",
+        statusHeadline = "Выше порога тревоги",
         statusDetail = "порог L1 0,10 мкЗв/ч превышен · держится 40 с из 120 с до тревоги",
         baselineWording = "собран за 26 ч",
         admissionWording = "измерения учитываются",
@@ -83,7 +83,7 @@ class DebugReportTest {
 
     @Test
     fun `the wording on screen is quoted, not rebuilt`() {
-        assertTrue(report.contains("статус: Выше вашего порога тревоги"), report)
+        assertTrue(report.contains("статус: Выше порога тревоги"), report)
         assertTrue(report.contains(snapshot.statusDetail!!), report)
     }
 

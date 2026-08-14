@@ -45,7 +45,7 @@ class MonitorStatusTest {
     fun `no baseline - fixed threshold fallback`() {
         val below = MonitorStatus.of(0.12f, null, calm, thresholds, 0)
         assertEquals(MonitorStatus.Fixed(above = false, thresholdMicroSvH = 0.30f), below)
-        assertEquals("Ниже порога L1", statusHeadline(below))
+        assertEquals("Ниже порога тревоги", statusHeadline(below))
         // The reference is shown even before a baseline exists (spec §18).
         assertEquals(
             "порог L1 0,30 мкЗв/ч · обычный диапазон профиля ещё не собран",
@@ -54,7 +54,7 @@ class MonitorStatusTest {
 
         val above = MonitorStatus.of(0.35f, null, calm, thresholds, 0)
         assertEquals(MonitorStatus.Fixed(above = true, thresholdMicroSvH = 0.30f), above)
-        assertEquals("Выше порога L1", statusHeadline(above))
+        assertEquals("Выше порога тревоги", statusHeadline(above))
         assertTrue(
             statusDetail(above, DoseUnitSetting.MICRO_SIEVERT)!!.startsWith("порог L1 0,30 мкЗв/ч"),
         )
@@ -73,8 +73,8 @@ class MonitorStatusTest {
         assertEquals(MonitorStatus.Usual(baseline), status)
         // 14.md §8: «обычны», а не «нормальны» — «норма» читается как
         // санитарная норма, а это статистика конкретного места.
-        assertEquals("Показания обычны для этого места", statusHeadline(status))
-        assertEquals("Обычный для этого места", statusHeadlineShort(status))
+        assertEquals("Обычно для этого места", statusHeadline(status))
+        assertEquals("Обычно здесь", statusHeadlineShort(status))
         assertEquals(
             "P10–P90: 0,09–0,14 мкЗв/ч · наблюдений: 26 ч",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
@@ -95,7 +95,7 @@ class MonitorStatusTest {
         val held = DeviationSnapshot(aboveUsualSince = now - 4 * 60_000)
         val status = MonitorStatus.of(0.18f, active, held, thresholds, now)
         assertEquals(MonitorStatus.AboveUsual(baseline, heldSeconds = 240), status)
-        assertEquals("Выше обычного диапазона профиля", statusHeadline(status))
+        assertEquals("Выше обычного здесь", statusHeadline(status))
         assertEquals(
             "P10–P90 профиля: 0,09–0,14 мкЗв/ч · держится 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
@@ -111,7 +111,7 @@ class MonitorStatusTest {
             MonitorStatus.Alert(baseline, heldSeconds = 240, thresholdMicroSvH = 0.30f),
             status,
         )
-        assertEquals("Уровень радиации изменился", statusHeadline(status))
+        assertEquals("Уровень изменился", statusHeadline(status))
         assertEquals(
             "P10–P90 профиля: 0,09–0,14 мкЗв/ч · держится 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),

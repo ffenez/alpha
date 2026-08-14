@@ -56,15 +56,15 @@ object EnStrings : Strings {
     override val languageSystem = "System"
 
     override val statusNoData = "No data"
-    override val statusAboveL1 = "Above the L1 threshold"
-    override val statusBelowL1 = "Below the L1 threshold"
-    override val statusUsual = "The readings are usual for this place"
-    override val statusUsualShort = "Usual for this place"
-    override val statusAboveUsual = "Above this place's usual range"
+    override val statusAboveL1 = "Above the alarm threshold"
+    override val statusBelowL1 = "Below the alarm threshold"
+    override val statusUsual = "Usual for this place"
+    override val statusUsualShort = "Usual here"
+    override val statusAboveUsual = "Above what is usual here"
     override val statusAboveUsualShort = "Above usual"
-    override val statusAboveThreshold = "Above your alarm threshold"
+    override val statusAboveThreshold = "Above the alarm threshold"
     override val statusAboveThresholdShort = "Above threshold"
-    override val statusAlert = "The radiation level has changed"
+    override val statusAlert = "The level has changed"
 
     override fun detailNoBaseline(threshold: String) =
         "L1 threshold $threshold · this place's historical range is not collected yet"

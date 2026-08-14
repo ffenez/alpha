@@ -91,7 +91,7 @@ class WhyReportTest {
     @Test
     fun `the sheet opens with the verdict, its sentence and the evidence`() {
         val report = WhyReportBuilder.build(input())
-        assertEquals("Показания обычны для этого места", report.status)
+        assertEquals("Обычно для этого места", report.status)
         assertEquals(WhyTone.OK, report.tone)
         // 14.md: первая фраза человеческая. Нотация P10–P90 не исчезла — она
         // подписывает шкалу и живёт во втором уровне вместе с объяснением.

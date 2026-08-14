@@ -48,15 +48,15 @@ object RuStrings : Strings {
     override val languageSystem = "Системный"
 
     override val statusNoData = "Нет данных"
-    override val statusAboveL1 = "Выше порога L1"
-    override val statusBelowL1 = "Ниже порога L1"
-    override val statusUsual = "Показания обычны для этого места"
-    override val statusUsualShort = "Обычный для этого места"
-    override val statusAboveUsual = "Выше обычного диапазона профиля"
+    override val statusAboveL1 = "Выше порога тревоги"
+    override val statusBelowL1 = "Ниже порога тревоги"
+    override val statusUsual = "Обычно для этого места"
+    override val statusUsualShort = "Обычно здесь"
+    override val statusAboveUsual = "Выше обычного здесь"
     override val statusAboveUsualShort = "Выше обычного"
-    override val statusAboveThreshold = "Выше вашего порога тревоги"
+    override val statusAboveThreshold = "Выше порога тревоги"
     override val statusAboveThresholdShort = "Выше порога"
-    override val statusAlert = "Уровень радиации изменился"
+    override val statusAlert = "Уровень изменился"
 
     override fun detailNoBaseline(threshold: String) =
         "порог L1 $threshold · обычный диапазон профиля ещё не собран"

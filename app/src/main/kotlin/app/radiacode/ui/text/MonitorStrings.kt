@@ -20,6 +20,9 @@ package app.radiacode.ui.text
  */
 interface MonitorStrings {
 
+    /** Возврат графика к живому краю после жеста. */
+    val backToNow: String
+
     /**
      * Подпись над выводом, когда свежих данных нет.
      *
@@ -185,6 +188,8 @@ interface MonitorStrings {
 }
 
 object MonitorRu : MonitorStrings {
+
+    override val backToNow = "сейчас"
 
     override val byLastMeasurement = "по последнему измерению"
 
@@ -358,6 +363,8 @@ object MonitorRu : MonitorStrings {
 }
 
 object MonitorEn : MonitorStrings {
+
+    override val backToNow = "now"
 
     override val byLastMeasurement = "based on the last measurement"
 
@@ -541,6 +548,7 @@ val MonitorCatalogue = AreaCatalogue(ru = MonitorRu, en = MonitorEn)
  * области не проверяют.
  */
 fun MonitorStrings.allTexts(): List<String> = listOf(
+    backToNow,
     byLastMeasurement,
     profileUnknown, modeAuto, modeManual, modeUnconfirmed,
     contextAutoKnown, contextAutoUncertain, contextTransit, contextNoContext, contextManual,
