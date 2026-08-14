@@ -24,8 +24,9 @@ import app.radiacode.ui.theme.LocalAppTypography
  *
  * На рабочем экране стоят три вещи: уровень, момент с длительностью замера и —
  * если точка отсчёта больше не годится — одна строка с названной причиной.
- * Абзац, который раньше жил прямо здесь, ушёл под «i»: во время поиска человек
- * держит прибор в руках и читает карточку глазами, занятыми другим.
+ * Справки здесь нет: во время поиска человек держит прибор в руках, и лишняя
+ * дверь на рабочем экране — это дверь, в которую он не пойдёт. Причина
+ * непригодности названа прямо строкой, а не спрятана за значком.
  *
  * Модель приходит готовой (`SearchBaseline.card`) — компонент ничего не решает
  * сам, поэтому решение «что на первом уровне» проверяется тестом.
@@ -38,24 +39,6 @@ fun BackgroundCard(
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    var detailsOpen by rememberSaveable { mutableStateOf(false) }
-    if (detailsOpen && model.details.isNotEmpty()) {
-        Dialog(onDismissRequest = { detailsOpen = false }) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(text = model.level, style = type.label, color = colors.ink)
-                    for (line in model.details) {
-                        Text(text = line, style = type.bodySmall, color = colors.muted)
-                    }
-                    AppButton(
-                        text = LocalStrings.current.close,
-                        onClick = { detailsOpen = false },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        }
-    }
     Card(modifier = modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -65,9 +48,6 @@ fun BackgroundCard(
                     color = colors.ink,
                     modifier = Modifier.weight(1f),
                 )
-                if (model.details.isNotEmpty()) {
-                    Chip(text = "i", color = colors.ink2, onClick = { detailsOpen = true })
-                }
             }
             model.basis?.let {
                 Text(text = it, style = type.footnote, color = colors.ink2)

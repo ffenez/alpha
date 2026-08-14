@@ -24,7 +24,14 @@ interface BackgroundCardStrings {
     fun level(rate: String): String
 
     /** Основание: «Записан в 15:04 · измерение 45 с». */
-    fun recordedAt(time: String, seconds: Int): String
+    /**
+     * «Записан 12.08 в 14:30 · измерение 45 с».
+     *
+     * День назван вместе со временем: по возрасту фона видно, годится ли он
+     * для сравнения, а «в 14:30» без даты этого не говорит — вчерашний фон и
+     * сегодняшний выглядели одинаково.
+     */
+    fun recordedAt(day: String, time: String, seconds: Int): String
 
     /** Фона ещё нет — карточка учит первому действию. */
     val noRecord: String
@@ -50,8 +57,8 @@ object BackgroundCardRu : BackgroundCardStrings {
 
     override fun level(rate: String) = "Фон: $rate имп/с"
 
-    override fun recordedAt(time: String, seconds: Int) =
-        "Записан в $time · измерение $seconds с"
+    override fun recordedAt(day: String, time: String, seconds: Int) =
+        "Записан $day в $time · измерение $seconds с"
 
     override val noRecord = "Фон не записан"
 
@@ -82,8 +89,8 @@ object BackgroundCardEn : BackgroundCardStrings {
 
     override fun level(rate: String) = "Background: $rate counts/s"
 
-    override fun recordedAt(time: String, seconds: Int) =
-        "Recorded at $time · $seconds s measurement"
+    override fun recordedAt(day: String, time: String, seconds: Int) =
+        "Recorded on $day at $time · $seconds s measurement"
 
     override val noRecord = "No background recorded"
 
@@ -114,7 +121,7 @@ val BackgroundCardCatalogue = AreaCatalogue(ru = BackgroundCardRu, en = Backgrou
 
 /** Все строки области — для проверок, действующих на каждую формулировку. */
 fun BackgroundCardStrings.allTexts(): List<String> = listOf(
-    level("24,1"), recordedAt("15:04", 45), noRecord, noRecordHint(45),
+    level("24,1"), recordedAt("12.08", "15:04", 45), noRecord, noRecordHint(45),
     agedLine, profileChangedLine("Дом"), profileChangedLine(null), deviceChangedLine,
     shortLine, gappyLine, restlessLine,
     refresh, measure(45), details,

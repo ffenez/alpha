@@ -549,10 +549,9 @@ fun SearchScreen(
                     color = if (cps != null) colors.ink else colors.muted,
                     textAlign = TextAlign.Center,
                 )
-                // Под числом — только единица: пуассоновская σ стояла здесь
-                // постоянно, а нужна тогда, когда разбирают вывод, — и там она
-                // есть, в «Почему», рядом с окном, по которому посчитана.
-                Text(text = t.cpsUnit, style = type.footnote, color = colors.ink2)
+                // Под числом не осталось ничего: величина названа заголовком
+                // экрана, а σ разбирают в «Почему», рядом с окном, по которому
+                // она посчитана.
 
                 if (record != null) {
                     val delta = SearchVerdict.deltaPercent(search.comparison)
@@ -560,17 +559,18 @@ fun SearchScreen(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         modifier = Modifier.padding(top = Dimens.space2),
                     ) {
-                        // «Фон: 24,1» заставляло вспоминать, что это за число и
-                        // откуда оно. Человеку важно другое — КОГДА он его снял:
-                        // по возрасту видно, годится ли фон для сравнения.
-                        Text(
-                            text = t.backgroundRecordedAt(
-                                HistoryFormat.day(record.atMillis),
-                                timeOfDay(record.atMillis),
-                            ),
-                            style = type.bodySmall,
-                            color = colors.ink2,
-                        )
+                        // Само значение фона стоит рядом с отношением к нему:
+                        // «+31 %» без второго числа не проверить, а когда фон
+                        // записан — вопрос к самому фону, и ответ там, у его
+                        // кнопки.
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(strings.backgroundTag, style = type.bodySmall, color = colors.ink2)
+                            Text(
+                                text = Uncertainty.num1(record.cps),
+                                style = type.value,
+                                color = colors.ink,
+                            )
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(text = t.toBackground, style = type.bodySmall, color = colors.ink2)
                             Text(
@@ -758,6 +758,7 @@ fun SearchScreen(
                         record = record,
                         check = check ?: BackgroundCheck.USABLE,
                         rateText = record?.let { Uncertainty.num1(it.cps) }.orEmpty(),
+                        day = record?.let { HistoryFormat.day(it.atMillis) }.orEmpty(),
                         timeOfDay = record?.let { timeOfDay(it.atMillis) }.orEmpty(),
                         targetSeconds = BackgroundRef.DEFAULT_TARGET_SAMPLES,
                         c = backgroundCard,

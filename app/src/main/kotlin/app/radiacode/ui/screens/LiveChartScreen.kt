@@ -668,15 +668,10 @@ private fun liveReading(
                 color = if (value == null || freshness !is Freshness.Fresh) colors.muted
                 else colors.ink,
             )
-            // Рядом с числом — только единица. Приборная погрешность стояла
-            // здесь постоянно, а прочитывается один раз: она в «подробнее», где
-            // разбирают само значение.
-            Text(
-                text = ChartMetrics.unitLabel(metric, unit, axis, strings),
-                style = type.footnote,
-                color = colors.ink2,
-                modifier = Modifier.padding(start = 5.dp, bottom = 2.dp),
-            )
+            // Рядом с числом не осталось ничего: ни погрешности, ни единицы.
+            // Величина названа заголовком шапки, порядок виден по оси значений,
+            // а разбор — в «подробнее». Три подписи вокруг одного числа
+            // складывались в шум, который перестаёшь читать.
         }
     }
     return freshness

@@ -282,6 +282,7 @@ object SearchBaseline {
         record: BackgroundRecord?,
         check: BackgroundCheck,
         rateText: String,
+        day: String,
         timeOfDay: String,
         targetSeconds: Int,
         c: BackgroundCardStrings = BackgroundCardRu,
@@ -312,7 +313,7 @@ object SearchBaseline {
         }
         return BackgroundCardModel(
             level = c.level(rateText),
-            basis = c.recordedAt(timeOfDay, record.window.seconds.toInt()),
+            basis = c.recordedAt(day, timeOfDay, record.window.seconds.toInt()),
             reason = reason,
             action = c.refresh,
             // Пока фон годится, работа человека — ходить с прибором, а не
