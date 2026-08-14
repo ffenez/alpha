@@ -47,8 +47,6 @@ import app.radiacode.device.DoseUnits
 import app.radiacode.device.RadiaCodeDevice
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.protocol.RealTimeData
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -87,6 +85,15 @@ class MeasurementService : Service() {
     private val deviceJobs = mutableListOf<Job>()
 
     private var trackSessionId: Long? = null
+
+    /**
+     * Идёт ли запись маршрута ПРЯМО СЕЙЧАС. Отдельно от `trackSessionId`,
+     * потому что между нажатием и первой координатой строки в журнале ещё
+     * нет, а запись уже идёт — и второй старт в этот момент обязан быть
+     * отброшен.
+     */
+    private var tracking = false
+    private var trackStartedAt = 0L
     private val trackJobs = mutableListOf<Job>()
     private var locationListener: LocationListener? = null
     private var hotspotDetector: HotspotDetector? = null
@@ -277,6 +284,10 @@ class MeasurementService : Service() {
                 delay(BASELINE_REFRESH_MILLIS)
             }
         }
+        // Записи, которые никто не останавливал: приложение убили, телефон
+        // выключился. Открытыми они оставаться не могут — в журнале это
+        // выглядит как вечно идущая прогулка.
+        scope.launch { graph.trackRepository.recoverUnfinished() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -756,8 +767,22 @@ class MeasurementService : Service() {
 
     // --- track recording ---
 
+    /**
+     * Запись маршрута.
+     *
+     * Маршрут НЕ заводится в журнале в момент нажатия: сначала он черновик, а
+     * строка появляется с первой принятой координатой. Полевой дефект был
+     * ровно об этом — в Истории копились пустые записи «идёт запись, 0 с, 0
+     * измерений»: старт приходил дважды (кнопка и служба), запись создавалась
+     * до всякой координаты, а `trackSessionId` присваивался внутри корутины,
+     * поэтому проверка «уже пишем» пропускала второй старт.
+     *
+     * Отсюда три правила: флаг ставится СИНХРОННО, строка создаётся по первой
+     * точке, а запись без единой точки не остаётся в журнале вовсе.
+     */
     private fun startTracking() {
-        if (trackSessionId != null) return
+        if (tracking) return
+        tracking = true
         // Достаточно ЛЮБОГО разрешения на место. Раньше требовалось только
         // точное, и человек, выбравший в системном диалоге «Приблизительно»,
         // получал молчащую кнопку: запись не начиналась и не объясняла почему.
@@ -769,23 +794,44 @@ class MeasurementService : Service() {
         val detector = HotspotDetector(thresholds.l1MicroSvH)
         hotspotDetector = detector
 
-        val name = "Track " + LocalDateTime.now().format(TRACK_NAME_FORMAT)
-        trackJobs += scope.launch {
-            val sessionId = graph.trackRepository.startSession(name)
-            trackSessionId = sessionId
-            graph.serviceStatus.onTrackRecording(
-                ServiceStatus.TrackRecording(sessionId, System.currentTimeMillis()),
-            )
-            // Сначала служба объявляется работающей С МЕСТОПОЛОЖЕНИЕМ, и только
-            // потом подписывается: с Android 14 система смотрит на тип службы
-            // в момент подписки, и подписка «не того» типа не получает ни
-            // одного обновления — молча.
-            startForegroundWithCurrentTypes()
-            registerLocationUpdates(sessionId)
+        trackStartedAt = System.currentTimeMillis()
+        graph.serviceStatus.onTrackRecording(
+            ServiceStatus.TrackRecording(sessionId = null, startedAt = trackStartedAt),
+        )
+        // Сначала служба объявляется работающей С МЕСТОПОЛОЖЕНИЕМ, и только
+        // потом подписывается: с Android 14 система смотрит на тип службы
+        // в момент подписки, и подписка «не того» типа не получает ни
+        // одного обновления — молча.
+        startForegroundWithCurrentTypes()
+        registerLocationUpdates()
+    }
+
+    /**
+     * Строка маршрута в журнале — по первой координате, не раньше.
+     *
+     * Вызывается из обработчика координат, то есть с главного потока, поэтому
+     * `trackSessionId` присваивается здесь же, а не внутри корутины: гонка
+     * между двумя первыми фиксами дала бы два маршрута на одну прогулку.
+     */
+    private suspend fun ensureTrackSession(): Long? {
+        if (!tracking) return null
+        trackSessionId?.let { return it }
+        val id = graph.trackRepository.startSession(name = "")
+        // Пока шла вставка, запись могли остановить — тогда пустой маршрут
+        // тут же убирается, а не остаётся в журнале.
+        if (!tracking) {
+            graph.trackRepository.discardIfEmpty(id)
+            return null
         }
+        trackSessionId = id
+        graph.serviceStatus.onTrackRecording(
+            ServiceStatus.TrackRecording(sessionId = id, startedAt = trackStartedAt),
+        )
+        return id
     }
 
     private fun stopTracking() {
+        tracking = false
         trackJobs.forEach { it.cancel() }
         trackJobs.clear()
         locationListener?.let {
@@ -797,7 +843,9 @@ class MeasurementService : Service() {
         trackSessionId = null
         graph.serviceStatus.onTrackRecording(null)
         if (sessionId != null) {
-            scope.launch { graph.trackRepository.endSession(sessionId) }
+            // Маршрут без единой точки не попадает в журнал: показывать
+            // «прогулку», которой не было, хуже, чем не показывать ничего.
+            scope.launch { graph.trackRepository.finishSession(sessionId) }
             startForegroundWithCurrentTypes()
         }
     }
@@ -826,7 +874,7 @@ class MeasurementService : Service() {
     // Lint не видит проверку через собственные `has*Permission()`, поэтому
     // предупреждение снято здесь, а не обойдено ослаблением проверки.
     @android.annotation.SuppressLint("MissingPermission")
-    private fun registerLocationUpdates(sessionId: Long) {
+    private fun registerLocationUpdates() {
         val locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         val precise = hasLocationPermission()
         if ((!precise && !hasCoarseLocationPermission()) || locationManager == null) {
@@ -865,7 +913,8 @@ class MeasurementService : Service() {
                 stored = true,
             )
             val sample = lastSample
-            scope.launch {
+            trackJobs += scope.launch {
+                val sessionId = ensureTrackSession() ?: return@launch
                 graph.trackRepository.addPoint(
                     sessionId = sessionId,
                     timestamp = location.time,
@@ -1023,7 +1072,6 @@ class MeasurementService : Service() {
             LocationManager.PASSIVE_PROVIDER,
         )
 
-        private val TRACK_NAME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
         private const val BASELINE_REFRESH_MILLIS = 10L * 60_000L
 
         /**

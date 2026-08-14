@@ -1,5 +1,6 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.ui.text.HistoryRu
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -53,16 +54,19 @@ class RouteTitleTest {
 
     /**
      * Имя даётся ПОСЛЕ прогулки и не обязательно: пока его нет, маршрут
-     * подписан датой — иначе список был бы из одинаковых слов «Маршрут».
+     * подписан временем начала — иначе список был бы из одинаковых слов
+     * «Маршрут». День в подпись не входит: он стоит заголовком группы.
      */
     @Test
-    fun `a nameless route is titled by its date`() {
+    fun `a nameless route is titled by the time it started`() {
         val titled = RouteFormat.title(route(name = "Дом → парк"), nowMillis = 0L)
         assertEquals("Дом → парк", titled)
 
         val untitled = RouteFormat.title(route(name = "   "), nowMillis = 0L)
-        assertTrue(untitled.isNotBlank())
+        assertTrue(untitled.startsWith("Маршрут · "), untitled)
         assertTrue(untitled.any { it.isDigit() }, untitled)
+        // Ни числа месяца, ни его названия — только время.
+        assertTrue(HistoryRu.months.none { it in untitled }, untitled)
     }
 
     @Test
@@ -82,20 +86,29 @@ class RouteTitleTest {
  */
 class RouteShapeTest {
 
+    private fun at(latitude: Double, longitude: Double, dose: Float? = 0.12f) =
+        RouteShapePoint(latitude = latitude, longitude = longitude, doseMicroSvH = dose)
+
     @Test
     fun `the whole route fits the square and keeps its proportions`() {
-        val points = listOf(
-            55.0 to 37.0,
-            55.01 to 37.0,
-            55.01 to 37.02,
-        )
+        val points = listOf(at(55.0, 37.0), at(55.01, 37.0), at(55.01, 37.02))
         val shape = RouteShape.normalize(points)
         assertEquals(points.size, shape.size)
-        assertTrue(shape.all { it.first in 0f..1f && it.second in 0f..1f }, "$shape")
+        assertTrue(shape.all { it.x in 0f..1f && it.y in 0f..1f }, "$shape")
         // Север сверху: самая северная точка получает наименьший экранный y.
-        val northern = shape[1].second
-        val southern = shape[0].second
-        assertTrue(northern < southern, "$shape")
+        assertTrue(shape[1].y < shape[0].y, "$shape")
+    }
+
+    /** Измерение едет вместе с формой: миниатюра красится тем, что намерено. */
+    @Test
+    fun `the measurement travels with the shape`() {
+        val shape = RouteShape.normalize(
+            listOf(at(55.0, 37.0, dose = 0.11f), at(55.01, 37.0, dose = 0.31f)),
+        )
+        assertEquals(0.11f, shape[0].value)
+        assertEquals(0.31f, shape[1].value)
+        // Точка без измерения остаётся без значения, а не получает соседнее.
+        assertNull(RouteShape.normalize(listOf(at(55.0, 37.0, dose = null))).single().value)
     }
 
     /** Долгота сжимается по широте — иначе маршрут вытягивался бы поперёк. */
@@ -103,17 +116,17 @@ class RouteShapeTest {
     fun `longitude is squeezed by the latitude`() {
         // Квадрат в градусах на широте 60° вдвое у́же в метрах, чем в высоту.
         val shape = RouteShape.normalize(
-            listOf(60.0 to 30.0, 60.01 to 30.0, 60.0 to 30.01),
+            listOf(at(60.0, 30.0), at(60.01, 30.0), at(60.0, 30.01)),
         )
-        val height = shape[0].second - shape[1].second
-        val width = shape[2].first - shape[0].first
+        val height = shape[0].y - shape[1].y
+        val width = shape[2].x - shape[0].x
         assertTrue(width < height * 0.75f, "width=$width height=$height")
     }
 
     @Test
     fun `a route that never moved is a dot in the middle`() {
-        val shape = RouteShape.normalize(List(5) { 55.0 to 37.0 })
-        assertTrue(shape.all { it == 0.5f to 0.5f }, "$shape")
+        val shape = RouteShape.normalize(List(5) { at(55.0, 37.0) })
+        assertTrue(shape.all { it.x == 0.5f && it.y == 0.5f }, "$shape")
     }
 
     @Test

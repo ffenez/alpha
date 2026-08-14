@@ -118,7 +118,14 @@ class ServiceStatus {
     private val experimentSources = LinkedHashMap<String, String>()
 
     /** Active track recording; null = not recording. */
-    data class TrackRecording(val sessionId: Long, val startedAt: Long)
+    /**
+     * Идущая запись маршрута.
+     *
+     * [sessionId] пуст, пока не пришла ни одна координата: до первой точки
+     * записывать нечего, и маршрут не заводится в журнале вовсе. Иначе каждый
+     * случайный старт оставлял бы в Истории пустую запись «идёт запись».
+     */
+    data class TrackRecording(val sessionId: Long?, val startedAt: Long)
 
     private val _trackRecording = MutableStateFlow<TrackRecording?>(null)
     val trackRecording: StateFlow<TrackRecording?> = _trackRecording.asStateFlow()

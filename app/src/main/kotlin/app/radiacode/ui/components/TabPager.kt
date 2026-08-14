@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,6 +15,45 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+
+/**
+ * Занят ли горизонтальный жест содержимым экрана прямо сейчас.
+ *
+ * Карта живёт не только на своей вкладке: она открывается из Истории —
+ * маршрутом и сравнением. Полевой дефект повторился там дословно: карту не
+ * сдвинуть вбок, палец уводит на соседнюю вкладку. Поэтому признак не привязан
+ * к вкладке, а объявляется тем экраном, у которого жест уже что-то значит.
+ *
+ * Ставится через [MapGestureLock] на время жизни такого экрана.
+ */
+val LocalSwipeBusy = staticCompositionLocalOf { mutableStateOf(0) }
+
+/**
+ * Общий на всё приложение счётчик занятости жеста. Ставится один раз у корня:
+ * `compositionLocal` без провайдера отдал бы каждому читателю своё значение, и
+ * замок, поставленный экраном, до пейджера бы не дошёл.
+ */
+@Composable
+fun ProvideSwipeBusy(content: @Composable () -> Unit) {
+    val busy = remember { mutableStateOf(0) }
+    CompositionLocalProvider(LocalSwipeBusy provides busy, content = content)
+}
+
+/**
+ * Пока этот экран на виду, листание вкладок выключено.
+ *
+ * Счётчик, а не флаг: экранов с картой может оказаться два вложенных (маршрут
+ * поверх Истории, сравнение поверх него), и выход из верхнего не имеет права
+ * вернуть жест нижнему.
+ */
+@Composable
+fun MapGestureLock() {
+    val busy = LocalSwipeBusy.current
+    DisposableEffect(Unit) {
+        busy.value += 1
+        onDispose { busy.value -= 1 }
+    }
+}
 
 /**
  * Вкладки листаются пальцем.
@@ -93,7 +135,9 @@ fun TabPager(
     HorizontalPager(
         state = state,
         modifier = modifier.fillMaxSize(),
-        userScrollEnabled = selected !in swipeDisabledOn,
+        // Жест отдаётся содержимому, когда оно им уже занято: карта на своей
+        // вкладке и карта, открытая поверх любой другой.
+        userScrollEnabled = selected !in swipeDisabledOn && LocalSwipeBusy.current.value == 0,
         // Соседняя вкладка собирается ЗАРАНЕЕ, а не под пальцем.
         //
         // Без этого первый кадр жеста строил целый экран — с чтением базы у

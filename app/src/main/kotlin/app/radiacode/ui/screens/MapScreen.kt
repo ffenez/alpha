@@ -63,6 +63,7 @@ import app.radiacode.data.export.SeriesExport
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Hint
+import app.radiacode.ui.components.MapGestureLock
 import app.radiacode.ui.components.RouteProfileChart
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
@@ -251,10 +252,18 @@ fun MapScreen(graph: AppGraph) {
             justStopped = false
             sessionScope = MapTrackScope.CURRENT
         }
-        val session = if (active != null) {
-            graph.trackRepository.session(active.sessionId)
-        } else {
-            graph.trackRepository.latestSession()
+        // У начатой записи маршрута ещё может не быть строки в журнале: она
+        // появляется с первой координатой. Тогда показывать нечего, и экран
+        // говорит «жду первые точки» — а не показывает прошлую прогулку как
+        // текущую.
+        val session = when {
+            active?.sessionId != null -> graph.trackRepository.session(active.sessionId!!)
+            active != null -> null
+            else -> graph.trackRepository.latestSession()
+        }
+        if (active != null && session == null) {
+            data = TrackData.EMPTY
+            return@LaunchedEffect
         }
         hasRecordings = session != null
         if (session == null) {
@@ -608,6 +617,8 @@ private fun TrackDetailScreen(
     val type = LocalAppTypography.current
     val t = MapCatalogue.of(LocalStrings.current.language)
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
+    // Карта открыта поверх вкладки — горизонтальный жест принадлежит ей.
+    MapGestureLock()
 
     var metricIndex by rememberSaveable { mutableIntStateOf(0) }
     val metric = if (metricIndex == 0) TrackMetric.DOSE else TrackMetric.CPS

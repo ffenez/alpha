@@ -108,9 +108,29 @@ import app.radiacode.ui.text.MapCatalogue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import app.radiacode.baseline.BaselineState
+import app.radiacode.data.export.SeriesExport
+import app.radiacode.ui.components.StatusRow
+import app.radiacode.ui.logic.DoseTint
+import app.radiacode.ui.logic.MapColorScale
+import app.radiacode.ui.logic.ThumbnailPoint
 import kotlinx.coroutines.launch
 
 private const val PAGE_SIZE = 20
+
+/**
+ * Сколько времени у человека есть на «Отменить» после удаления.
+ * **Инженерный параметр**: пять секунд — успеть заметить строку и передумать,
+ * но не держать удалённое в подвешенном состоянии дольше, чем на него смотрят.
+ */
+private const val UNDO_MILLIS = 5_000L
+
+/** Многоточие меню: редкие действия прячутся сюда, а не стоят в строке. */
+private const val MENU_GLYPH = "⋮"
 
 /**
  * С какого пропуска о нём стоит говорить.
@@ -144,6 +164,16 @@ private sealed interface HistoryItem {
 private data class HistoryModel(
     val items: List<HistoryItem>,
     val totalSessions: Long,
+    /**
+     * Сколько записей журнала УЖЕ прочитано — не строк на экране.
+     *
+     * Разница не косметическая: подряд идущие записи одного места показываются
+     * одной строкой, и двадцать шесть записей превращаются в семь строк.
+     * Пока «показать ещё» сравнивала общее число с числом СТРОК, условие
+     * оставалось верным всегда: кнопка не исчезала, а следующая страница
+     * склеивалась в те же строки — «нажимаю, а данные те же».
+     */
+    val loadedSessions: Int,
 )
 
 /**
@@ -202,6 +232,65 @@ fun HistoryScreen(
     var comparing by remember { mutableStateOf<List<Long>?>(null) }
     var openRoute by remember { mutableStateOf<Long?>(null) }
     var renaming by remember { mutableStateOf<RouteSummary?>(null) }
+    var pickedRoutes by remember { mutableStateOf(setOf<Long>()) }
+    var exportingRoute by remember { mutableStateOf<RouteSummary?>(null) }
+    val context = LocalContext.current
+    // Удаление откладывается: строка исчезает сразу, а из базы уходит через
+    // несколько секунд — за это время «Отменить» возвращает её целиком.
+    var deletingRoutes by remember { mutableStateOf(setOf<Long>()) }
+    var confirmingDelete by remember { mutableStateOf<List<RouteSummary>?>(null) }
+    // Шкала миниатюр — та же, что у следа на карте, иначе цвет означал бы в
+    // списке одно, а внутри маршрута другое.
+    val routeScaleMode by graph.settings.mapColorScale
+        .collectAsState(initial = MapColorScale.ABSOLUTE)
+    val routeTintFactor by graph.settings.doseTintFactor
+        .collectAsState(initial = DoseTint.DEFAULT_FACTOR)
+    val routeBaseline by graph.serviceStatus.baseline.collectAsState()
+    val routeScale = remember(routeScaleMode, routeTintFactor, routeBaseline, routes) {
+        val band = (routeBaseline as? BaselineState.Active)?.baseline
+            ?.let { it.doseLowMicroSvH to it.doseHighMicroSvH }
+        TrackMap.scaleFor(
+            mode = routeScaleMode,
+            usualBand = band,
+            factor = routeTintFactor,
+            values = routes.mapNotNull { it.avgDoseMicroSvH },
+        )
+    }
+
+    LaunchedEffect(deletingRoutes) {
+        val doomed = deletingRoutes
+        if (doomed.isEmpty()) return@LaunchedEffect
+        delay(UNDO_MILLIS)
+        doomed.forEach { graph.trackRepository.delete(it) }
+        deletingRoutes = deletingRoutes - doomed
+        reload += 1
+    }
+
+    val routeGpxLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/gpx+xml"),
+    ) { uri ->
+        val route = exportingRoute
+        exportingRoute = null
+        if (uri != null && route != null) {
+            scope.launch {
+                val points = graph.trackRepository.points(route.id).first()
+                val title = RouteFormat.title(route, System.currentTimeMillis(), h)
+                writeTextToUri(context, uri, SeriesExport.gpx(points, title))
+            }
+        }
+    }
+
+    confirmingDelete?.let { doomed ->
+        RouteDeleteDialog(
+            routes = doomed,
+            onDismiss = { confirmingDelete = null },
+            onConfirm = {
+                deletingRoutes = deletingRoutes + doomed.map { it.id }
+                pickedRoutes = emptySet()
+                confirmingDelete = null
+            },
+        )
+    }
 
     openRoute?.let { routeId ->
         RouteMapScreen(graph = graph, routeId = routeId, onBack = { openRoute = null })
@@ -285,7 +374,11 @@ fun HistoryScreen(
             } else {
                 // The counter is the way in: tapping «12 сессий» is asking to
                 // do something with them.
-                model?.let {
+                model?.takeIf {
+                    // «26 сессий» на вкладке «Маршруты» — счёт не того, что
+                    // на экране.
+                    filter == HistoryFilter.ALL || filter == HistoryFilter.SESSIONS
+                }?.let {
                     Chip(
                         text = strings.sessionsCount(it.totalSessions),
                         color = colors.ink2,
@@ -341,14 +434,72 @@ fun HistoryScreen(
             }
         } else {
             if (filter == HistoryFilter.ALL || filter == HistoryFilter.ROUTES) {
-                RoutesCard(
-                    routes = routes,
+                val visibleRoutes = routes.filter { it.id !in deletingRoutes }
+                RoutesList(
+                    routes = visibleRoutes,
                     unit = unit,
                     graph = graph,
+                    scale = routeScale,
+                    picked = pickedRoutes,
                     onOpen = { openRoute = it },
+                    onPick = { id ->
+                        pickedRoutes = if (id in pickedRoutes) {
+                            pickedRoutes - id
+                        } else {
+                            pickedRoutes + id
+                        }
+                    },
                     onRename = { renaming = it },
+                    onExport = { route ->
+                        exportingRoute = route
+                        routeGpxLauncher.launch(SeriesExport.fileName(route.startedAt, "gpx"))
+                    },
+                    onDelete = { confirmingDelete = listOf(it) },
                     onCompare = { ids -> comparing = ids },
                 )
+                // Выбор и отмена удаления — строки действий внизу списка, а не
+                // кнопки в каждой карточке.
+                if (pickedRoutes.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                        AppButton(
+                            text = h.routeCompareCount(pickedRoutes.size),
+                            onClick = { comparing = pickedRoutes.toList() },
+                            primary = pickedRoutes.size >= 2,
+                            enabled = pickedRoutes.size >= 2,
+                            modifier = Modifier.weight(1f),
+                        )
+                        AppButton(
+                            text = strings.delete,
+                            onClick = {
+                                confirmingDelete = routes.filter { it.id in pickedRoutes }
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        AppButton(
+                            text = strings.cancel,
+                            onClick = { pickedRoutes = emptySet() },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                if (deletingRoutes.isNotEmpty()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                    ) {
+                        Text(
+                            text = h.routesDeleted(deletingRoutes.size),
+                            style = type.footnote,
+                            color = colors.muted,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Chip(
+                            text = h.routeUndo,
+                            color = colors.dataText,
+                            onClick = { deletingRoutes = emptySet() },
+                        )
+                    }
+                }
             }
 
             if (filter == HistoryFilter.ALL || filter == HistoryFilter.SPECTRA) SavedSpectraCard(
@@ -417,7 +568,7 @@ fun HistoryScreen(
                 }
             }
 
-            if (showSessions && m.totalSessions > m.items.count { it is HistoryItem.Session }) {
+            if (showSessions && m.loadedSessions < m.totalSessions) {
                 // Компактный чип вместо кнопки во всю ширину: догрузка — не
                 // главное действие экрана, а продолжение списка.
                 Chip(
@@ -466,90 +617,111 @@ fun HistoryScreen(
 
 
 /**
- * Маршруты журнала: своя карточка, а не строки среди сессий.
+ * Маршруты журнала.
  *
- * Сессия отвечает «что прибор намерил за это время», маршрут — «где я прошёл
- * и как менялся уровень по дороге». Мешать их в одном списке значило бы
- * заставлять человека каждый раз понимать, что за строка перед ним.
+ * Список без заголовка раздела и без внешней карточки: вкладка уже названа
+ * фильтром, и второй раз повторять слово «Маршруты» незачем. Дата тоже ушла из
+ * строк в заголовки дней — в списке за месяц она стояла бы у каждой записи,
+ * ничего не различая.
+ *
+ * Различают запись три вещи: её форма (миниатюра, окрашенная той же шкалой,
+ * что след на карте), время начала и то, чем прогулка была — путь и
+ * длительность. Всё остальное живёт внутри маршрута.
  */
 @Composable
-private fun RoutesCard(
+private fun RoutesList(
     routes: List<RouteSummary>,
     unit: DoseUnitSetting,
     graph: AppGraph,
+    scale: TrackMap.RampScale?,
+    picked: Set<Long>,
     onOpen: (Long) -> Unit,
+    onPick: (Long) -> Unit,
     onRename: (RouteSummary) -> Unit,
+    onExport: (RouteSummary) -> Unit,
+    onDelete: (RouteSummary) -> Unit,
     onCompare: (List<Long>) -> Unit,
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
     val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
-    var picked by remember { mutableStateOf(setOf<Long>()) }
+    val now = System.currentTimeMillis()
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = h.routesTitle.uppercase(), style = type.labelSmall, color = colors.ink2)
-                Spacer(Modifier.weight(1f))
-                // Сравнение появляется, когда выбрано хотя бы два: кнопка,
-                // которая ничего не сравнивает, — это вопрос без ответа.
-                if (picked.size >= 2) {
-                    Chip(
-                        text = h.routeCompareCount(picked.size),
-                        color = colors.dataText,
-                        selected = true,
-                        onClick = {
-                            onCompare(routes.filter { it.id in picked }.map { it.id })
-                        },
-                    )
-                }
-            }
-
-            if (routes.isEmpty()) {
+    if (routes.isEmpty()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(text = h.noRoutesYet, style = type.bodySmall, color = colors.ink2)
                 Hint(text = h.routesExplained, style = type.bodySmall, color = colors.muted)
-            } else {
-                routes.forEachIndexed { index, route ->
-                    if (index > 0) AppDivider()
-                    RouteRow(
-                        route = route,
-                        unit = unit,
-                        graph = graph,
-                        picked = route.id in picked,
-                        onPick = {
-                            picked = if (route.id in picked) picked - route.id else picked + route.id
-                        },
-                        onOpen = { onOpen(route.id) },
-                        onRename = { onRename(route) },
-                    )
-                }
             }
         }
+        return
+    }
+
+    var lastHeader: String? = null
+    for (route in routes) {
+        val header = HistoryFormat.dayHeader(route.startedAt, now, s = h)
+        if (header != lastHeader) {
+            lastHeader = header
+            Text(
+                text = header,
+                style = type.labelSmall,
+                color = colors.ink2,
+                modifier = Modifier.padding(top = Dimens.space1),
+            )
+        }
+        RouteCard(
+            route = route,
+            unit = unit,
+            graph = graph,
+            scale = scale,
+            picked = route.id in picked,
+            selecting = picked.isNotEmpty(),
+            onOpen = { onOpen(route.id) },
+            onPick = { onPick(route.id) },
+            onRename = { onRename(route) },
+            onExport = { onExport(route) },
+            onDelete = { onDelete(route) },
+            onCompare = { onCompare(picked.toList()) },
+        )
     }
 }
 
+/**
+ * Одна прогулка.
+ *
+ * Тап открывает маршрут, долгое нажатие включает выбор, `⋮` даёт редкие
+ * действия. Стрелки «›» нет: карточка целиком и есть кнопка, а стрелка
+ * повторяла бы это ещё раз.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RouteRow(
+private fun RouteCard(
     route: RouteSummary,
     unit: DoseUnitSetting,
     graph: AppGraph,
+    scale: TrackMap.RampScale?,
     picked: Boolean,
-    onPick: () -> Unit,
+    selecting: Boolean,
     onOpen: () -> Unit,
+    onPick: () -> Unit,
     onRename: () -> Unit,
+    onExport: () -> Unit,
+    onDelete: () -> Unit,
+    onCompare: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
     val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
-    val now = System.currentTimeMillis()
     val mapStrings = MapCatalogue.of(strings.language)
+    val now = System.currentTimeMillis()
+    var menuOpen by remember { mutableStateOf(false) }
 
-    // Форма маршрута читается один раз на строку и прореженной: по ногтю
-    // маршрут узнают, а не измеряют.
+    // Форма читается прореженной и один раз на карточку: по ногтю маршрут
+    // узнают, а не измеряют.
     var shape by remember(route.id, route.measurementCount) {
-        mutableStateOf<List<Pair<Float, Float>>>(emptyList())
+        mutableStateOf<List<ThumbnailPoint>>(emptyList())
     }
     LaunchedEffect(route.id, route.measurementCount) {
         shape = withContext(Dispatchers.IO) {
@@ -557,77 +729,146 @@ private fun RouteRow(
         }
     }
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onOpen,
+            .combinedClickable(
+                onClick = { if (selecting) onPick() else onOpen() },
+                onLongClick = onPick,
             )
-            .padding(vertical = 9.dp),
+            .then(
+                if (picked) {
+                    Modifier.border(
+                        width = LocalAppMetrics.current.border,
+                        color = colors.dataText,
+                        shape = RoundedCornerShape(LocalAppMetrics.current.radiusCard),
+                    )
+                } else {
+                    Modifier
+                },
+            ),
     ) {
-        RouteThumbnail(shape = shape)
-        Column(
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.weight(1f),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            RouteThumbnail(shape = shape, scale = scale)
+            Column(
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = RouteFormat.title(route, now, h),
+                        style = type.label,
+                        color = colors.ink,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.weight(1f))
+                    // Идущая запись — зелёная точка и одно слово: красить ради
+                    // этого название значило бы сказать то же самое дважды.
+                    if (route.running) {
+                        StatusRow(text = h.routeRecording, color = colors.ok)
+                    } else if (route.interrupted) {
+                        StatusRow(text = h.routeInterrupted, color = colors.warn)
+                    }
+                    Box {
+                        Chip(text = MENU_GLYPH, color = colors.ink2, onClick = { menuOpen = true })
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(h.routeRename) },
+                                onClick = { menuOpen = false; onRename() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(h.routeCompare) },
+                                onClick = { menuOpen = false; if (picked) onCompare() else onPick() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(h.routeExport) },
+                                onClick = { menuOpen = false; onExport() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(strings.delete) },
+                                onClick = { menuOpen = false; onDelete() },
+                            )
+                        }
+                    }
+                }
+                // Чем была прогулка: путь и время. Число измерений вторично и
+                // живёт внутри маршрута — кроме идущей записи, где оно
+                // единственный признак, что след действительно пишется.
                 Text(
-                    text = RouteFormat.title(route, now, h),
-                    style = type.label,
-                    color = colors.ink,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
+                    text = listOfNotNull(
+                        route.distanceMeters?.let { TrackMap.formatDistance(it, mapStrings) },
+                        HistoryFormat.duration(route.durationSeconds, s = h),
+                    ).joinToString(" · "),
+                    style = type.footnote,
+                    color = colors.ink2,
                 )
                 if (route.running) {
                     Text(
-                        text = h.routeRecording,
-                        style = type.label,
-                        color = colors.ok,
-                        modifier = Modifier.padding(start = 6.dp),
+                        text = h.routeMeasurements(HistoryFormat.count(route.measurementCount)),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+                // Показатели отделены от описания: это уже не про прогулку, а
+                // про то, что намерено. Единица названа один раз на величину.
+                Text(
+                    text = listOfNotNull(
+                        route.avgDoseMicroSvH?.let { "${mapStrings.statAvg} ${DoseFormat.rate(it, unit)}" },
+                        route.maxDoseMicroSvH?.let {
+                            "${mapStrings.statMax} ${DoseFormat.rateWithUnit(it, unit, s = strings)}"
+                        },
+                        route.doseMicroSv?.let {
+                            "${h.statDose} ${DoseFormat.doseWithUnit(it, unit, s = strings)}"
+                        },
+                    ).joinToString(" · "),
+                    style = type.footnote,
+                    color = colors.ink,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Удаление маршрута спрашивают один раз и говорят, что именно исчезнет:
+ * точки прогулки уходят и из накопленной карты тоже, а измерения прибора за
+ * это время остаются — это разные данные, и путать их нельзя.
+ */
+@Composable
+private fun RouteDeleteDialog(
+    routes: List<RouteSummary>,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    val type = LocalAppTypography.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(
+                    text = h.routeDeleteTitle(routes.size),
+                    style = type.label,
+                    color = colors.ink,
+                )
+                Text(text = h.routeDeleteBody, style = type.bodySmall, color = colors.ink2)
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    AppButton(
+                        text = strings.delete,
+                        onClick = onConfirm,
+                        primary = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AppButton(
+                        text = strings.cancel,
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
-            Text(
-                text = listOfNotNull(
-                    HistoryFormat.dayTime(route.startedAt, now, s = h)
-                        .takeIf { route.name.isNotBlank() },
-                    HistoryFormat.duration(route.durationSeconds, s = h),
-                    route.distanceMeters?.let { TrackMap.formatDistance(it, mapStrings) },
-                    h.routeMeasurements(HistoryFormat.count(route.measurementCount)),
-                ).joinToString(" · "),
-                style = type.footnote,
-                color = colors.ink2,
-            )
-            Text(
-                text = listOfNotNull(
-                    route.avgDoseMicroSvH?.let {
-                        "${mapStrings.statAvg} ${DoseFormat.rate(it, unit)}"
-                    },
-                    route.maxDoseMicroSvH?.let {
-                        "${mapStrings.statMax} ${DoseFormat.rate(it, unit)}"
-                    },
-                    route.doseMicroSv?.let { "${h.statDose} ${DoseFormat.dose(it, unit)}" },
-                ).joinToString(" · ").ifBlank { strings.noData },
-                style = type.footnote,
-                color = colors.muted,
-            )
-        }
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Chip(
-                text = h.routeCompare,
-                color = if (picked) colors.dataText else colors.ink2,
-                selected = picked,
-                onClick = onPick,
-            )
-            Chip(text = h.routeRename, color = colors.ink2, onClick = onRename)
         }
     }
 }
@@ -1291,6 +1532,7 @@ private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryMode
     return HistoryModel(
         items = items,
         totalSessions = totalSessions,
+        loadedSessions = sessions.size,
     )
 }
 

@@ -39,6 +39,35 @@ object HistoryFormat {
         return "$day$year ${dateTime.format(TIME)}"
     }
 
+    /**
+     * Заголовок дня в списке: «Сегодня», «Вчера» или «14 августа».
+     *
+     * Дата уходит из каждой строки в заголовок группы: в списке за месяц она
+     * повторялась бы у каждой записи, ничего не различая, — а различает
+     * запись время и её форма.
+     */
+    fun dayHeader(
+        millis: Long,
+        nowMillis: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+        s: HistoryStrings = HistoryRu,
+    ): String {
+        val date = Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
+        val today = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
+        return when (date) {
+            today -> s.today
+            today.minusDays(1) -> s.yesterday
+            else -> {
+                val year = if (date.year != today.year) " ${date.year}" else ""
+                "${date.dayOfMonth} ${s.monthsGenitive[date.monthValue - 1]}$year"
+            }
+        }
+    }
+
+    /** «18:51» — момент внутри уже названного дня. */
+    fun timeOfDay(millis: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+        Instant.ofEpochMilli(millis).atZone(zone).format(TIME)
+
     /** «9 авг» — day and month only (chart edge labels). */
     fun day(
         millis: Long,

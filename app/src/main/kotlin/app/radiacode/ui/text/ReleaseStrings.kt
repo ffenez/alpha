@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v048Title: String
+    val v048Summary: String
+
     val v047Title: String
     val v047Summary: String
 
@@ -102,6 +105,15 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v048Title = "Пустые маршруты больше не заводятся"
+    override val v048Summary =
+        "Маршрут появляется в Истории с первой координатой, а не с нажатия, и " +
+        "запись идёт только одна: пустых «идёт запись · 0 измерений» больше нет, " +
+        "а оборванная сбоем запись закрывается по последней точке и названа " +
+        "прерванной. Список маршрутов переделан — крупная миниатюра в цвете " +
+        "следа, дни отдельными заголовками, действия в «⋮», удаление с отменой; " +
+        "«показать ещё» в сессиях больше не висит вечно."
 
     override val v047Title = "Карта и график маршрута ходят вместе"
     override val v047Summary =
@@ -292,6 +304,15 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v048Title = "Empty routes are no longer created"
+    override val v048Summary =
+        "A route enters История with its first coordinate rather than with the " +
+        "tap, and only one recording runs at a time: no more empty «recording · 0 " +
+        "measurements», and a run cut short by a crash is closed at its last " +
+        "point and called interrupted. The route list was rebuilt — a large " +
+        "thumbnail in the trace colours, days as headers, actions under «⋮», " +
+        "deletion with undo; «show more» in sessions no longer stays forever."
 
     override val v047Title = "The route map and its chart move together"
     override val v047Summary =
@@ -489,6 +510,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v048Title, v048Summary,
     v047Title, v047Summary,
     v046Title, v046Summary,
     v045Title, v045Summary,

@@ -30,6 +30,7 @@ import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Hint
+import app.radiacode.ui.components.MapGestureLock
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.DoseTint
@@ -84,6 +85,8 @@ fun RouteCompareScreen(graph: AppGraph, routeIds: List<Long>, onBack: () -> Unit
     val t = MapCatalogue.of(strings.language)
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     val nowMillis = System.currentTimeMillis()
+    // Карта на этом экране двигается пальцем — жест не уходит пейджеру.
+    MapGestureLock()
 
     var metricIndex by rememberSaveable { mutableIntStateOf(0) }
     val metric = if (metricIndex == 0) TrackMetric.DOSE else TrackMetric.CPS

@@ -22,6 +22,8 @@ data class RouteSummary(
     val startedAt: Long,
     /** Null — запись ещё идёт. */
     val endedAt: Long?,
+    /** Запись оборвалась (сбой, выключение), а не была остановлена. */
+    val interrupted: Boolean = false,
     val distanceMeters: Double?,
     val measurementCount: Int,
     val avgDoseMicroSvH: Float?,
@@ -59,24 +61,19 @@ object RouteFormat {
     /**
      * Как маршрут подписан в списке.
      *
-     * Имя, если оно есть, иначе дата и время начала: заставлять придумывать
-     * название до прогулки значило бы требовать решения раньше, чем есть о
-     * чём, а безымянные строки «Маршрут», «Маршрут», «Маршрут» не различить.
+     * Имя, если человек его дал, иначе «Маршрут · 18:51» — время начала. День
+     * в подпись не входит: он уже стоит заголовком группы, и повторять его в
+     * каждой строке значило бы занимать место тем, что и так сказано. А
+     * требовать название ДО прогулки — требовать решения раньше, чем есть о
+     * чём; безымянные же «Маршрут, Маршрут, Маршрут» не различить.
      */
     fun title(
         route: RouteSummary,
         nowMillis: Long,
         s: HistoryStrings = HistoryRu,
     ): String = route.name.trim().ifEmpty {
-        HistoryFormat.dayTime(route.startedAt, nowMillis, s = s)
+        s.routeAuto(HistoryFormat.timeOfDay(route.startedAt))
     }
-
-    /** Имя по умолчанию в поле переименования — оно же подпись по дате. */
-    fun suggestedName(
-        route: RouteSummary,
-        nowMillis: Long,
-        s: HistoryStrings = HistoryRu,
-    ): String = title(route, nowMillis, s)
 
     /** Пустое имя означает «имени нет», а не имя из пробелов. */
     fun cleanName(input: String): String = input.trim().take(MAX_NAME_LENGTH)
@@ -96,6 +93,16 @@ object RouteFormat {
  * измеряют, и дробить ноготь на отрезки нечем. Настоящий след с разрывами
  * человек видит, открыв маршрут.
  */
+/** Точка миниатюры: где прошли и сколько там было. */
+data class RouteShapePoint(
+    val latitude: Double,
+    val longitude: Double,
+    val doseMicroSvH: Float?,
+)
+
+/** Точка миниатюры в координатах картинки: 0..1 по обеим осям. */
+data class ThumbnailPoint(val x: Float, val y: Float, val value: Float?)
+
 object RouteShape {
 
     /** Сколько точек берётся на миниатюру: больше не делает её вернее. */
@@ -109,10 +116,10 @@ object RouteShape {
      * Точки в координатах картинки: x вправо, y вниз, обе в 0..1.
      * Маршрут вписывается целиком и по центру, пропорции сохраняются.
      */
-    fun normalize(points: List<Pair<Double, Double>>): List<Pair<Float, Float>> {
+    fun normalize(points: List<RouteShapePoint>): List<ThumbnailPoint> {
         if (points.isEmpty()) return emptyList()
-        val latitudes = points.map { it.first }
-        val longitudes = points.map { it.second }
+        val latitudes = points.map { it.latitude }
+        val longitudes = points.map { it.longitude }
         val minLat = latitudes.min()
         val maxLat = latitudes.max()
         val minLon = longitudes.min()
@@ -124,14 +131,20 @@ object RouteShape {
         val span = maxOf(width, height)
         // Маршрут «на месте»: разброса нет, и растягивать нечего — точка в
         // середине честнее, чем шум, растянутый во весь квадрат.
-        if (span <= 0.0) return points.map { 0.5f to 0.5f }
+        if (span <= 0.0) {
+            return points.map { ThumbnailPoint(0.5f, 0.5f, it.doseMicroSvH) }
+        }
         val offsetX = (span - width) / 2
         val offsetY = (span - height) / 2
-        return points.map { (latitude, longitude) ->
-            val x = ((longitude - minLon) * lonScale + offsetX) / span
+        return points.map { point ->
+            val x = ((point.longitude - minLon) * lonScale + offsetX) / span
             // Широта растёт на север, экранный y — вниз.
-            val y = 1.0 - ((latitude - minLat) + offsetY) / span
-            x.toFloat().coerceIn(0f, 1f) to y.toFloat().coerceIn(0f, 1f)
+            val y = 1.0 - ((point.latitude - minLat) + offsetY) / span
+            ThumbnailPoint(
+                x = x.toFloat().coerceIn(0f, 1f),
+                y = y.toFloat().coerceIn(0f, 1f),
+                value = point.doseMicroSvH,
+            )
         }
     }
 }

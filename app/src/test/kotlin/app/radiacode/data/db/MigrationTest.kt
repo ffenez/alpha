@@ -187,6 +187,45 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 13 to 14 produces exactly the exported v14 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(13))
+            MigrationSql.FROM_13_TO_14.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(14))
+        }
+    }
+
+    /**
+     * О записях прежней версии неизвестно, останавливал их человек или система,
+     * поэтому прерванными они задним числом не объявляются.
+     */
+    @Test
+    fun `migration 13 to 14 does not call old routes interrupted`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(13))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO track_sessions (id, name, startedAt, endedAt, distanceMeters) " +
+                        "VALUES (1, 'Дом → парк', 1000, 5000, 3800.0)",
+                )
+            }
+            MigrationSql.FROM_13_TO_14.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT name, interrupted FROM track_sessions",
+                )
+                assertTrue(rows.next())
+                assertEquals("Дом → парк", rows.getString("name"))
+                assertEquals(0, rows.getInt("interrupted"))
+            }
+        }
+    }
+
+    @Test
     fun `migration 12 to 13 produces exactly the exported v13 schema`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(12))

@@ -18,6 +18,11 @@ interface HistoryStrings {
     /** Сокращения месяцев, 12 штук, январь первым. */
     val months: List<String>
 
+    /** Месяцы в родительном падеже: «14 августа» — заголовок дня в списке. */
+    val monthsGenitive: List<String>
+    val today: String
+    val yesterday: String
+
     // ------------------------------------------------------- длительности
     fun seconds(value: Long): String
     fun minutes(value: Long): String
@@ -107,6 +112,8 @@ interface HistoryStrings {
     val filterRoutes: String
     val filterSpectra: String
 
+    /** Подпись маршрута без имени: «Маршрут · 18:51». */
+    fun routeAuto(time: String): String
     val routesTitle: String
     val noRoutesYet: String
     val routesExplained: String
@@ -126,6 +133,12 @@ interface HistoryStrings {
     val routeCompareCaveat: String
     val routeOpen: String
     /** Разница по участкам — только для пары маршрутов. */
+    val routeInterrupted: String
+    val routeExport: String
+    val routeUndo: String
+    fun routesDeleted(count: Int): String
+    fun routeDeleteTitle(count: Int): String
+    val routeDeleteBody: String
     val routeDiff: String
     fun routeDiffSummary(matched: Int, higher: Int, lower: Int): String
     /** Как именно сопоставлены участки: это метод, а не вывод. */
@@ -145,6 +158,13 @@ object HistoryRu : HistoryStrings {
         "янв", "фев", "мар", "апр", "мая", "июн",
         "июл", "авг", "сен", "окт", "ноя", "дек",
     )
+
+    override val monthsGenitive = listOf(
+        "января", "февраля", "марта", "апреля", "мая", "июня",
+        "июля", "августа", "сентября", "октября", "ноября", "декабря",
+    )
+    override val today = "Сегодня"
+    override val yesterday = "Вчера"
 
     override fun seconds(value: Long) = "$value с"
 
@@ -227,6 +247,7 @@ object HistoryRu : HistoryStrings {
     override val filterRoutes = "Маршруты"
     override val filterSpectra = "Спектры"
 
+    override fun routeAuto(time: String) = "Маршрут · $time"
     override val routesTitle = "Маршруты"
     override val noRoutesYet = "Маршрутов пока нет"
     override val routesExplained =
@@ -245,6 +266,16 @@ object HistoryRu : HistoryStrings {
             "чисел сама по себе различием не является: маршруты проходят по " +
             "разной геометрии и в разное время."
     override val routeOpen = "Открыть"
+    override val routeInterrupted = "прервана"
+    override val routeExport = "Экспорт GPX"
+    override val routeUndo = "Отменить"
+    override fun routesDeleted(count: Int) =
+        if (count == 1) "Маршрут удалён" else "Удалено маршрутов: $count"
+    override fun routeDeleteTitle(count: Int) =
+        if (count == 1) "Удалить маршрут?" else "Удалить маршруты: $count?"
+    override val routeDeleteBody =
+        "Точки маршрута и его метки исчезнут с карты и из накопленных записей. " +
+            "Измерения прибора за это время останутся."
     override val routeDiff = "Разница"
     override fun routeDiffSummary(matched: Int, higher: Int, lower: Int) =
         "Сопоставлено участков: $matched. Разброс не перекрывается на " +
@@ -284,6 +315,13 @@ object HistoryEn : HistoryStrings {
         "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     )
+
+    override val monthsGenitive = listOf(
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    )
+    override val today = "Today"
+    override val yesterday = "Yesterday"
 
     override fun seconds(value: Long) = "$value s"
 
@@ -366,6 +404,7 @@ object HistoryEn : HistoryStrings {
     override val filterRoutes = "Routes"
     override val filterSpectra = "Spectra"
 
+    override fun routeAuto(time: String) = "Route · $time"
     override val routesTitle = "Routes"
     override val noRoutesYet = "No routes yet"
     override val routesExplained =
@@ -384,6 +423,16 @@ object HistoryEn : HistoryStrings {
             "difference in the numbers is not by itself a difference: the " +
             "routes run over different geometry and at different times."
     override val routeOpen = "Open"
+    override val routeInterrupted = "interrupted"
+    override val routeExport = "Export GPX"
+    override val routeUndo = "Undo"
+    override fun routesDeleted(count: Int) =
+        if (count == 1) "Route deleted" else "Routes deleted: $count"
+    override fun routeDeleteTitle(count: Int) =
+        if (count == 1) "Delete the route?" else "Delete $count routes?"
+    override val routeDeleteBody =
+        "The route's points and markers disappear from the map and from the " +
+            "accumulated recordings. The instrument's measurements stay."
     override val routeDiff = "Difference"
     override fun routeDiffSummary(matched: Int, higher: Int, lower: Int) =
         "Patches matched: $matched. The spreads do not overlap on $higher higher " +
@@ -412,12 +461,15 @@ object HistoryEn : HistoryStrings {
 val HistoryCatalogue = AreaCatalogue(ru = HistoryRu, en = HistoryEn)
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
-fun HistoryStrings.allTexts(): List<String> = months + listOf(
+fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
+    today, yesterday,
     filterAll, filterSessions, filterRoutes, filterSpectra,
-    routesTitle, noRoutesYet, routesExplained, routeRecording,
+    routeAuto("18:51"), routesTitle, noRoutesYet, routesExplained, routeRecording,
     routeMeasurements("4 654"), routeRename, routeNameHint,
     routeCompare, routeCompareCount(2), routeCompareTitle, routeCompareNeedTwo,
     routeCompareCaveat, routeOpen, statDistance, statDose,
+    routeInterrupted, routeExport, routeUndo, routesDeleted(1), routesDeleted(3),
+    routeDeleteTitle(1), routeDeleteTitle(3), routeDeleteBody,
     routeDiff, routeDiffSummary(12, 3, 1), routeDiffMethod("30 м", 5),
     seconds(45), minutes(12), hours(8), hoursMinutes(8, 12),
     // Причина подставляется каталогом Монитора — здесь стоит её образец на

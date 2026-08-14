@@ -27,6 +27,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import app.radiacode.ui.theme.Motion
+import app.radiacode.ui.components.ProvideSwipeBusy
 import app.radiacode.ui.components.TabPager
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.NavBar
@@ -104,6 +105,13 @@ fun AppRoot(graph: AppGraph) {
 
 @Composable
 private fun MainScaffold(graph: AppGraph) {
+    // Замок горизонтального жеста общий на всё приложение: карту открывают и
+    // из Истории, а пейджер живёт здесь.
+    ProvideSwipeBusy { MainScaffoldContent(graph) }
+}
+
+@Composable
+private fun MainScaffoldContent(graph: AppGraph) {
     val context = LocalContext.current
     // Keep the measurement service alive (no-op if it already runs).
     LaunchedEffect(Unit) {

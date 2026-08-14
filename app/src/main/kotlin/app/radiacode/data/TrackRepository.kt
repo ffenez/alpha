@@ -10,6 +10,7 @@ import app.radiacode.device.DoseUnits
 import app.radiacode.ui.logic.MapTrackPoint
 import app.radiacode.ui.logic.RouteFormat
 import app.radiacode.ui.logic.RouteShape
+import app.radiacode.ui.logic.RouteShapePoint
 import app.radiacode.ui.logic.RouteSummary
 import app.radiacode.ui.logic.TrackMap
 import kotlinx.coroutines.flow.Flow
@@ -25,6 +26,56 @@ class TrackRepository(
 
     suspend fun endSession(sessionId: Long) {
         trackDao.endSession(sessionId, endedAt = clock())
+    }
+
+    /**
+     * Остановка записи: маршрут закрывается, а маршрут без единой точки
+     * исчезает.
+     *
+     * Пустая строка в журнале не безобидна: она выглядит как прогулка, у
+     * которой почему-то ничего не намерено, и человек ищет причину там, где
+     * события просто не было.
+     */
+    suspend fun finishSession(sessionId: Long) {
+        if (trackDao.pointCount(sessionId) == 0) {
+            trackDao.deleteSession(sessionId)
+            return
+        }
+        trackDao.endSession(sessionId, endedAt = clock())
+    }
+
+    /** Черновик, который так и не получил точек, удаляется без следа. */
+    suspend fun discardIfEmpty(sessionId: Long) {
+        if (trackDao.pointCount(sessionId) == 0) trackDao.deleteSession(sessionId)
+    }
+
+    /**
+     * Что делать с записями, которые никто не останавливал.
+     *
+     * Приложение убили, телефон выключился, служба упала — маршрут остался
+     * открытым, и в журнале он вечно «идёт запись». Пустые такие записи
+     * удаляются, у остальных концом становится последняя записанная точка, а
+     * сам маршрут называется прерванным: время после последней точки не
+     * измерено, и выдавать его за прогулку нельзя.
+     *
+     * @return сколько записей пришлось закрыть.
+     */
+    suspend fun recoverUnfinished(): Int {
+        var recovered = 0
+        for (session in trackDao.unfinishedSessions()) {
+            val lastPoint = trackDao.lastPointTime(session.id)
+            if (lastPoint == null) {
+                trackDao.deleteSession(session.id)
+                continue
+            }
+            trackDao.markInterrupted(session.id, endedAt = lastPoint)
+            recovered++
+        }
+        return recovered
+    }
+
+    suspend fun delete(sessionId: Long) {
+        trackDao.deleteSession(sessionId)
     }
 
     suspend fun addPoint(
@@ -86,6 +137,7 @@ class TrackRepository(
             name = session.name,
             startedAt = session.startedAt,
             endedAt = session.endedAt,
+            interrupted = session.interrupted,
             distanceMeters = distance,
             measurementCount = row.pointCount,
             avgDoseMicroSvH = row.avgDoseRaw
@@ -118,10 +170,15 @@ class TrackRepository(
         return meters
     }
 
-    /** Прореженная геометрия маршрута — форма для миниатюры. */
-    suspend fun routeShape(sessionId: Long, pointCount: Int): List<Pair<Double, Double>> =
-        trackDao.routeShape(sessionId, RouteShape.stride(pointCount))
-            .map { it.latitude to it.longitude }
+    /** Прореженная геометрия маршрута с измерением — форма для миниатюры. */
+    suspend fun routeShape(sessionId: Long, pointCount: Int): List<RouteShapePoint> =
+        trackDao.routeShape(sessionId, RouteShape.stride(pointCount)).map {
+            RouteShapePoint(
+                latitude = it.latitude,
+                longitude = it.longitude,
+                doseMicroSvH = it.doseRate?.let(DoseUnits::rawToMicroSievertPerHour),
+            )
+        }
 
     // --- accumulated map («все записи») ---
 

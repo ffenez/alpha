@@ -11,24 +11,29 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import app.radiacode.ui.logic.RouteShape
+import app.radiacode.ui.logic.ThumbnailPoint
+import app.radiacode.ui.logic.TrackMap
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppMetrics
+import app.radiacode.ui.theme.TrackRampColors
 
 /**
- * Форма маршрута размером в ноготь: по ней узнают свою прогулку в списке, не
- * открывая её.
+ * Форма маршрута размером с ноготь — по ней узнают свою прогулку в списке.
  *
- * Одним цветом, а не шкалой: на такой площади семь ступеней превратились бы в
- * шум, а цвет, который ничего не различает, читался бы как утверждение. Что
- * где было — видно на карте маршрута, а здесь только «какой это из них».
+ * Окрашена той же шкалой, что и след на карте: одна картинка отвечает сразу
+ * на два вопроса — «какой это из маршрутов» и «где по дороге было выше». Своей
+ * шкалы у миниатюры нет и быть не может: цвет, означающий здесь одно, а на
+ * карте другое, — это два разных языка под одними красками.
+ *
+ * Без шкалы (для места ещё нет обычного фона) миниатюра рисуется одним цветом
+ * данных: контур без основания сравнения — это форма, и только форма.
  */
 @Composable
 fun RouteThumbnail(
-    /** Уже нормализованные точки (см. [RouteShape.normalize]). */
-    shape: List<Pair<Float, Float>>,
+    shape: List<ThumbnailPoint>,
+    scale: TrackMap.RampScale?,
     modifier: Modifier = Modifier,
-    size: Dp = 44.dp,
+    size: Dp = 76.dp,
 ) {
     val colors = LocalAppColors.current
     Canvas(
@@ -38,19 +43,25 @@ fun RouteThumbnail(
             .background(colors.chartField),
     ) {
         if (shape.isEmpty()) return@Canvas
-        val inset = this.size.minDimension * 0.14f
+        val inset = this.size.minDimension * 0.12f
         val span = this.size.minDimension - inset * 2
-        fun offset(point: Pair<Float, Float>) =
-            Offset(inset + point.first * span, inset + point.second * span)
+        fun offset(point: ThumbnailPoint) =
+            Offset(inset + point.x * span, inset + point.y * span)
 
-        val stroke = 1.6.dp.toPx()
+        fun colorOf(point: ThumbnailPoint): androidx.compose.ui.graphics.Color {
+            val value = point.value ?: return colors.muted
+            val ramp = scale ?: return colors.dataText
+            return TrackRampColors.getOrElse(TrackMap.bucket(value, ramp)) { colors.dataText }
+        }
+
+        val stroke = 2.2.dp.toPx()
         if (shape.size == 1) {
-            drawCircle(color = colors.dataText, radius = stroke, center = offset(shape.first()))
+            drawCircle(color = colorOf(shape.first()), radius = stroke, center = offset(shape.first()))
             return@Canvas
         }
         for (index in 1 until shape.size) {
             drawLine(
-                color = colors.dataText,
+                color = colorOf(shape[index]),
                 start = offset(shape[index - 1]),
                 end = offset(shape[index]),
                 strokeWidth = stroke,

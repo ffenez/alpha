@@ -656,6 +656,20 @@ interface TrackDao {
     )
     suspend fun highAltitudePointCount(from: Long, to: Long, minAltitudeMeters: Double): Int
 
+    @Query("DELETE FROM track_sessions WHERE id = :sessionId")
+    suspend fun deleteSession(sessionId: Long)
+
+    /** Незакрытые маршруты: их оставил после себя сбой или выключение. */
+    @Query("SELECT * FROM track_sessions WHERE endedAt IS NULL")
+    suspend fun unfinishedSessions(): List<TrackSessionEntity>
+
+    /** Последняя записанная точка маршрута — по ней закрывается прерванный. */
+    @Query("SELECT MAX(timestamp) FROM track_points WHERE sessionId = :sessionId")
+    suspend fun lastPointTime(sessionId: Long): Long?
+
+    @Query("UPDATE track_sessions SET endedAt = :endedAt, interrupted = 1 WHERE id = :sessionId")
+    suspend fun markInterrupted(sessionId: Long, endedAt: Long)
+
     /** Название маршрута даётся после прогулки и меняется когда угодно. */
     @Query("UPDATE track_sessions SET name = :name WHERE id = :sessionId")
     suspend fun renameSession(sessionId: Long, name: String)
@@ -693,8 +707,8 @@ interface TrackDao {
      */
     @Query(
         """
-        SELECT latitude, longitude FROM (
-            SELECT latitude, longitude,
+        SELECT latitude, longitude, doseRate FROM (
+            SELECT latitude, longitude, doseRate,
                    ROW_NUMBER() OVER (ORDER BY timestamp) AS rowNumber
             FROM track_points WHERE sessionId = :sessionId
         ) WHERE (rowNumber - 1) % :stride = 0
@@ -776,8 +790,16 @@ data class TrackRouteSummaryRow(
     val maxCps: Double?,
 )
 
-/** Прореженная геометрия маршрута для миниатюры. */
-data class TrackShapeRow(val latitude: Double, val longitude: Double)
+/**
+ * Прореженная геометрия маршрута для миниатюры вместе с измерением: по ногтю
+ * видно не только форму прогулки, но и где уровень был выше.
+ */
+data class TrackShapeRow(
+    val latitude: Double,
+    val longitude: Double,
+    /** Приборные единицы; в мкЗв/ч переводит край приложения. */
+    val doseRate: Float?,
+)
 
 /** Bounding box of stored fixes; all null when there are none. */
 data class TrackBoundsRow(
