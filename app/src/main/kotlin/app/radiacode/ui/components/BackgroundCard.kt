@@ -41,14 +41,10 @@ fun BackgroundCard(
     val type = LocalAppTypography.current
     Card(modifier = modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = model.level,
-                    style = type.value,
-                    color = colors.ink,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            // Само значение фона здесь не повторяется: оно стоит плиткой
+            // рядом с отношением к нему, там, где его и читают. Карточке
+            // остаётся то, чего больше нигде нет: когда фон снят, годится ли
+            // он и что с ним делать.
             model.basis?.let {
                 Text(text = it, style = type.footnote, color = colors.ink2)
             }

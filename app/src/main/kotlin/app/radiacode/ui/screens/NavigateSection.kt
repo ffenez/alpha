@@ -126,7 +126,6 @@ fun NavigateSection(
                     color = if (cps != null) colors.ink else colors.muted,
                     textAlign = TextAlign.Center,
                 )
-                Text(text = t.cpsUnit, style = type.footnoteMono, color = colors.ink2)
 
                 StatusRow(
                     text = NavigateVerdict.trendLabel(state.trend, t),

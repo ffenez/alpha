@@ -52,6 +52,8 @@ import app.radiacode.ui.components.SearchChartSpec
 import app.radiacode.ui.components.SearchRateChart
 import app.radiacode.ui.components.SearchWhySheet
 import app.radiacode.ui.components.Segmented
+import app.radiacode.ui.components.MetricTile
+import app.radiacode.ui.components.MetricTileBox
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.components.StatusRow
@@ -555,34 +557,34 @@ fun SearchScreen(
 
                 if (record != null) {
                     val delta = SearchVerdict.deltaPercent(search.comparison)
+                    // Две плитки той же формы, что на Главной: фон и отношение
+                    // к нему — величины одного порядка важности, и читаются они
+                    // вместе. «+31 %» без самого фона не проверить.
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.padding(top = Dimens.space2),
+                        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Dimens.space2),
                     ) {
-                        // Само значение фона стоит рядом с отношением к нему:
-                        // «+31 %» без второго числа не проверить, а когда фон
-                        // записан — вопрос к самому фону, и ответ там, у его
-                        // кнопки.
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(strings.backgroundTag, style = type.bodySmall, color = colors.ink2)
-                            Text(
-                                text = Uncertainty.num1(record.cps),
-                                style = type.value,
-                                color = colors.ink,
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(text = t.toBackground, style = type.bodySmall, color = colors.ink2)
-                            Text(
-                                text = delta?.let { if (it >= 0) "+$it %" else "−${-it} %" } ?: "—",
-                                style = type.value,
-                                color = if (level == SearchLevel.CONFIRMED_EXCESS) {
+                        MetricTileBox(
+                            tile = MetricTile(
+                                label = strings.backgroundTag,
+                                value = Uncertainty.num1(record.cps),
+                            ),
+                            modifier = Modifier.weight(1f),
+                        )
+                        MetricTileBox(
+                            tile = MetricTile(
+                                label = t.toBackground,
+                                value = delta?.let { if (it >= 0) "+$it %" else "−${-it} %" } ?: "—",
+                                valueColor = if (level == SearchLevel.CONFIRMED_EXCESS) {
                                     colors.warn
                                 } else {
-                                    colors.ink
+                                    null
                                 },
-                            )
-                        }
+                            ),
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
 
@@ -661,9 +663,11 @@ fun SearchScreen(
                             yTop = search.scale?.top ?: 10f,
                             band = band,
                             baseline = record?.cps,
-                            baselineLabel = record?.let {
-                                t.baselineLabel(Uncertainty.num1(it.cps))
-                            },
+                            // Подписи у пунктира нет: само число фона стоит
+                            // плиткой над лентой, и повторять его на линии
+                            // значит писать одно и то же дважды на одном
+                            // экране. Пунктир и так читается как опора.
+                            baselineLabel = null,
                             xStartLabel = t.tapeStartLabel,
                             xEndLabel = strings.nowLabel,
                             excursionLabel = search.comparison

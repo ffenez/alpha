@@ -65,6 +65,8 @@ import app.radiacode.ui.components.AppIcons
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.ProfilePickerDialog
+import app.radiacode.ui.components.MetricTile
+import app.radiacode.ui.components.MetricTileBox
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.components.StatusDot
@@ -921,9 +923,9 @@ private fun HeroCard(
             }
 
             // 3. Плитки: то, что дополняет главное число, а не спорит с ним.
-            val tiles = buildList {
+            val tiles = buildList<MetricTile> {
                 add(
-                    HeroTile(
+                    MetricTile(
                         label = t.countTile,
                         value = cps?.let { Uncertainty.cpsPlain(it) } ?: "—",
                     ),
@@ -931,7 +933,7 @@ private fun HeroCard(
                 if (blocks.trend) {
                     val slope = (trend as? TrendAvailability.Ready)?.result?.slopeMicroSvHPerHour
                     add(
-                        HeroTile(
+                        MetricTile(
                             label = strings.trendPerHour,
                             value = slope?.let { TrendFit.label(it, unit) } ?: "—",
                             valueColor = trendWarnColor(slope, status),
@@ -952,7 +954,7 @@ private fun HeroCard(
                 }
                 if (blocks.doseToday) {
                     add(
-                        HeroTile(
+                        MetricTile(
                             // Единица — в подписи, как у счёта: в значении она
                             // повторялась у каждого числа, а меняется вместе с
                             // настройкой один раз на всё приложение.
@@ -966,7 +968,7 @@ private fun HeroCard(
             if (tiles.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     for (tile in tiles) {
-                        HeroTileBox(tile, Modifier.weight(1f))
+                        MetricTileBox(tile, Modifier.weight(1f))
                     }
                 }
             }
@@ -979,43 +981,7 @@ private fun HeroCard(
 // MonitorStrings.usualBackgroundUpdating.
 
 /** Одна плитка под главным числом. */
-private data class HeroTile(
-    val label: String,
-    val value: String,
-    val valueColor: Color? = null,
-    /** Одна тихая строка под значением: за какое окно оно или чего не хватает. */
-    val note: String? = null,
-)
 
-@Composable
-private fun HeroTileBox(tile: HeroTile, modifier: Modifier = Modifier) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
-            .background(colors.surface2)
-            .padding(horizontal = Dimens.space2, vertical = Dimens.space2),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = tile.label.uppercase(),
-            style = type.overline,
-            color = colors.muted,
-            maxLines = 1,
-        )
-        Text(
-            text = tile.value,
-            style = type.value,
-            color = tile.valueColor ?: colors.ink,
-            maxLines = 1,
-        )
-        tile.note?.let {
-            Text(text = it, style = type.footnote, color = colors.muted, maxLines = 1)
-        }
-    }
-}
 
 /**
  * One line under the status when the baseline is NOT learning right now.
