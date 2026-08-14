@@ -204,9 +204,7 @@ object MonitorRu : MonitorStrings {
     override val contextNoContext = "место определить нельзя — «Без места»"
     override val contextManual = "выбран вручную"
 
-    // Единица в самой подписи: «Счёт 24,9 ±5,0» заставляло догадываться, что
-    // это скорость, а не число импульсов. Полного названия плитка не вмещает.
-    override val countTile = "Счёт, с⁻¹"
+    override val countTile = "Счёт"
     override val trendWindowHour = "1 ч"
     override fun overWindow(window: String) = "за $window"
     override val usualBackgroundUpdating = "обычный фон пополняется"
@@ -383,7 +381,7 @@ object MonitorEn : MonitorStrings {
         "the place cannot be determined — recorded into the no-place profile"
     override val contextManual = "chosen manually"
 
-    override val countTile = "Counts, s⁻¹"
+    override val countTile = "Counts"
     override val trendWindowHour = "1 h"
     override fun overWindow(window: String) = "over $window"
     override val usualBackgroundUpdating = "the usual background is being updated"

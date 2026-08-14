@@ -149,10 +149,12 @@ class ChartWindowTest {
         assertEquals(w.fromMillis - pad, load.fromMillis)
         assertEquals(w.toMillis + pad, load.toMillis)
         assertTrue(ChartWindows.covers(load, w))
-        // A pan of a fifth of the window still sits inside the loaded data.
-        assertTrue(ChartWindows.covers(load, ChartWindows.pan(w, -0.2f, now)))
-        // A pan of a whole window does not — that is when the reload happens.
-        assertFalse(ChartWindows.covers(load, ChartWindows.pan(w, -1f, now)))
+        // Уверенный рывок пальцем — целое окно — обязан уложиться в
+        // прочитанное: именно ради этого запас и существует, и именно на нём
+        // раньше было видно подгрузку.
+        assertTrue(ChartWindows.covers(load, ChartWindows.pan(w, -1f, now)))
+        // Два окна — уже за пределами, и там честно происходит чтение.
+        assertFalse(ChartWindows.covers(load, ChartWindows.pan(w, -2.1f, now)))
     }
 
     @Test
@@ -269,5 +271,23 @@ class ChartWindowTest {
         val pastFrom = ChartMapping.alignedFrom(past.toMillis, past.spanMillis, bucket)
         val pastCols = ChartMapping.toColumns(buckets, pastFrom, bucket, columns) { it.avgDoseRate }
         assertTrue(ChartMapping.stats(pastCols) == null || pastFrom == alignedFrom)
+    }
+
+    @Test
+    fun `the read-ahead never changes the quantile path`() {
+        // Метод выбирается по длине ЗАГРУЖАЕМОГО диапазона. Раздутый запас
+        // мог бы перебросить окно через границу шести часов, и подпись под
+        // графиком заговорила бы о приближении там, где человек ничего не
+        // менял.
+        for ((_, span) in ChartWindows.PERIODS) {
+            val window = ChartWindows.latest(span, now)
+            val load = ChartWindows.loadRange(window, now)
+            if (span < QuantilePaths.EXACT_MAX_SPAN_MILLIS) {
+                assertTrue(
+                    "окно $span мс потеряло точный путь из-за запаса",
+                    QuantilePaths.methodFor(load.spanMillis) == QuantileMethod.EXACT_RAW,
+                )
+            }
+        }
     }
 }

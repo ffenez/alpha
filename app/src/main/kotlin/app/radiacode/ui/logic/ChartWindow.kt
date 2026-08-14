@@ -93,11 +93,44 @@ object ChartWindows {
      * shows real data instantly and the debounced reload only refines the
      * resolution afterwards.
      */
-    const val LOAD_PADDING_FRACTION = 0.25f
+    /**
+     * Сколько окон запаса читать с каждой стороны.
+     * **Инженерный параметр**: одно окно — уверенный рывок пальцем целиком
+     * укладывается в прочитанное. Четверти, с которой начинали, хватало на
+     * лёгкий сдвиг, а на настоящий жест — нет.
+     */
+    const val LOAD_PADDING_FRACTION = 1.0f
 
-    /** Visible window → the range to ask the database for (right edge ≤ now). */
+    /**
+     * Visible window → the range to ask the database for (right edge ≤ now).
+     *
+     * ## Запас — это и есть отзывчивость жеста
+     *
+     * Сдвиг внутри прочитанного не требует запроса: снимок неизменен, меняется
+     * проекция. Значит чем шире запас, тем дольше палец водит график без
+     * похода в базу. Прежняя четверть окна кончалась после первого же
+     * уверенного рывка, и загрузка была видна глазом.
+     *
+     * ## Но запас не имеет права менять ПУТЬ ЧТЕНИЯ
+     *
+     * Метод квантилей выбирается по длине ЗАГРУЖАЕМОГО диапазона: до шести
+     * часов — точные порядковые статистики сырых отсчётов, дальше — слияние
+     * почасовых скетчей. Раздуть запас так, чтобы окно перескочило границу,
+     * значит молча сменить метод — и подпись под графиком стала бы говорить
+     * «приближение» там, где человек ничего не менял. Поэтому у окна, которое
+     * читается точно, запас ограничен остатком до границы.
+     */
     fun loadRange(window: ChartWindow, nowMillis: Long): ChartWindow {
-        val pad = (window.spanMillis * LOAD_PADDING_FRACTION).toLong()
+        val span = window.spanMillis
+        val wanted = (span * LOAD_PADDING_FRACTION).toLong()
+        val exactLimit = QuantilePaths.EXACT_MAX_SPAN_MILLIS
+        val pad = if (span >= exactLimit) {
+            // Длинное окно и так на скетчах: там строка — это час, и лишний
+            // запас стоит десятков строк, а не десятков тысяч.
+            wanted
+        } else {
+            wanted.coerceAtMost((exactLimit - span) / 2)
+        }.coerceAtLeast(0L)
         val to = minOf(window.toMillis + pad, nowMillis)
         return ChartWindow(window.fromMillis - pad, maxOf(to, window.toMillis))
     }

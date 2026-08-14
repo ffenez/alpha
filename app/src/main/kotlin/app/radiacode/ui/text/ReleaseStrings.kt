@@ -93,8 +93,8 @@ object ReleaseRu : ReleaseStrings {
             "перетаскивание уводит в прошлое, двойное нажатие возвращает к «сейчас».",
         "Уведённый в прошлое график догружается: раньше он пустел и писал " +
             "«накапливаем измерения», хотя данные за тот период есть.",
-        "Перетаскивание графика стало отзывчивее: сдвиг в пределах уже " +
-            "прочитанного не обращается к базе.",
+        "Перетаскивание графика стало отзывчивее: вперёд читается целое окно " +
+            "с каждой стороны, и рывок пальцем не ждёт базу.",
         "С главного экрана убраны повторы единиц и погрешностей — они остались " +
             "в «Почему такой вывод», рядом с тем, к чему относятся.",
         "Короче формулировки состояния: «Ниже порога тревоги», «Обычно для " +
@@ -287,8 +287,8 @@ object ReleaseEn : ReleaseStrings {
             "goes back in time, a double tap returns to now.",
         "A chart dragged into the past now loads it: before, it went blank and " +
             "said «collecting measurements» although the data was there.",
-        "Dragging a chart feels quicker: a pan inside what was already read no " +
-            "longer touches the database.",
+        "Dragging a chart feels quicker: a whole window is read ahead on each " +
+            "side, so a drag no longer waits for the database.",
         "The main screen drops repeated units and errors; they stay in the why " +
             "sheet, next to what they belong to.",
         "Shorter status wording: «Below the alarm threshold», «Usual for this " +
