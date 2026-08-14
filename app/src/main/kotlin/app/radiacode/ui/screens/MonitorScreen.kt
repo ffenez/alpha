@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -852,6 +853,31 @@ private fun HeroCard(
                 status is MonitorStatus.AboveUsual -> colors.warn
                 status is MonitorStatus.Fixed && status.above -> colors.warn
                 else -> colors.ok
+            }
+            // Когда всё как обычно, сказать нечего — и экран молчит.
+            //
+            // «Обычно здесь» висело под каждым показанием каждый день и через
+            // неделю переставало читаться: строка, которая никогда не меняется,
+            // не сообщает ничего. Остаётся зелёный кружок слева — он и есть
+            // ответ «всё как всегда», и он же открывает разбор, если ответ
+            // хочется проверить. Любое ДРУГОЕ состояние говорит словами: там
+            // молчание было бы утаиванием.
+            val quiet = status is MonitorStatus.Usual &&
+                stream.live &&
+                !stale &&
+                admissionNote(admission, frozen, t) == null &&
+                baselineState !is BaselineState.Learning
+            if (quiet) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
+                        .clickable(onClick = onWhy)
+                        .defaultMinSize(minWidth = Dimens.touchTarget, minHeight = Dimens.touchTarget),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    StatusDot(statusColor, Modifier.padding(start = Dimens.space2))
+                }
+                return@Column
             }
             // Сам вывод — и есть кнопка «почему»: вопрос задают, глядя именно
             // на эту строку, и отдельная кнопка рядом с ней была лишним шагом

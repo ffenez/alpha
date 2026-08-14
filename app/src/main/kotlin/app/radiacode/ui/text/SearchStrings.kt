@@ -428,7 +428,7 @@ object SearchRu : SearchStrings {
 
     override val navWhy = "Почему?"
 
-    override val navWhyTitle = "Почему такой вывод"
+    override val navWhyTitle = "Информация"
     override val navWhyNow = "Сейчас"
     override val navWhyReference = "Точка отсчёта"
     override val navWhyRatio = "Отношение к точке отсчёта"
@@ -636,7 +636,7 @@ object SearchRu : SearchStrings {
         "тон: <300 кэВ — ниже · 300–1000 — обычный · >1000 — выше; " +
             "по среднему кэВ спектра за 5 с, без потока спектра — обычные клики"
 
-    override val whyTitle = "Почему такой вывод"
+    override val whyTitle = "Информация"
 
     override val evidenceLegend =
         "Источник значения: изм. — измерено прибором · расчёт — арифметика из измерений · " +
@@ -801,7 +801,7 @@ object SearchEn : SearchStrings {
 
     override val navWhy = "Why?"
 
-    override val navWhyTitle = "Why this conclusion"
+    override val navWhyTitle = "Information"
     override val navWhyNow = "Now"
     override val navWhyReference = "Reference point"
     override val navWhyRatio = "Ratio to the reference point"
@@ -1015,7 +1015,7 @@ object SearchEn : SearchStrings {
         "pitch: <300 keV — lower · 300–1000 — as usual · >1000 — higher; " +
             "by the mean keV of the spectrum over 5 s, without a spectrum stream — plain clicks"
 
-    override val whyTitle = "Why this conclusion"
+    override val whyTitle = "Information"
 
     override val evidenceLegend =
         "Source of the value: meas. — measured by the instrument · calc. — arithmetic on " +

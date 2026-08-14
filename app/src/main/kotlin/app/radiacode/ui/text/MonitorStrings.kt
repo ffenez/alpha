@@ -252,7 +252,7 @@ object MonitorRu : MonitorStrings {
         "Превышение держится дольше заданного вами времени. Это сравнение с вашим " +
             "порогом L1 и с обычным диапазоном этого места, а не оценка опасности."
 
-    override val whyTitle = "Почему такой вывод"
+    override val whyTitle = "Информация"
     override val bandNotCollected = "диапазон ещё не собран"
     override val showCalculations = "Показать методику и расчёты"
     override val hideCalculations = "Скрыть методику и расчёты"
@@ -426,7 +426,7 @@ object MonitorEn : MonitorStrings {
         "The excess has held longer than the time you set. This is a comparison with your " +
             "L1 threshold and with the usual range of this place, not an assessment of harm."
 
-    override val whyTitle = "Why this conclusion"
+    override val whyTitle = "Information"
     override val bandNotCollected = "the range is not collected yet"
     override val showCalculations = "Show the method and the calculations"
     override val hideCalculations = "Hide the method and the calculations"

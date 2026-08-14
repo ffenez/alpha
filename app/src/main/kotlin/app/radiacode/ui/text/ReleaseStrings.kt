@@ -69,10 +69,9 @@ object ReleaseRu : ReleaseStrings {
 
     override val v035Title = "Вкладки листаются пальцем"
     override val v035Summary =
-        "Между вкладками теперь переходят свайпом: содержимое идёт за пальцем, " +
-        "соседняя вкладка приезжает чуть медленнее и мельче — видно, что она " +
-        "лежит рядом. Заодно вывод на Главной говорит человеческими словами: " +
-        "«обычно здесь 0,09–0,14» вместо «P10–P90 профиля», а порог назван вашим."
+        "Между вкладками теперь переходят свайпом — содержимое идёт за пальцем. " +
+        "А когда всё как обычно, Главная молчит: вместо неизменной строки слева " +
+        "зелёный кружок, по нему открывается «Информация» с числами и критерием."
 
     override val v034Title = "«Набралось сегодня» открывает свой экран"
     override val v034Summary =
@@ -172,10 +171,9 @@ object ReleaseEn : ReleaseStrings {
 
     override val v035Title = "Tabs move under your finger"
     override val v035Summary =
-        "Swipe left or right to change tabs: the content follows the finger and the " +
-        "next tab arrives a little slower and smaller, so it reads as lying beside " +
-        "the current one. The verdict on Home also speaks plainly now — «usually " +
-        "here 0.09–0.14» instead of «profile P10–P90», and the threshold is yours."
+        "Swipe left or right to change tabs — the content follows the finger. And " +
+        "when everything is as usual Home stays quiet: a green dot on the left " +
+        "instead of a line that never changes, opening «Information» with the numbers."
 
     override val v034Title = "«Collected today» opens a screen of its own"
     override val v034Summary =

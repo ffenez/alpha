@@ -208,4 +208,30 @@ class MonitorStatusTest {
             assertTrue(!text.lowercase().contains("baseline"), text)
         }
     }
+
+    /**
+     * Когда всё как обычно, сказать нечего.
+     *
+     * «Обычно здесь» висело под каждым показанием каждый день, и строка,
+     * которая никогда не меняется, перестаёт читаться. Проверяется, что
+     * молчит РОВНО это состояние: любое другое обязано говорить словами, иначе
+     * молчание становится утаиванием.
+     */
+    @Test
+    fun `only the usual state has nothing to say`() {
+        val quiet = MonitorStatus.Usual(baseline)
+        val loud = listOf(
+            MonitorStatus.Unknown,
+            MonitorStatus.Fixed(above = true, thresholdMicroSvH = 0.30f),
+            MonitorStatus.AboveUsual(baseline, heldSeconds = 240),
+            MonitorStatus.AboveThreshold(baseline, 45, 120, 0.30f),
+            MonitorStatus.Alert(baseline, heldSeconds = 300, thresholdMicroSvH = 0.30f),
+        )
+
+        assertTrue(quiet is MonitorStatus.Usual)
+        for (status in loud) {
+            assertTrue(status !is MonitorStatus.Usual, "$status")
+            assertTrue(statusHeadline(status).isNotBlank(), "$status")
+        }
+    }
 }

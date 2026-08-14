@@ -1,7 +1,6 @@
 package app.radiacode.ui.components
 
 import androidx.compose.foundation.gestures.snapping.SnapPosition
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -9,22 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.graphicsLayer
-import app.radiacode.ui.theme.LocalAppColors
-import kotlin.math.absoluteValue
 
 /**
  * Вкладки листаются пальцем.
- *
- * ## Что здесь за движение
- *
- * Соседняя вкладка приезжает МЕДЛЕННЕЕ пальца и чуть уменьшенной, а уходящая
- * притемняется. Это не украшение: разная скорость слоёв — единственный
- * способ показать, что вкладки лежат рядом, а не подменяют друг друга, и
- * именно поэтому жест ощущается как перемещение, а не как перелистывание
- * картинок. Числа внутри при этом не анимируются ничем — движется КАДР, а не
- * данные (`ui/theme/Motion.kt`).
  *
  * ## Почему пейджер, а не жест поверх смены экрана
  *
@@ -33,8 +19,16 @@ import kotlin.math.absoluteValue
  * содержимое за пальцем и умеет бросок; отпущенный на полпути жест
  * возвращается сам.
  *
- * Соседние вкладки при этом НЕ висят в памяти постоянно: пейджер держит
- * только видимую страницу и ту, к которой ведёт палец.
+ * ## Почему без параллакса и притемнения
+ *
+ * Они здесь были — и лагали. Причина не в самих слоях: положение страницы
+ * читалось В СБОРКЕ, а значит каждый кадр жеста пересобирал вкладку целиком —
+ * со всеми её карточками, графиками и чтением состояния. Красивый эффект,
+ * который стоит пересборки Главной шестьдесят раз в секунду, дороже того, что
+ * он сообщает; страница едет за пальцем и без него.
+ *
+ * Соседние вкладки не висят в памяти постоянно: пейджер держит только видимую
+ * страницу и ту, к которой ведёт палец.
  */
 @Composable
 fun TabPager(
@@ -45,7 +39,6 @@ fun TabPager(
     content: @Composable (AppTab) -> Unit,
 ) {
     if (tabs.isEmpty()) return
-    val colors = LocalAppColors.current
     val startPage = tabs.indexOf(selected).coerceAtLeast(0)
     val state = rememberPagerState(initialPage = startPage) { tabs.size }
 
@@ -70,38 +63,7 @@ fun TabPager(
         // значило бы платить за них всё время.
         beyondViewportPageCount = 0,
     ) { page ->
-        val offset = (state.currentPage - page) + state.currentPageOffsetFraction
-        val distance = offset.absoluteValue.coerceIn(0f, 1f)
-        Box(
-            Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    // Содержимое отстаёт от страницы на четверть хода —
-                    // параллакс, из-за которого вкладки читаются как соседние.
-                    translationX = size.width * offset * PARALLAX
-                    val scale = 1f - distance * (1f - MIN_SCALE)
-                    scaleX = scale
-                    scaleY = scale
-                }
-                // Уходящая вкладка притемняется фоном, а не прозрачностью:
-                // прозрачная страница просвечивала бы соседнюю насквозь.
-                .drawWithContent {
-                    drawContent()
-                    if (distance > 0f) {
-                        drawRect(colors.bg.copy(alpha = distance * DIM))
-                    }
-                },
-        ) {
-            content(tabs[page])
-        }
+        content(tabs[page])
     }
 }
 
-/** Насколько содержимое отстаёт от хода страницы. */
-private const val PARALLAX = 0.25f
-
-/** До какого масштаба ужимается страница, полностью ушедшая за край. */
-private const val MIN_SCALE = 0.92f
-
-/** Насколько притемняется уходящая страница. */
-private const val DIM = 0.45f
