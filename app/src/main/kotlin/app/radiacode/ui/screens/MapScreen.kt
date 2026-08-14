@@ -7,6 +7,7 @@ import android.location.LocationManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -58,6 +62,7 @@ import app.radiacode.ui.components.AppButton
 import app.radiacode.data.export.SeriesExport
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
@@ -457,6 +462,8 @@ fun MapScreen(graph: AppGraph) {
                 data = d,
                 unit = unit,
                 title = if (recording != null) t.routeMine else t.route,
+                scaleMode = scaleMode,
+                scaleIsAbsolute = usualBand != null,
             )
         }
 
@@ -520,6 +527,80 @@ fun MapScreen(graph: AppGraph) {
  */
 @Composable
 fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) {
+    val t = MapCatalogue.of(LocalStrings.current.language)
+    var data by remember { mutableStateOf<TrackData?>(null) }
+    LaunchedEffect(sessionId) {
+        val summary = graph.sessionRepository.summary(sessionId)
+        if (summary == null) {
+            data = TrackData.EMPTY
+            return@LaunchedEffect
+        }
+        val to = summary.endedAt ?: System.currentTimeMillis()
+        val trackSessions = graph.trackRepository.sessionsOverlapping(summary.startedAt, to)
+        val points = trackSessions
+            .flatMap { graph.trackRepository.points(it.id).first() }
+            .sortedBy { it.timestamp }
+            .map { it.toMapPoint() }
+        val hotspots = graph.sessionRepository
+            .deviationEvents(summary.startedAt, to, limit = HOTSPOT_EVENT_LIMIT)
+            .mapNotNull { it.toHotspot(summary.startedAt, to) }
+        data = TrackData(
+            trackSessionId = trackSessions.firstOrNull()?.id,
+            startedAt = summary.startedAt,
+            endedAt = to,
+            points = points,
+            hotspots = hotspots,
+        )
+    }
+    TrackDetailScreen(graph = graph, data = data, title = t.sessionTrack, onBack = onBack)
+}
+
+/**
+ * Сохранённый маршрут, открытый из Истории.
+ *
+ * Ключ здесь — сам маршрут, а не сессия измерения: одна прогулка может лежать
+ * внутри одной сессии, поперёк двух или вовсе без неё, и открывать её через
+ * сессию значило бы искать запись не по тому, чем она является.
+ */
+@Composable
+fun RouteMapScreen(graph: AppGraph, routeId: Long, onBack: () -> Unit) {
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    val t = MapCatalogue.of(strings.language)
+    var data by remember { mutableStateOf<TrackData?>(null) }
+    var title by remember { mutableStateOf(t.route) }
+    LaunchedEffect(routeId) {
+        val session = graph.trackRepository.session(routeId)
+        if (session == null) {
+            data = TrackData.EMPTY
+            return@LaunchedEffect
+        }
+        val to = session.endedAt ?: System.currentTimeMillis()
+        val points = graph.trackRepository.points(routeId).first().map { it.toMapPoint() }
+        val hotspots = graph.sessionRepository
+            .deviationEvents(session.startedAt, to, limit = HOTSPOT_EVENT_LIMIT)
+            .mapNotNull { it.toHotspot(session.startedAt, to) }
+        title = session.name.trim()
+            .ifEmpty { HistoryFormat.dayTime(session.startedAt, System.currentTimeMillis(), s = h) }
+        data = TrackData(
+            trackSessionId = routeId,
+            startedAt = session.startedAt,
+            endedAt = session.endedAt,
+            points = points,
+            hotspots = hotspots,
+        )
+    }
+    TrackDetailScreen(graph = graph, data = data, title = title, onBack = onBack)
+}
+
+/** Общий экран одного следа: карта, сводка, экспорт. */
+@Composable
+private fun TrackDetailScreen(
+    graph: AppGraph,
+    data: TrackData?,
+    title: String,
+    onBack: () -> Unit,
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val t = MapCatalogue.of(LocalStrings.current.language)
@@ -557,31 +638,6 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
         }
     }
 
-    var data by remember { mutableStateOf<TrackData?>(null) }
-    LaunchedEffect(sessionId) {
-        val summary = graph.sessionRepository.summary(sessionId)
-        if (summary == null) {
-            data = TrackData.EMPTY
-            return@LaunchedEffect
-        }
-        val to = summary.endedAt ?: System.currentTimeMillis()
-        val trackSessions = graph.trackRepository.sessionsOverlapping(summary.startedAt, to)
-        val points = trackSessions
-            .flatMap { graph.trackRepository.points(it.id).first() }
-            .sortedBy { it.timestamp }
-            .map { it.toMapPoint() }
-        val hotspots = graph.sessionRepository
-            .deviationEvents(summary.startedAt, to, limit = HOTSPOT_EVENT_LIMIT)
-            .mapNotNull { it.toHotspot(summary.startedAt, to) }
-        data = TrackData(
-            trackSessionId = trackSessions.firstOrNull()?.id,
-            startedAt = summary.startedAt,
-            endedAt = to,
-            points = points,
-            hotspots = hotspots,
-        )
-    }
-
     Column(
         modifier = Modifier.fillMaxSize().padding(Dimens.space3),
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
@@ -598,7 +654,7 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
                     onClick = {
                         scope.launch {
                             val points = graph.trackRepository.points(trackId).first()
-                            pendingGpx = SeriesExport.gpx(points, t.sessionTrack)
+                            pendingGpx = SeriesExport.gpx(points, title)
                             gpxLauncher.launch(
                                 SeriesExport.fileName(
                                     points.firstOrNull()?.timestamp
@@ -611,7 +667,7 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
                 )
                 Spacer(Modifier.width(Dimens.space2))
             }
-            Chip(text = t.sessionTrack, color = colors.ink)
+            Chip(text = title, color = colors.ink)
         }
         notice?.let { Text(text = it, style = type.footnote, color = colors.muted) }
 
@@ -646,7 +702,13 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             if (d != null && d.points.isNotEmpty()) {
-                RouteSummaryCard(data = d, unit = unit, title = t.route)
+                RouteSummaryCard(
+                    data = d,
+                    unit = unit,
+                    title = t.route,
+                    scaleMode = scaleMode,
+                    scaleIsAbsolute = usualBand != null,
+                )
             }
         }
     }
@@ -788,79 +850,49 @@ private fun TrackMapCard(
             }
         }
 
-        // Снизу слева — камера. Два разных действия, две разные иконки: одна
-        // ведёт к человеку, вторая показывает нарисованное целиком, и подменять
-        // друг друга они не имеют права.
+        // Снизу слева — что показано: величина переключается чаще, чем
+        // двигается камера, и стоит она под большим пальцем.
         Column(
             verticalArrangement = Arrangement.spacedBy(Dimens.space1),
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 // Снизу слева стоит указание авторства OpenStreetMap — это
                 // условие лицензии тайлов, а не подпись, которую можно закрыть
-                // кнопкой. Отступ оставляет её видимой.
+                // контролом. Отступ оставляет её видимой.
                 .padding(start = Dimens.space2, end = Dimens.space2, bottom = ATTRIBUTION_SPACE),
         ) {
-            val fitBoundsAvailable = if (grid != null) initialBounds != null else render.bounds != null
-            if (fitBoundsAvailable) {
-                MapIconButton(
-                    glyph = FIT_GLYPH,
-                    description = if (grid != null) t.centerOnAll else t.centerOnRoute,
-                    onClick = { recenterTick++ },
-                )
-            }
-            if (MyPosition.markerVisible(positionState, position)) {
-                MapIconButton(
-                    glyph = POSITION_GLYPH,
-                    description = t.centerOnMe,
-                    onClick = { followTick++ },
-                    tint = colors.dataText,
-                )
-            }
-        }
-
-        // Снизу справа — что показано и что означает цвет.
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(Dimens.space1),
-            modifier = Modifier.align(Alignment.BottomEnd).padding(Dimens.space2),
-        ) {
-            val scale = if (grid != null) grid.scale else render.scale
-            scale?.let {
-                LegendBar(
-                    minLabel = legendLabel(it.low, metric, unit),
-                    maxLabel = legendLabel(it.high, metric, unit) + " " +
-                        metricUnitLabel(metric, unit),
-                    // Легенда называет РЕЖИМ: одно и то же значение красится
-                    // по-разному в абсолютной шкале и в растянутой, и человек
-                    // обязан знать, какую из двух он сейчас читает.
-                    caption = listOfNotNull(
-                        when (it.mode) {
-                            MapColorScale.ABSOLUTE -> t.scaleAbsolute
-                            MapColorScale.ROUTE_CONTRAST -> t.scaleContrast
-                        },
-                        grid?.let { data ->
-                            val sparse = data.cells.count { cell ->
-                                cell.count < MIN_CONFIDENT_POINTS
-                            }
-                            listOfNotNull(
-                                t.cellSize(TrackGrid.formatCellSize(data.cellMeters, t)),
-                                t.median,
-                                if (sparse > 0) {
-                                    t.paleCells(sparse, MIN_CONFIDENT_POINTS)
-                                } else {
-                                    null
-                                },
-                            ).joinToString(" · ")
-                        },
-                    ).joinToString(" · "),
-                )
-            }
             Segmented(
                 options = listOf(t.metricDose, t.metricCps),
                 selectedIndex = metricIndex,
                 onSelect = onMetricSelect,
                 modifier = Modifier.width(METRIC_TOGGLE_WIDTH),
             )
+        }
+
+        // Снизу справа — камера. Два разных действия, две разные иконки: одна
+        // ведёт к человеку, вторая показывает нарисованное целиком, и подменять
+        // друг друга они не имеют права.
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(Dimens.space2),
+        ) {
+            val fitBoundsAvailable = if (grid != null) initialBounds != null else render.bounds != null
+            if (fitBoundsAvailable) {
+                MapIconButton(
+                    icon = MapIcon.FIT,
+                    description = if (grid != null) t.centerOnAll else t.centerOnRoute,
+                    onClick = { recenterTick++ },
+                )
+            }
+            if (MyPosition.markerVisible(positionState, position)) {
+                MapIconButton(
+                    icon = MapIcon.MY_LOCATION,
+                    description = t.centerOnMe,
+                    onClick = { followTick++ },
+                    tint = colors.data,
+                )
+            }
         }
 
         // Empty state teaches the first action (design language).
@@ -882,9 +914,8 @@ private fun TrackMapCard(
     }
 }
 
-/** «Показать целиком» и «я здесь» — разные глифы, разные действия. */
-private const val FIT_GLYPH = "⤢"
-private const val POSITION_GLYPH = "⌖"
+/** Что делает кнопка поверх карты. Два действия — два разных рисунка. */
+private enum class MapIcon { MY_LOCATION, FIT }
 
 /** Место под указание авторства OSM в нижнем левом углу карты. */
 private val ATTRIBUTION_SPACE = 22.dp
@@ -893,73 +924,75 @@ private val ATTRIBUTION_SPACE = 22.dp
 private val METRIC_TOGGLE_WIDTH = 132.dp
 
 /**
- * Круглая кнопка поверх карты: глиф маленький, цель нажатия — обычного
- * мобильного размера. Подпись остаётся только для доступности: текст рядом с
- * иконкой отъедал бы карту ради слова, которое иконка уже сказала.
+ * Круглая кнопка поверх карты: значок рисуется, а не набирается символом —
+ * типографский «⌖» в разных шрифтах выглядит по-разному и на части устройств
+ * не отрисовывается вовсе. Цель нажатия — обычного мобильного размера, даже
+ * когда сам значок маленький; подпись остаётся для доступности.
  */
 @Composable
 private fun MapIconButton(
-    glyph: String,
+    icon: MapIcon,
     description: String,
     onClick: () -> Unit,
-    tint: androidx.compose.ui.graphics.Color? = null,
+    tint: Color? = null,
 ) {
     val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
+    val color = tint ?: colors.ink
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(22.dp))
+            .size(Dimens.touchTarget)
+            .clip(RoundedCornerShape(Dimens.touchTarget / 2))
             .background(colors.surface)
             .clickable(onClickLabel = description, onClick = onClick),
     ) {
-        Text(text = glyph, style = type.value, color = tint ?: colors.ink)
-    }
-}
-
-/** Ramp swatches with the honest bounds of the scale that is drawn. */
-@Composable
-private fun LegendBar(minLabel: String, maxLabel: String, caption: String? = null) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    Column(
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        modifier = Modifier
-            .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
-            .background(colors.surface)
-            .padding(horizontal = 9.dp, vertical = 5.dp),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(text = minLabel, style = type.axis, color = colors.ink2)
-            // Ступени вплотную: это одна шкала, а не набор образцов.
-            Row {
-                TrackRampColors.forEach { step ->
-                    Box(Modifier.size(width = 10.dp, height = 8.dp).background(step))
+        Canvas(Modifier.size(22.dp)) {
+            val stroke = 1.6.dp.toPx()
+            when (icon) {
+                // «Я на карте»: кольцо с точкой и четырьмя засечками по осям —
+                // тот же знак, что на любой карте, поэтому объяснять его нечем.
+                MapIcon.MY_LOCATION -> {
+                    val radius = size.minDimension / 2f
+                    val ring = radius * 0.55f
+                    drawCircle(color = color, radius = ring, style = Stroke(width = stroke))
+                    drawCircle(color = color, radius = ring * 0.34f)
+                    val tick = radius * 0.28f
+                    listOf(
+                        Offset(center.x, 0f) to Offset(center.x, tick),
+                        Offset(center.x, size.height) to Offset(center.x, size.height - tick),
+                        Offset(0f, center.y) to Offset(tick, center.y),
+                        Offset(size.width, center.y) to Offset(size.width - tick, center.y),
+                    ).forEach { (from, to) ->
+                        drawLine(color = color, start = from, end = to, strokeWidth = stroke)
+                    }
+                }
+                // «Показать целиком»: четыре угла рамки — жест «вместить всё».
+                MapIcon.FIT -> {
+                    val inset = size.minDimension * 0.16f
+                    val arm = size.minDimension * 0.22f
+                    val left = inset
+                    val top = inset
+                    val right = size.width - inset
+                    val bottom = size.height - inset
+                    listOf(
+                        Offset(left, top) to Offset(left + arm, top),
+                        Offset(left, top) to Offset(left, top + arm),
+                        Offset(right, top) to Offset(right - arm, top),
+                        Offset(right, top) to Offset(right, top + arm),
+                        Offset(left, bottom) to Offset(left + arm, bottom),
+                        Offset(left, bottom) to Offset(left, bottom - arm),
+                        Offset(right, bottom) to Offset(right - arm, bottom),
+                        Offset(right, bottom) to Offset(right, bottom - arm),
+                    ).forEach { (from, to) ->
+                        drawLine(color = color, start = from, end = to, strokeWidth = stroke)
+                    }
                 }
             }
-            Text(text = maxLabel, style = type.axis, color = colors.ink2)
-        }
-        caption?.takeIf { it.isNotBlank() }?.let {
-            Text(text = it, style = type.footnote, color = colors.muted)
         }
     }
 }
 
-/** Единица шкалы: у двух величин она разная, и легенда обязана её назвать. */
-@Composable
-private fun metricUnitLabel(metric: TrackMetric, unit: DoseUnitSetting): String {
-    val strings = LocalStrings.current
-    return when (metric) {
-        TrackMetric.DOSE -> DoseFormat.rateUnitLabel(unit, s = strings)
-        TrackMetric.CPS -> MapCatalogue.of(strings.language).unitCps
-    }
-}
-
+/** Значение выбранной величины так, как его подписывают карточки карты. */
 private fun legendLabel(value: Float, metric: TrackMetric, unit: DoseUnitSetting): String =
     when (metric) {
         TrackMetric.DOSE -> DoseFormat.rate(value, unit)
@@ -1111,7 +1144,14 @@ private const val DWELL_WINDOW_MILLIS = 10L * 60_000
 // --- summary and states ---
 
 @Composable
-private fun RouteSummaryCard(data: TrackData, unit: DoseUnitSetting, title: String) {
+private fun RouteSummaryCard(
+    data: TrackData,
+    unit: DoseUnitSetting,
+    title: String,
+    /** Чем заданы границы цвета следа; на карте это место не занимает. */
+    scaleMode: MapColorScale = MapColorScale.ABSOLUTE,
+    scaleIsAbsolute: Boolean = true,
+) {
     val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -1152,6 +1192,18 @@ private fun RouteSummaryCard(data: TrackData, unit: DoseUnitSetting, title: Stri
                         StatCell(HistoryFormat.count(it), t.statMarkers)
                     },
                 ),
+            )
+            // Что означает цвет — здесь, а не поверх карты: карта осталась
+            // картой, а объяснение живёт там же, где остальные пояснения, и
+            // выключается вместе с ними.
+            Hint(
+                text = if (scaleIsAbsolute && scaleMode == MapColorScale.ABSOLUTE) {
+                    t.scaleAbsolute
+                } else {
+                    t.scaleContrast
+                },
+                style = type.footnote,
+                color = colors.muted,
             )
         }
     }

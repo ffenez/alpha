@@ -18,6 +18,17 @@ object MigrationSql {
      * значило бы угадывать. Существующие опыты остаются с этой фразой; поля
      * заполняются у новых. Ни одна строка не переписывается.
      */
+    /**
+     * v12 → v13: у маршрута появляется своё место в Истории, а значит и свои
+     * данные — пройденное расстояние, посчитанное один раз.
+     *
+     * Только добавление: старым маршрутам расстояние не выдумывается, оно
+     * остаётся `NULL` и считается при первом открытии списка по их точкам.
+     */
+    val FROM_12_TO_13: List<String> = listOf(
+        "ALTER TABLE `track_sessions` ADD COLUMN `distanceMeters` REAL",
+    )
+
     val FROM_11_TO_12: List<String> = listOf(
         "ALTER TABLE `experiments` ADD COLUMN `distanceCm` INTEGER",
         "ALTER TABLE `experiments` ADD COLUMN `placement` TEXT NOT NULL DEFAULT ''",

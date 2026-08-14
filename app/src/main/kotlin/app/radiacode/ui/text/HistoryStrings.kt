@@ -99,6 +99,34 @@ interface HistoryStrings {
     fun spectraFromList(spectra: String): String
     val cannotUndo: String
     val tracksAndSpectraStay: String
+
+    // ------------------------------------------------------------- маршруты
+    /** Фильтры журнала: что он показывает. */
+    val filterAll: String
+    val filterSessions: String
+    val filterRoutes: String
+    val filterSpectra: String
+
+    val routesTitle: String
+    val noRoutesYet: String
+    val routesExplained: String
+    /** Маршрут ещё пишется — числа по нему ещё меняются. */
+    val routeRecording: String
+    fun routeMeasurements(count: String): String
+    val routeRename: String
+    val routeNameHint: String
+    val routeCompare: String
+    fun routeCompareCount(count: Int): String
+    val routeCompareTitle: String
+    val routeCompareNeedTwo: String
+    /**
+     * Сравнение честно называет свою границу: одинаковая шкала делает цвета
+     * сопоставимыми, но не превращает разницу чисел в вывод о различии.
+     */
+    val routeCompareCaveat: String
+    val routeOpen: String
+    val statDistance: String
+    val statDose: String
     val measurementsUntouched: String
     val markWhatToDelete: String
 
@@ -188,6 +216,33 @@ object HistoryRu : HistoryStrings {
     override val tracksAndSpectraStay =
         "Записанные маршруты на Карте и сохранённые спектры остаются — их удаляют " +
             "отдельно. Обычный фон профиля пересчитается без удалённых измерений."
+
+    override val filterAll = "Все"
+    override val filterSessions = "Сессии"
+    override val filterRoutes = "Маршруты"
+    override val filterSpectra = "Спектры"
+
+    override val routesTitle = "Маршруты"
+    override val noRoutesYet = "Маршрутов пока нет"
+    override val routesExplained =
+        "Маршрут записывается на Карте: пока запись идёт, точки с координатами " +
+            "и показаниями сохраняются сами и остаются здесь после неё."
+    override val routeRecording = "идёт запись"
+    override fun routeMeasurements(count: String) = "$count измерений"
+    override val routeRename = "Переименовать"
+    override val routeNameHint = "Название маршрута"
+    override val routeCompare = "Сравнить"
+    override fun routeCompareCount(count: Int) = "Сравнить ($count)"
+    override val routeCompareTitle = "Сравнение маршрутов"
+    override val routeCompareNeedTwo = "выберите хотя бы два маршрута"
+    override val routeCompareCaveat =
+        "Шкала цвета у всех маршрутов одна, поэтому цвета сравнимы. Разница " +
+            "чисел сама по себе различием не является: маршруты проходят по " +
+            "разной геометрии и в разное время."
+    override val routeOpen = "Открыть"
+    override val statDistance = "путь"
+    override val statDose = "доза"
+
 
     override val measurementsUntouched = "Измерения и маршруты не затрагиваются."
 
@@ -292,6 +347,33 @@ object HistoryEn : HistoryStrings {
         "Recorded tracks on the Map and saved spectra stay — they are deleted separately. " +
             "The profile's usual background will be recomputed without the deleted measurements."
 
+    override val filterAll = "All"
+    override val filterSessions = "Sessions"
+    override val filterRoutes = "Routes"
+    override val filterSpectra = "Spectra"
+
+    override val routesTitle = "Routes"
+    override val noRoutesYet = "No routes yet"
+    override val routesExplained =
+        "A route is recorded on the Map: while recording runs, points with " +
+            "coordinates and readings are stored by themselves and stay here."
+    override val routeRecording = "recording"
+    override fun routeMeasurements(count: String) = "$count measurements"
+    override val routeRename = "Rename"
+    override val routeNameHint = "Route name"
+    override val routeCompare = "Compare"
+    override fun routeCompareCount(count: Int) = "Compare ($count)"
+    override val routeCompareTitle = "Route comparison"
+    override val routeCompareNeedTwo = "pick at least two routes"
+    override val routeCompareCaveat =
+        "All routes share one colour scale, so the colours are comparable. A " +
+            "difference in the numbers is not by itself a difference: the " +
+            "routes run over different geometry and at different times."
+    override val routeOpen = "Open"
+    override val statDistance = "distance"
+    override val statDose = "dose"
+
+
     override val measurementsUntouched = "Measurements and tracks are left untouched."
 
     override val markWhatToDelete = "Tick what to delete"
@@ -307,6 +389,11 @@ val HistoryCatalogue = AreaCatalogue(ru = HistoryRu, en = HistoryEn)
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun HistoryStrings.allTexts(): List<String> = months + listOf(
+    filterAll, filterSessions, filterRoutes, filterSpectra,
+    routesTitle, noRoutesYet, routesExplained, routeRecording,
+    routeMeasurements("4 654"), routeRename, routeNameHint,
+    routeCompare, routeCompareCount(2), routeCompareTitle, routeCompareNeedTwo,
+    routeCompareCaveat, routeOpen, statDistance, statDose,
     seconds(45), minutes(12), hours(8), hoursMinutes(8, 12),
     // Причина подставляется каталогом Монитора — здесь стоит её образец на
     // языке человека, а не имя механизма движка.

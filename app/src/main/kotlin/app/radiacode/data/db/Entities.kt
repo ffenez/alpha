@@ -226,9 +226,21 @@ data class MeasurementSessionEntity(
 @Entity(tableName = "track_sessions")
 data class TrackSessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /**
+     * Название маршрута. Пустое — значит человек его не давал, и список
+     * подписывает маршрут датой: заставлять придумывать имя ДО прогулки
+     * значило бы требовать решения раньше, чем есть о чём.
+     */
     val name: String,
     val startedAt: Long,
     val endedAt: Long? = null,
+    /**
+     * Пройденное расстояние, м. Считается один раз — по завершении записи, по
+     * полному списку точек: пересчитывать его на каждую отрисовку списка
+     * значило бы читать десятки тысяч координат ради одной строки. Null —
+     * ещё не посчитано (маршрут записан прежней версией или идёт сейчас).
+     */
+    val distanceMeters: Double? = null,
 )
 
 @Entity(

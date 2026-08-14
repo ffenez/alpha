@@ -97,6 +97,17 @@ import app.radiacode.ui.theme.LocalAppTypography
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.delay
+import app.radiacode.ui.components.AppTextField
+import app.radiacode.ui.components.RouteThumbnail
+import app.radiacode.ui.logic.HistoryFilter
+import app.radiacode.ui.logic.RouteFormat
+import app.radiacode.ui.logic.RouteShape
+import app.radiacode.ui.logic.RouteSummary
+import app.radiacode.ui.logic.TrackMap
+import app.radiacode.ui.text.MapCatalogue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 private const val PAGE_SIZE = 20
@@ -160,6 +171,10 @@ fun HistoryScreen(
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
     val scope = rememberCoroutineScope()
+    // Что показывает журнал. Сессия, маршрут и снимок спектра — три разные
+    // вещи, и искать одну среди трёх перемешанных списков тяжело; фильтр не
+    // прячет данные, а отвечает на вопрос «мне сейчас нужно вот это».
+    var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
     var pages by remember { mutableIntStateOf(1) }
     var model by remember { mutableStateOf<HistoryModel?>(null) }
     var reload by remember { mutableIntStateOf(0) }
@@ -168,6 +183,46 @@ fun HistoryScreen(
             model = loadHistory(graph, pages * PAGE_SIZE)
             delay(REFRESH_MILLIS)
         }
+    }
+
+    // Маршруты: список строк журнала со своими числами. Перечитывается вместе
+    // с остальным журналом — запись маршрута идёт как раз тогда, когда человек
+    // сюда заглядывает.
+    var routes by remember { mutableStateOf<List<RouteSummary>>(emptyList()) }
+    LaunchedEffect(reload, filter) {
+        while (true) {
+            routes = withContext(Dispatchers.IO) {
+                graph.trackRepository.sessions().first().map {
+                    graph.trackRepository.routeSummary(it)
+                }
+            }
+            delay(REFRESH_MILLIS)
+        }
+    }
+    var comparing by remember { mutableStateOf<List<Long>?>(null) }
+    var openRoute by remember { mutableStateOf<Long?>(null) }
+    var renaming by remember { mutableStateOf<RouteSummary?>(null) }
+
+    openRoute?.let { routeId ->
+        RouteMapScreen(graph = graph, routeId = routeId, onBack = { openRoute = null })
+        return
+    }
+    comparing?.let { ids ->
+        RouteCompareScreen(graph = graph, routeIds = ids, onBack = { comparing = null })
+        return
+    }
+    renaming?.let { route ->
+        RouteRenameDialog(
+            route = route,
+            onDismiss = { renaming = null },
+            onSave = { name ->
+                scope.launch {
+                    graph.trackRepository.rename(route.id, name)
+                    renaming = null
+                    reload += 1
+                }
+            },
+        )
     }
 
     // Уборка журнала: один режим выбора на сессии и спектры — они лежат в
@@ -272,13 +327,31 @@ fun HistoryScreen(
             }
         }
 
+        Segmented(
+            options = listOf(h.filterAll, h.filterSessions, h.filterRoutes, h.filterSpectra),
+            selectedIndex = HistoryFilter.entries.indexOf(filter),
+            onSelect = { filter = HistoryFilter.entries[it] },
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         val m = model
         if (m == null) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Text(text = strings.readingJournal, style = type.bodySmall, color = colors.muted)
             }
         } else {
-            SavedSpectraCard(
+            if (filter == HistoryFilter.ALL || filter == HistoryFilter.ROUTES) {
+                RoutesCard(
+                    routes = routes,
+                    unit = unit,
+                    graph = graph,
+                    onOpen = { openRoute = it },
+                    onRename = { renaming = it },
+                    onCompare = { ids -> comparing = ids },
+                )
+            }
+
+            if (filter == HistoryFilter.ALL || filter == HistoryFilter.SPECTRA) SavedSpectraCard(
                 graph = graph,
                 spectra = savedSpectra,
                 onCompare = { first, second -> comparePair = first to second },
@@ -289,7 +362,10 @@ fun HistoryScreen(
                 onToggle = { id -> selection = selection.toggleSpectrum(id) },
             )
 
-            if (m.items.isEmpty()) {
+            val showSessions = filter == HistoryFilter.ALL || filter == HistoryFilter.SESSIONS
+            if (!showSessions) {
+                Unit
+            } else if (m.items.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                         Text(
@@ -341,7 +417,7 @@ fun HistoryScreen(
                 }
             }
 
-            if (m.totalSessions > m.items.count { it is HistoryItem.Session }) {
+            if (showSessions && m.totalSessions > m.items.count { it is HistoryItem.Session }) {
                 // Компактный чип вместо кнопки во всю ширину: догрузка — не
                 // главное действие экрана, а продолжение списка.
                 Chip(
@@ -388,6 +464,217 @@ fun HistoryScreen(
 
 
 
+
+/**
+ * Маршруты журнала: своя карточка, а не строки среди сессий.
+ *
+ * Сессия отвечает «что прибор намерил за это время», маршрут — «где я прошёл
+ * и как менялся уровень по дороге». Мешать их в одном списке значило бы
+ * заставлять человека каждый раз понимать, что за строка перед ним.
+ */
+@Composable
+private fun RoutesCard(
+    routes: List<RouteSummary>,
+    unit: DoseUnitSetting,
+    graph: AppGraph,
+    onOpen: (Long) -> Unit,
+    onRename: (RouteSummary) -> Unit,
+    onCompare: (List<Long>) -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    val type = LocalAppTypography.current
+    var picked by remember { mutableStateOf(setOf<Long>()) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = h.routesTitle.uppercase(), style = type.labelSmall, color = colors.ink2)
+                Spacer(Modifier.weight(1f))
+                // Сравнение появляется, когда выбрано хотя бы два: кнопка,
+                // которая ничего не сравнивает, — это вопрос без ответа.
+                if (picked.size >= 2) {
+                    Chip(
+                        text = h.routeCompareCount(picked.size),
+                        color = colors.dataText,
+                        selected = true,
+                        onClick = {
+                            onCompare(routes.filter { it.id in picked }.map { it.id })
+                        },
+                    )
+                }
+            }
+
+            if (routes.isEmpty()) {
+                Text(text = h.noRoutesYet, style = type.bodySmall, color = colors.ink2)
+                Hint(text = h.routesExplained, style = type.bodySmall, color = colors.muted)
+            } else {
+                routes.forEachIndexed { index, route ->
+                    if (index > 0) AppDivider()
+                    RouteRow(
+                        route = route,
+                        unit = unit,
+                        graph = graph,
+                        picked = route.id in picked,
+                        onPick = {
+                            picked = if (route.id in picked) picked - route.id else picked + route.id
+                        },
+                        onOpen = { onOpen(route.id) },
+                        onRename = { onRename(route) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RouteRow(
+    route: RouteSummary,
+    unit: DoseUnitSetting,
+    graph: AppGraph,
+    picked: Boolean,
+    onPick: () -> Unit,
+    onOpen: () -> Unit,
+    onRename: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    val type = LocalAppTypography.current
+    val now = System.currentTimeMillis()
+    val mapStrings = MapCatalogue.of(strings.language)
+
+    // Форма маршрута читается один раз на строку и прореженной: по ногтю
+    // маршрут узнают, а не измеряют.
+    var shape by remember(route.id, route.measurementCount) {
+        mutableStateOf<List<Pair<Float, Float>>>(emptyList())
+    }
+    LaunchedEffect(route.id, route.measurementCount) {
+        shape = withContext(Dispatchers.IO) {
+            RouteShape.normalize(graph.trackRepository.routeShape(route.id, route.measurementCount))
+        }
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onOpen,
+            )
+            .padding(vertical = 9.dp),
+    ) {
+        RouteThumbnail(shape = shape)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = RouteFormat.title(route, now, h),
+                    style = type.label,
+                    color = colors.ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (route.running) {
+                    Text(
+                        text = h.routeRecording,
+                        style = type.label,
+                        color = colors.ok,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
+            Text(
+                text = listOfNotNull(
+                    HistoryFormat.dayTime(route.startedAt, now, s = h)
+                        .takeIf { route.name.isNotBlank() },
+                    HistoryFormat.duration(route.durationSeconds, s = h),
+                    route.distanceMeters?.let { TrackMap.formatDistance(it, mapStrings) },
+                    h.routeMeasurements(HistoryFormat.count(route.measurementCount)),
+                ).joinToString(" · "),
+                style = type.footnote,
+                color = colors.ink2,
+            )
+            Text(
+                text = listOfNotNull(
+                    route.avgDoseMicroSvH?.let {
+                        "${mapStrings.statAvg} ${DoseFormat.rate(it, unit)}"
+                    },
+                    route.maxDoseMicroSvH?.let {
+                        "${mapStrings.statMax} ${DoseFormat.rate(it, unit)}"
+                    },
+                    route.doseMicroSv?.let { "${h.statDose} ${DoseFormat.dose(it, unit)}" },
+                ).joinToString(" · ").ifBlank { strings.noData },
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Chip(
+                text = h.routeCompare,
+                color = if (picked) colors.dataText else colors.ink2,
+                selected = picked,
+                onClick = onPick,
+            )
+            Chip(text = h.routeRename, color = colors.ink2, onClick = onRename)
+        }
+    }
+}
+
+/**
+ * Имя маршрута спрашивается ПОСЛЕ прогулки и не обязательно: пока его нет,
+ * список подписывает маршрут датой, и это тоже различает записи.
+ */
+@Composable
+private fun RouteRenameDialog(
+    route: RouteSummary,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    val type = LocalAppTypography.current
+    var text by remember(route.id) { mutableStateOf(route.name) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(text = h.routeRename, style = type.label, color = colors.ink)
+                AppTextField(
+                    value = text,
+                    onValueChange = { text = RouteFormat.cleanName(it) },
+                    placeholder = h.routeNameHint,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    AppButton(
+                        text = strings.saveName,
+                        onClick = { onSave(text) },
+                        primary = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AppButton(
+                        text = strings.cancel,
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

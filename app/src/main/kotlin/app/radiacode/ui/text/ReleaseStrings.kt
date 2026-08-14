@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v046Title: String
+    val v046Summary: String
+
     val v045Title: String
     val v045Summary: String
 
@@ -96,6 +99,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v046Title = "У маршрутов своё место в Истории"
+    override val v046Summary =
+        "Записанные прогулки стали отдельными записями журнала: миниатюра, путь, " +
+        "среднее и максимум, переименование и сравнение нескольких маршрутов на " +
+        "одной шкале цвета. Журнал теперь фильтруется — Все · Сессии · Маршруты · " +
+        "Спектры, — а с карты убрана легенда: переключатель Доза/CPS переехал " +
+        "влево, кнопки камеры вправо."
 
     override val v045Title = "След на карте — сплошная цветная линия"
     override val v045Summary =
@@ -270,6 +281,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v046Title = "Routes have their own place in История"
+    override val v046Summary =
+        "Recorded walks became journal entries of their own: a thumbnail, the " +
+        "distance, the mean and the maximum, renaming, and a comparison of " +
+        "several routes on one colour scale. The journal now filters — All · " +
+        "Sessions · Routes · Spectra — and the map lost its legend: the " +
+        "Dose/CPS switch moved left, the camera buttons right."
 
     override val v045Title = "The map trace is a continuous coloured line"
     override val v045Summary =
@@ -451,6 +470,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v046Title, v046Summary,
     v045Title, v045Summary,
     v044Title, v044Summary,
     v043Title, v043Summary,

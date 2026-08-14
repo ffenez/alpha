@@ -629,6 +629,10 @@ interface TrackDao {
     @Query("SELECT COUNT(*) FROM track_points WHERE sessionId = :sessionId")
     suspend fun pointCount(sessionId: Long): Int
 
+    /** Полный след одним чтением — для расчёта, а не для отрисовки. */
+    @Query("SELECT * FROM track_points WHERE sessionId = :sessionId ORDER BY timestamp")
+    suspend fun pointsOnce(sessionId: Long): List<TrackPointEntity>
+
     /** Track sessions overlapping a time range (History «трек» badge). */
     @Query(
         """
@@ -651,6 +655,52 @@ interface TrackDao {
         """,
     )
     suspend fun highAltitudePointCount(from: Long, to: Long, minAltitudeMeters: Double): Int
+
+    /** Название маршрута даётся после прогулки и меняется когда угодно. */
+    @Query("UPDATE track_sessions SET name = :name WHERE id = :sessionId")
+    suspend fun renameSession(sessionId: Long, name: String)
+
+    /** Расстояние считается один раз по полному следу и хранится. */
+    @Query("UPDATE track_sessions SET distanceMeters = :meters WHERE id = :sessionId")
+    suspend fun setDistance(sessionId: Long, meters: Double)
+
+    /**
+     * Строка списка маршрутов одним запросом: сколько измерений, когда они
+     * шли и каковы среднее с максимумом.
+     *
+     * Считается в SQLite, а не в приложении: список маршрутов иначе означал бы
+     * чтение десятков тысяч координат ради четырёх чисел на карточку. Значения
+     * дозы остаются СЫРЫМИ приборными — в мкЗв/ч их переводит один и тот же
+     * край приложения, что и везде.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) AS pointCount,
+               MIN(timestamp) AS firstTime, MAX(timestamp) AS lastTime,
+               AVG(doseRate) AS avgDoseRaw, MAX(doseRate) AS maxDoseRaw,
+               AVG(countRate) AS avgCps, MAX(countRate) AS maxCps
+        FROM track_points WHERE sessionId = :sessionId
+        """,
+    )
+    suspend fun routeSummary(sessionId: Long): TrackRouteSummaryRow
+
+    /**
+     * Геометрия для миниатюры: каждая n-я точка маршрута.
+     *
+     * Прореживание делает SQLite по номеру строки, а не приложение по всему
+     * списку: миниатюра размером в ноготь не становится вернее от четырёх
+     * тысяч координат, а список из двадцати маршрутов — заметно дешевле.
+     */
+    @Query(
+        """
+        SELECT latitude, longitude FROM (
+            SELECT latitude, longitude,
+                   ROW_NUMBER() OVER (ORDER BY timestamp) AS rowNumber
+            FROM track_points WHERE sessionId = :sessionId
+        ) WHERE (rowNumber - 1) % :stride = 0
+        """,
+    )
+    suspend fun routeShape(sessionId: Long, stride: Int): List<TrackShapeRow>
 
     /**
      * Bounding box of every recorded fix — the first camera of «все записи»
@@ -713,6 +763,21 @@ interface TrackDao {
         limit: Int,
     ): List<TrackGridBinRow>
 }
+
+/** Числа одной строки списка маршрутов; всё null, когда точек нет. */
+data class TrackRouteSummaryRow(
+    val pointCount: Int,
+    val firstTime: Long?,
+    val lastTime: Long?,
+    /** Приборные единицы — в мкЗв/ч переводит край приложения. */
+    val avgDoseRaw: Double?,
+    val maxDoseRaw: Double?,
+    val avgCps: Double?,
+    val maxCps: Double?,
+)
+
+/** Прореженная геометрия маршрута для миниатюры. */
+data class TrackShapeRow(val latitude: Double, val longitude: Double)
 
 /** Bounding box of stored fixes; all null when there are none. */
 data class TrackBoundsRow(

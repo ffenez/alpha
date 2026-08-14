@@ -145,7 +145,7 @@ object MapRu : MapStrings {
     override val sessionTrack = "Трек сессии"
     override val noTrackInSession = "трек в этой сессии не записан"
     override val gpsOff = "GPS выключен"
-    override val gpsOffAction = "определение места выключено · включить"
+    override val gpsOffAction = "GPS выключен · включить"
     override fun lastRecording(stamp: String) = "последняя · $stamp"
     override fun recordingFor(duration: String) = "запись · $duration"
 
@@ -265,7 +265,7 @@ object MapEn : MapStrings {
     override val sessionTrack = "Session track"
     override val noTrackInSession = "no track was recorded in this session"
     override val gpsOff = "GPS is off"
-    override val gpsOffAction = "location is switched off · turn on"
+    override val gpsOffAction = "GPS is off · turn on"
     override fun lastRecording(stamp: String) = "latest · $stamp"
     override fun recordingFor(duration: String) = "recording · $duration"
 

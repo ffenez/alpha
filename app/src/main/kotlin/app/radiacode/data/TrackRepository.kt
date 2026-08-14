@@ -6,6 +6,12 @@ import app.radiacode.data.db.TrackDao
 import app.radiacode.data.db.TrackGridBinRow
 import app.radiacode.data.db.TrackPointEntity
 import app.radiacode.data.db.TrackSessionEntity
+import app.radiacode.device.DoseUnits
+import app.radiacode.ui.logic.MapTrackPoint
+import app.radiacode.ui.logic.RouteFormat
+import app.radiacode.ui.logic.RouteShape
+import app.radiacode.ui.logic.RouteSummary
+import app.radiacode.ui.logic.TrackMap
 import kotlinx.coroutines.flow.Flow
 
 /** Track recording: sessions of GPS points joined with the latest dose rate. */
@@ -57,6 +63,65 @@ class TrackRepository(
     /** Track sessions overlapping a measurement-session time range. */
     suspend fun sessionsOverlapping(from: Long, to: Long): List<TrackSessionEntity> =
         trackDao.sessionsOverlapping(from, to)
+
+    // --- маршруты как записи журнала ---
+
+    suspend fun rename(sessionId: Long, name: String) {
+        trackDao.renameSession(sessionId, RouteFormat.cleanName(name))
+    }
+
+    /**
+     * Сводка маршрута для списка Истории.
+     *
+     * Расстояние берётся из строки маршрута, а если его там нет — считается
+     * один раз по полному следу и записывается. Так список остаётся дешёвым
+     * (четыре числа одним запросом), а маршруты, записанные прежней версией,
+     * не остаются без расстояния навсегда.
+     */
+    suspend fun routeSummary(session: TrackSessionEntity): RouteSummary {
+        val row = trackDao.routeSummary(session.id)
+        val distance = session.distanceMeters ?: computeDistance(session)
+        return RouteSummary(
+            id = session.id,
+            name = session.name,
+            startedAt = session.startedAt,
+            endedAt = session.endedAt,
+            distanceMeters = distance,
+            measurementCount = row.pointCount,
+            avgDoseMicroSvH = row.avgDoseRaw
+                ?.let { DoseUnits.rawToMicroSievertPerHour(it.toFloat()) },
+            maxDoseMicroSvH = row.maxDoseRaw
+                ?.let { DoseUnits.rawToMicroSievertPerHour(it.toFloat()) },
+        )
+    }
+
+    /**
+     * Расстояние законченного маршрута — считается по полному следу и
+     * сохраняется. У идущей записи не считается вовсе: она ещё меняется, а
+     * число, посчитанное «пока что», через минуту было бы неправдой.
+     */
+    private suspend fun computeDistance(session: TrackSessionEntity): Double? {
+        if (session.endedAt == null) return null
+        val points = trackDao.pointsOnce(session.id).map {
+            MapTrackPoint(
+                timestamp = it.timestamp,
+                latitude = it.latitude,
+                longitude = it.longitude,
+                accuracyMeters = it.accuracyMeters,
+                doseMicroSvH = null,
+                cps = null,
+            )
+        }
+        if (points.isEmpty()) return null
+        val meters = TrackMap.distanceMeters(points)
+        trackDao.setDistance(session.id, meters)
+        return meters
+    }
+
+    /** Прореженная геометрия маршрута — форма для миниатюры. */
+    suspend fun routeShape(sessionId: Long, pointCount: Int): List<Pair<Double, Double>> =
+        trackDao.routeShape(sessionId, RouteShape.stride(pointCount))
+            .map { it.latitude to it.longitude }
 
     // --- accumulated map («все записи») ---
 

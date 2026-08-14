@@ -187,6 +187,61 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 12 to 13 produces exactly the exported v13 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(12))
+            MigrationSql.FROM_12_TO_13.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(13))
+        }
+    }
+
+    /**
+     * Записанный прежде маршрут переживает обновление целиком, а расстояние
+     * ему НЕ выдумывается: оно остаётся пустым и считается по его же точкам
+     * при первом открытии списка.
+     */
+    @Test
+    fun `migration 12 to 13 keeps recorded routes and leaves the distance unknown`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(12))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO track_sessions (id, name, startedAt, endedAt) " +
+                        "VALUES (1, 'Дом → парк', 1000, 5000)",
+                )
+                it.execute(
+                    "INSERT INTO track_points (sessionId, timestamp, latitude, longitude, " +
+                        "accuracyMeters, doseRate, countRate, altitudeMeters) " +
+                        "VALUES (1, 1000, 55.75, 37.61, 4.5, 0.0001, 12.0, NULL)",
+                )
+            }
+
+            MigrationSql.FROM_12_TO_13.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT name, startedAt, endedAt, distanceMeters FROM track_sessions",
+                )
+                assertTrue(rows.next())
+                assertEquals("Дом → парк", rows.getString("name"))
+                assertEquals(1000L, rows.getLong("startedAt"))
+                assertEquals(5000L, rows.getLong("endedAt"))
+                rows.getDouble("distanceMeters")
+                assertTrue(rows.wasNull(), "расстояние не выдумывается миграцией")
+            }
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery("SELECT COUNT(*) AS n FROM track_points")
+                assertTrue(rows.next())
+                assertEquals(1, rows.getInt("n"))
+            }
+        }
+    }
+
+    @Test
     fun `migration 11 to 12 produces exactly the exported v12 schema`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(11))

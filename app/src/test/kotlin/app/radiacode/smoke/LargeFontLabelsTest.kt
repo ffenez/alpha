@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Segmented
+import app.radiacode.ui.text.HistoryRu
 import app.radiacode.ui.theme.AppSkin
 import app.radiacode.ui.theme.AppTheme
 import org.junit.Rule
@@ -114,6 +115,29 @@ class LargeFontLabelsTest {
 
         assertEquals(9, renderedLength("Наведение"), "подпись вкладки обрезана")
         assertEquals(8, renderedLength("Проверка"), "подпись вкладки обрезана")
+    }
+
+    /**
+     * Фильтр журнала — четыре подписи в одной строке, самое тесное место в
+     * приложении. Обрезанное «Маршр…» здесь означало бы, что человек не знает,
+     * что именно он сейчас включает.
+     */
+    @Test
+    fun `the journal filter keeps all four names`() {
+        val h = HistoryRu
+        val options = listOf(h.filterAll, h.filterSessions, h.filterRoutes, h.filterSpectra)
+        show {
+            Segmented(
+                options = options,
+                selectedIndex = 0,
+                onSelect = {},
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        for (label in options) {
+            assertEquals(label.length, renderedLength(label), "подпись фильтра обрезана: «$label»")
+        }
     }
 
     @Test
