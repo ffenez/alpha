@@ -1,6 +1,7 @@
 package app.radiacode.ui.logic
 
 import app.radiacode.analysis.CountWindow
+import kotlin.math.abs
 import app.radiacode.analysis.RateComparison
 import app.radiacode.analysis.RateComparisonResult
 
@@ -24,6 +25,16 @@ data class SearchState(
     val direction: SearchDirection = SearchDirection.UNKNOWN,
     /** Sticky Y axis of the chart; null until the first reading. */
     val scale: RateScaleState? = null,
+    /**
+     * Сколько копить ИМЕННО ЭТО отличие; null — подтверждать нечего.
+     *
+     * Окно сравнения остаётся коротким: с прибором ходят, и отклик обязан
+     * быть быстрым. Это — про другое: сколько времени нужно ДЕРЖАТЬ найденное
+     * отличие, чтобы оно перестало быть случайностью. Явное превышение
+     * подтверждается за секунды, еле заметное копится дольше, а слишком
+     * тонкое честно упирается в предел.
+     */
+    val decision: SearchDecision.Window? = null,
 ) {
     val level: SearchLevel get() = ladder.level
     val latest: SearchPoint? get() = points.lastOrNull()
@@ -150,6 +161,19 @@ object SearchEngine {
             ),
         )
         val flagged = flag(points, ladder)
+        // Отличие есть — считаем, сколько его держать; нет — держать нечего.
+        val fraction = comparison?.ratio?.let { it - 1.0 }?.takeIf { abs(it) > 0.0 }
+        val decision = if (background != null && fraction != null) {
+            SearchDecision.of(
+                backgroundCps = background.cps.toDouble(),
+                observedFraction = fraction,
+                collectedSeconds = ladder.differentSinceMillis
+                    ?.let { (nowMillis - it) / 1000L }
+                    ?: 0L,
+            )
+        } else {
+            null
+        }
         val bandTop = background?.let { backgroundBand(it).endInclusive }
         val scale = RateAutoScale.next(
             state = state.scale,
@@ -163,6 +187,7 @@ object SearchEngine {
             ladder = ladder,
             direction = direction,
             scale = scale,
+            decision = decision,
         )
     }
 

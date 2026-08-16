@@ -696,10 +696,29 @@ fun SearchScreen(
                 // третий раз, между выводом и шкалой. Сам расчёт направления
                 // не тронут — он живёт в режиме наведения и в «Почему?».
 
-                LedMeter(
-                    level = if (cps != null) ledLevel(cps, record?.cps) else 0f,
-                    modifier = Modifier.padding(top = Dimens.space3),
-                )
+                // Полоска показывает НАБОР ПОДТВЕРЖДЕНИЯ, а не уровень.
+                //
+                // Прежде это была шкала «сколько сейчас относительно фона» —
+                // то же самое, что уже сказано числом и его цветом, только
+                // мелко и без единиц. Теперь она отвечает на единственный
+                // вопрос, на который у экрана нет другого ответа: сколько ещё
+                // держать прибор здесь. Отличия нет — полоски нет.
+                val decision = search.decision
+                if (decision != null && !decision.ready && level != SearchLevel.BACKGROUND) {
+                    LedMeter(
+                        level = decision.progress,
+                        modifier = Modifier.padding(top = Dimens.space3),
+                    )
+                    Text(
+                        text = if (decision.atLimit) {
+                            t.decisionTooSmall
+                        } else {
+                            t.decisionRemaining(decision.remainingSeconds.toInt())
+                        },
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
                 if (record == null) {
                     Text(
                         text = t.meterNeedsBackground,

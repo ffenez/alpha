@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v057Title: String
+    val v057Summary: String
+
     val v056Title: String
     val v056Summary: String
 
@@ -129,6 +132,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v057Title = "Поиск сам решает, сколько держать прибор"
+    override val v057Summary =
+        "Явное превышение подтверждается за секунды, еле заметное копится дольше, " +
+        "а слишком тонкое честно называется неподтверждаемым — время считается от " +
+        "фона и величины отличия. Полоска под числом теперь показывает именно " +
+        "этот набор и подписана «нужно ещё ~20 с», а когда подтверждать нечего — " +
+        "её нет."
 
     override val v056Title = "Поиск начинается без записи фона"
     override val v056Summary =
@@ -392,6 +403,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v057Title = "Поиск decides how long to hold the instrument"
+    override val v057Summary =
+        "A clear excess is confirmed in seconds, a faint one collects longer, and " +
+        "one too fine is honestly called unconfirmable — the time follows from the " +
+        "background and the size of the difference. The strip under the number now " +
+        "shows that collection and says «about 20 s more»; with nothing to confirm " +
+        "it is not there at all."
 
     override val v056Title = "A search starts without recording a background"
     override val v056Summary =
@@ -663,6 +682,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v057Title, v057Summary,
     v056Title, v056Summary,
     v055Title, v055Summary,
     v054Title, v054Summary,

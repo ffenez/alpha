@@ -53,6 +53,10 @@ interface SearchStrings {
     val backgroundLearnedTag: String
     /** Что это за фон — в подробностях, а не на рабочем экране. */
     val backgroundLearnedNote: String
+    /** «нужно ещё ~20 с» — сколько держать прибор, чтобы отличие подтвердилось. */
+    fun decisionRemaining(seconds: Int): String
+    /** Отличие тоньше того, что различимо за разумное время. */
+    val decisionTooSmall: String
 
     // --- режимы экрана ---
     /** Сегмент вверху: два ВОПРОСА, а не «точный» и «быстрый». */
@@ -384,6 +388,8 @@ object SearchRu : SearchStrings {
     override val waitingStream = "ждём поток данных…"
     override val cpsUnit = "с⁻¹"
     override val backgroundLearnedTag = "ОБЫЧНО"
+    override fun decisionRemaining(seconds: Int) = "нужно ещё ~$seconds с"
+    override val decisionTooSmall = "разница слишком мала, чтобы её подтвердить"
     override val backgroundLearnedNote =
         "Сравнение идёт с обычным фоном этого места — приложение изучило его " +
             "само. Такое сравнение осторожнее записанного эталона: у изученного " +
@@ -763,6 +769,8 @@ object SearchEn : SearchStrings {
     override val waitingStream = "waiting for the data stream…"
     override val cpsUnit = "s⁻¹"
     override val backgroundLearnedTag = "USUAL"
+    override fun decisionRemaining(seconds: Int) = "about $seconds s more"
+    override val decisionTooSmall = "the difference is too small to confirm"
     override val backgroundLearnedNote =
         "The comparison runs against the usual background of this place, which " +
             "the app learned by itself. It is more cautious than a recorded " +

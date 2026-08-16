@@ -168,12 +168,8 @@ object FoodScreening {
         fraction: Double,
         sigma: Double = SENSITIVITY_SIGMA,
     ): Long? {
-        if (backgroundRateCps <= 0.0 || fraction <= 0.0) return null
-        val seconds = 2.0 * sigma * sigma / (fraction * fraction * backgroundRateCps)
-        if (!seconds.isFinite()) return null
-        // Вверх, а не отбрасыванием дробной части: это рекомендованный
-        // МИНИМУМ, и «копите 287 с» вместо 288 — обещание на секунду короче
-        // того, что нужно. Заодно уходит и дрожание последнего разряда.
-        return kotlin.math.ceil(seconds).toLong().coerceAtLeast(1L)
+        // Считает общая формула ([DecisionTime]): тот же вопрос задаёт окно
+        // решения Поиска, и двух разных ответов на него быть не должно.
+        return DecisionTime.secondsFor(backgroundRateCps, fraction, sigma)
     }
 }
