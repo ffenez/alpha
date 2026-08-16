@@ -112,6 +112,27 @@ interface Strings {
     val settingsData: String
     val settingsDataSub: String
     val settingsProfilesNone: String
+
+    /** Подсказка в поле поиска по настройкам. */
+    val settingsSearchPlaceholder: String
+
+    /** Поиск ничего не нашёл. */
+    val settingsSearchEmpty: String
+
+    /** Пустая половина list-detail: что делать дальше. */
+    val settingsPickSection: String
+
+    /**
+     * Слова, по которым ищут раздел. Свои для каждого языка: человек ищет тем
+     * словом, которым думает, а не переводом подписи.
+     */
+    val searchWordsAlarms: List<String>
+    val searchWordsProfiles: List<String>
+    val searchWordsSound: List<String>
+    val searchWordsView: List<String>
+    val searchWordsDevice: List<String>
+    val searchWordsData: List<String>
+    val searchWordsAbout: List<String>
     val settingsAbout: String
     val settingsAboutSub: String
 
@@ -629,6 +650,7 @@ fun Strings.allTexts(): List<String> = listOf(
     doseRate, countRate, hardness, trendPerHour, doseToday, placeFingerprint,
     groupMeasurement, groupApp, groupOther, groupDevice, groupSystem,
     settingsData, settingsDataSub, settingsProfilesNone,
+    settingsSearchPlaceholder, settingsSearchEmpty, settingsPickSection,
     settingsAlarms, settingsAlarmsSub, settingsProfiles, settingsProfilesSub,
     settingsNotifications, settingsNotificationsSub, settingsView, settingsViewSub,
     settingsDevice, settingsDeviceSub, settingsAbout, settingsAboutSub,

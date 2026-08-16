@@ -55,6 +55,22 @@ object EnStrings : Strings {
     override val settingsData = "Data and diagnostics"
     override val settingsDataSub = "storage, background recording, reports"
     override val settingsProfilesNone = "none"
+    override val settingsSearchPlaceholder = "Search settings"
+    override val settingsSearchEmpty = "Nothing found"
+    override val settingsPickSection = "Pick a section on the left"
+    override val searchWordsAlarms =
+        listOf("alarm", "threshold", "level", "sensitivity", "alert")
+    override val searchWordsProfiles =
+        listOf("profile", "background", "place", "learning", "home", "wi-fi", "wifi")
+    override val searchWordsSound =
+        listOf("sound", "vibration", "clicks", "tone", "signal", "feedback")
+    override val searchWordsView =
+        listOf("language", "theme", "skin", "scale", "font", "units", "colour", "color", "tabs")
+    override val searchWordsDevice =
+        listOf("instrument", "device", "battery", "firmware", "serial", "bluetooth", "calibration")
+    override val searchWordsData =
+        listOf("storage", "history", "report", "diagnostics", "memory", "recording")
+    override val searchWordsAbout = listOf("version", "licences", "licenses", "updates")
     override val settingsAbout = "About"
     override val settingsAboutSub = "version, updates, licences, diagnostics"
 

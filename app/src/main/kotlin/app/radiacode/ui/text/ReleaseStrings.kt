@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v077Title: String
+    val v077Summary: String
+
     val v076Title: String
     val v076Summary: String
 
@@ -189,6 +192,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v077Title = "Поиск по настройкам и перетаскивание вкладок"
+    override val v077Summary =
+        "Слово, с которым приходят — «звук», «фон», «батарея», — ведёт прямо в раздел, а " +
+        "порядок вкладок меняется перетаскиванием за ручку вместо четырёх нажатий " +
+        "стрелками. На широком экране список разделов и открытый раздел стоят рядом."
 
     override val v076Title = "«Интерфейс» и «Прибор» — на том же языке"
     override val v076Summary =
@@ -586,6 +595,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v077Title = "Settings search, and tabs that are dragged"
+    override val v077Summary =
+        "The word people arrive with — «sound», «background», «battery» — leads straight " +
+        "to its section, and tab order is changed by dragging a handle instead of four " +
+        "taps on arrows. On a wide screen the list and the open section stand side by side."
 
     override val v076Title = "«Interface» and «Instrument» speak the same language"
     override val v076Summary =

@@ -47,6 +47,22 @@ object RuStrings : Strings {
     override val settingsData = "Данные и диагностика"
     override val settingsDataSub = "хранилище, фоновая запись, отчёты"
     override val settingsProfilesNone = "не выбран"
+    override val settingsSearchPlaceholder = "Поиск по настройкам"
+    override val settingsSearchEmpty = "Ничего не нашлось"
+    override val settingsPickSection = "Выберите раздел слева"
+    override val searchWordsAlarms =
+        listOf("тревога", "порог", "уровень", "чувствительность", "оповещение")
+    override val searchWordsProfiles =
+        listOf("профиль", "фон", "место", "обучение", "дом", "wi-fi", "вайфай")
+    override val searchWordsSound =
+        listOf("звук", "вибрация", "вибро", "клики", "тон", "сигнал", "отклик")
+    override val searchWordsView =
+        listOf("язык", "тема", "оформление", "масштаб", "шрифт", "единицы", "цвет", "вкладки")
+    override val searchWordsDevice =
+        listOf("прибор", "батарея", "прошивка", "серийный", "bluetooth", "калибровка", "спектр")
+    override val searchWordsData =
+        listOf("хранилище", "история", "отчёт", "диагностика", "память", "запись")
+    override val searchWordsAbout = listOf("версия", "лицензии", "обновления")
     override val settingsAbout = "О приложении"
     override val settingsAboutSub = "версия, обновления, лицензии, диагностика"
 

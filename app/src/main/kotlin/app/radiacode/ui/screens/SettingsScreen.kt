@@ -49,6 +49,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.res.stringResource
 import app.radiacode.R
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
+import app.radiacode.ui.logic.DragReorder
+import kotlin.math.roundToInt
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import app.radiacode.ui.logic.SettingsSearch
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import app.radiacode.AppGraph
 import app.radiacode.baseline.AlarmSensitivity
 import app.radiacode.baseline.AlarmThresholds
@@ -207,68 +224,160 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         if (calibrationOpen) calibrationOpen = false else category = null
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = Dimens.space3)
-            .padding(bottom = Dimens.space3),
-        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
-    ) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // На широком экране список разделов и открытый раздел стоят рядом:
+        // на планшете и в ландшафте колонка настроек занимала треть ширины, а
+        // остальные две трети оставались пустыми, и каждый переход туда-обратно
+        // перерисовывал весь экран ради одного столбца.
+        val listDetail = maxWidth >= LIST_DETAIL_MIN_WIDTH
         val open = category
-        // Один заголовок на экран, он же кнопка возврата: крупная кнопка
-        // «← Назад» и чип с названием страницы справа говорили одно и то же
-        // дважды и занимали высоту, которой в настройках всегда не хватает.
-        SettingsTopBar(
-            title = open?.title(strings) ?: strings.settings,
-            onBack = {
-                when {
-                    calibrationOpen -> calibrationOpen = false
-                    open == null -> onBack()
-                    else -> category = null
+        if (listDetail) {
+            Row(Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .width(LIST_PANE_WIDTH)
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Dimens.space3)
+                        .padding(bottom = Dimens.space3),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+                ) {
+                    SettingsTopBar(title = strings.settings, onBack = onBack)
+                    SettingsRoot(graph, selected = open) { category = it }
                 }
-            },
-        )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Dimens.space3)
+                        .padding(bottom = Dimens.space3),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+                ) {
+                    if (open == null) {
+                        // Пустая половина учит первому действию, а не молчит.
+                        Text(
+                            text = strings.settingsPickSection,
+                            style = LocalAppTypography.current.body,
+                            color = colors.muted,
+                            modifier = Modifier.padding(
+                                top = Dimens.space6,
+                                start = Dimens.space2,
+                            ),
+                        )
+                    } else {
+                        SettingsTopBar(
+                            title = open.title(strings),
+                            onBack = {
+                                if (calibrationOpen) calibrationOpen = false else category = null
+                            },
+                        )
+                        SettingsDetail(
+                            graph = graph,
+                            category = open,
+                            calibrationOpen = calibrationOpen,
+                            onOpenCalibration = { calibrationOpen = true },
+                            onCloseCalibration = { calibrationOpen = false },
+                        )
+                    }
+                }
+            }
+            return@BoxWithConstraints
+        }
 
-        AnimatedContent(
-            targetState = open,
-            transitionSpec = {
-                (fadeIn(Motion.screen()) + scaleIn(Motion.screen(), initialScale = 0.97f))
-                    .togetherWith(fadeOut(tween(Motion.SCREEN_EXIT_MILLIS)))
-            },
-            label = "settingsCategory",
-        ) { openCategory ->
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
-        when (openCategory) {
-            null -> SettingsRoot(graph) { category = it }
-            SettingsCategory.ALARMS -> AlarmsSection(graph)
-            // Фон принадлежит МЕСТУ: профили и обучение фона — один раздел.
-            SettingsCategory.PROFILES -> {
-                ProfilesSection(graph)
-                BaselineSection(graph)
-            }
-            SettingsCategory.SOUND -> SoundSection(graph)
-            SettingsCategory.VIEW -> InterfaceScreen(graph)
-            SettingsCategory.DEVICE -> {
-                if (calibrationOpen) {
-                    CalibrationScreen(graph) { calibrationOpen = false }
-                } else {
-                    DeviceScreen(graph) { calibrationOpen = true }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Dimens.space3)
+                .padding(bottom = Dimens.space3),
+            verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+        ) {
+            // Один заголовок на экран, он же кнопка возврата: крупная кнопка
+            // «← Назад» и чип с названием страницы справа говорили одно и то же
+            // дважды и занимали высоту, которой в настройках всегда не хватает.
+            SettingsTopBar(
+                title = open?.title(strings) ?: strings.settings,
+                onBack = {
+                    when {
+                        calibrationOpen -> calibrationOpen = false
+                        open == null -> onBack()
+                        else -> category = null
+                    }
+                },
+            )
+
+            AnimatedContent(
+                targetState = open,
+                transitionSpec = {
+                    (fadeIn(Motion.screen()) + scaleIn(Motion.screen(), initialScale = 0.97f))
+                        .togetherWith(fadeOut(tween(Motion.SCREEN_EXIT_MILLIS)))
+                },
+                label = "settingsCategory",
+            ) { openCategory ->
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+                    if (openCategory == null) {
+                        SettingsRoot(graph, selected = null) { category = it }
+                    } else {
+                        SettingsDetail(
+                            graph = graph,
+                            category = openCategory,
+                            calibrationOpen = calibrationOpen,
+                            onOpenCalibration = { calibrationOpen = true },
+                            onCloseCalibration = { calibrationOpen = false },
+                        )
+                    }
                 }
             }
-            // Всё, что не ежедневная настройка: хранилище, темп фоновой записи
-            // и отчёты для разбора. Раньше отчёт жил в «О приложении» — рядом с
-            // версией и лицензиями, где его никто не ищет, зато он выдавал
-            // сборку разработчика каждому, кто зашёл посмотреть версию.
-            SettingsCategory.DATA -> {
-                RetentionSection(graph)
-                SpectrumRateSection(graph)
-                DebugSection(graph)
+        }
+    }
+}
+
+/**
+ * Ширина, с которой список разделов и открытый раздел помещаются рядом.
+ * **Инженерный параметр**: 720 dp — планшет и телефон в ландшафте; уже неё
+ * колонка раздела становится теснее телефонной, и делить экран незачем.
+ */
+private val LIST_DETAIL_MIN_WIDTH = 720.dp
+
+/** Ширина колонки со списком разделов на широком экране. */
+private val LIST_PANE_WIDTH = 320.dp
+
+/** Содержимое одного раздела настроек — одно и то же в обеих раскладках. */
+@Composable
+private fun SettingsDetail(
+    graph: AppGraph,
+    category: SettingsCategory,
+    calibrationOpen: Boolean,
+    onOpenCalibration: () -> Unit,
+    onCloseCalibration: () -> Unit,
+) {
+    when (category) {
+        SettingsCategory.ALARMS -> AlarmsSection(graph)
+        // Фон принадлежит МЕСТУ: профили и обучение фона — один раздел.
+        SettingsCategory.PROFILES -> {
+            ProfilesSection(graph)
+            BaselineSection(graph)
+        }
+        SettingsCategory.SOUND -> SoundSection(graph)
+        SettingsCategory.VIEW -> InterfaceScreen(graph)
+        SettingsCategory.DEVICE -> {
+            if (calibrationOpen) {
+                CalibrationScreen(graph, onCloseCalibration)
+            } else {
+                DeviceScreen(graph, onOpenCalibration)
             }
-            SettingsCategory.ABOUT -> LicensesSection()
         }
+        // Всё, что не ежедневная настройка: хранилище, темп фоновой записи и
+        // отчёты для разбора. Раньше отчёт жил в «О приложении» — рядом с
+        // версией и лицензиями, где его никто не ищет, зато он выдавал сборку
+        // разработчика каждому, кто зашёл посмотреть версию.
+        SettingsCategory.DATA -> {
+            RetentionSection(graph)
+            SpectrumRateSection(graph)
+            DebugSection(graph)
         }
-        }
+        SettingsCategory.ABOUT -> LicensesSection()
     }
 }
 
@@ -280,10 +389,55 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
  * меня режим тревоги» приходилось открывать раздел и возвращаться.
  */
 @Composable
-private fun SettingsRoot(graph: AppGraph, onOpen: (SettingsCategory) -> Unit) {
+private fun SettingsRoot(
+    graph: AppGraph,
+    selected: SettingsCategory?,
+    onOpen: (SettingsCategory) -> Unit,
+) {
+    val colors = LocalAppColors.current
     val strings = LocalStrings.current
+    val type = LocalAppTypography.current
     val summaries = settingsSummaries(graph)
+    var query by rememberSaveable { mutableStateOf("") }
+    val index = remember(strings) { settingsSearchIndex(strings) }
+    val hits = remember(query, index) { SettingsSearch.find(query, index) }
+
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        // Поиск ищет СЛОВОМ, которым настройку называют про себя: «звук»,
+        // «фон», «батарея». Разделов семь — это уже больше, чем держится в
+        // голове, и перебирать их по очереди человек не обязан.
+        AppTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = strings.settingsSearchPlaceholder,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (query.isNotBlank()) {
+            if (hits.isEmpty()) {
+                Text(
+                    text = strings.settingsSearchEmpty,
+                    style = type.footnote,
+                    color = colors.muted,
+                    modifier = Modifier.padding(start = Dimens.space2),
+                )
+            } else {
+                SettingsSection {
+                    hits.forEachIndexed { position, hit ->
+                        if (position > 0) SettingsDivider()
+                        SettingRow(
+                            title = hit.title,
+                            subtitle = hit.section,
+                            onClick = {
+                                SettingsCategory.entries
+                                    .firstOrNull { it.name == hit.categoryId }
+                                    ?.let(onOpen)
+                            },
+                        )
+                    }
+                }
+            }
+            return@Column
+        }
         for (group in SettingsGroup.entries) {
             val items = SettingsCategory.entries.filter { it.group == group }
             if (items.isEmpty()) continue
@@ -293,6 +447,7 @@ private fun SettingsRoot(graph: AppGraph, onOpen: (SettingsCategory) -> Unit) {
                     SettingRow(
                         title = summaries.title(entry) ?: entry.title(strings),
                         value = summaries.value(entry),
+                        valueHighlighted = entry == selected,
                         onClick = { onOpen(entry) },
                     )
                 }
@@ -300,6 +455,59 @@ private fun SettingsRoot(graph: AppGraph, onOpen: (SettingsCategory) -> Unit) {
         }
     }
 }
+
+/**
+ * Что и по каким словам ищется в настройках.
+ *
+ * Индекс перечисляет не все настройки подряд, а те, которые ищут: слово, с
+ * которым человек приходит («звук», «фон», «батарея», «язык»), ведёт в раздел,
+ * где это лежит. Подписи берутся из каталога строк, поэтому поиск говорит на
+ * языке интерфейса; слова поиска — свои для каждого языка по той же причине.
+ */
+private fun settingsSearchIndex(strings: Strings): List<SettingsSearch.Entry> = listOf(
+    SettingsSearch.Entry(
+        categoryId = SettingsCategory.ALARMS.name,
+        title = strings.settingsAlarms,
+        section = strings.groupMeasurement,
+        keywords = strings.searchWordsAlarms,
+    ),
+    SettingsSearch.Entry(
+        categoryId = SettingsCategory.PROFILES.name,
+        title = strings.settingsProfiles,
+        section = strings.groupMeasurement,
+        keywords = strings.searchWordsProfiles,
+    ),
+    SettingsSearch.Entry(
+        categoryId = SettingsCategory.SOUND.name,
+        title = strings.settingsNotifications,
+        section = strings.groupApp,
+        keywords = strings.searchWordsSound,
+    ),
+    SettingsSearch.Entry(
+        categoryId = SettingsCategory.VIEW.name,
+        title = strings.settingsView,
+        section = strings.groupApp,
+        keywords = strings.searchWordsView,
+    ),
+    SettingsSearch.Entry(
+        categoryId = SettingsCategory.DEVICE.name,
+        title = strings.settingsDevice,
+        section = strings.groupDevice,
+        keywords = strings.searchWordsDevice,
+    ),
+    SettingsSearch.Entry(
+        categoryId = SettingsCategory.DATA.name,
+        title = strings.settingsData,
+        section = strings.groupSystem,
+        keywords = strings.searchWordsData,
+    ),
+    SettingsSearch.Entry(
+        categoryId = SettingsCategory.ABOUT.name,
+        title = strings.settingsAbout,
+        section = strings.groupSystem,
+        keywords = strings.searchWordsAbout,
+    ),
+)
 
 /** Текущее состояние каждой категории — то, что видно до входа в неё. */
 @Composable
@@ -1342,14 +1550,40 @@ private fun HomeLayoutSection(graph: AppGraph) {
             // Строки «Главная — всегда видна» здесь нет: если вкладку нельзя
             // убрать, это не настройка, а сообщение о том, как устроено
             // приложение, и место ему не в списке переключателей.
+            // Порядок меняют перетаскиванием: стрелки говорили с приложением по
+            // одной команде за раз — переставить последнюю вкладку в начало
+            // стоило четырёх нажатий, и после каждого список подпрыгивал.
+            var rowHeightPx by remember { mutableFloatStateOf(0f) }
+            var dragging by remember { mutableStateOf<AppTab?>(null) }
+            var dragOffset by remember { mutableFloatStateOf(0f) }
             entries.forEachIndexed { index, entry ->
                 if (index > 0) SettingsDivider()
                 NavTabRow(
                     entry = entry,
-                    canMoveUp = index > 0,
-                    canMoveDown = index < entries.lastIndex,
-                    onMove = { delta -> save(NavConfig.move(entries, entry.tab, delta)) },
-                    onToggle = { on ->
+                    dragging = dragging == entry.tab,
+                    dragOffsetPx = if (dragging == entry.tab) dragOffset else 0f,
+                    onMeasured = { height -> if (rowHeightPx == 0f) rowHeightPx = height },
+                    onDragStart = {
+                        dragging = entry.tab
+                        dragOffset = 0f
+                    },
+                    onDrag = { delta ->
+                        dragOffset += delta
+                        val steps = DragReorder.steps(dragOffset, rowHeightPx)
+                        if (steps != 0) {
+                            val from = entries.indexOfFirst { it.tab == entry.tab }
+                            val to = DragReorder.target(from, steps, entries.size)
+                            if (to != from) {
+                                dragOffset -= (to - from) * rowHeightPx
+                                save(NavConfig.move(entries, entry.tab, to - from))
+                            }
+                        }
+                    },
+                    onDragEnd = {
+                        dragging = null
+                        dragOffset = 0f
+                    },
+                    onToggle = { _ ->
                         val toggled = NavConfig.toggle(entries, entry.tab)
                         if (toggled == null) guardNote = true else save(toggled)
                     },
@@ -1423,53 +1657,64 @@ private fun HomeLayoutSection(graph: AppGraph) {
 @Composable
 private fun NavTabRow(
     entry: NavEntry,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    onMove: (Int) -> Unit,
+    dragging: Boolean,
+    dragOffsetPx: Float,
+    onMeasured: (Float) -> Unit,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit,
     onToggle: (Boolean) -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    val haptics = LocalHapticFeedback.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
         modifier = Modifier
             .fillMaxWidth()
+            .zIndex(if (dragging) 1f else 0f)
+            .offset { IntOffset(0, dragOffsetPx.roundToInt()) }
+            // Взятая строка приподнята плоскостью и рамкой, а не тенью:
+            // глубина здесь задаётся ступенями поверхностей.
+            .background(if (dragging) colors.surface2 else Color.Transparent)
             .defaultMinSize(minHeight = Dimens.touchTarget)
+            .onSizeChanged { onMeasured(it.height.toFloat()) }
             .padding(horizontal = Dimens.space3, vertical = Dimens.space1),
     ) {
+        // Ручка перетаскивания — отдельная цель: перетаскивание всей строки
+        // отбирало бы у списка прокрутку.
+        Text(
+            text = "≡",
+            style = type.title,
+            color = if (dragging) colors.dataText else colors.ink2,
+            modifier = Modifier
+                .defaultMinSize(minWidth = 40.dp, minHeight = Dimens.touchTarget)
+                .wrapContentHeight()
+                .pointerInput(entry.tab) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onDragStart()
+                        },
+                        onDrag = { change, amount ->
+                            change.consume()
+                            onDrag(amount.y)
+                        },
+                        onDragEnd = onDragEnd,
+                        onDragCancel = onDragEnd,
+                    )
+                },
+            textAlign = TextAlign.Center,
+        )
         Text(
             text = entry.tab.title(LocalStrings.current),
             style = type.body,
             color = if (entry.visible) colors.ink else colors.muted,
             modifier = Modifier.weight(1f),
         )
-        ArrowButton(text = "↑", enabled = canMoveUp) { onMove(-1) }
-        ArrowButton(text = "↓", enabled = canMoveDown) { onMove(1) }
         AppSwitch(checked = entry.visible, onChange = onToggle)
     }
-}
-
-@Composable
-private fun ArrowButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val type = LocalAppTypography.current
-    Text(
-        text = text,
-        style = type.title,
-        color = if (enabled) colors.ink2 else colors.line,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .defaultMinSize(minWidth = 40.dp, minHeight = Dimens.touchTarget)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                enabled = enabled,
-                onClick = onClick,
-            )
-            .wrapContentHeight(),
-    )
 }
 
 @Composable
