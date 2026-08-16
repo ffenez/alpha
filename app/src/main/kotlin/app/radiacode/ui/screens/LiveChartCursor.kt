@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -348,12 +349,22 @@ internal fun BoxScope.CursorCard(
         }
         return
     }
+    // Курсор сначала отвечает на вопрос «что здесь было»: момент и значение.
+    // Вся остальная статистика колонки — по нажатию: вываливать десять строк
+    // на каждое долгое касание значит заслонять сам график ради чисел, за
+    // которыми приходят изредка (V2 §14).
+    var expanded by rememberSaveable { mutableStateOf(false) }
     val above = alarmLevel != null && bucket.median >= alarmLevel
     val extreme = DoseExtremes.classify(bucket, alarmLevel, baseline?.doseHighMicroSvH)
     Card(
         modifier = Modifier
             .align(if (fraction < 0.5f) Alignment.TopEnd else Alignment.TopStart)
-            .padding(Dimens.space2),
+            .padding(Dimens.space2)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { expanded = !expanded },
+            ),
         contentPadding = Dimens.space2,
     ) {
         // CHART SPEC §16: interval, median, both envelopes, the exact extrema
@@ -369,6 +380,14 @@ internal fun BoxScope.CursorCard(
                 style = type.value,
                 color = if (above) colors.crit else colors.ink,
             )
+            if (!expanded) {
+                Text(
+                    text = t.cursorMoreDetails,
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+                return@Column
+            }
             CursorRow(t.median, DoseFormat.rate(bucket.median, unit))
             CursorRow(
                 "P25–P75",
