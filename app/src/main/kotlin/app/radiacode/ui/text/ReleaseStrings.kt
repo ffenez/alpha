@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v060Title: String
+    val v060Summary: String
+
     val v059Title: String
     val v059Summary: String
 
@@ -138,6 +141,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v060Title = "Поиск не занимает экран разговорами о фоне"
+    override val v060Summary =
+        "Пока фон годится, карточка с его значением, датой записи и кнопкой " +
+        "обновления свёрнута до одной тусклой строки — она возвращается ровно " +
+        "тогда, когда с фоном что-то не так и есть что делать."
 
     override val v059Title = "Лента Поиска открывается во весь экран"
     override val v059Summary =
@@ -424,6 +433,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v060Title = "Поиск stops talking about the background"
+    override val v060Summary =
+        "While the background is fine, the card with its value, the date it was " +
+        "taken and the refresh button collapses to one dim line — it returns " +
+        "exactly when something is wrong with the background and there is " +
+        "something to do about it."
 
     override val v059Title = "The search tape opens full screen"
     override val v059Summary =
@@ -718,6 +734,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v060Title, v060Summary,
     v059Title, v059Summary,
     v058Title, v058Summary,
     v057Title, v057Summary,

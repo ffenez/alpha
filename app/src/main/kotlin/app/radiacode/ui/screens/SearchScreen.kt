@@ -880,7 +880,32 @@ fun SearchScreen(
             // объяснений уехали под «i» (ТЗ §10). Модель собирает чистая
             // `SearchBaseline.card`, поэтому состав карточки проверяется тестом.
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                BackgroundCard(
+                // Пока с фоном всё в порядке, карточка не занимает экран.
+                //
+                // Она отвечает на вопрос «что не так с фоном и что с этим
+                // делать», и когда ответа нет — «фон годится», — целая
+                // карточка со значением, датой записи и кнопкой обновления
+                // повторяет то, что уже стоит плиткой выше. Остаётся одна
+                // тусклая строка: когда записан, — а действие возвращается
+                // ровно тогда, когда оно нужно.
+                val quiet = (check == null || check == BackgroundCheck.USABLE) &&
+                    run !is LocalBackground.Aborted
+                if (quiet) {
+                    Text(
+                        text = if (learnedInUse) {
+                            t.backgroundLearnedTag.lowercase()
+                        } else {
+                            record?.let {
+                                backgroundCard.recordedAt(
+                                    HistoryFormat.day(it.atMillis),
+                                    timeOfDay(it.atMillis),
+                                )
+                            }.orEmpty()
+                        },
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                } else BackgroundCard(
                     model = SearchBaseline.card(
                         record = record,
                         check = check ?: BackgroundCheck.USABLE,
