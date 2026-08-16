@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v059Title: String
+    val v059Summary: String
+
     val v058Title: String
     val v058Summary: String
 
@@ -135,6 +138,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v059Title = "Лента Поиска открывается во весь экран"
+    override val v059Summary =
+        "Нажатие по ленте открывает скорость счёта полноэкранным графиком — с " +
+        "перекрестием, перелистыванием, щипком, окнами и статистикой окна. Это " +
+        "тот же график, что у дозы: одна величина в двух размерах, а не вторая " +
+        "лента со своими правилами."
 
     override val v058Title = "Наведение предлагает проверить место"
     override val v058Summary =
@@ -414,6 +424,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v059Title = "The search tape opens full screen"
+    override val v059Summary =
+        "Tapping the tape opens the count rate as a fullscreen chart — with a " +
+        "crosshair, panning, pinch, windows and window statistics. It is the same " +
+        "chart the dose uses: one quantity in two sizes rather than a second tape " +
+        "with rules of its own."
 
     override val v058Title = "Наведение offers to check the place"
     override val v058Summary =
@@ -701,6 +718,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v059Title, v059Summary,
     v058Title, v058Summary,
     v057Title, v057Summary,
     v056Title, v056Summary,

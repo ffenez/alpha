@@ -365,6 +365,14 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     // про место целиком, а не про сейчас — поэтому вход
                     // живёт здесь, а не на Главной.
                     onOpenFingerprint = { showFingerprint = true },
+                    // Лента Поиска и полноэкранный график — одна величина в
+                    // двух размерах: тап открывает счёт во весь экран.
+                    onOpenChart = {
+                        chartMetricId = ChartMetric.COUNT_RATE.id
+                        chartRangeFrom = null
+                        chartRangeTo = null
+                        showLiveChart = true
+                    },
                 )
                 AppTab.SPECTRUM -> SpectrumScreen(
                     graph = graph,

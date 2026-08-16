@@ -140,6 +140,8 @@ fun SearchScreen(
     graph: AppGraph,
     onOpenSpectrum: () -> Unit = {},
     onOpenFingerprint: () -> Unit = {},
+    /** Тап по ленте: та же скорость счёта во весь экран. */
+    onOpenChart: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -753,7 +755,21 @@ fun SearchScreen(
         }
 
         // ----------------------------------------------------------- the tape
-        Card(modifier = Modifier.fillMaxWidth()) {
+        //
+        // Лента нажимается целиком и открывает ПОЛНОЭКРАННЫЙ график скорости
+        // счёта — тот же, что у дозы: перекрестие с временем и значением,
+        // перелистывание, щипок, окна и статистика окна. Второй ленты с теми
+        // же жестами в приложении не заводится: это одна величина, показанная
+        // в двух размерах, и разойтись они не имеют права.
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onOpenChart,
+                ),
+        ) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 // Заголовка ленты и подписи полосы на экране нет: величину
                 // называет ось графика, а что такое полоса — справка «i».
