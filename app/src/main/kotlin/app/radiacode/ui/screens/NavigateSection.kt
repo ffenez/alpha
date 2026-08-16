@@ -84,6 +84,10 @@ fun NavigateSection(
     onCancelMeasure: () -> Unit,
     onDismissMeasure: () -> Unit,
     onGoToVerify: () -> Unit,
+    /** Счёт держится ровно — предложить проверку здесь. */
+    offerVerify: Boolean = false,
+    onOfferAccept: () -> Unit = {},
+    onOfferDismiss: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -283,6 +287,38 @@ fun NavigateSection(
                     }
                     Hint(text = t.navSpotNote)
                 }
+            }
+
+            // Счёт держится ровно — похоже, человек остановился у места.
+            // Экран предлагает сменить вопрос, но не решает за него: остановку
+            // приложение не наблюдает, а запуск проверки по спокойному сигналу
+            // означал бы измерение, чей результат предрешён.
+            null -> if (offerVerify) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                        StatusRow(text = t.offerVerifyTitle, color = colors.ink)
+                        Text(
+                            text = t.offerVerifyBody,
+                            style = type.bodySmall,
+                            color = colors.ink2,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                            AppButton(
+                                text = t.offerVerifyAction,
+                                onClick = onOfferAccept,
+                                primary = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            AppButton(
+                                text = strings.cancel,
+                                onClick = onOfferDismiss,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            } else {
+                Unit
             }
 
             is SpotMeasure.Done -> Card(modifier = Modifier.fillMaxWidth()) {

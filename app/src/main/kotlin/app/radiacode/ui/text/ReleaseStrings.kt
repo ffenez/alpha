@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v058Title: String
+    val v058Summary: String
+
     val v057Title: String
     val v057Summary: String
 
@@ -132,6 +135,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v058Title = "Наведение предлагает проверить место"
+    override val v058Summary =
+        "Когда счёт держится ровно восемь секунд, экран предлагает перейти к " +
+        "Проверке — вопрос меняется с «теплее или холоднее» на «отличается ли " +
+        "это место от фона». Именно предлагает: остановку приложение не видит, " +
+        "и начинать измерение по спокойному сигналу значило бы подтверждать " +
+        "самого себя."
 
     override val v057Title = "Поиск сам решает, сколько держать прибор"
     override val v057Summary =
@@ -403,6 +414,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v058Title = "Наведение offers to check the place"
+    override val v058Summary =
+        "When the count holds steady for eight seconds, the screen offers to move " +
+        "to Проверка — the question changes from «warmer or colder» to «does this " +
+        "place differ from the background». It offers rather than starts: standing " +
+        "still is not something the app can see, and starting on a calm signal " +
+        "would be a measurement confirming itself."
 
     override val v057Title = "Поиск decides how long to hold the instrument"
     override val v057Summary =
@@ -682,6 +701,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v058Title, v058Summary,
     v057Title, v057Summary,
     v056Title, v056Summary,
     v055Title, v055Summary,

@@ -82,6 +82,7 @@ import app.radiacode.ui.logic.NavigateEngine
 import app.radiacode.ui.logic.NavigateState
 import app.radiacode.ui.logic.NavigateTrend
 import app.radiacode.ui.logic.SearchMode
+import app.radiacode.ui.logic.SearchStillness
 import app.radiacode.ui.logic.SearchBaseline
 import app.radiacode.ui.logic.SearchEngine
 import app.radiacode.ui.logic.SearchFeedbackMode
@@ -166,6 +167,10 @@ fun SearchScreen(
     // превышение над записанным фоном». Выбор запоминается.
     val modeId by graph.settings.searchMode.collectAsState(initial = null)
     val screenMode = SearchMode.of(modeId)
+    // Ровный счёт как повод предложить проверку: состояние живёт между
+    // кадрами, потому что «держится восемь секунд» — утверждение о прошлом.
+    var stillness by remember { mutableStateOf(SearchStillness.State()) }
+    var nowTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val spot by graph.spotMeasure.state.collectAsState()
 
     // The 45 s background measurement is owned by the app graph, not by this
@@ -324,6 +329,14 @@ fun SearchScreen(
     // target, so a step in the ratio is never a step in the audio.
     // В «Наведении» знаменатель другой — точка отсчёта, а не записанный фон, —
     // и именно его несёт шкала дуги: глаз и ухо обязаны говорить одно и то же.
+    LaunchedEffect(search.direction, screenMode) {
+        while (screenMode == SearchMode.NAVIGATE) {
+            nowTick = System.currentTimeMillis()
+            stillness = SearchStillness.step(stillness, search.direction, nowTick)
+            delay(1_000)
+        }
+    }
+
     val ratio = if (screenMode == SearchMode.NAVIGATE) {
         navigate.referenceRatio
     } else {
@@ -567,6 +580,16 @@ fun SearchScreen(
                     graph.spotMeasure.dismiss()
                     scope.launch { graph.settings.setSearchMode(SearchMode.VERIFY.id) }
                 },
+                // Счёт держится ровно — похоже, человек остановился. Экран
+                // ПРЕДЛАГАЕТ проверку, но не начинает её сам: остановку
+                // приложение не видит, а запуск по спокойному сигналу означал
+                // бы измерение, результат которого предрешён (SearchStillness).
+                offerVerify = SearchStillness.offering(stillness, nowTick),
+                onOfferAccept = {
+                    stillness = SearchStillness.dismiss(stillness)
+                    scope.launch { graph.settings.setSearchMode(SearchMode.VERIFY.id) }
+                },
+                onOfferDismiss = { stillness = SearchStillness.dismiss(stillness) },
             )
             return@Column
         }

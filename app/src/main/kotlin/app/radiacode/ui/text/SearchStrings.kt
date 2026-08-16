@@ -57,6 +57,10 @@ interface SearchStrings {
     fun decisionRemaining(seconds: Int): String
     /** Отличие тоньше того, что различимо за разумное время. */
     val decisionTooSmall: String
+    /** Предложение сменить вопрос, когда счёт держится ровно. */
+    val offerVerifyTitle: String
+    val offerVerifyBody: String
+    val offerVerifyAction: String
 
     // --- режимы экрана ---
     /** Сегмент вверху: два ВОПРОСА, а не «точный» и «быстрый». */
@@ -390,6 +394,11 @@ object SearchRu : SearchStrings {
     override val backgroundLearnedTag = "ОБЫЧНО"
     override fun decisionRemaining(seconds: Int) = "нужно ещё ~$seconds с"
     override val decisionTooSmall = "разница слишком мала, чтобы её подтвердить"
+    override val offerVerifyTitle = "Проверить здесь?"
+    override val offerVerifyBody =
+        "Счёт держится ровно. Проверка ответит на другой вопрос: отличается ли " +
+            "это место от фона — и сколько для ответа копить."
+    override val offerVerifyAction = "Проверить"
     override val backgroundLearnedNote =
         "Сравнение идёт с обычным фоном этого места — приложение изучило его " +
             "само. Такое сравнение осторожнее записанного эталона: у изученного " +
@@ -771,6 +780,11 @@ object SearchEn : SearchStrings {
     override val backgroundLearnedTag = "USUAL"
     override fun decisionRemaining(seconds: Int) = "about $seconds s more"
     override val decisionTooSmall = "the difference is too small to confirm"
+    override val offerVerifyTitle = "Check here?"
+    override val offerVerifyBody =
+        "The count is holding steady. Проверка answers a different question: does " +
+            "this place differ from the background — and how long that takes."
+    override val offerVerifyAction = "Check"
     override val backgroundLearnedNote =
         "The comparison runs against the usual background of this place, which " +
             "the app learned by itself. It is more cautious than a recorded " +
