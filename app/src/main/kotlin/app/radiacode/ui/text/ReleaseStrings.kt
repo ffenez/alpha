@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v054Title: String
+    val v054Summary: String
+
     val v053Title: String
     val v053Summary: String
 
@@ -120,6 +123,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v054Title = "Измерения продуктов остаются в журнале"
+    override val v054Summary =
+        "В Истории появился фильтр «Продукты»: каждое измерение — запись с " +
+        "результатом, условиями и счётом фона и образца, и она открывается " +
+        "обратно. Ёмкость выбирается пресетом — банка, кружка, пакет, " +
+        "тарелка, — потому что повторить нужно именно её, а не вспомнить, как " +
+        "стояло в прошлый раз."
 
     override val v053Title = "Проверить продукт"
     override val v053Summary =
@@ -359,6 +370,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v054Title = "Product measurements stay in the journal"
+    override val v054Summary =
+        "История gained a «Продукты» filter: every measurement is an entry with " +
+        "its result, its conditions and the counts of background and sample, and " +
+        "it opens back up. The container is chosen from presets — jar, mug, bag, " +
+        "plate — because it is the container that has to be repeated, not " +
+        "remembered."
 
     override val v053Title = "Check a product"
     override val v053Summary =
@@ -606,6 +625,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v054Title, v054Summary,
     v053Title, v053Summary,
     v052Title, v052Summary,
     v051Title, v051Summary,

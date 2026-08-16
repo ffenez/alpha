@@ -2,6 +2,8 @@ package app.radiacode.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,13 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
-import app.radiacode.analysis.AbAnalysis
-import app.radiacode.analysis.EnergyCalibration
 import app.radiacode.analysis.FoodScreening
-import app.radiacode.analysis.PeakDetection
 import app.radiacode.data.db.ExperimentEntity
 import app.radiacode.data.db.SpectrumSnapshotEntity
-import app.radiacode.data.toSpectrum
 import app.radiacode.device.ConnectionState
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
@@ -39,6 +37,7 @@ import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.StatusRow
+import app.radiacode.ui.logic.FoodGeometry
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.text.FoodCatalogue
@@ -67,8 +66,14 @@ private enum class FoodStep { SETUP, BACKGROUND, SAMPLE, RESULT }
  * не объявляет нуклид по совпадению энергии. Что он умеет — сказано словами в
  * справке, и она открывается прямо отсюда.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun FoodScreen(graph: AppGraph, onBack: () -> Unit) {
+fun FoodScreen(
+    graph: AppGraph,
+    onBack: () -> Unit,
+    /** Не null — открыта запись из журнала: экран показывает её итог. */
+    openMeasurementId: Long? = null,
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val strings = LocalStrings.current
@@ -81,10 +86,13 @@ fun FoodScreen(graph: AppGraph, onBack: () -> Unit) {
     val hubState by graph.spectrumHub.state.collectAsState()
     val run by graph.abRun.state.collectAsState()
 
-    var step by rememberSaveable { mutableStateOf(FoodStep.SETUP) }
-    var experimentId by rememberSaveable { mutableLongStateOf(0L) }
+    var step by rememberSaveable {
+        mutableStateOf(if (openMeasurementId != null) FoodStep.RESULT else FoodStep.SETUP)
+    }
+    var experimentId by rememberSaveable { mutableLongStateOf(openMeasurementId ?: 0L) }
     var name by rememberSaveable { mutableStateOf("") }
     var mass by rememberSaveable { mutableStateOf("") }
+    var geometry by rememberSaveable { mutableStateOf(FoodGeometry.JAR_LITRE) }
     var container by rememberSaveable { mutableStateOf("") }
     var guideOpen by rememberSaveable { mutableStateOf(false) }
     var result by remember { mutableStateOf<FoodScreening.Result?>(null) }
@@ -119,46 +127,7 @@ fun FoodScreen(graph: AppGraph, onBack: () -> Unit) {
     }
 
     suspend fun computeResult() {
-        val runs = graph.experimentRepository.runs(experimentId)
-        val background = runs.firstOrNull { it.label == LABEL_BACKGROUND }
-        val sample = runs.firstOrNull { it.label == LABEL_SAMPLE }
-        if (background == null || sample == null) return
-        val backgroundSpectrum = background.spectrumId
-            ?.let { graph.measurementRepository.spectrumById(it) }?.toSpectrum()
-        val sampleSpectrum = sample.spectrumId
-            ?.let { graph.measurementRepository.spectrumById(it) }?.toSpectrum()
-        if (backgroundSpectrum == null || sampleSpectrum == null) return
-
-        val backgroundCounting = AbAnalysis.Counting(
-            counts = backgroundSpectrum.counts.sumOf { it.toDouble() },
-            seconds = backgroundSpectrum.durationSeconds.toDouble(),
-        )
-        val sampleCounting = AbAnalysis.Counting(
-            counts = sampleSpectrum.counts.sumOf { it.toDouble() },
-            seconds = sampleSpectrum.durationSeconds.toDouble(),
-        )
-        // Линии ищутся в РАЗНОСТИ образца и приведённого по времени фона.
-        // Отрицательные каналы разности — статистический шум вычитания, и в
-        // поиск пиков они идут нулями: пик из отрицательной площади не бывает.
-        val lines = if (backgroundSpectrum.counts.size == sampleSpectrum.counts.size &&
-            backgroundCounting.seconds > 0.0
-        ) {
-            val ratio = sampleCounting.seconds / backgroundCounting.seconds
-            val net = sampleSpectrum.counts.mapIndexed { index, value ->
-                (value - backgroundSpectrum.counts[index] * ratio).toInt().coerceAtLeast(0)
-            }
-            PeakDetection.detect(
-                counts = net,
-                calibration = EnergyCalibration(
-                    sampleSpectrum.a0,
-                    sampleSpectrum.a1,
-                    sampleSpectrum.a2,
-                ),
-            ).map { FoodScreening.Line(it.energyKeV, it.significance.toDouble()) }
-        } else {
-            emptyList()
-        }
-        result = FoodScreening.screen(backgroundCounting, sampleCounting, lines)
+        result = graph.experimentRepository.foodResult(experimentId)
     }
 
     if (guideOpen) {
@@ -216,10 +185,30 @@ fun FoodScreen(graph: AppGraph, onBack: () -> Unit) {
                             placeholder = t.sampleMass,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        Text(text = t.container, style = type.labelSmall, color = colors.ink2)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                            FoodGeometry.entries.forEach { option ->
+                                Chip(
+                                    text = option.label(t),
+                                    color = if (option == geometry) {
+                                        colors.dataText
+                                    } else {
+                                        colors.ink2
+                                    },
+                                    selected = option == geometry,
+                                    onClick = { geometry = option },
+                                )
+                            }
+                        }
+                        Text(
+                            text = geometry.hint(t),
+                            style = type.footnote,
+                            color = colors.muted,
+                        )
                         AppTextField(
                             value = container,
                             onValueChange = { container = it },
-                            placeholder = t.container,
+                            placeholder = t.note,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         AppButton(
@@ -231,7 +220,14 @@ fun FoodScreen(graph: AppGraph, onBack: () -> Unit) {
                                     experimentId = graph.experimentRepository.create(
                                         kind = ExperimentEntity.KIND_FOOD,
                                         profileId = null,
-                                        geometry = container.trim(),
+                                        // Геометрия — пресет плюс уточнение: пресет
+                                        // повторяется буквально, уточнение хранит
+                                        // то, чего в пресете нет.
+                                        geometry = listOfNotNull(
+                                            geometry.label(t),
+                                            container.trim().ifBlank { null },
+                                        ).joinToString(" · "),
+                                        placement = geometry.code,
                                         note = listOfNotNull(
                                             name.trim().ifBlank { null },
                                             mass.trim().ifBlank { null }?.let { "$it г" },

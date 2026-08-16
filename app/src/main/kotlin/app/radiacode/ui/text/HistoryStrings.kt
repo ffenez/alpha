@@ -111,6 +111,9 @@ interface HistoryStrings {
     val filterSessions: String
     val filterRoutes: String
     val filterSpectra: String
+    val filterFood: String
+    val noFoodYet: String
+    val foodExplained: String
 
     /** Подпись маршрута без имени: «Маршрут · 18:51». */
     fun routeAuto(time: String): String
@@ -246,6 +249,11 @@ object HistoryRu : HistoryStrings {
     override val filterSessions = "Сессии"
     override val filterRoutes = "Маршруты"
     override val filterSpectra = "Спектры"
+    override val filterFood = "Продукты"
+    override val noFoodYet = "Измерений продуктов пока нет"
+    override val foodExplained =
+        "Измерение продукта — на экране Спектра: фон и образец в одной " +
+            "геометрии, а здесь остаётся запись с результатом."
 
     override fun routeAuto(time: String) = "Маршрут · $time"
     override val routesTitle = "Маршруты"
@@ -403,6 +411,11 @@ object HistoryEn : HistoryStrings {
     override val filterSessions = "Sessions"
     override val filterRoutes = "Routes"
     override val filterSpectra = "Spectra"
+    override val filterFood = "Products"
+    override val noFoodYet = "No product measurements yet"
+    override val foodExplained =
+        "A product is measured on the Spectrum screen: the background and the " +
+            "sample in one geometry, and the record stays here."
 
     override fun routeAuto(time: String) = "Route · $time"
     override val routesTitle = "Routes"
@@ -463,7 +476,8 @@ val HistoryCatalogue = AreaCatalogue(ru = HistoryRu, en = HistoryEn)
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
     today, yesterday,
-    filterAll, filterSessions, filterRoutes, filterSpectra,
+    filterAll, filterSessions, filterRoutes, filterSpectra, filterFood,
+    noFoodYet, foodExplained,
     routeAuto("18:51"), routesTitle, noRoutesYet, routesExplained, routeRecording,
     routeMeasurements("4 654"), routeRename, routeNameHint,
     routeCompare, routeCompareCount(2), routeCompareTitle, routeCompareNeedTwo,

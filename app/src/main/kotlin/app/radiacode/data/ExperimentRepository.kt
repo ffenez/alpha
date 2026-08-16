@@ -1,6 +1,8 @@
 package app.radiacode.data
 
 import app.radiacode.analysis.AbAnalysis
+import app.radiacode.analysis.FoodScreening
+import app.radiacode.analysis.PeakDetection
 import app.radiacode.analysis.AbExperiment
 import app.radiacode.analysis.AlgorithmVersions
 import app.radiacode.analysis.EnergyCalibration
@@ -123,6 +125,54 @@ class ExperimentRepository(
     fun recent(limit: Int = 50): Flow<List<ExperimentEntity>> = experimentDao.observeRecent(limit)
 
     suspend fun byId(experimentId: Long): ExperimentEntity? = experimentDao.byId(experimentId)
+
+    /** Измерения продуктов — тот же журнал опытов, отфильтрованный по виду. */
+    fun foodMeasurements(limit: Int = 50): Flow<List<ExperimentEntity>> =
+        experimentDao.observeByKind(ExperimentEntity.KIND_FOOD, limit)
+
+    /**
+     * Итог скрининга продукта.
+     *
+     * Считается ЗДЕСЬ, а не на экране: тот же результат нужен и строке
+     * журнала, и экрану измерения, и два вычисления одного вывода рано или
+     * поздно разошлись бы. Ничего не кэшируется — источником истины остаются
+     * сами прогоны.
+     */
+    suspend fun foodResult(experimentId: Long): FoodScreening.Result? {
+        val runs = runs(experimentId)
+        val backgroundRun = runs.firstOrNull { it.label == FOOD_LABEL_BACKGROUND }
+        val sampleRun = runs.firstOrNull { it.label == FOOD_LABEL_SAMPLE }
+        val background = backgroundRun?.spectrumId?.let { spectrum(it) }?.toSpectrum()
+        val sample = sampleRun?.spectrumId?.let { spectrum(it) }?.toSpectrum()
+        if (background == null || sample == null) return null
+
+        val backgroundCounting = AbAnalysis.Counting(
+            counts = background.counts.sumOf { it.toDouble() },
+            seconds = background.durationSeconds.toDouble(),
+        )
+        val sampleCounting = AbAnalysis.Counting(
+            counts = sample.counts.sumOf { it.toDouble() },
+            seconds = sample.durationSeconds.toDouble(),
+        )
+        // Линии ищутся в РАЗНОСТИ образца и приведённого по времени фона.
+        // Отрицательные каналы разности — шум вычитания, и в поиск пиков они
+        // идут нулями: пика из отрицательной площади не бывает.
+        val lines = if (
+            background.counts.size == sample.counts.size && backgroundCounting.seconds > 0.0
+        ) {
+            val ratio = sampleCounting.seconds / backgroundCounting.seconds
+            val net = sample.counts.mapIndexed { index, value ->
+                (value - background.counts[index] * ratio).toInt().coerceAtLeast(0)
+            }
+            PeakDetection.detect(
+                counts = net,
+                calibration = EnergyCalibration(sample.a0, sample.a1, sample.a2),
+            ).map { FoodScreening.Line(it.energyKeV, it.significance.toDouble()) }
+        } else {
+            emptyList()
+        }
+        return FoodScreening.screen(backgroundCounting, sampleCounting, lines)
+    }
 
     suspend fun count(): Long = experimentDao.count()
 
@@ -292,3 +342,12 @@ class ExperimentRepository(
         )
     }
 }
+
+/**
+ * Метки прогонов измерения продукта.
+ *
+ * Живут рядом с репозиторием, а не на экране: по ним ищутся прогоны при
+ * подсчёте итога, и разъехаться эти две стороны не имеют права.
+ */
+const val FOOD_LABEL_BACKGROUND = "Фон"
+const val FOOD_LABEL_SAMPLE = "Продукт"

@@ -857,6 +857,10 @@ interface ExperimentDao {
     @Query("SELECT * FROM experiments ORDER BY createdAt DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<ExperimentEntity>>
 
+    /** Опыты одного вида — журналу нужны только измерения продуктов. */
+    @Query("SELECT * FROM experiments WHERE kind = :kind ORDER BY createdAt DESC LIMIT :limit")
+    fun observeByKind(kind: String, limit: Int): Flow<List<ExperimentEntity>>
+
     @Query("SELECT * FROM experiments WHERE id = :experimentId")
     suspend fun byId(experimentId: Long): ExperimentEntity?
 

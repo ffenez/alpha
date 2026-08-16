@@ -48,6 +48,13 @@ private class FakeExperimentDao : ExperimentDao {
     override fun observeRecent(limit: Int): Flow<List<ExperimentEntity>> =
         flowOf(experiments.sortedByDescending { it.createdAt }.take(limit))
 
+    override fun observeByKind(kind: String, limit: Int): Flow<List<ExperimentEntity>> =
+        flowOf(
+            experiments.filter { it.kind == kind }
+                .sortedByDescending { it.createdAt }
+                .take(limit),
+        )
+
     override suspend fun byId(experimentId: Long): ExperimentEntity? =
         experiments.firstOrNull { it.id == experimentId }
 

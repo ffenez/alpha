@@ -54,7 +54,7 @@ data class RouteSummary(
 }
 
 /** Что показывает журнал: всё вместе или один вид записей. */
-enum class HistoryFilter { ALL, SESSIONS, ROUTES, SPECTRA }
+enum class HistoryFilter { ALL, SESSIONS, ROUTES, SPECTRA, FOOD }
 
 object RouteFormat {
 

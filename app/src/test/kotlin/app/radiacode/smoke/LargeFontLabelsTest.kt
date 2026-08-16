@@ -125,7 +125,13 @@ class LargeFontLabelsTest {
     @Test
     fun `the journal filter keeps all four names`() {
         val h = HistoryRu
-        val options = listOf(h.filterAll, h.filterSessions, h.filterRoutes, h.filterSpectra)
+        val options = listOf(
+            h.filterAll,
+            h.filterSessions,
+            h.filterRoutes,
+            h.filterSpectra,
+            h.filterFood,
+        )
         show {
             Segmented(
                 options = options,

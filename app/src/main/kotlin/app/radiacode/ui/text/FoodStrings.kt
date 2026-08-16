@@ -33,6 +33,19 @@ interface FoodStrings {
     val container: String
     val note: String
 
+    // --- геометрия ---
+    val geometryJarHalf: String
+    val geometryJarLitre: String
+    val geometryCup: String
+    val geometryBag: String
+    val geometryPlate: String
+    val geometryCustom: String
+    val geometryJarHint: String
+    val geometryCupHint: String
+    val geometryBagHint: String
+    val geometryPlateHint: String
+    val geometryCustomHint: String
+
     // --- вывод ---
     val verdictNoDifference: String
     val verdictNoDifferenceBody: String
@@ -75,6 +88,26 @@ object FoodRu : FoodStrings {
     override val sampleMass = "Масса, г"
     override val container = "Ёмкость"
     override val note = "Заметка"
+
+    override val geometryJarHalf = "Банка 0,5 л"
+    override val geometryJarLitre = "Банка 1 л"
+    override val geometryCup = "Кружка"
+    override val geometryBag = "Пакет"
+    override val geometryPlate = "Тарелка"
+    override val geometryCustom = "Своя"
+    override val geometryJarHint =
+        "Заполнить до плечиков, прибор плашмя к боковой стенке, всегда одной " +
+            "и той же стороной."
+    override val geometryCupHint =
+        "Заполнить до одной и той же метки, прибор к стенке вплотную."
+    override val geometryBagHint =
+        "Расправить пакет, положить прибор сверху всей плоскостью, толщина " +
+            "слоя одинаковая."
+    override val geometryPlateHint =
+        "Худший случай: тонкий слой даёт мало сигнала. Годится для сравнения " +
+            "с таким же тонким слоем."
+    override val geometryCustomHint =
+        "Опишите положение так, чтобы его можно было повторить через месяц."
 
     override val verdictNoDifference = "Отличий от фона не найдено"
     override val verdictNoDifferenceBody =
@@ -187,6 +220,26 @@ object FoodEn : FoodStrings {
     override val container = "Container"
     override val note = "Note"
 
+    override val geometryJarHalf = "Jar 0.5 l"
+    override val geometryJarLitre = "Jar 1 l"
+    override val geometryCup = "Mug"
+    override val geometryBag = "Bag"
+    override val geometryPlate = "Plate"
+    override val geometryCustom = "Own"
+    override val geometryJarHint =
+        "Fill to the shoulder, the instrument flat against the side wall, " +
+            "always the same side."
+    override val geometryCupHint =
+        "Fill to the same mark, the instrument tight against the wall."
+    override val geometryBagHint =
+        "Flatten the bag, put the instrument on top with its whole face, keep " +
+            "the layer equally thick."
+    override val geometryPlateHint =
+        "The worst case: a thin layer gives little signal. Fine for comparing " +
+            "against an equally thin layer."
+    override val geometryCustomHint =
+        "Describe the position so that it can be repeated a month later."
+
     override val verdictNoDifference = "No difference from the background"
     override val verdictNoDifferenceBody =
         "Over this time no additional gamma signal above the background built up."
@@ -278,6 +331,9 @@ fun FoodStrings.allTexts(): List<String> = listOf(
     title, subtitle,
     stepBackground, stepSample, stepResult, start, backgroundHint, sampleHint,
     sampleName, sampleMass, container, note,
+    geometryJarHalf, geometryJarLitre, geometryCup, geometryBag, geometryPlate,
+    geometryCustom, geometryJarHint, geometryCupHint, geometryBagHint,
+    geometryPlateHint, geometryCustomHint,
     verdictNoDifference, verdictNoDifferenceBody,
     verdictExcess, verdictExcessBody,
     verdictLine, verdictLineBody("662 кэВ"),

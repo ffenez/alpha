@@ -118,6 +118,10 @@ import app.radiacode.ui.components.StatusRow
 import app.radiacode.ui.logic.DoseTint
 import app.radiacode.ui.logic.MapColorScale
 import app.radiacode.ui.logic.ThumbnailPoint
+import app.radiacode.analysis.FoodScreening
+import app.radiacode.data.db.ExperimentEntity
+import app.radiacode.ui.logic.Uncertainty
+import app.radiacode.ui.text.FoodCatalogue
 import kotlinx.coroutines.launch
 
 private const val PAGE_SIZE = 20
@@ -231,6 +235,23 @@ fun HistoryScreen(
             delay(REFRESH_MILLIS)
         }
     }
+    // Измерения продуктов: сама запись — опыт, а итог считает репозиторий,
+    // тот же, что показывает экран измерения. Второго расчёта нет.
+    val foodExperiments by graph.experimentRepository.foodMeasurements()
+        .collectAsState(initial = emptyList())
+    var foodResults by remember { mutableStateOf(mapOf<Long, FoodScreening.Result?>()) }
+    LaunchedEffect(foodExperiments, reload) {
+        foodResults = withContext(Dispatchers.IO) {
+            foodExperiments.associate { it.id to graph.experimentRepository.foodResult(it.id) }
+        }
+    }
+    var openFood by remember { mutableStateOf<Long?>(null) }
+
+    openFood?.let { id ->
+        FoodScreen(graph = graph, onBack = { openFood = null }, openMeasurementId = id)
+        return
+    }
+
     var comparing by remember { mutableStateOf<List<Long>?>(null) }
     var openRoute by remember { mutableStateOf<Long?>(null) }
     var renaming by remember { mutableStateOf<RouteSummary?>(null) }
@@ -440,6 +461,14 @@ fun HistoryScreen(
                 Text(text = strings.readingJournal, style = type.bodySmall, color = colors.muted)
             }
         } else {
+            if (filter == HistoryFilter.ALL || filter == HistoryFilter.FOOD) {
+                FoodList(
+                    measurements = foodExperiments,
+                    results = foodResults,
+                    onOpen = { openFood = it },
+                )
+            }
+
             if (filter == HistoryFilter.ALL || filter == HistoryFilter.ROUTES) {
                 val visibleRoutes = routes.filter { it.id !in deletingRoutes }
                 RoutesList(
@@ -669,6 +698,93 @@ fun HistoryScreen(
 
 
 
+
+/**
+ * Измерения продуктов в журнале.
+ *
+ * Строка отвечает на то, ради чего измерение и делалось: что за продукт, когда,
+ * сколько копили и что вышло. Числа фона и образца — вторичны и стоят тусклой
+ * строкой: они нужны, чтобы вывод можно было проверить, а не чтобы читать их
+ * первыми.
+ */
+@Composable
+private fun FoodList(
+    measurements: List<ExperimentEntity>,
+    results: Map<Long, FoodScreening.Result?>,
+    onOpen: (Long) -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    val f = FoodCatalogue.of(strings.language)
+    val type = LocalAppTypography.current
+    val now = System.currentTimeMillis()
+
+    if (measurements.isEmpty()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(text = h.noFoodYet, style = type.bodySmall, color = colors.ink2)
+                Hint(text = h.foodExplained, style = type.bodySmall, color = colors.muted)
+            }
+        }
+        return
+    }
+
+    for (measurement in measurements) {
+        val result = results[measurement.id]
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { onOpen(measurement.id) },
+                ),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = measurement.note.ifBlank { f.title },
+                    style = type.label,
+                    color = colors.ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = listOfNotNull(
+                        HistoryFormat.dayTime(measurement.createdAt, now, s = h),
+                        measurement.geometry.ifBlank { null },
+                    ).joinToString(" · "),
+                    style = type.footnote,
+                    color = colors.ink2,
+                )
+                Text(
+                    text = when (result?.verdict) {
+                        FoodScreening.Verdict.NO_DIFFERENCE -> f.verdictNoDifference
+                        FoodScreening.Verdict.EXCESS_WITHOUT_LINE -> f.verdictExcess
+                        FoodScreening.Verdict.SPECTRAL_FEATURE -> f.verdictLine
+                        else -> f.verdictNotEnough
+                    },
+                    style = type.footnote,
+                    color = if (result?.verdict == FoodScreening.Verdict.NO_DIFFERENCE) {
+                        colors.ink
+                    } else {
+                        colors.warn
+                    },
+                )
+                result?.comparison?.let { comparison ->
+                    Text(
+                        text = f.stepBackground + " " +
+                            Uncertainty.num1(comparison.rateB.toFloat()) + " · " +
+                            f.stepSample + " " +
+                            Uncertainty.num1(comparison.rateA.toFloat()),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+            }
+        }
+    }
+}
 
 /**
  * Маршруты журнала.
