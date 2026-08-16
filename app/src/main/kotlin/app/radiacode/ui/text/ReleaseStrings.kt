@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v069Title: String
+    val v069Summary: String
+
     val v068Title: String
     val v068Summary: String
 
@@ -165,6 +168,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v069Title = "График идёт за пальцем без рывков"
+    override val v069Summary =
+        "Пока палец водит график, двигается уже нарисованная картинка, а не " +
+        "считается новая: ось значений стоит на месте и переезжает коротким " +
+        "переходом, когда движение улеглось. Бросок пальцем продолжает движение " +
+        "с затуханием и мягко останавливается у края истории."
 
     override val v068Title = "График рисует столько, сколько видно"
     override val v068Summary =
@@ -508,6 +518,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v069Title = "The chart follows the finger without jerks"
+    override val v069Summary =
+        "While the finger moves the chart, the already drawn picture moves instead of " +
+        "a new one being computed: the value axis stays put and shifts in one short " +
+        "transition once the movement settles. A flick keeps going with decay and " +
+        "stops softly at the edge of the history."
 
     override val v068Title = "The chart draws as much as is visible"
     override val v068Summary =

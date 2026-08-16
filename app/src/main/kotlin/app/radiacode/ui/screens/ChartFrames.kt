@@ -155,6 +155,16 @@ internal fun buildFrame(
      * ([ChartDownsampler]).
      */
     plotWidthPx: Float = 0f,
+    /**
+     * Диапазон, для которого строится ГЕОМЕТРИЯ; null — только видимое окно с
+     * воздухом справа (так рисуют неподвижные картинки: миниатюра, снимок).
+     *
+     * Полноэкранный график просит запас с обеих сторон, чтобы жест двигал
+     * готовую картинку, а не открывал пустое поле по краям (`ChartGesture`).
+     * Масштаб оси, статистика и подпись последней точки при этом считаются по
+     * ВИДИМОМУ окну: запас — про плавность, а не про то, что показано.
+     */
+    renderWindow: ChartWindow? = null,
 ): ChartFrame {
     // Колонка — это ИНТЕРВАЛ, и в окно она попадает пересечением, а не
     // серединой.
@@ -181,6 +191,11 @@ internal fun buildFrame(
     // что распределение известно только по часам целиком.
     val detailed = detail == ChartDetailMode.DETAILED
     val refoldable = snapshot.method != QuantileMethod.KLL_SKETCH
+    // Геометрия строится ШИРЕ видимого окна, чтобы жест двигал готовую
+    // картинку, а не открывал пустое поле по краям (`ChartGesture`). Разрешение
+    // при этом считается по ВИДИМОМУ окну: запас под жест не имеет права
+    // огрублять то, что на экране, — ровно как и запас чтения.
+    val geometry = renderWindow ?: ChartWindows.withRightPadding(window)
     val columnMillis = if (refoldable) {
         ChartDownsampler.columnMillis(
             widthPx = plotWidthPx,
@@ -196,8 +211,8 @@ internal fun buildFrame(
     }
     val columns = if (refoldable) {
         val alignedFrom = ChartMapping.alignedFrom(
-            window.toMillis,
-            window.spanMillis,
+            geometry.toMillis,
+            geometry.spanMillis,
             columnMillis,
         )
         ChartSeriesModel.fold(
@@ -205,14 +220,20 @@ internal fun buildFrame(
             alignedFromMillis = alignedFrom,
             bucketMillis = columnMillis,
             bucketCount = ChartSeriesModel.bucketCount(
-                window.spanMillis,
+                geometry.spanMillis,
                 columnMillis,
-                maxColumns = ChartDownsampler.MAX_COLUMNS,
+                maxColumns = ChartDownsampler.MAX_RENDERED_COLUMNS,
             ),
             subBucketMillis = snapshot.subBucketMillis,
         ).ifEmpty { snapshot.buckets }
     } else {
         snapshot.buckets
+    }
+    // Колонки для РИСОВАНИЯ — по всему нарисованному диапазону; колонки для
+    // МАСШТАБА оси — только те, что видно. Иначе ушедший в запас всплеск
+    // продолжал бы держать верх кадра, хотя на экране его нет.
+    val rendered = columns.filter {
+        it.endMillis > geometry.fromMillis && it.startMillis < geometry.toMillis
     }
     val visible = columns.filter {
         it.endMillis > window.fromMillis && it.startMillis < window.toMillis
@@ -252,16 +273,16 @@ internal fun buildFrame(
         baselineBand = band,
     )
     val episodes = DoseEpisodes.around(
-        buckets = visible,
+        buckets = rendered,
         eventTimesMillis = snapshot.eventTimesMillis.filter {
-            it >= window.fromMillis && it <= window.toMillis
+            it >= geometry.fromMillis && it <= geometry.toMillis
         },
         alarmMicroSvH = alarm,
         baselineP90MicroSvH = baseline?.doseHighMicroSvH,
     )
     val markers = if (showEvents) {
         DoseExtremes.markers(
-            buckets = visible,
+            buckets = rendered,
             alarmMicroSvH = alarm,
             baselineP90MicroSvH = baseline?.doseHighMicroSvH,
         )
@@ -283,13 +304,18 @@ internal fun buildFrame(
     // не пиксельный: он не растягивает данные и не рисует в будущем ничего —
     // просто оставляет воздух справа. Пропуск в конце (поток встал) выглядит
     // так же честно: линия кончается на последнем измерении, дальше пусто.
-    val padded = ChartWindows.withRightPadding(window)
+    // Метки времени считаются по всему нарисованному диапазону, поэтому их
+    // берётся больше — ровно во столько раз, во сколько он шире окна: иначе
+    // после сдвига на экране оставалась бы одна подпись.
+    val geometryLabelCount = (
+        xLabelCount * geometry.spanMillis / window.spanMillis.coerceAtLeast(1L)
+        ).toInt().coerceIn(xLabelCount, xLabelCount * 4)
     return ChartFrame(
         spec = DoseChartSpec(
-            buckets = visible,
+            buckets = rendered,
             detailed = detailed,
-            fromMillis = padded.fromMillis,
-            toMillis = padded.toMillis,
+            fromMillis = geometry.fromMillis,
+            toMillis = geometry.toMillis,
             scale = scale,
             baselineBand = band,
             baselineMedian = baseline?.doseMedianMicroSvH,
@@ -320,23 +346,27 @@ internal fun buildFrame(
             // Заодно исчезает вопрос перехода через полночь.
             xLabels = if (nowMillis != null) {
                 TimeAxis.relativeLabels(
-                    fromMillis = padded.fromMillis,
-                    toMillis = padded.toMillis,
+                    fromMillis = geometry.fromMillis,
+                    toMillis = geometry.toMillis,
                     nowMillis = nowMillis,
                     s = axisStrings,
-                    count = xLabelCount,
+                    count = geometryLabelCount,
                 )
             } else {
-                TimeAxis.autoLabels(padded.fromMillis, padded.toMillis, count = xLabelCount)
+                TimeAxis.autoLabels(
+                    geometry.fromMillis,
+                    geometry.toMillis,
+                    count = geometryLabelCount,
+                )
             },
             unitLabel = if (showUnit) ChartMetrics.unitLabel(metric, unit) else "",
             // Фон, который несёт данные: где прибор молчал, куда история не
             // доходит и где проходят сутки/часы (§2 ТЗ и правило «не
             // интерполировать пропуски»).
             gaps = ChartBackground.gaps(
-                buckets = visible,
-                fromMillis = window.fromMillis,
-                toMillis = window.toMillis,
+                buckets = rendered,
+                fromMillis = geometry.fromMillis,
+                toMillis = geometry.toMillis,
                 // Пропуск меряется НАРИСОВАННОЙ колонкой: она и есть шаг ряда
                 // на экране, а ширина колонки в снимке относится к
                 // прочитанному диапазону.
@@ -345,8 +375,8 @@ internal fun buildFrame(
             beforeHistory = ChartBackground.historyStart(
                 earliestSampleMillis = snapshot.buckets.firstOrNull { it.sampleCount > 0 }
                     ?.startMillis,
-                fromMillis = window.fromMillis,
-                toMillis = window.toMillis,
+                fromMillis = geometry.fromMillis,
+                toMillis = geometry.toMillis,
             ),
             // На пустом окне фона нет вовсе: зебра — это опора для глаза
             // ВНУТРИ данных, а на чистом поле она читается как ошибка рендера
@@ -354,12 +384,12 @@ internal fun buildFrame(
             // Зебра — опора для глаза ВНУТРИ измеренного времени, и дальше него
             // не идёт: залитые часы там, где прибор не писал, выглядели как
             // полноценная часть истории, то есть маскировали её отсутствие.
-            timeBands = if (visible.isEmpty()) {
+            timeBands = if (rendered.isEmpty()) {
                 emptyList()
             } else {
                 ChartBackground.bands(
-                    fromMillis = maxOf(window.fromMillis, visible.first().startMillis),
-                    toMillis = minOf(window.toMillis, visible.last().endMillis),
+                    fromMillis = maxOf(geometry.fromMillis, rendered.first().startMillis),
+                    toMillis = minOf(geometry.toMillis, rendered.last().endMillis),
                 )
             },
             rawSamples = rawDots,

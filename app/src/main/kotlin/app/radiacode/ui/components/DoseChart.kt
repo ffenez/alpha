@@ -78,9 +78,24 @@ data class DoseChartSpec(
      * две картинки одновременно означали бы два разных утверждения.
      */
     val detailed: Boolean = false,
-    /** Visible time range; columns are placed by wall-clock time inside it. */
+    /**
+     * Диапазон, для которого построена геометрия. Обычно ШИРЕ видимого окна:
+     * запас с обеих сторон позволяет жесту двигать готовую картинку, а не
+     * открывать пустое поле по краям (`ChartGesture`).
+     */
     val fromMillis: Long,
     val toMillis: Long,
+    /**
+     * Окно, которое видно на экране, внутри [fromMillis]..[toMillis];
+     * null — видно весь кадр (неподвижная картинка: миниатюра, снимок).
+     *
+     * Именно оно раскладывается на ширину поля. Пока идёт жест, меняется
+     * только эта пара чисел: колонки, конверты и подписи уже посчитаны, и их
+     * остаётся перепроецировать — арифметика по колонкам вместо пересборки
+     * кадра со статистикой и гистограммой.
+     */
+    val viewFromMillis: Long? = null,
+    val viewToMillis: Long? = null,
     val scale: DoseScale,
     /** «Привычный фон места»: P10–P90 of the active baseline, µSv/h. */
     val baselineBand: ClosedFloatingPointRange<Float>? = null,
@@ -127,7 +142,21 @@ data class DoseChartSpec(
      * стоит в углу поля.
      */
     val endpointLabel: String? = null,
-)
+) {
+    /** Левый край видимого окна. */
+    val viewFrom: Long get() = viewFromMillis ?: fromMillis
+
+    /** Правый край видимого окна. */
+    val viewTo: Long get() = viewToMillis ?: toMillis
+
+    /** Доля внутри нарисованного диапазона → доля внутри видимого окна. */
+    fun viewFraction(frameFraction: Float): Float {
+        val viewSpan = (viewTo - viewFrom).toFloat()
+        if (viewSpan <= 0f) return frameFraction
+        val at = fromMillis + (toMillis - fromMillis) * frameFraction.toDouble()
+        return ((at - viewFrom) / viewSpan).toFloat()
+    }
+}
 
 /**
  * Fullscreen dose-rate chart («Научный терминал», design-language.md).
@@ -214,16 +243,16 @@ fun DoseChart(
         // never inside the draw scope.
         val pixels = remember(
             spec.buckets,
-            spec.fromMillis,
-            spec.toMillis,
+            spec.viewFrom,
+            spec.viewTo,
             spec.scale,
             widthPx,
             heightPx,
         ) {
             ChartProjection.project(
                 buckets = spec.buckets,
-                fromMillis = spec.fromMillis,
-                toMillis = spec.toMillis,
+                fromMillis = spec.viewFrom,
+                toMillis = spec.viewTo,
                 scale = spec.scale,
                 leftPx = 0f,
                 widthPx = widthPx,
@@ -428,9 +457,9 @@ private fun StaticChartLayer(
                 val alarmStroke = 1.dp.toPx()
                 val baselineStroke = 1.5.dp.toPx()
                 val labelInset = 4.dp.toPx()
-                val spanMillis = (spec.toMillis - spec.fromMillis).coerceAtLeast(1L)
+                val spanMillis = (spec.viewTo - spec.viewFrom).coerceAtLeast(1L)
                 fun xOfTime(millis: Long): Float =
-                    (widthPx * (millis - spec.fromMillis).toFloat() / spanMillis)
+                    (widthPx * (millis - spec.viewFrom).toFloat() / spanMillis)
                         .coerceIn(0f, widthPx)
 
                 fun yOf(value: Float): Float? = spec.scale.fractionOrNull(value)
@@ -440,9 +469,14 @@ private fun StaticChartLayer(
                 val yTexts = spec.yLabels.mapNotNull { (value, label) ->
                     yOf(value)?.let { it to textMeasurer.measure(label, axisStyle) }
                 }
-                val xTexts = spec.xLabels.map { (fraction, label) ->
-                    fraction to textMeasurer.measure(label, axisStyle)
-                }
+                // Подписи времени посчитаны в долях НАРИСОВАННОГО диапазона;
+                // на экран они ложатся по долям видимого окна — и уезжают
+                // вместе с данными, как им и положено.
+                val xTexts = spec.xLabels
+                    .map { (fraction, label) ->
+                        spec.viewFraction(fraction) to textMeasurer.measure(label, axisStyle)
+                    }
+                    .filter { (fraction, _) -> fraction >= -0.05f && fraction <= 1.05f }
                 val unitText = spec.unitLabel.takeIf { it.isNotEmpty() }
                     ?.let { textMeasurer.measure(it, axisStyle) }
                 // §3: далёкий L1 НЕ растягивает ось (это делает ChartMapping),
@@ -492,10 +526,10 @@ private fun StaticChartLayer(
                 val bandTop = spec.baselineBand?.let { yOf(it.endInclusive) }
                 val bandBottom = spec.baselineBand?.let { yOf(it.start) }
                 val baselineMedianY = spec.baselineMedian?.let { yOf(it) }
-                val span = (spec.toMillis - spec.fromMillis).coerceAtLeast(1L)
+                val span = spanMillis
                 val episodeRects = spec.episodes.mapIndexed { index, episode ->
-                    val a = widthPx * (episode.fromMillis - spec.fromMillis).toFloat() / span
-                    val b = widthPx * (episode.toMillis - spec.fromMillis).toFloat() / span
+                    val a = widthPx * (episode.fromMillis - spec.viewFrom).toFloat() / span
+                    val b = widthPx * (episode.toMillis - spec.viewFrom).toFloat() / span
                     // An episode above the alarm level and an episode above
                     // the profile's historical P90 are different classes of
                     // event (§20) — different colour AND different edge, so
@@ -565,7 +599,7 @@ private fun StaticChartLayer(
                     // Вертикальные линии времени по тем же подписям, что и
                     // снизу: на суточном окне без них глазу не за что
                     // зацепиться по горизонтали.
-                    for ((fraction, _) in spec.xLabels) {
+                    for ((fraction, _) in xTexts) {
                         val x = widthPx * fraction
                         if (x > 0.5f && x < widthPx - 0.5f) {
                             drawLine(
@@ -1080,13 +1114,13 @@ private fun rawDotOffsets(
     plotHeight: Float,
 ): List<Offset> {
     if (spec.rawSamples.isEmpty()) return emptyList()
-    val span = (spec.toMillis - spec.fromMillis).coerceAtLeast(1L)
+    val span = (spec.viewTo - spec.viewFrom).coerceAtLeast(1L)
     val out = ArrayList<Offset>(spec.rawSamples.size)
     for (a in spec.rawSamples) {
-        if (a.startMillis < spec.fromMillis || a.startMillis > spec.toMillis) continue
+        if (a.startMillis < spec.viewFrom || a.startMillis > spec.viewTo) continue
         val fraction = spec.scale.fractionOrNull(a.meanMicroSvH) ?: continue
         out += Offset(
-            widthPx * (a.startMillis - spec.fromMillis).toFloat() / span,
+            widthPx * (a.startMillis - spec.viewFrom).toFloat() / span,
             ChartProjection.yOf(fraction, plotTop, plotHeight),
         )
     }
