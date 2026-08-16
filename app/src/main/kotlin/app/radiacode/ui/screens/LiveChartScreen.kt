@@ -5,9 +5,6 @@ import app.radiacode.ui.logic.ChartInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -128,7 +125,12 @@ private const val EDGE_ANIMATION_STEPS = 11
 /** Дальше этого числа окон возврат не едет, а переносится. */
 private const val FAR_JUMP_SPANS = 6
 
-private const val CHIP_STEP_DP = 52
+/**
+ * Ступеней в строке поповера выбора окна.
+ * **Инженерный параметр**: три — при пятнадцати ступенях это пять строк,
+ * которые целиком помещаются над панелью и не требуют прокрутки.
+ */
+private const val PICKER_COLUMNS = 3
 
 internal val CURSOR_TIME = DateTimeFormatter.ofPattern("HH:mm:ss")
 
@@ -388,6 +390,23 @@ fun LiveChartScreen(
         }
     }
 
+    /**
+     * «Вся история»: окно от первого измерения до края времени.
+     *
+     * Это не ступень лестницы — её длина зависит от того, сколько записано, и
+     * меняется с каждой новой записью. Длиннее того, что величина умеет
+     * показать честно, окно не станет: у счёта и жёсткости предагрегации
+     * длинных окон нет (`ChartMetrics.maxSpanMillis`).
+     */
+    fun selectAllHistory() {
+        val b = bounds()
+        val earliest = b.earliestMillis ?: return
+        val span = (b.edgeMillis - earliest).coerceAtLeast(Viewports.MIN_SPAN_MILLIS)
+        setViewport(Viewports.withSpan(gesture.visible, span, b))
+        cursorActive = false
+        cursorFraction.value = null
+    }
+
     fun selectPeriod(index: Int) {
         val span = ChartWindows.PERIODS[index].second
         setViewport(Viewports.withSpan(gesture.visible, span, bounds()))
@@ -608,6 +627,8 @@ fun LiveChartScreen(
                     availablePeriods = periodIndices,
                     periodExact = periodExact,
                     currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000, s = h),
+                    onSelectAllHistory = ::selectAllHistory,
+                    onResetScale = { selectPeriod(periodIndex) },
                 )
             }
             ChartDetailsSheet(
@@ -692,6 +713,8 @@ fun LiveChartScreen(
                 availablePeriods = periodIndices,
                 periodExact = periodExact,
                 currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000, s = h),
+                onSelectAllHistory = ::selectAllHistory,
+                onResetScale = { selectPeriod(periodIndex) },
             )
         }
         }
@@ -1051,65 +1074,79 @@ private fun RowScope.ControlChips(
     periodExact: Boolean = true,
     /** Фактическое окно словами — для свёрнутого чипа между ступенями. */
     currentSpanLabel: String = "",
+    /** «Вся история»: окно от первого измерения до края; null — история неизвестна. */
+    onSelectAllHistory: (() -> Unit)? = null,
+    /** Сбросить масштаб — то же, что двойное нажатие по полю. */
+    onResetScale: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
-    // Лестница из пятнадцати ступеней постоянно на экране съедала место и
-    // требовала прокрутки ради одного нажатия. Свёрнутая она — один чип с
-    // текущим окном; развёрнутая показывает ряд и прячется сразу после
-    // выбора. Между ступенями чип называет фактическое окно, а не ближайшую
-    // ступень: подсказка обязана говорить правду о том, что на экране.
-    var expanded by remember { mutableStateOf(false) }
-    LaunchedEffect(periodIndex, periodExact) {
-        if (expanded && periodExact) expanded = false
-    }
-    if (!expanded) {
+    val texts = ChartTextCatalogue.of(LocalStrings.current.language)
+    val strings = LocalStrings.current
+    // Лестница из пятнадцати ступеней разворачивалась прокручиваемой лентой
+    // поверх графика: чтобы дотянуться до «7д», приходилось листать ряд, а ряд
+    // закрывал сами данные. Теперь окно выбирают из сетки в поповере — все
+    // ступени видны сразу, и после выбора он исчезает (V2 §17).
+    //
+    // Подпись чипа всегда говорит правду о том, что на экране: ровно ступень —
+    // её название и подсветка; между ступенями (после щипка) — фактическое
+    // окно и подсветки нет.
+    var pickerOpen by remember { mutableStateOf(false) }
+    Box {
         Chip(
             text = (if (periodExact) ChartWindows.PERIODS[periodIndex].first else currentSpanLabel) +
                 " ▾",
             color = colors.ink,
-            selected = true,
-            onClick = { expanded = true },
+            selected = periodExact,
+            onClick = { pickerOpen = true },
         )
-        Spacer(Modifier.weight(1f))
-    } else {
-        val scroll = rememberScrollState()
-        val density = LocalDensity.current
-        LaunchedEffect(periodIndex, availablePeriods.size) {
-            val target = ChartWindows.scrollTargetIndex(availablePeriods.indexOf(periodIndex))
-            val offsetPx = with(density) { (target * CHIP_STEP_DP).dp.roundToPx() }
-            scroll.animateScrollTo(offsetPx)
-        }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f).horizontalScroll(scroll),
-        ) {
-            for (index in availablePeriods) {
-                // Точное совпадение — выбранный чип; между ступенями (после
-                // щипка) ближайший просто ярче: «вы примерно здесь», но окно
-                // не равно ступени, и притворяться иначе нельзя.
-                val exact = index == periodIndex && periodExact
-                val nearest = index == periodIndex && !periodExact
-                Chip(
-                    text = ChartWindows.PERIODS[index].first,
-                    color = if (exact || nearest) colors.ink else colors.ink2,
-                    selected = exact,
-                    onClick = {
-                        onSelectPeriod(index)
-                        expanded = false
-                    },
+        DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
+            Column(
+                modifier = Modifier.padding(horizontal = Dimens.space2, vertical = Dimens.space1),
+                verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+            ) {
+                Text(
+                    text = texts.windowPicker.uppercase(),
+                    style = LocalAppTypography.current.labelSmall,
+                    color = colors.ink2,
                 )
+                for (row in availablePeriods.chunked(PICKER_COLUMNS)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                        for (index in row) {
+                            val exact = index == periodIndex && periodExact
+                            Chip(
+                                text = ChartWindows.PERIODS[index].first,
+                                color = if (index == periodIndex) colors.ink else colors.ink2,
+                                selected = exact,
+                                onClick = {
+                                    onSelectPeriod(index)
+                                    pickerOpen = false
+                                },
+                            )
+                        }
+                    }
+                }
+                if (onSelectAllHistory != null) {
+                    // «Вся история» — не ступень: её длина зависит от того,
+                    // сколько записано, и в лестнице ей места нет.
+                    Chip(
+                        text = texts.allHistory,
+                        color = colors.ink2,
+                        onClick = {
+                            onSelectAllHistory()
+                            pickerOpen = false
+                        },
+                    )
+                }
             }
         }
     }
+    Spacer(Modifier.weight(1f))
     Spacer(Modifier.width(Dimens.space1))
-    // Правило на всю панель: подсвечен = названное состояние ВКЛЮЧЕНО.
-    // Название у чипа постоянное («лог»), иначе подсветка ничего не значила
-    // бы — надпись и так меняла бы смысл под ней.
-    val texts = ChartTextCatalogue.of(LocalStrings.current.language)
-    val strings = LocalStrings.current
+    // Вид шкалы называет СЕБЯ, а не то, чем станет: «лин» — сейчас линейная,
+    // «лог» — сейчас логарифмическая. Подсветка означает то же правило, что и
+    // на всей панели: названное состояние включено.
     Chip(
-        text = texts.logChip,
+        text = if (logScale) texts.logChip else texts.linearChip,
         color = if (logScale) colors.dataText else colors.ink2,
         selected = logScale,
         onClick = onToggleScale,
@@ -1148,6 +1185,16 @@ private fun RowScope.ControlChips(
                 onClick = {
                     menuOpen = false
                     onOpenDetails()
+                },
+            )
+            // То же, что двойное нажатие по полю: выбранное окно у края и
+            // автоматическая ось. Команда есть и в меню, потому что двойное
+            // нажатие — жест, о котором надо знать, а пункт виден (V2 §5.7).
+            DropdownMenuItem(
+                text = { Text(texts.resetScale) },
+                onClick = {
+                    menuOpen = false
+                    onResetScale()
                 },
             )
         }

@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v070Title: String
+    val v070Summary: String
+
     val v069Title: String
     val v069Summary: String
 
@@ -168,6 +171,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v070Title = "Окно выбирают сеткой, а не прокруткой"
+    override val v070Summary =
+        "Все ступени видны сразу в поповере, там же «вся история»; чип называет " +
+        "фактическое окно и подсвечен, только когда оно ровно ступень. Курсор на " +
+        "колонке из одного измерения показывает момент, а не интервал, и не " +
+        "называет одно значение медианой."
 
     override val v069Title = "График идёт за пальцем без рывков"
     override val v069Summary =
@@ -518,6 +528,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v070Title = "The window is picked from a grid, not a scroll strip"
+    override val v070Summary =
+        "Every step is visible at once in a popover, «all history» among them; the chip " +
+        "names the window actually on screen and lights up only when it is exactly a " +
+        "step. On a column holding one measurement the cursor names the moment instead " +
+        "of an interval, and does not call a single value a median."
 
     override val v069Title = "The chart follows the finger without jerks"
     override val v069Summary =

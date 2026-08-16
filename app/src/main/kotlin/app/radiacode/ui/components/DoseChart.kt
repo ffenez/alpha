@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import app.radiacode.ui.logic.ChartBucket
 import app.radiacode.ui.logic.DataGap
 import app.radiacode.ui.logic.TimeBand
+import app.radiacode.ui.chart.ChartLabelLayout
+import app.radiacode.ui.chart.LabelPriority
 import app.radiacode.ui.chart.PreparedFrame
 import app.radiacode.ui.chart.ChartProjection
 import app.radiacode.ui.logic.ValueAggregate
@@ -262,7 +264,10 @@ fun DoseChart(
         }
 
         StaticChartLayer(spec, widthPx, heightPx, padTop, plotHeight, textMeasurer, axisStyle, palette)
-        SeriesLayer(spec, pixels, widthPx, padTop, plotHeight, palette, textMeasurer, axisStyle)
+        SeriesLayer(
+            spec, pixels, widthPx, padTop, plotHeight, palette, textMeasurer, axisStyle,
+            cursorFraction,
+        )
         CursorLayer(pixels, cursorFraction, widthPx, padTop, plotHeight, palette)
 
         // Gestures. The handlers are keyed only on the plot width, so a state
@@ -466,7 +471,7 @@ private fun StaticChartLayer(
                     ?.let { ChartProjection.yOf(it, plotTop, plotHeight) }
 
                 // Text is laid out once here, not on every frame.
-                val yTexts = spec.yLabels.mapNotNull { (value, label) ->
+                val allYTexts = spec.yLabels.mapNotNull { (value, label) ->
                     yOf(value)?.let { it to textMeasurer.measure(label, axisStyle) }
                 }
                 // Подписи времени посчитаны в долях НАРИСОВАННОГО диапазона;
@@ -523,9 +528,45 @@ private fun StaticChartLayer(
                 val alarmY = spec.alarmLevel
                     ?.takeIf { it in spec.scale.minValue..spec.scale.maxValue }
                     ?.let { yOf(it) }
+                // Подпись порога и подписи оси живут в одной колонке пикселей:
+                // когда порог оказывается рядом с линией сетки, они ложились
+                // друг на друга. Уступает младшая — подпись оси: соседние
+                // деления позволяют восстановить её значение, а порог не
+                // повторяется нигде (V2 §25).
                 val bandTop = spec.baselineBand?.let { yOf(it.endInclusive) }
                 val bandBottom = spec.baselineBand?.let { yOf(it.start) }
                 val baselineMedianY = spec.baselineMedian?.let { yOf(it) }
+                // Разрешение столкновений: подпись порога старше подписи оси.
+                val alarmLabelTop = if (alarmY != null && alarmText != null) {
+                    (alarmY - 2f - alarmText.size.height).coerceAtLeast(0f)
+                } else {
+                    null
+                }
+                val labelBoxes = buildList {
+                    if (alarmLabelTop != null && alarmText != null) {
+                        add(
+                            ChartLabelLayout.Label(
+                                topPx = alarmLabelTop,
+                                heightPx = alarmText.size.height.toFloat(),
+                                priority = LabelPriority.ALARM_THRESHOLD,
+                            ),
+                        )
+                    }
+                    for ((y, text) in allYTexts) {
+                        add(
+                            ChartLabelLayout.Label(
+                                topPx = y - text.size.height - 1f,
+                                heightPx = text.size.height.toFloat(),
+                                priority = LabelPriority.AXIS_TICK,
+                            ),
+                        )
+                    }
+                }
+                val visibleLabels = ChartLabelLayout.visible(labelBoxes)
+                val tickOffset = if (alarmLabelTop != null && alarmText != null) 1 else 0
+                val yTexts = allYTexts.filterIndexed { index, _ ->
+                    (index + tickOffset) in visibleLabels
+                }
                 val span = spanMillis
                 val episodeRects = spec.episodes.mapIndexed { index, episode ->
                     val a = widthPx * (episode.fromMillis - spec.viewFrom).toFloat() / span
@@ -794,6 +835,12 @@ private fun SeriesLayer(
     colors: ChartPalette,
     textMeasurer: androidx.compose.ui.text.TextMeasurer,
     axisStyle: androidx.compose.ui.text.TextStyle,
+    /**
+     * Курсор — чтобы число слипшихся маркеров показывалось у ВЫБРАННОЙ группы,
+     * а не у всех сразу: ряд «△3 △ △2 △5» над кривой читался как вторая линия
+     * данных и спорил с самой кривой (V2 §15).
+     */
+    cursorFraction: State<Float?>,
 ) {
     Spacer(
         Modifier
@@ -826,6 +873,7 @@ private fun SeriesLayer(
                 // Число слипшихся маркеров измеряется здесь: рисование ничего
                 // не считает. Одиночный маркер числа не носит — «1» рядом с
                 // треугольником означала бы, что бывает и «не один».
+                // Показывается только у группы под курсором.
                 val markerCounts = markers.map { mark ->
                     mark.takeIf { it.count > 1 }
                         ?.let { textMeasurer.measure(it.count.toString(), axisStyle) }
@@ -857,11 +905,16 @@ private fun SeriesLayer(
                     // Extrema as discrete marks above the plot, filled above
                     // the alarm level and hollow above the profile's P90 —
                     // shape carries the class, not colour alone.
+                    val cursorX = cursorFraction.value?.let { it * widthPx }
+                    val selected = cursorX?.let { x ->
+                        markers.indices.minByOrNull { kotlin.math.abs(markers[it].x - x) }
+                            ?.takeIf { kotlin.math.abs(markers[it].x - x) <= markerSize * 2f }
+                    }
                     for ((index, mark) in markers.withIndex()) {
                         val hue = if (mark.alarmClass) colors.crit else colors.warn
                         if (mark.alarmClass) drawPath(mark.path, hue)
                         else drawPath(mark.path, hue, style = markerStroke)
-                        markerCounts[index]?.let { label ->
+                        markerCounts[index]?.takeIf { index == selected }?.let { label ->
                             drawText(
                                 textLayoutResult = label,
                                 color = hue,

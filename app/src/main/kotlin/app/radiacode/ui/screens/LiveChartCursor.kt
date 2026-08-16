@@ -369,13 +369,27 @@ internal fun BoxScope.CursorCard(
         // CHART SPEC §16: interval, median, both envelopes, the exact extrema
         // with their times, n — then the profile baseline block.
         Column {
+            // Колонка бывает шириной в одно измерение — и тогда «14:12:36»
+            // честнее, чем «14:12:36–14:12:37»: интервал там ничего не
+            // добавляет, а читается как усреднение, которого не было.
+            // Усреднённая колонка, наоборот, обязана назвать и интервал, и то,
+            // что показанное число — медиана, а не «значение» (V2 §14).
+            val aggregated = bucket.sampleCount > 1
             Text(
-                text = CursorReadout.binRangeLabel(bucket, clock),
+                text = if (aggregated) {
+                    CursorReadout.binRangeLabel(bucket, clock)
+                } else {
+                    clock(bucket.midMillis)
+                },
                 style = type.footnote,
                 color = colors.ink2,
             )
             Text(
-                text = DoseFormat.rate(bucket.median, unit),
+                text = if (aggregated) {
+                    t.median + " " + DoseFormat.rate(bucket.median, unit)
+                } else {
+                    DoseFormat.rate(bucket.median, unit)
+                },
                 style = type.value,
                 color = if (above) colors.crit else colors.ink,
             )

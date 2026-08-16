@@ -112,6 +112,18 @@ interface ChartTextStrings {
     val pausedChip: String
     val logChip: String
 
+    /** Вид шкалы значений в свёрнутом виде: «лин» / «лог». */
+    val linearChip: String
+
+    /** Пункт выбора окна: показать всё, что записано. */
+    val allHistory: String
+
+    /** Заголовок выбора окна. */
+    val windowPicker: String
+
+    /** Пункт «⋯»: вернуть выбранное окно у края и автоматическую ось. */
+    val resetScale: String
+
     val median: String
     val min: String
     val max: String
@@ -262,6 +274,10 @@ object ChartTextRu : ChartTextStrings {
     override fun sessionRangeLabel(range: String, duration: String) = "$range · $duration"
     override val pausedChip = "пауза"
     override val logChip = "лог"
+    override val linearChip = "лин"
+    override val allHistory = "вся история"
+    override val windowPicker = "окно"
+    override val resetScale = "сбросить масштаб"
 
     override val median = "медиана"
     override val min = "мин"
@@ -426,6 +442,10 @@ object ChartTextEn : ChartTextStrings {
     override fun sessionRangeLabel(range: String, duration: String) = "$range · $duration"
     override val pausedChip = "paused"
     override val logChip = "log"
+    override val linearChip = "lin"
+    override val allHistory = "all history"
+    override val windowPicker = "window"
+    override val resetScale = "reset the scale"
 
     override val median = "median"
     override val min = "min"
@@ -482,7 +502,7 @@ fun ChartTextStrings.allTexts(): List<String> = listOf(
     windowStatsLine("0,09", "0,11", "0,14", "21 600", "6ч"),
     moreDetails, eventsChip, cursorMoreDetails, cursorEvents(1), cursorEvents(3), cursorEvents(11),
     cursorEventsNote, distribution, windowStatistics,
-    nowChip, pausedChip, logChip,
+    nowChip, pausedChip, logChip, linearChip, allHistory, windowPicker, resetScale,
     median, min, max, samplesLabel, spreadDefinitions,
     quantileMethodLine("KLL k=128"), preAggregationProgress(40, 12, 30),
     computing, compareWithRaw,
