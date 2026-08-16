@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v075Title: String
+    val v075Summary: String
+
     val v074Title: String
     val v074Summary: String
 
@@ -183,6 +186,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v075Title = "Настройки показывают, что выбрано"
+    override val v075Summary =
+        "На первом экране рядом с каждым разделом стоит его текущее состояние, у " +
+        "вложенных экранов один заголовок вместо двух, двоичные настройки стали " +
+        "переключателями, а отчёты уехали из «О приложении» в «Данные и диагностика». " +
+        "Тревоги — это выбор режима, значение порога и «Как это работает?»."
 
     override val v074Title = "Мини-графики перестали подтормаживать"
     override val v074Summary =
@@ -565,6 +575,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v075Title = "Settings show what is set"
+    override val v075Summary =
+        "The first screen carries the current state next to every section, nested screens " +
+        "have one title instead of two, binary settings became switches, and the reports " +
+        "moved out of «About» into «Data and diagnostics». Alarms are now a mode, the " +
+        "threshold, and «How does this work?»."
 
     override val v074Title = "The mini charts stopped stuttering"
     override val v074Summary =

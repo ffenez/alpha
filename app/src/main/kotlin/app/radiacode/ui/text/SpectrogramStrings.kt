@@ -142,7 +142,7 @@ object SpectrogramRu : SpectrogramStrings {
             "Спектрограммы, запись идёт раз в 5 с. История срезов хранится на " +
             "устройстве и переживает перезапуск приложения."
 
-    override val rateTitle = "Частота записи"
+    override val rateTitle = "Спектрограмма в фоне"
     override val rateDetailed = "5 с · подробно"
     override val rateBalanced = "30 с · обычно"
     override val rateEconomy = "10 мин · экономно"
@@ -233,7 +233,7 @@ object SpectrogramEn : SpectrogramStrings {
             "is open, recording runs every 5 s. The slice history is kept on the device " +
             "and survives an app restart."
 
-    override val rateTitle = "Recording rate"
+    override val rateTitle = "Spectrogram in the background"
     override val rateDetailed = "5 s · detailed"
     // «usual», а не «normal»: второе на этом экране читалось бы как «норма»,
     // то есть как оценка уровня, а не как частота записи.

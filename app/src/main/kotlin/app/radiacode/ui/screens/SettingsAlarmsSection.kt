@@ -70,6 +70,9 @@ import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.SettingRow
+import app.radiacode.ui.components.SettingsDivider
+import app.radiacode.ui.components.SettingsSection
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.RadioMark
 import app.radiacode.service.DeviceControlHub
@@ -146,92 +149,146 @@ internal fun AlarmsSection(graph: AppGraph) {
         .collectAsState(initial = AppSettings.DEFAULT_CUSTOM_L2_MICRO_SV_H)
 
     // Порог — это число, которое сравнивают с ДРУГИМИ числами: с тем, что
-    // прибор показывает сейчас, и с тем, что здесь обычно. Без них «0,30» —
-    // абстракция, и именно поэтому в поле «поставил 0,1» оказалось сюрпризом.
+    // прибор показывает сейчас, и с тем, что здесь обычно. Они остались, но
+    // ушли под «Как это работает?»: экран настройки отвечает на вопрос «что
+    // выбрано», а справка — на вопрос «почему именно так».
     val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
     val baselineState by graph.serviceStatus.baseline.collectAsState()
     val activeBaseline = (baselineState as? BaselineState.Active)?.baseline
     val currentDose = sample?.let { DoseUnits.rawToMicroSievertPerHour(it.doseRate) }
+    val thresholds = alarmThresholds(sensitivity, customL1, customL2)
+    var explained by rememberSaveable { mutableStateOf(false) }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle(strings.settingsAlarms)
-            Hint(
-                text = strings.alarmsIntro,
-                style = type.bodySmall,
-                color = colors.ink2,
-            )
-            StatGrid(
-                cells = listOf(
-                    StatCell(
-                        currentDose?.let { DoseFormat.rate(it, unit) } ?: "—",
-                        strings.nowLabel,
-                    ),
-                    StatCell(
-                        activeBaseline?.let {
-                            DoseFormat.range(it.doseLowMicroSvH, it.doseHighMicroSvH, unit)
-                        } ?: "—",
-                        strings.usuallyHere,
-                    ),
-                    StatCell(
-                        DoseFormat.rate(
-                            alarmThresholds(sensitivity, customL1, customL2).l1MicroSvH,
-                            unit,
-                        ),
-                        strings.thresholdL1,
-                    ),
-                ),
-            )
-            if (activeBaseline == null) {
-                Text(
-                    text = strings.noBandToCompare,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
-            }
-
-            SensitivityOption(
-                title = strings.sensitivityNormal,
-                selected = sensitivity == AlarmSensitivity.NORMAL,
-                description = presetDescription(
-                    alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f),
-                    unit,
-                    strings,
-                ),
-                onSelect = {
-                    scope.launch { graph.settings.setAlarmSensitivity(AlarmSensitivity.NORMAL) }
+    val modes = listOf(AlarmSensitivity.NORMAL, AlarmSensitivity.HIGH, AlarmSensitivity.CUSTOM)
+    SettingsSection(title = strings.alarmModeTitle) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = Dimens.space3,
+                vertical = Dimens.space2,
+            ),
+            verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
+            // Режимов три, они взаимоисключающие и их меняют быстро — это
+            // ровно тот случай, для которого существует сегментированный
+            // выбор. Три строки с радио-метками и абзацем описания у каждой
+            // читались как документ, а не как выбор из трёх.
+            Segmented(
+                options = modes.map { modeTitle(it, strings) },
+                selectedIndex = modes.indexOf(sensitivity).coerceAtLeast(0),
+                onSelect = { index ->
+                    scope.launch { graph.settings.setAlarmSensitivity(modes[index]) }
                 },
+                modifier = Modifier.fillMaxWidth(),
             )
-            SensitivityOption(
-                title = strings.sensitivityHigh,
-                selected = sensitivity == AlarmSensitivity.HIGH,
-                description = presetDescription(
-                    alarmThresholds(AlarmSensitivity.HIGH, 0f, 0f),
-                    unit,
-                    strings,
-                ),
-                onSelect = {
-                    scope.launch { graph.settings.setAlarmSensitivity(AlarmSensitivity.HIGH) }
-                },
-            )
-            SensitivityOption(
-                title = strings.sensitivityCustom,
-                selected = sensitivity == AlarmSensitivity.CUSTOM,
-                description = strings.sensitivityCustomNote,
-                onSelect = {
-                    scope.launch { graph.settings.setAlarmSensitivity(AlarmSensitivity.CUSTOM) }
-                },
-            )
-
-            if (sensitivity == AlarmSensitivity.CUSTOM) {
-                CustomLevels(graph, unit, customL1, customL2)
-            }
             Text(
-                text = strings.alarmSoundElsewhere,
+                text = modeSummary(sensitivity, thresholds, strings),
                 style = type.footnote,
                 color = colors.muted,
             )
         }
+        SettingsDivider()
+        SettingRow(
+            title = strings.thresholdNow,
+            subtitle = strings.relativeCriterion(formatFactor(thresholds.relativeFactor)),
+            value = DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit, s = strings),
+            valueHighlighted = true,
+        )
+        if (sensitivity == AlarmSensitivity.CUSTOM) {
+            SettingsDivider()
+            Column(
+                modifier = Modifier.padding(
+                    horizontal = Dimens.space3,
+                    vertical = Dimens.space2,
+                ),
+            ) {
+                CustomLevels(graph, unit, customL1, customL2)
+            }
+        }
+        SettingsDivider()
+        SettingRow(
+            title = strings.howItWorks,
+            onClick = { explained = !explained },
+        )
+        AnimatedVisibility(
+            visible = explained,
+            enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
+            exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
+        ) {
+            Column(
+                modifier = Modifier.padding(
+                    start = Dimens.space3,
+                    end = Dimens.space3,
+                    bottom = Dimens.space3,
+                ),
+                verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+            ) {
+                Text(text = strings.alarmsIntro, style = type.bodySmall, color = colors.ink2)
+                StatGrid(
+                    cells = listOf(
+                        StatCell(
+                            currentDose?.let { DoseFormat.rate(it, unit) } ?: "—",
+                            strings.nowLabel,
+                        ),
+                        StatCell(
+                            activeBaseline?.let {
+                                DoseFormat.range(it.doseLowMicroSvH, it.doseHighMicroSvH, unit)
+                            } ?: "—",
+                            strings.usuallyHere,
+                        ),
+                        StatCell(
+                            DoseFormat.rate(thresholds.l1MicroSvH, unit),
+                            strings.thresholdL1,
+                        ),
+                    ),
+                )
+                if (activeBaseline == null) {
+                    Text(
+                        text = strings.noBandToCompare,
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+                for (mode in modes) {
+                    if (mode == AlarmSensitivity.CUSTOM) continue
+                    Text(
+                        text = modeTitle(mode, strings) + " · " +
+                            presetDescription(alarmThresholds(mode, 0f, 0f), unit, strings),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+                Text(
+                    text = strings.alarmSoundElsewhere,
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
+        }
+    }
+}
+
+/** Название режима чувствительности на языке интерфейса. */
+private fun modeTitle(mode: AlarmSensitivity, s: Strings): String = when (mode) {
+    AlarmSensitivity.NORMAL -> s.sensitivityNormal
+    AlarmSensitivity.HIGH -> s.sensitivityHigh
+    AlarmSensitivity.CUSTOM -> s.sensitivityCustom
+}
+
+/**
+ * Одна строка о выбранном режиме: чем он отличается и сколько держится
+ * превышение до подтверждения. Формулы и пороги остальных режимов — под
+ * «Как это работает?».
+ */
+private fun modeSummary(
+    mode: AlarmSensitivity,
+    thresholds: AlarmThresholds,
+    s: Strings,
+): String {
+    val held = heldWording(thresholds.persistenceSeconds.toLong(), s)
+    return when (mode) {
+        AlarmSensitivity.NORMAL -> s.sensitivityNormalNote(held)
+        AlarmSensitivity.HIGH -> s.sensitivityHighNote(held)
+        AlarmSensitivity.CUSTOM -> s.sensitivityCustomNote
     }
 }
 

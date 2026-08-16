@@ -32,16 +32,21 @@ object RuStrings : Strings {
     override val groupMeasurement = "Измерение"
     override val groupApp = "Приложение"
     override val groupOther = "Другое"
+    override val groupDevice = "Прибор"
+    override val groupSystem = "Система"
     override val settingsAlarms = "Тревоги"
     override val settingsAlarmsSub = "пороги, длительность, чувствительность"
     override val settingsProfiles = "Профили и фон"
     override val settingsProfilesSub = "места, сети Wi-Fi, обучение обычного фона"
-    override val settingsNotifications = "Уведомления и отклик"
+    override val settingsNotifications = "Отклик"
     override val settingsNotificationsSub = "звук Поиска, вибрация, тревога"
-    override val settingsView = "Вид"
+    override val settingsView = "Интерфейс"
     override val settingsViewSub = "язык, оформление, тема, единицы, блоки Главной"
     override val settingsDevice = "Прибор"
     override val settingsDeviceSub = "модель, прошивка, звук и вибрация прибора"
+    override val settingsData = "Данные и диагностика"
+    override val settingsDataSub = "хранилище, фоновая запись, отчёты"
+    override val settingsProfilesNone = "не выбран"
     override val settingsAbout = "О приложении"
     override val settingsAboutSub = "версия, обновления, лицензии, диагностика"
 
@@ -452,7 +457,7 @@ object RuStrings : Strings {
     override fun alarmPreset(level: String, factor: String, held: String) =
         "от $level или $factor× к P90 профиля, $held"
 
-    override val retentionTitle = "Хранение сырых измерений"
+    override val retentionTitle = "История измерений"
     override val retentionKeepAll = "всё"
 
     override fun retentionDays(days: Int) = "$days дней"
@@ -484,10 +489,18 @@ object RuStrings : Strings {
     override val thresholdL1 = "порог L1"
     override val noBandToCompare =
         "Обычный фон этого места ещё не собран — сравнивать порог пока не с чем."
-    override val sensitivityNormal = "Обычная"
-    override val sensitivityHigh = "Высокая"
-    override val sensitivityCustom = "Своя"
+    override val sensitivityNormal = "Обычный"
+    override val sensitivityHigh = "Чувствительный"
+    override val sensitivityCustom = "Свой"
     override val sensitivityCustomNote = "уровни мощности дозы задаются вручную"
+    override val alarmModeTitle = "Режим"
+    override val thresholdNow = "Порог сейчас"
+    override fun relativeCriterion(factor: String) = "или ×$factor к обычному уровню профиля"
+    override val howItWorks = "Как это работает?"
+    override fun sensitivityNormalNote(held: String) =
+        "Меньше ложных тревог · подтверждение $held"
+    override fun sensitivityHighNote(held: String) =
+        "Раньше замечает небольшие изменения · подтверждение $held"
     override val alarmSoundElsewhere = "Мелодия и вибрация тревоги — в разделе «Звук»."
     override val alarmSoundTitle = "Звук и вибрация тревоги"
     override val alarmSoundNote =
@@ -538,7 +551,8 @@ object RuStrings : Strings {
         "Обычный фон профиля пополняется только из подходящих измерений. Не учитываются: " +
             "Поиск и опыты, обрыв потока, полчаса после отклонения и время, пока место не " +
             "подтверждено. Сами измерения записываются всегда."
-    override val freezeLearning = "Заморозить обучение"
+    override val updateBackground = "Обновлять обычный фон"
+    override val updateBackgroundNote = "Новые спокойные измерения уточняют модель места."
     override val graceNote =
         "Сколько ждать, прежде чем считать, что телефон покинул знакомую сеть. Всё это " +
             "время профиль остаётся прежним, но фон не пополняется."
@@ -577,7 +591,6 @@ object RuStrings : Strings {
     override val unitDoseMicroSv = "мкЗв"
     override val unitDoseMicroR = "мкР"
     override val interfaceTitle = "Интерфейс"
-    override val alwaysVisible = "всегда видна"
     override val atLeastOneTab = "Кроме Главной должна остаться хотя бы одна вкладка."
     override val monitorBlocksNote =
         "Блоки Главной. Число, статус и график мощности дозы остаются всегда; " +

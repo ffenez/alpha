@@ -71,7 +71,13 @@ import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.AppTextField
+import app.radiacode.ui.components.AppSwitch
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.SettingRow
+import app.radiacode.ui.components.SettingsDivider
+import app.radiacode.ui.components.SettingsSection
+import app.radiacode.ui.components.SwitchSettingRow
+import app.radiacode.ui.components.SettingsTopBar
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.RadioMark
 import app.radiacode.service.DeviceControlHub
@@ -145,13 +151,15 @@ import kotlinx.coroutines.launch
 private enum class SettingsGroup {
     MEASUREMENT,
     APP,
-    OTHER,
+    DEVICE,
+    SYSTEM,
     ;
 
     fun title(strings: Strings): String = when (this) {
         MEASUREMENT -> strings.groupMeasurement
         APP -> strings.groupApp
-        OTHER -> strings.groupOther
+        DEVICE -> strings.groupDevice
+        SYSTEM -> strings.groupSystem
     }
 }
 
@@ -160,8 +168,9 @@ private enum class SettingsCategory(val group: SettingsGroup) {
     PROFILES(SettingsGroup.MEASUREMENT),
     SOUND(SettingsGroup.APP),
     VIEW(SettingsGroup.APP),
-    DEVICE(SettingsGroup.OTHER),
-    ABOUT(SettingsGroup.OTHER),
+    DEVICE(SettingsGroup.DEVICE),
+    DATA(SettingsGroup.SYSTEM),
+    ABOUT(SettingsGroup.SYSTEM),
     ;
 
     fun title(s: Strings): String = when (this) {
@@ -170,16 +179,8 @@ private enum class SettingsCategory(val group: SettingsGroup) {
         SOUND -> s.settingsNotifications
         VIEW -> s.settingsView
         DEVICE -> s.settingsDevice
+        DATA -> s.settingsData
         ABOUT -> s.settingsAbout
-    }
-
-    fun subtitle(s: Strings): String = when (this) {
-        ALARMS -> s.settingsAlarmsSub
-        PROFILES -> s.settingsProfilesSub
-        SOUND -> s.settingsNotificationsSub
-        VIEW -> s.settingsViewSub
-        DEVICE -> s.settingsDeviceSub
-        ABOUT -> s.settingsAboutSub
     }
 }
 
@@ -209,26 +210,24 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(Dimens.space3),
+            .padding(horizontal = Dimens.space3)
+            .padding(bottom = Dimens.space3),
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         val open = category
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(
-                text = "← ${strings.back}",
-                // Один шаг вверх, чем бы этот шаг ни был: сначала закрывается
-                // экран внутри раздела, потом сам раздел, потом Настройки.
-                onClick = {
-                    when {
-                        calibrationOpen -> calibrationOpen = false
-                        open == null -> onBack()
-                        else -> category = null
-                    }
-                },
-            )
-            Spacer(Modifier.weight(1f))
-            Chip(text = open?.title(strings) ?: strings.settings, color = colors.ink)
-        }
+        // Один заголовок на экран, он же кнопка возврата: крупная кнопка
+        // «← Назад» и чип с названием страницы справа говорили одно и то же
+        // дважды и занимали высоту, которой в настройках всегда не хватает.
+        SettingsTopBar(
+            title = open?.title(strings) ?: strings.settings,
+            onBack = {
+                when {
+                    calibrationOpen -> calibrationOpen = false
+                    open == null -> onBack()
+                    else -> category = null
+                }
+            },
+        )
 
         AnimatedContent(
             targetState = open,
@@ -240,34 +239,12 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
         ) { openCategory ->
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
         when (openCategory) {
-            null -> Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
-                for (group in SettingsGroup.entries) {
-                    val items = SettingsCategory.entries.filter { it.group == group }
-                    if (items.isEmpty()) continue
-                    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
-                        Text(
-                            text = group.title(strings).uppercase(),
-                            style = LocalAppTypography.current.labelSmall,
-                            color = colors.ink2,
-                            modifier = Modifier.padding(start = Dimens.space1),
-                        )
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column {
-                                items.forEachIndexed { index, entry ->
-                                    if (index > 0) AppDivider()
-                                    CategoryRow(entry) { category = entry }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            null -> SettingsRoot(graph) { category = it }
             SettingsCategory.ALARMS -> AlarmsSection(graph)
             // Фон принадлежит МЕСТУ: профили и обучение фона — один раздел.
             SettingsCategory.PROFILES -> {
                 ProfilesSection(graph)
                 BaselineSection(graph)
-                RetentionSection(graph)
             }
             SettingsCategory.SOUND -> SoundSection(graph)
             SettingsCategory.VIEW -> {
@@ -285,19 +262,115 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                     DeviceSection(graph)
                     BootSection(graph)
                     DeviceSignalsSection(graph)
-                    SpectrumRateSection(graph)
                     SpectralRangesSection(graph)
                     CalibrationEntry { calibrationOpen = true }
                 }
             }
-            SettingsCategory.ABOUT -> {
-                LicensesSection()
+            // Всё, что не ежедневная настройка: хранилище, темп фоновой записи
+            // и отчёты для разбора. Раньше отчёт жил в «О приложении» — рядом с
+            // версией и лицензиями, где его никто не ищет, зато он выдавал
+            // сборку разработчика каждому, кто зашёл посмотреть версию.
+            SettingsCategory.DATA -> {
+                RetentionSection(graph)
+                SpectrumRateSection(graph)
                 DebugSection(graph)
             }
+            SettingsCategory.ABOUT -> LicensesSection()
         }
         }
         }
     }
+}
+
+/**
+ * Корень настроек: четыре группы и текущее состояние каждой строки.
+ *
+ * Значение справа — не украшение: чаще всего в настройки заходят посмотреть,
+ * ЧТО стоит сейчас, а не менять. Пока значения не было, за ответом «какой у
+ * меня режим тревоги» приходилось открывать раздел и возвращаться.
+ */
+@Composable
+private fun SettingsRoot(graph: AppGraph, onOpen: (SettingsCategory) -> Unit) {
+    val strings = LocalStrings.current
+    val summaries = settingsSummaries(graph)
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        for (group in SettingsGroup.entries) {
+            val items = SettingsCategory.entries.filter { it.group == group }
+            if (items.isEmpty()) continue
+            SettingsSection(title = group.title(strings)) {
+                items.forEachIndexed { index, entry ->
+                    if (index > 0) SettingsDivider()
+                    SettingRow(
+                        title = summaries.title(entry) ?: entry.title(strings),
+                        value = summaries.value(entry),
+                        onClick = { onOpen(entry) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Текущее состояние каждой категории — то, что видно до входа в неё. */
+@Composable
+private fun settingsSummaries(graph: AppGraph): SettingsSummaries {
+    val strings = LocalStrings.current
+    val sensitivity by graph.settings.alarmSensitivity
+        .collectAsState(initial = AlarmSensitivity.NORMAL)
+    val feedbackId by graph.settings.searchFeedbackMode.collectAsState(initial = null)
+    val theme by graph.settings.themeSetting.collectAsState(initial = ThemeSetting.SYSTEM)
+    val fontScale by graph.settings.fontScalePercent.collectAsState(initial = 100)
+    val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
+    val activeProfileId by graph.settings.activeProfileId.collectAsState(initial = null)
+    val connection by graph.serviceStatus.connection.collectAsState()
+    val rareData by graph.measurementRepository.latestRareData().collectAsState(initial = null)
+    val connected = connection as? ConnectionState.Connected
+    val battery = rareData?.batteryPercent?.toInt()
+    val profileName = profiles.firstOrNull { it.id == activeProfileId }?.name
+    return SettingsSummaries(
+        alarms = when (sensitivity) {
+            AlarmSensitivity.NORMAL -> strings.sensitivityNormal
+            AlarmSensitivity.HIGH -> strings.sensitivityHigh
+            AlarmSensitivity.CUSTOM -> strings.sensitivityCustom
+        },
+        profiles = profileName ?: strings.settingsProfilesNone,
+        sound = (SearchFeedbackMode.of(feedbackId) ?: SearchFeedbackMode.OFF).title(strings),
+        view = listOfNotNull(
+            theme.title(strings),
+            "$fontScale %".takeIf { fontScale != 100 },
+        ).joinToString(" · "),
+        deviceTitle = connected?.info?.model?.displayName,
+        device = when {
+            connected != null && battery != null -> "${strings.bluetoothConnected} · $battery %"
+            connected != null -> strings.bluetoothConnected
+            else -> strings.bluetoothNoLink
+        },
+        about = ReleaseNotes.current,
+    )
+}
+
+private class SettingsSummaries(
+    val alarms: String,
+    val profiles: String,
+    val sound: String,
+    val view: String,
+    val deviceTitle: String?,
+    val device: String,
+    val about: String,
+) {
+    fun value(category: SettingsCategory): String? = when (category) {
+        SettingsCategory.ALARMS -> alarms
+        SettingsCategory.PROFILES -> profiles
+        SettingsCategory.SOUND -> sound
+        SettingsCategory.VIEW -> view
+        SettingsCategory.DEVICE -> device
+        SettingsCategory.DATA -> null
+        SettingsCategory.ABOUT -> about
+    }
+
+    /** Прибор называет себя своим именем, когда оно известно. */
+    fun title(category: SettingsCategory): String? =
+        if (category == SettingsCategory.DEVICE) deviceTitle else null
 }
 
 /** Вход в диагностику калибровки по природному фону (Настройки → Прибор). */
@@ -323,31 +396,6 @@ private fun CalibrationEntry(onClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun CategoryRow(category: SettingsCategory, onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val type = LocalAppTypography.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = Dimens.touchTarget)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(text = category.title(strings), style = type.label, color = colors.ink)
-            Text(text = category.subtitle(strings), style = type.footnote, color = colors.muted)
-        }
-        NavArrow()
-    }
-}
-
 // --- Звук ---
 
 /**
@@ -365,56 +413,63 @@ private fun SoundSection(graph: AppGraph) {
     val mode = SearchFeedbackMode.of(modeId) ?: SearchFeedbackMode.OFF
     val energyTone by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle(strings.searchFeedbackTitle)
-            Segmented(
-                options = SearchFeedbackMode.entries.map { it.title(strings) },
-                selectedIndex = SearchFeedbackMode.entries.indexOf(mode),
-                onSelect = { index ->
-                    scope.launch {
-                        graph.settings.setSearchFeedbackMode(
-                            SearchFeedbackMode.entries[index].id,
-                        )
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                text = when (mode) {
-                    SearchFeedbackMode.OFF -> strings.feedbackOnScreenOnly
-                    SearchFeedbackMode.CLICKS ->
-                        strings.feedbackClicks
-                    SearchFeedbackMode.TONE ->
-                        strings.feedbackTone
-                    SearchFeedbackMode.VIBRO ->
-                        strings.feedbackVibro
-                },
-                style = type.bodySmall,
-                color = colors.ink2,
-            )
-            if (mode == SearchFeedbackMode.CLICKS) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                ) {
-                    Chip(
-                        text = strings.energyTone,
-                        color = if (energyTone) colors.dataText else colors.muted,
-                        dot = if (energyTone) colors.data else null,
-                        onClick = {
-                            scope.launch {
-                                graph.settings.setSearchEnergyToneEnabled(!energyTone)
-                            }
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        SettingsSection(title = strings.searchFeedbackTitle) {
+            Column(
+                modifier = Modifier.padding(
+                    horizontal = Dimens.space3,
+                    vertical = Dimens.space2,
+                ),
+                verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+            ) {
+                // Отклик меняют быстро и прямо в поле, поэтому выбор стоит
+                // здесь целиком, а не за строкой со значением.
+                Segmented(
+                    options = SearchFeedbackMode.entries.map { it.title(strings) },
+                    selectedIndex = SearchFeedbackMode.entries.indexOf(mode),
+                    onSelect = { index ->
+                        scope.launch {
+                            graph.settings.setSearchFeedbackMode(
+                                SearchFeedbackMode.entries[index].id,
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = when (mode) {
+                        SearchFeedbackMode.OFF -> strings.feedbackOnScreenOnly
+                        SearchFeedbackMode.CLICKS -> strings.feedbackClicks
+                        SearchFeedbackMode.TONE -> strings.feedbackTone
+                        SearchFeedbackMode.VIBRO -> strings.feedbackVibro
+                    },
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
+            // Настройка, зависящая от выбора, ПОЯВЛЯЕТСЯ, а не тускнеет:
+            // выключенная строка занимает место и заставляет гадать, чем её
+            // включить. Высота тона относится только к кликам — им она и
+            // принадлежит.
+            AnimatedVisibility(
+                visible = mode == SearchFeedbackMode.CLICKS,
+                enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
+                exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
+            ) {
+                Column {
+                    SettingsDivider()
+                    SwitchSettingRow(
+                        title = strings.energyTone,
+                        subtitle = strings.energyToneNote,
+                        checked = energyTone,
+                        onChange = { on ->
+                            scope.launch { graph.settings.setSearchEnergyToneEnabled(on) }
                         },
-                    )
-                    Hint(
-                        text = strings.energyToneNote,
                     )
                 }
             }
-            AppDivider()
-            SectionTitle(strings.alarmTitle)
+        }
+        SettingsSection(title = strings.alarmTitle) {
             AlarmSoundRow()
         }
     }
@@ -863,8 +918,15 @@ private fun BaselineSection(graph: AppGraph) {
                 style = type.bodySmall,
                 color = colors.ink2,
             )
-            BlockToggleRow(strings.freezeLearning, frozen) { on ->
-                scope.launch { graph.settings.setBaselineFrozen(on) }
+            // «Заморозить обучение» — термин из машины, а не из жизни: он
+            // называл ВЫКЛЮЧЕНИЕ через включение. Настройка говорит, что
+            // происходит, когда она включена, и это состояние по умолчанию.
+            BlockToggleRow(
+                title = strings.updateBackground,
+                enabled = !frozen,
+                subtitle = strings.updateBackgroundNote,
+            ) { on ->
+                scope.launch { graph.settings.setBaselineFrozen(!on) }
             }
             AppDivider()
             Text(
@@ -1339,16 +1401,9 @@ private fun InterfaceSection(graph: AppGraph) {
                 )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = Dimens.touchTarget),
-            ) {
-                Text(text = AppTab.HOME.title(LocalStrings.current), style = type.label, color = colors.ink)
-                Spacer(Modifier.weight(1f))
-                Text(text = strings.alwaysVisible, style = type.bodySmall, color = colors.muted)
-            }
+            // Строки «Главная — всегда видна» здесь нет: если вкладку нельзя
+            // убрать, это не настройка, а сообщение о том, как устроено
+            // приложение, и место ему не в списке переключателей.
             entries.forEachIndexed { index, entry ->
                 NavTabRow(
                     entry = entry,
@@ -1469,9 +1524,13 @@ private fun ArrowButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun BlockToggleRow(title: String, enabled: Boolean, onChange: (Boolean) -> Unit) {
+internal fun BlockToggleRow(
+    title: String,
+    enabled: Boolean,
+    subtitle: String? = null,
+    onChange: (Boolean) -> Unit,
+) {
     val colors = LocalAppColors.current
-    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1485,17 +1544,16 @@ internal fun BlockToggleRow(title: String, enabled: Boolean, onChange: (Boolean)
                 onClick = { onChange(!enabled) },
             ),
     ) {
-        Text(
-            text = title,
-            style = type.bodySmall,
-            color = colors.ink,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = if (enabled) strings.onShort else strings.offShort,
-            style = type.value,
-            color = if (enabled) colors.ink else colors.muted,
-        )
+        Column(Modifier.weight(1f)) {
+            Text(text = title, style = type.body, color = colors.ink)
+            if (subtitle != null) {
+                Text(text = subtitle, style = type.footnote, color = colors.muted)
+            }
+        }
+        // Двоичное состояние — переключателем. Слова «вкл/выкл» справа
+        // притворялись переключателем, но не показывали, что строку можно
+        // нажать, и не давали привычной цели для пальца.
+        AppSwitch(checked = enabled, onChange = onChange)
     }
 }
 

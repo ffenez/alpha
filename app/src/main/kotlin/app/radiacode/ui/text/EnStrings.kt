@@ -40,16 +40,21 @@ object EnStrings : Strings {
     override val groupMeasurement = "Measurement"
     override val groupApp = "Application"
     override val groupOther = "Other"
+    override val groupDevice = "Instrument"
+    override val groupSystem = "System"
     override val settingsAlarms = "Alarms"
     override val settingsAlarmsSub = "thresholds, dwell time, sensitivity"
     override val settingsProfiles = "Places and background"
     override val settingsProfilesSub = "places, Wi-Fi networks, learning the usual background"
-    override val settingsNotifications = "Notifications and feedback"
+    override val settingsNotifications = "Feedback"
     override val settingsNotificationsSub = "search sound, vibration, alarm"
-    override val settingsView = "Appearance"
+    override val settingsView = "Interface"
     override val settingsViewSub = "language, skin, theme, units, Monitor blocks"
     override val settingsDevice = "Instrument"
     override val settingsDeviceSub = "model, firmware, instrument sound and vibration"
+    override val settingsData = "Data and diagnostics"
+    override val settingsDataSub = "storage, background recording, reports"
+    override val settingsProfilesNone = "none"
     override val settingsAbout = "About"
     override val settingsAboutSub = "version, updates, licences, diagnostics"
 
@@ -454,7 +459,7 @@ object EnStrings : Strings {
     override fun alarmPreset(level: String, factor: String, held: String) =
         "from $level or ×$factor of the profile's P90, $held"
 
-    override val retentionTitle = "Raw measurement storage"
+    override val retentionTitle = "Measurement history"
     override val retentionKeepAll = "everything"
 
     override fun retentionDays(days: Int) = "$days days"
@@ -490,9 +495,17 @@ object EnStrings : Strings {
     // Не «Normal»: русское «Обычная» тоже избегает слова «норма» — уровень
     // чувствительности не должен читаться как утверждение об уровне излучения.
     override val sensitivityNormal = "Standard"
-    override val sensitivityHigh = "High"
+    override val sensitivityHigh = "Sensitive"
     override val sensitivityCustom = "Custom"
     override val sensitivityCustomNote = "dose-rate levels are set by hand"
+    override val alarmModeTitle = "Mode"
+    override val thresholdNow = "Threshold now"
+    override fun relativeCriterion(factor: String) = "or ×$factor of the profile's usual level"
+    override val howItWorks = "How does this work?"
+    override fun sensitivityNormalNote(held: String) =
+        "Fewer false alarms · confirmed after $held"
+    override fun sensitivityHighNote(held: String) =
+        "Notices small changes sooner · confirmed after $held"
     override val alarmSoundElsewhere =
         "The alarm's melody and vibration live in «Notifications and feedback»."
     override val alarmSoundTitle = "Alarm sound and vibration"
@@ -545,7 +558,8 @@ object EnStrings : Strings {
             "Search and experiments, a broken stream, half an hour after a deviation, and " +
             "any time the place is not confirmed. The measurements themselves are always " +
             "recorded."
-    override val freezeLearning = "Freeze learning"
+    override val updateBackground = "Keep learning the usual background"
+    override val updateBackgroundNote = "New calm measurements refine the model of this place."
     override val graceNote =
         "How long to wait before deciding the phone has left a known network. Throughout " +
             "that time the place stays as it was, but the background is not fed."
@@ -584,7 +598,6 @@ object EnStrings : Strings {
     override val unitDoseMicroSv = "µSv"
     override val unitDoseMicroR = "µR"
     override val interfaceTitle = "Interface"
-    override val alwaysVisible = "always visible"
     override val atLeastOneTab = "Besides Monitor, at least one tab has to remain."
     override val monitorBlocksNote =
         "Blocks of the Monitor screen. The value, the status and the dose-rate chart " +

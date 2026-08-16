@@ -97,6 +97,8 @@ interface Strings {
     val groupMeasurement: String
     val groupApp: String
     val groupOther: String
+    val groupDevice: String
+    val groupSystem: String
     val settingsAlarms: String
     val settingsAlarmsSub: String
     val settingsProfiles: String
@@ -107,6 +109,9 @@ interface Strings {
     val settingsViewSub: String
     val settingsDevice: String
     val settingsDeviceSub: String
+    val settingsData: String
+    val settingsDataSub: String
+    val settingsProfilesNone: String
     val settingsAbout: String
     val settingsAboutSub: String
 
@@ -452,6 +457,21 @@ interface Strings {
     val sensitivityHigh: String
     val sensitivityCustom: String
     val sensitivityCustomNote: String
+
+    /** Заголовок выбора режима тревоги. */
+    val alarmModeTitle: String
+
+    /** Строка со значением действующего порога. */
+    val thresholdNow: String
+
+    /** Второй критерий тревоги: «или 2× обычного уровня профиля». */
+    fun relativeCriterion(factor: String): String
+
+    /** Строка-дверь в объяснение: формулы живут за ней. */
+    val howItWorks: String
+
+    fun sensitivityNormalNote(held: String): String
+    fun sensitivityHighNote(held: String): String
     val alarmSoundElsewhere: String
     val alarmSoundTitle: String
     val alarmSoundNote: String
@@ -488,7 +508,8 @@ interface Strings {
     val deleteProfileQuestion: String
     val usualBackgroundTitle: String
     val usualBackgroundIntro: String
-    val freezeLearning: String
+    val updateBackground: String
+    val updateBackgroundNote: String
     val graceNote: String
     val instrumentTitle: String
     val modelLabel: String
@@ -520,7 +541,6 @@ interface Strings {
     val unitDoseMicroSv: String
     val unitDoseMicroR: String
     val interfaceTitle: String
-    val alwaysVisible: String
     val atLeastOneTab: String
     val monitorBlocksNote: String
     val blockTrend: String
@@ -595,7 +615,8 @@ fun Strings.allTexts(): List<String> = listOf(
     tabHome, tabSearch, tabSpectrum, tabMap, tabHistory, back, close, settings,
     connected, connecting, reconnecting, serviceOff, noLink, noData,
     doseRate, countRate, hardness, trendPerHour, doseToday, placeFingerprint,
-    groupMeasurement, groupApp, groupOther,
+    groupMeasurement, groupApp, groupOther, groupDevice, groupSystem,
+    settingsData, settingsDataSub, settingsProfilesNone,
     settingsAlarms, settingsAlarmsSub, settingsProfiles, settingsProfilesSub,
     settingsNotifications, settingsNotificationsSub, settingsView, settingsViewSub,
     settingsDevice, settingsDeviceSub, settingsAbout, settingsAboutSub,
@@ -683,6 +704,8 @@ fun Strings.allTexts(): List<String> = listOf(
     nowLabel, usuallyHere, thresholdL1,
     noBandToCompare, sensitivityNormal, sensitivityHigh,
     sensitivityCustom, sensitivityCustomNote, alarmSoundElsewhere,
+    alarmModeTitle, thresholdNow, relativeCriterion("2"), howItWorks,
+    sensitivityNormalNote("2 мин"), sensitivityHighNote("1 мин"),
     alarmSoundTitle, alarmSoundNote, saveLevels,
     enterNumbers, level1MustBePositive, level2BelowLevel1,
     levelsNote, profilesTitle, profilesIntro,
@@ -694,7 +717,7 @@ fun Strings.allTexts(): List<String> = listOf(
     bindCurrentNetwork, nestInProfile, standalone,
     unarchive, archiveAction, deleteProfile,
     deleteProfileQuestion, usualBackgroundTitle, usualBackgroundIntro,
-    freezeLearning, graceNote, instrumentTitle,
+    updateBackground, updateBackgroundNote, graceNote, instrumentTitle,
     modelLabel, serialNumber, firmware,
     bluetoothConnected, bluetoothConnecting, bluetoothNoLink,
     startOnBootTitle, startOnBootNote,
@@ -703,7 +726,7 @@ fun Strings.allTexts(): List<String> = listOf(
     streamNoDataYet, lastMeasurementAgo(120), unitsTitle,
     unitMicroSv, unitMicroR,
     unitDoseMicroSv, unitDoseMicroR, interfaceTitle,
-    alwaysVisible, atLeastOneTab,
+    atLeastOneTab,
     monitorBlocksNote, blockTrend, blockDoseToday,
     blockCountChart, blockHardnessChart, blockStats,
     resetInterface, visible, hidden,
