@@ -32,12 +32,22 @@ private fun baseline(
  */
 class AdaptiveBackgroundTest {
 
+    /**
+     * Главное свойство: вес модели ограничен СОБСТВЕННЫМ разбросом места, а не
+     * длиной наблюдений. При 25,2 с⁻¹ и P10–P90 22–28 счёт здесь гуляет на
+     * ±10 % сам по себе, и вес соответствует секундам, а не часу: иначе любое
+     * +2 %, которое в этом месте бывает просто так, объявлялось бы событием.
+     */
     @Test
-    fun `the effective weight is capped, however long the profile learned`() {
+    fun `the weight follows the spread of the place, not the length of learning`() {
         val week = AdaptiveBackground.of(baseline(accumulatedSeconds = 7 * 24 * 3600L))!!
-        assertEquals(AdaptiveBackground.MAX_EFFECTIVE_SECONDS, week.effectiveExposureSeconds)
-        // 25,2 × 3600 — псевдосчёты, а не 90 720 измеренных импульсов.
-        assertEquals(25.2 * 3600, week.effectiveCounts, 1.0)
+        val sigma = week.spreadSigmaCps
+        val expected = (25.2f / (sigma * sigma)).toLong()
+        assertEquals(expected, week.effectiveExposureSeconds)
+        assertTrue(
+            week.effectiveExposureSeconds < AdaptiveBackground.MAX_EFFECTIVE_SECONDS,
+            "разброс места обязан связывать раньше часового потолка",
+        )
 
         // Неделя наблюдений НЕ даёт больше веса, чем час.
         val hour = AdaptiveBackground.of(baseline(accumulatedSeconds = 3_600L))!!
@@ -46,10 +56,25 @@ class AdaptiveBackgroundTest {
         assertEquals(7 * 24 * 3600L, week.observedSeconds)
     }
 
+    /** Место без разброса — тогда связывает часовой потолок. */
     @Test
-    fun `a short profile is below the cap and says so by its own number`() {
+    fun `an impossibly steady place is still capped by the hour`() {
+        val steady = AdaptiveBackground(
+            cps = 25.2f,
+            low = 25.2f,
+            high = 25.2f,
+            observedSeconds = 7 * 24 * 3600L,
+        )
+        assertEquals(
+            AdaptiveBackground.MAX_EFFECTIVE_SECONDS,
+            steady.effectiveExposureSeconds,
+        )
+    }
+
+    @Test
+    fun `a short profile never claims more than it observed`() {
         val short = AdaptiveBackground.of(baseline(accumulatedSeconds = 1_200L))!!
-        assertEquals(1_200L, short.effectiveExposureSeconds)
+        assertTrue(short.effectiveExposureSeconds <= 1_200L)
         assertTrue(short.effectiveCounts < 25.2 * AdaptiveBackground.MAX_EFFECTIVE_SECONDS)
     }
 

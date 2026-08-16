@@ -1,5 +1,6 @@
 package app.radiacode.ui.logic
 
+import app.radiacode.analysis.CountWindow
 import app.radiacode.baseline.Baseline
 
 /**
@@ -43,16 +44,68 @@ data class AdaptiveBackground(
     val observedSeconds: Long,
 ) {
     /**
+     * Собственный разброс МЕСТА, с⁻¹ — то, насколько счёт здесь гуляет сам по
+     * себе: погода, радон, положение прибора в комнате.
+     *
+     * Оценивается из P10–P90 профиля: для симметричного распределения ширина
+     * этого интервала ≈ 2,563 σ. Оценка грубая и намеренно робастная — она
+     * нужна как ПОРЯДОК величины, а не как точная σ.
+     */
+    val spreadSigmaCps: Float
+        get() = ((high - low) / P10_P90_TO_SIGMA).coerceAtLeast(0f)
+
+    /**
      * Эффективная выдержка модели фона, с. **Не экспозиция измерения.**
+     *
+     * Ограничена дважды, и второе ограничение важнее первого.
+     *
+     * 1. Потолком [MAX_EFFECTIVE_SECONDS] — чтобы неделя обучения не
+     *    превращалась в «недельную экспозицию».
+     * 2. СОБСТВЕННЫМ РАЗБРОСОМ МЕСТА. Пуассоновская погрешность часа
+     *    наблюдений при 25 с⁻¹ — около 0,3 %, а сам счёт в этом месте гуляет
+     *    на ±10 % (P10–P90 22–28). Сравнивать текущее окно с фоном, чья
+     *    неопределённость взята только из счётной статистики, значит объявлять
+     *    событием любое +2 %, которое здесь бывает просто так. Поэтому вес
+     *    модели ограничен тем, что следует из наблюдаемого разброса:
+     *    `T_eff ≤ R / σ²` — ровно столько, чтобы счётная погрешность не
+     *    оказалась меньше настоящей изменчивости места.
+     *
+     * Обычно связывает именно второе ограничение, а час остаётся верхней
+     * границей, до которой дело почти не доходит.
      */
     val effectiveExposureSeconds: Long
-        get() = observedSeconds.coerceAtMost(MAX_EFFECTIVE_SECONDS).coerceAtLeast(0L)
+        get() {
+            val sigma = spreadSigmaCps
+            val bySpread = if (sigma > 0f) {
+                (cps / (sigma * sigma)).toDouble().toLong()
+            } else {
+                MAX_EFFECTIVE_SECONDS
+            }
+            return observedSeconds
+                .coerceAtMost(MAX_EFFECTIVE_SECONDS)
+                .coerceAtMost(bySpread.coerceAtLeast(1L))
+                .coerceAtLeast(0L)
+        }
 
     /**
      * Эффективные псевдосчёты модели фона. **Не измеренные импульсы.**
      */
     val effectiveCounts: Double
         get() = cps.toDouble() * effectiveExposureSeconds
+
+    /**
+     * Окно сравнения из модели фона — с ЭФФЕКТИВНЫМ весом.
+     *
+     * Дальше по конвейеру оно неотличимо от окна записанного эталона, и это
+     * намеренно: критерий сравнения в приложении один. Разница между эталоном
+     * и изученным фоном живёт в ЧИСЛАХ этого окна и в словах на экране, а не в
+     * отдельной ветке статистики.
+     */
+    fun referenceWindow(): CountWindow = CountWindow(
+        counts = effectiveCounts,
+        seconds = effectiveExposureSeconds.toDouble(),
+        samples = effectiveExposureSeconds.toInt(),
+    )
 
     /** Хватает ли собранного, чтобы вообще с чем-то сравнивать. */
     val usable: Boolean
@@ -72,6 +125,9 @@ data class AdaptiveBackground(
 
         /** Меньше этого наблюдений — сравнивать ещё не с чем. */
         const val MIN_OBSERVED_SECONDS = 600L
+
+        /** Ширина P10–P90 в сигмах для симметричного распределения. */
+        const val P10_P90_TO_SIGMA = 2.563f
 
         /**
          * Изученный фон места по профилю; null — профиль ещё не собран или

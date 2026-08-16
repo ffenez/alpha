@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v056Title: String
+    val v056Summary: String
+
     val v055Title: String
     val v055Summary: String
 
@@ -126,6 +129,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v056Title = "Поиск начинается без записи фона"
+    override val v056Summary =
+        "Если фон не записан или больше не годится, Поиск сравнивает с обычным " +
+        "фоном места, который приложение изучило само, — плитка при этом " +
+        "называется «ОБЫЧНО», чтобы одно не выдавалось за другое. Такое " +
+        "сравнение намеренно осторожнее: его вес ограничен тем, насколько счёт " +
+        "в этом месте гуляет и без источника."
 
     override val v055Title = "Измерение продукта не теряется, а порог не мешает"
     override val v055Summary =
@@ -381,6 +392,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v056Title = "A search starts without recording a background"
+    override val v056Summary =
+        "When no background is recorded or the recorded one no longer fits, " +
+        "Поиск compares against the usual background of the place that the app " +
+        "learned by itself — the tile then reads «ОБЫЧНО» so that one is not " +
+        "passed off as the other. That comparison is deliberately more cautious: " +
+        "its weight is limited by how much counts drift here without any source."
 
     override val v055Title = "A product measurement survives, and the threshold steps back"
     override val v055Summary =
@@ -644,6 +663,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v056Title, v056Summary,
     v055Title, v055Summary,
     v054Title, v054Summary,
     v053Title, v053Summary,

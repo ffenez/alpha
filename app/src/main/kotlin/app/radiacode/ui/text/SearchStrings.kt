@@ -49,6 +49,10 @@ interface SearchStrings {
     val meterNeedsBackground: String
     val waitingStream: String
     val cpsUnit: String
+    /** Заголовок плитки, когда сравнение идёт с изученным фоном места. */
+    val backgroundLearnedTag: String
+    /** Что это за фон — в подробностях, а не на рабочем экране. */
+    val backgroundLearnedNote: String
 
     // --- режимы экрана ---
     /** Сегмент вверху: два ВОПРОСА, а не «точный» и «быстрый». */
@@ -379,6 +383,12 @@ object SearchRu : SearchStrings {
     override val meterNeedsBackground = "индикатор заработает после замера фона"
     override val waitingStream = "ждём поток данных…"
     override val cpsUnit = "с⁻¹"
+    override val backgroundLearnedTag = "ОБЫЧНО"
+    override val backgroundLearnedNote =
+        "Сравнение идёт с обычным фоном этого места — приложение изучило его " +
+            "само. Такое сравнение осторожнее записанного эталона: у изученного " +
+            "фона ограниченный статистический вес, потому что счёт в любом месте " +
+            "гуляет и без источника. Для точных измерений запишите эталон."
 
     override val modeNavigate = "Наведение"
     override val modeVerify = "Проверка"
@@ -752,6 +762,13 @@ object SearchEn : SearchStrings {
     override val meterNeedsBackground = "the meter starts working once the background is measured"
     override val waitingStream = "waiting for the data stream…"
     override val cpsUnit = "s⁻¹"
+    override val backgroundLearnedTag = "USUAL"
+    override val backgroundLearnedNote =
+        "The comparison runs against the usual background of this place, which " +
+            "the app learned by itself. It is more cautious than a recorded " +
+            "reference: the learned background carries a limited statistical " +
+            "weight, because counts drift anywhere without any source. For exact " +
+            "measurements record a reference."
 
     override val modeNavigate = "Navigate"
     override val modeVerify = "Verify"

@@ -63,7 +63,12 @@ import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.components.StatusRow
 import app.radiacode.ui.feedback.Feedback
 import app.radiacode.ui.feedback.GeigerClicker
+import app.radiacode.baseline.BaselineState
+import app.radiacode.ui.logic.AdaptiveBackground
 import app.radiacode.ui.logic.BackgroundCheck
+import app.radiacode.ui.logic.BackgroundRecord
+import app.radiacode.ui.logic.SearchReference
+import app.radiacode.ui.logic.SearchReferences
 import app.radiacode.ui.logic.BackgroundRef
 import app.radiacode.ui.logic.ClickRate
 import app.radiacode.ui.logic.EnergyTone
@@ -403,10 +408,35 @@ fun SearchScreen(
     }
 
     val cps = sample?.countRate
-    val record = background
     val deviceSerial = (connection as? ConnectionState.Connected)?.info?.serialNumber
-    val check = record?.check(System.currentTimeMillis(), activeProfileId, deviceSerial)
-    val band = record?.let { backgroundBand(it) }
+    val recorded = background
+    val check = recorded?.check(System.currentTimeMillis(), activeProfileId, deviceSerial)
+    // Фон, изученный самим приложением: обычный фон места по скорости счёта.
+    // Он вступает, когда записанного эталона нет или он больше не годится, —
+    // искать можно, не записывая фон вручную. Подменой эталона он не является:
+    // его вес ограничен разбросом самого места (см. AdaptiveBackground).
+    val baselineState by graph.serviceStatus.baseline.collectAsState()
+    val learned = remember(baselineState) {
+        AdaptiveBackground.of((baselineState as? BaselineState.Active)?.baseline)
+    }
+    val reference = SearchReferences.choose(recorded, check, learned)
+    val learnedInUse = reference is SearchReference.Learned
+    val record = when (reference) {
+        is SearchReference.Recorded -> reference.record
+        is SearchReference.Learned -> BackgroundRecord(
+            window = reference.background.referenceWindow(),
+            atMillis = System.currentTimeMillis(),
+            targetSamples = reference.background.effectiveExposureSeconds.toInt(),
+            profileId = activeProfileId,
+            profileName = null,
+            deviceSerial = deviceSerial,
+        )
+        SearchReference.None -> null
+    }
+    val band = when (reference) {
+        is SearchReference.Learned -> reference.background.low..reference.background.high
+        else -> recorded?.let { backgroundBand(it) }
+    }
     val level = search.level
     // Shape of the spectrum during the excursion vs the two minutes before it
     // — a separate research observation, never part of the count verdict.
@@ -597,7 +627,11 @@ fun SearchScreen(
                     ) {
                         MetricTileBox(
                             tile = MetricTile(
-                                label = strings.backgroundTag,
+                                // Заголовок плитки называет ИСТОЧНИК фона:
+                                // изученный приложением и записанный человеком
+                                // — разные утверждения о надёжности сравнения,
+                                // и молча подменять одно другим нельзя.
+                                label = if (learnedInUse) t.backgroundLearnedTag else strings.backgroundTag,
                                 value = Uncertainty.num1(record.cps),
                             ),
                             modifier = Modifier.weight(1f),
