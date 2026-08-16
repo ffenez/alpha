@@ -85,10 +85,20 @@ data class ChartGesture(
     /** Курсор на экране останавливает слежение: ряд не уезжает из-под показания. */
     fun holdForCursor(): ChartGesture = copy(visible = visible.copy(followLiveEdge = false))
 
-    /** Такт слежения двигает ОБА окна: живой край не жест, пересчитывать нечего. */
+    /**
+     * Такт слежения: живой край двигает ВИДИМОЕ окно, а кадр остаётся.
+     *
+     * Раньше такт пересобирал и кадр — то есть раз в секунду, пока идёт поток,
+     * заново складывались колонки, границы оси, эпизоды и статистика. Для
+     * карточки Главной это происходило трижды (по величине на карточку) и
+     * читалось как «мини-графики подтормаживают». Геометрия строится с запасом
+     * и в будущее ([Companion.of]), поэтому край может ехать, пока запас не
+     * кончится; кончился — кадр пересобирается, но по делу.
+     */
     fun followTick(bounds: ViewportBounds): ChartGesture {
         if (!visible.followLiveEdge) return this
-        return of(Viewports.followTick(visible, bounds), bounds)
+        val next = copy(visible = Viewports.followTick(visible, bounds))
+        return if (next.covered()) next else of(next.visible, bounds)
     }
 
     /** Движение улеглось: видимое окно становится посчитанным. */
@@ -113,18 +123,22 @@ data class ChartGesture(
         /**
          * Окно и его нарисованный диапазон.
          *
-         * Вправо запас не заходит за предел времени: правее «сейчас» ещё нечего
-         * измерять, и рисовать там нечего — кроме постоянного воздуха у живого
-         * края, который добавляет [ChartWindows.withRightPadding].
+         * Запас берётся с обеих сторон, в том числе ВПРАВО, за предел времени.
+         * Рисовать там нечего — измерений в будущем не бывает, — но именно
+         * туда уезжает окно, пока оно следит за живым краем: без правого запаса
+         * каждый такт слежения требовал бы пересборки кадра, а это самая
+         * дорогая работа графика.
          */
         fun of(viewport: Viewport, bounds: ViewportBounds): ChartGesture {
             val pad = (viewport.spanMillis * HEADROOM_FRACTION).toLong()
             val air = ChartWindows.withRightPadding(viewport.window()).toMillis - viewport.endMillis
-            val to = minOf(viewport.endMillis + pad, bounds.edgeMillis) + air
             return ChartGesture(
                 frame = viewport,
                 visible = viewport,
-                rendered = ChartWindow(viewport.startMillis - pad, maxOf(to, viewport.endMillis)),
+                rendered = ChartWindow(
+                    viewport.startMillis - pad,
+                    viewport.endMillis + pad + air,
+                ),
             )
         }
     }

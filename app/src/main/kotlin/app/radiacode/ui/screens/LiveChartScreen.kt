@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -53,6 +51,10 @@ import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.PreAggregateRepository
 import app.radiacode.device.DoseUnits
 import app.radiacode.ui.components.AppDivider
+import app.radiacode.ui.components.AppMenu
+import app.radiacode.ui.components.AppMenuDivider
+import app.radiacode.ui.components.AppMenuHeader
+import app.radiacode.ui.components.AppMenuItem
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.ChartSheet
 import app.radiacode.ui.components.Chip
@@ -63,6 +65,9 @@ import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.chart.ChartDataSource
 import app.radiacode.ui.chart.ChartContext
 import app.radiacode.ui.chart.ChartGesture
+import app.radiacode.ui.chart.ChartGestureInput
+import app.radiacode.ui.chart.GestureAxis
+import app.radiacode.ui.chart.ValueWindow
 import app.radiacode.ui.chart.ChartYAxis
 import app.radiacode.ui.chart.Viewport
 import app.radiacode.ui.chart.ViewportBounds
@@ -133,6 +138,13 @@ private const val FAR_JUMP_SPANS = 6
  * которые целиком помещаются над панелью и не требуют прокрутки.
  */
 private const val PICKER_COLUMNS = 3
+
+/**
+ * Во сколько раз растягивается ось за один проход пальца по шкале сверху вниз.
+ * **Инженерный параметр**: полный проход по высоте поля меняет размах примерно
+ * вдвое — движение видно сразу, но кадр не улетает от одного касания.
+ */
+private const val VALUE_SCALE_SENSITIVITY = 1f
 
 internal val CURSOR_TIME = DateTimeFormatter.ofPattern("HH:mm:ss")
 
@@ -427,9 +439,40 @@ fun LiveChartScreen(
         cursorFraction.value = null
     }
 
+    /** Вернуть автоподбор оси значений. */
+    fun autoAxis() {
+        gesture = gesture.copy(
+            frame = gesture.frame.copy(values = null),
+            visible = gesture.visible.copy(values = null),
+        )
+    }
+
+    /**
+     * Вместить пороги: кадр оси растягивается так, чтобы в него попали и
+     * измерения, и названные уровни. Ответ на вопрос «где проходят L1 и L2
+     * относительно того, что сейчас» — одним нажатием, без вождения пальцем.
+     */
+    fun fitThresholds() {
+        val scale = frame?.spec?.scale ?: return
+        val levels = listOfNotNull(
+            thresholds.l1MicroSvH.takeIf { it > 0f },
+            thresholds.l2MicroSvH.takeIf { it > 0f },
+        )
+        if (levels.isEmpty()) return
+        val fitted = ChartYAxis.fit(
+            data = ChartYAxis.windowOf(scale),
+            levels = levels,
+            minSpan = ChartMetrics.minAxisSpan(metric),
+        )
+        gesture = gesture.copy(
+            frame = gesture.frame.copy(values = fitted),
+            visible = gesture.visible.copy(values = fitted),
+        )
+    }
+
     fun selectPeriod(index: Int) {
         val span = ChartWindows.PERIODS[index].second
-        setViewport(Viewports.withSpan(gesture.visible, span, bounds()))
+        setViewport(Viewports.withSpan(gesture.visible, span, bounds()).copy(values = null))
         // Запомненное окно принадлежит ЖИВОМУ экрану (и карточке Главной):
         // выбор ступени при разглядывании прошлой сессии не должен переставлять
         // то, что человек смотрит на Главной.
@@ -492,18 +535,56 @@ fun LiveChartScreen(
         }
     }
 
-    val onTransform: (Float, Float, Float) -> Unit = { pan, zoom, focus ->
+    val minAxisSpan = ChartMetrics.minAxisSpan(metric)
+
+    /** Кадр оси, с которого начинается ручной режим: то, что видно сейчас. */
+    fun currentValues(): ValueWindow? = gesture.visible.values
+        ?: frame?.spec?.scale?.let { ChartYAxis.windowOf(it) }
+
+    val onTransform: (ChartGestureInput) -> Unit = { input ->
         lastGestureAt = System.currentTimeMillis()
         val b = bounds()
         var g = gesture
-        // Зум НЕПРЕРЫВНЫЙ (Charts V2 §5.3): множитель кадра идёт прямо в окно,
-        // а точка под пальцами остаётся на месте. Прежний ступенчатый зум
-        // копил множители до полутора раз и переключал ступень целиком — между
-        // ступенями показать было нечего, и щипок ощущался как рывок.
-        if (zoom != 1f) g = g.zoom(zoom, focus, b)
-        // Тянут вправо — в кадр приходит более раннее время.
-        if (pan != 0f) g = g.pan(-pan, b)
-        if (historical) g = g.copy(visible = g.visible.copy(followLiveEdge = false))
+        when (input.axis) {
+            GestureAxis.VALUE -> {
+                // Палец ведёт ОСЬ: тянут вниз — в кадр приходит то, что было
+                // выше, вместе с порогами. Автоподбор при этом выключается —
+                // и это видно на экране чипом «ось», иначе «шкала перестала
+                // подстраиваться» выглядело бы поломкой.
+                currentValues()?.let { current ->
+                    g = g.copy(
+                        visible = g.visible.copy(
+                            values = ChartYAxis.pan(current, input.panYFraction, minAxisSpan),
+                        ),
+                    )
+                }
+            }
+            GestureAxis.VALUE_SCALE -> {
+                // Жест по шкале справа сжимает и растягивает ось: так далёкий
+                // порог попадает в кадр, а измерения остаются видны.
+                currentValues()?.let { current ->
+                    g = g.copy(
+                        visible = g.visible.copy(
+                            values = ChartYAxis.zoom(
+                                window = current,
+                                factor = 1f - input.panYFraction * VALUE_SCALE_SENSITIVITY,
+                                minSpan = minAxisSpan,
+                            ),
+                        ),
+                    )
+                }
+            }
+            else -> {
+                // Зум НЕПРЕРЫВНЫЙ (Charts V2 §5.3): множитель кадра идёт прямо
+                // в окно, а точка под пальцами остаётся на месте.
+                if (input.zoom != 1f) {
+                    g = g.zoom(input.zoom, input.focusXFraction, b)
+                }
+                // Тянут вправо — в кадр приходит более раннее время.
+                if (input.panXFraction != 0f) g = g.pan(-input.panXFraction, b)
+                if (historical) g = g.copy(visible = g.visible.copy(followLiveEdge = false))
+            }
+        }
         // Уехали дальше нарисованного — ждать паузы нечего: рисовать за краем
         // кадра нечем, и кадр пересобирается сразу.
         gesture = if (g.covered()) g else g.commit(b)
@@ -567,10 +648,18 @@ fun LiveChartScreen(
                         cursorFraction.value = fraction
                     },
                     onResetScale = {
-                        // §10: «оптимальный масштаб» — это выбранное окно у
-                        // живого края; двойной тап отменяет зум и панораму,
-                        // а не придумывает свой масштаб.
-                        selectPeriod(periodIndex)
+                        // Двойное нажатие возвращает АВТОМАТИЧЕСКУЮ ось и
+                        // оставляет окно времени как есть (ТЗ §5.7): человек
+                        // разглядывает отрезок и хочет вернуть шкалу, а не
+                        // потерять место. Полный сброс — пунктом в «⋯».
+                        if (gesture.visible.values != null) {
+                            gesture = gesture.copy(
+                                frame = gesture.frame.copy(values = null),
+                                visible = gesture.visible.copy(values = null),
+                            )
+                        } else {
+                            selectPeriod(periodIndex)
+                        }
                     },
                     onCursorDismiss = {
                         cursorActive = false
@@ -657,6 +746,10 @@ fun LiveChartScreen(
                     currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000, s = h),
                     onSelectAllHistory = ::selectAllHistory,
                     onResetScale = { selectPeriod(periodIndex) },
+                    manualAxis = gesture.visible.values != null,
+                    onAutoAxis = ::autoAxis,
+                    onFitThresholds = ::fitThresholds
+                        .takeIf { ChartMetrics.showsAlarmLevel(metric) && thresholds.l1MicroSvH > 0f },
                 )
             }
             ChartDetailsSheet(
@@ -743,6 +836,10 @@ fun LiveChartScreen(
                 currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000, s = h),
                 onSelectAllHistory = ::selectAllHistory,
                 onResetScale = { selectPeriod(periodIndex) },
+                manualAxis = gesture.visible.values != null,
+                onAutoAxis = ::autoAxis,
+                onFitThresholds = ::fitThresholds
+                    .takeIf { ChartMetrics.showsAlarmLevel(metric) && thresholds.l1MicroSvH > 0f },
             )
         }
         }
@@ -1110,8 +1207,13 @@ private fun RowScope.ControlChips(
     currentSpanLabel: String = "",
     /** «Вся история»: окно от первого измерения до края; null — история неизвестна. */
     onSelectAllHistory: (() -> Unit)? = null,
-    /** Сбросить масштаб — то же, что двойное нажатие по полю. */
+    /** Сбросить масштаб — окно у края и автоматическая ось. */
     onResetScale: () -> Unit = {},
+    /** Ось задана рукой: показать состояние и дать вернуть автоподбор. */
+    manualAxis: Boolean = false,
+    onAutoAxis: () -> Unit = {},
+    /** «Вместить пороги»; null — у величины порогов нет. */
+    onFitThresholds: (() -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val texts = ChartTextCatalogue.of(LocalStrings.current.language)
@@ -1133,16 +1235,15 @@ private fun RowScope.ControlChips(
             selected = periodExact,
             onClick = { pickerOpen = true },
         )
-        DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
+        AppMenu(expanded = pickerOpen, onDismiss = { pickerOpen = false }) {
+            AppMenuHeader(texts.windowPicker)
             Column(
-                modifier = Modifier.padding(horizontal = Dimens.space2, vertical = Dimens.space1),
+                modifier = Modifier.padding(
+                    horizontal = Dimens.space3,
+                    vertical = Dimens.space1,
+                ),
                 verticalArrangement = Arrangement.spacedBy(Dimens.space1),
             ) {
-                Text(
-                    text = texts.windowPicker.uppercase(),
-                    style = LocalAppTypography.current.labelSmall,
-                    color = colors.ink2,
-                )
                 for (row in availablePeriods.chunked(PICKER_COLUMNS)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space1)) {
                         for (index in row) {
@@ -1159,18 +1260,18 @@ private fun RowScope.ControlChips(
                         }
                     }
                 }
-                if (onSelectAllHistory != null) {
-                    // «Вся история» — не ступень: её длина зависит от того,
-                    // сколько записано, и в лестнице ей места нет.
-                    Chip(
-                        text = texts.allHistory,
-                        color = colors.ink2,
-                        onClick = {
-                            onSelectAllHistory()
-                            pickerOpen = false
-                        },
-                    )
-                }
+            }
+            if (onSelectAllHistory != null) {
+                // «Вся история» — не ступень: её длина зависит от того,
+                // сколько записано, и в лестнице ей места нет.
+                AppMenuDivider()
+                AppMenuItem(
+                    text = texts.allHistory,
+                    onClick = {
+                        onSelectAllHistory()
+                        pickerOpen = false
+                    },
+                )
             }
         }
     }
@@ -1185,6 +1286,19 @@ private fun RowScope.ControlChips(
         selected = logScale,
         onClick = onToggleScale,
     )
+    // Ручная ось — состояние, а не режим где-то в настройках: пока она
+    // включена, чип стоит рядом со шкалой и одним нажатием возвращает
+    // автоподбор. Без него «шкала перестала подстраиваться» читалось бы как
+    // поломка.
+    if (manualAxis) {
+        Spacer(Modifier.width(Dimens.space1))
+        Chip(
+            text = texts.axisManual,
+            color = colors.dataText,
+            selected = true,
+            onClick = onAutoAxis,
+        )
+    }
     Spacer(Modifier.width(Dimens.space1))
     // Остальное — под «⋯».
     //
@@ -1195,27 +1309,43 @@ private fun RowScope.ControlChips(
     var menuOpen by remember { mutableStateOf(false) }
     Box {
         Chip(text = "⋯", color = colors.ink2, onClick = { menuOpen = true })
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        texts.smoothChip + " · " + if (detailed) strings.off else strings.on,
-                    )
-                },
+        // Меню раскрывается ВЛЕВО от «⋯»: этот чип стоит у правого края
+        // панели, и меню шириной в треть экрана иначе уезжало бы за него.
+        AppMenu(
+            expanded = menuOpen,
+            onDismiss = { menuOpen = false },
+            alignment = Alignment.BottomEnd,
+        ) {
+            AppMenuItem(
+                text = texts.smoothChip,
+                state = if (detailed) strings.off else strings.on,
+                stateOn = !detailed,
                 onClick = {
                     menuOpen = false
                     onToggleDetail()
                 },
             )
-            DropdownMenuItem(
-                text = { Text(texts.eventsChip + " · " + if (events) strings.on else strings.off) },
+            AppMenuItem(
+                text = texts.eventsChip,
+                state = if (events) strings.on else strings.off,
+                stateOn = events,
                 onClick = {
                     menuOpen = false
                     onToggleEvents()
                 },
             )
-            DropdownMenuItem(
-                text = { Text(texts.moreDetails) },
+            if (onFitThresholds != null) {
+                AppMenuItem(
+                    text = texts.fitThresholds,
+                    onClick = {
+                        menuOpen = false
+                        onFitThresholds()
+                    },
+                )
+            }
+            AppMenuDivider()
+            AppMenuItem(
+                text = texts.moreDetails,
                 onClick = {
                     menuOpen = false
                     onOpenDetails()
@@ -1224,8 +1354,8 @@ private fun RowScope.ControlChips(
             // То же, что двойное нажатие по полю: выбранное окно у края и
             // автоматическая ось. Команда есть и в меню, потому что двойное
             // нажатие — жест, о котором надо знать, а пункт виден (V2 §5.7).
-            DropdownMenuItem(
-                text = { Text(texts.resetScale) },
+            AppMenuItem(
+                text = texts.resetScale,
                 onClick = {
                     menuOpen = false
                     onResetScale()

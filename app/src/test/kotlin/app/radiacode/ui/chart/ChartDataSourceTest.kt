@@ -78,6 +78,21 @@ class ChartDataSourceTest {
     }
 
     @Test
+    fun `карточка читает во много раз меньше полноэкранного`() {
+        // Пятиминутное окно: полному экрану — час запаса с каждой стороны ради
+        // мгновенного перелистывания, карточке — половина окна. Разница в
+        // тысячах подсекундных строк, которые складываются в колонки на каждое
+        // новое измерение, и так на каждой карточке.
+        val w = window(5 * 60_000L)
+        val full = ChartDataSource.readRange(w, now, ReadPadding.Full).spanMillis
+        val compact = ChartDataSource.readRange(w, now, ReadPadding.Compact).spanMillis
+        // Правый запас у живого окна и так срезается краем «сейчас», поэтому
+        // разница держится на левом: около четырёх часов против семи минут.
+        assertTrue(compact * 5 < full, "полный $full мс, карточка $compact мс")
+        assertTrue(compact >= w.spanMillis, "запас не может быть отрицательным")
+    }
+
+    @Test
     fun `пустого снимка не бывает достаточно`() {
         val w = window(5 * 60_000L)
         assertFalse(ChartDataSource.reusable(null, null, w, now))

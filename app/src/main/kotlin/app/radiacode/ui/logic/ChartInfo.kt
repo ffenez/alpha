@@ -126,7 +126,7 @@ object ChartInfo {
         ChartMetrics.spanLimitNote(metric, axis)?.let { numbers += it }
         sections += ChartInfoSection(s.sectionNumbers, numbers, numberDetails)
 
-        val gestures = mutableListOf(s.gestureZoomPan, s.gestureCursor)
+        val gestures = mutableListOf(s.gestureZoomPan, s.gestureValueAxis, s.gestureCursor)
         if (hasExtremeMarkers) gestures += s.gestureMarkerTap
         gestures += if (historical) s.gestureDoubleTapRange else s.gestureDoubleTap
         sections += ChartInfoSection(s.sectionGestures, gestures)

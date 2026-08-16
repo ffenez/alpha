@@ -123,11 +123,21 @@ class ViewportTest {
     }
 
     @Test
-    fun `ручной масштаб оси переживает жесты по времени`() {
-        val v = Viewports.atEdge(5 * 60_000L, bounds).copy(yMode = YMode.MANUAL)
-        assertEquals(YMode.MANUAL, Viewports.pan(v, -0.3f, bounds).yMode)
-        assertEquals(YMode.MANUAL, Viewports.zoom(v, 2f, 0.5f, bounds).yMode)
-        assertEquals(YMode.MANUAL, Viewports.jumpToEdge(v, bounds).yMode)
+    fun `ручной кадр оси переживает жесты по времени`() {
+        // Ось задавали не для этого окна, а для этой величины: уехали во
+        // времени — шкала осталась той, которую выбрали рукой.
+        val manual = ValueWindow(0.10f, 0.40f)
+        val v = Viewports.atEdge(5 * 60_000L, bounds, values = manual)
+        assertEquals(YMode.MANUAL, v.yMode)
+        assertEquals(manual, Viewports.pan(v, -0.3f, bounds).values)
+        assertEquals(manual, Viewports.zoom(v, 2f, 0.5f, bounds).values)
+        assertEquals(manual, Viewports.jumpToEdge(v, bounds).values)
+        assertEquals(manual, Viewports.withSpan(v, 3_600_000L, bounds).values)
+    }
+
+    @Test
+    fun `без ручного кадра ось подбирается сама`() {
+        assertEquals(YMode.AUTO, Viewports.atEdge(5 * 60_000L, bounds).yMode)
     }
 
     @Test

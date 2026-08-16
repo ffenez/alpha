@@ -19,6 +19,15 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v074Title: String
+    val v074Summary: String
+
+    val v073Title: String
+    val v073Summary: String
+
+    val v072Title: String
+    val v072Summary: String
+
     val v071Title: String
     val v071Summary: String
 
@@ -174,6 +183,25 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v074Title = "Мини-графики перестали подтормаживать"
+    override val v074Summary =
+        "Карточка Главной читала два часа измерений ради пяти нарисованных минут и " +
+        "пересобирала картинку каждую секунду на каждую величину. Теперь живой " +
+        "край двигает уже нарисованное, а считается только то, что показано."
+
+    override val v073Title = "Меню графика — в теме приложения"
+    override val v073Summary =
+        "Вместо системной карточки с тенью — плоскость с волосяной рамкой, как у " +
+        "остальных элементов; состояние пункта стоит отдельным столбцом справа, а " +
+        "не приклеено к названию через точку."
+
+    override val v072Title = "Ось значений слушается руки, и на ней видно L1 и L2"
+    override val v072Summary =
+        "Движение вверх-вниз ведёт шкалу, жест по ней справа сжимает и растягивает, " +
+        "а «вместить пороги» в «⋯» показывает уровни вместе с измерениями одним " +
+        "нажатием. Второй уровень L2 из настроек теперь нарисован — раньше его на " +
+        "графике не было вовсе."
 
     override val v071Title = "Карточка и полный экран — одно окно"
     override val v071Summary =
@@ -537,6 +565,25 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v074Title = "The mini charts stopped stuttering"
+    override val v074Summary =
+        "A card on Главная read two hours of measurements to draw five minutes and " +
+        "rebuilt the picture every second for every quantity. The live edge now moves " +
+        "what is already drawn, and only what is shown is computed."
+
+    override val v073Title = "The chart menu is in the app's own theme"
+    override val v073Summary =
+        "A flat surface with a hairline border instead of a system card with a shadow, " +
+        "like everything else here; the state of an item stands in its own column on " +
+        "the right rather than glued to the name after a dot."
+
+    override val v072Title = "The value axis follows the hand, and shows L1 and L2"
+    override val v072Summary =
+        "Moving up and down leads the scale, a drag on it at the right compresses and " +
+        "stretches it, and «fit the thresholds» in «⋯» brings the levels next to the " +
+        "measurements in one tap. The second level L2 from the settings is now drawn — " +
+        "it was not on the chart at all before."
 
     override val v071Title = "The card and the full screen share one window"
     override val v071Summary =

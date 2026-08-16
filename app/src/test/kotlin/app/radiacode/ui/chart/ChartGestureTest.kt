@@ -96,12 +96,25 @@ class ChartGestureTest {
     }
 
     @Test
-    fun `такт слежения двигает оба окна, а не создаёт жест`() {
+    fun `такт слежения двигает видимое окно, а кадр оставляет`() {
         val g = gesture()
         val later = ViewportBounds(edgeMillis = now + 5_000L)
         val next = g.followTick(later)
-        assertFalse(next.moved, "живой край — не жест: пересобирать нечего")
         assertEquals(now + 5_000L, next.visible.endMillis)
+        // Кадр не пересобирается: раз в секунду складывать колонки, границы
+        // оси, эпизоды и статистику — это и есть «мини-графики тормозят».
+        assertEquals(g.frame, next.frame)
+        assertEquals(g.rendered, next.rendered)
+    }
+
+    @Test
+    fun `когда запас кончился, кадр догоняет живой край`() {
+        val g = gesture(spanMillis = 5 * 60_000L)
+        // Запас — половина окна; через столько же живой край уходит за него.
+        val far = ViewportBounds(edgeMillis = now + 4 * 60_000L)
+        val next = g.followTick(far)
+        assertTrue(next.covered(), "уехали за нарисованное — кадр обязан догнать")
+        assertEquals(next.visible, next.frame)
     }
 
     @Test

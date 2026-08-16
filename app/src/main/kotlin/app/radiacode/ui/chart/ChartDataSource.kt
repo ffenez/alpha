@@ -7,6 +7,42 @@ import app.radiacode.ui.logic.QuantileMethod
 import app.radiacode.ui.logic.QuantilePaths
 
 /**
+ * Сколько истории читать про запас вокруг окна — и почему у карточки иначе.
+ *
+ * Запас существует ради жеста: сдвиг внутри уже прочитанного не требует
+ * запроса. Полноэкранному графику он нужен щедрый — там историю листают, и
+ * час хода пальцем без единого чтения ощущается как отзывчивость.
+ *
+ * Карточке Главной он стоит слишком дорого. Пятиминутное окно с часовым
+ * запасом — это два часа подсекундных агрегатов, около шести тысяч строк,
+ * которые читаются и складываются в колонки КАЖДЫЙ раз, когда приходит новое
+ * измерение, и так на каждую из трёх карточек. Ради трёхсот нарисованных
+ * измерений. Отсюда мини-графики и подтормаживали.
+ */
+data class ReadPadding(
+    val fraction: Float,
+    val minMillis: Long,
+) {
+    companion object {
+
+        /** Полноэкранный график: окно с каждой стороны, но не меньше часа. */
+        val Full = ReadPadding(
+            fraction = ChartWindows.LOAD_PADDING_FRACTION,
+            minMillis = ChartWindows.MIN_LOAD_PADDING_MILLIS,
+        )
+
+        /**
+         * Карточка Главной: половина окна и никакого часового пола.
+         *
+         * **Инженерный параметр**: половина окна — это уверенный рывок пальцем
+         * по миниатюре; дальше него читают уже во весь экран, куда карточка и
+         * открывается одним нажатием.
+         */
+        val Compact = ReadPadding(fraction = 0.5f, minMillis = 0L)
+    }
+}
+
+/**
  * Когда графику нужен поход в базу, а когда достаточно того, что уже прочитано.
  *
  * ## Зачем отдельным местом
@@ -51,19 +87,34 @@ object ChartDataSource {
     const val BUCKET_TOLERANCE = 1.5
 
     /** Диапазон, который читается ради этого окна: окно плюс запас по краям. */
-    fun readRange(window: ChartWindow, edgeMillis: Long): ChartWindow =
-        ChartWindows.loadRange(window, edgeMillis)
+    fun readRange(
+        window: ChartWindow,
+        edgeMillis: Long,
+        padding: ReadPadding = ReadPadding.Full,
+    ): ChartWindow = ChartWindows.loadRange(
+        window = window,
+        nowMillis = edgeMillis,
+        paddingFraction = padding.fraction,
+        minPaddingMillis = padding.minMillis,
+    )
 
     /** Путь квантилей, которым будет прочитано это окно (ADR 004). */
-    fun methodFor(window: ChartWindow, edgeMillis: Long): QuantileMethod =
-        QuantilePaths.methodFor(readRange(window, edgeMillis).spanMillis)
+    fun methodFor(
+        window: ChartWindow,
+        edgeMillis: Long,
+        padding: ReadPadding = ReadPadding.Full,
+    ): QuantileMethod = QuantilePaths.methodFor(readRange(window, edgeMillis, padding).spanMillis)
 
     /**
      * Ширина колонки, которую даст чтение этого окна. Нужна ровно для одного:
      * понять, годится ли уже прочитанный снимок.
      */
-    fun expectedBucketMillis(window: ChartWindow, edgeMillis: Long): Long {
-        val load = readRange(window, edgeMillis)
+    fun expectedBucketMillis(
+        window: ChartWindow,
+        edgeMillis: Long,
+        padding: ReadPadding = ReadPadding.Full,
+    ): Long {
+        val load = readRange(window, edgeMillis, padding)
         return QuantilePaths.bucketMillis(load.spanMillis, QuantilePaths.methodFor(load.spanMillis))
     }
 
@@ -78,15 +129,18 @@ object ChartDataSource {
         loadedBucketMillis: Long?,
         window: ChartWindow,
         edgeMillis: Long,
+        padding: ReadPadding = ReadPadding.Full,
     ): Boolean {
         if (loadedRange == null || loadedBucketMillis == null || loadedBucketMillis <= 0L) {
             return false
         }
         if (!ChartWindows.covers(loadedRange, window)) return false
-        if (QuantilePaths.methodFor(loadedRange.spanMillis) != methodFor(window, edgeMillis)) {
+        if (
+            QuantilePaths.methodFor(loadedRange.spanMillis) != methodFor(window, edgeMillis, padding)
+        ) {
             return false
         }
-        val expected = expectedBucketMillis(window, edgeMillis)
+        val expected = expectedBucketMillis(window, edgeMillis, padding)
         if (expected <= 0L) return false
         val ratio = loadedBucketMillis.toDouble() / expected
         return ratio in (1.0 / BUCKET_TOLERANCE)..BUCKET_TOLERANCE

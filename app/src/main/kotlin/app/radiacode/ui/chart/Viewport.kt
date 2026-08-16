@@ -43,9 +43,21 @@ data class Viewport(
     val endMillis: Long,
     /** Едет ли окно вместе с «сейчас». */
     val followLiveEdge: Boolean = true,
-    val yMode: YMode = YMode.AUTO,
+    /**
+     * Кадр по значениям, заданный рукой; null — ось подбирается сама.
+     *
+     * Ось живёт в том же состоянии, что и время, по той же причине: карточка
+     * Главной и полный экран показывают ОДНУ картинку, и разъезжаться их
+     * шкалам нельзя. Ручной кадр всегда виден как состояние на экране и
+     * снимается одним нажатием — иначе «ось перестала подстраиваться»
+     * выглядело бы поломкой.
+     */
+    val values: ValueWindow? = null,
 ) {
     val spanMillis: Long get() = endMillis - startMillis
+
+    /** Как выбирается диапазон оси значений. */
+    val yMode: YMode get() = if (values == null) YMode.AUTO else YMode.MANUAL
 
     fun window(): ChartWindow = ChartWindow(startMillis, endMillis)
 
@@ -113,13 +125,19 @@ object Viewports {
     const val PAN_BEYOND_HISTORY_FRACTION = 0.5f
 
     /** Окно заданной длины, прижатое к правому пределу. */
-    fun atEdge(spanMillis: Long, bounds: ViewportBounds, yMode: YMode = YMode.AUTO): Viewport {
+    fun atEdge(
+        spanMillis: Long,
+        bounds: ViewportBounds,
+        values: ValueWindow? = null,
+    ): Viewport {
         val span = spanMillis.coerceIn(bounds.minSpanMillis, bounds.maxSpanMillis)
         return Viewport(
             startMillis = bounds.edgeMillis - span,
             endMillis = bounds.edgeMillis,
             followLiveEdge = true,
-            yMode = yMode,
+            // Ручной кадр оси переживает движение по времени: его задавали не
+            // для этого окна, а для этой величины.
+            values = values,
         )
     }
 
@@ -173,11 +191,11 @@ object Viewports {
 
     /** Явная длина окна (выбор пресета) — у правого предела. */
     fun withSpan(viewport: Viewport, spanMillis: Long, bounds: ViewportBounds): Viewport =
-        atEdge(spanMillis, bounds, viewport.yMode)
+        atEdge(spanMillis, bounds, viewport.values)
 
     /** Возврат к правому пределу с сохранением длины окна. */
     fun jumpToEdge(viewport: Viewport, bounds: ViewportBounds): Viewport =
-        atEdge(viewport.spanMillis, bounds, viewport.yMode)
+        atEdge(viewport.spanMillis, bounds, viewport.values)
 
     /** Стоит ли окно на живом крае (с точностью до [FOLLOW_SNAP_FRACTION]). */
     fun atLiveEdge(viewport: Viewport, bounds: ViewportBounds): Boolean =
@@ -206,7 +224,7 @@ object Viewports {
             startMillis = end - span,
             endMillis = end,
             followLiveEdge = false,
-            yMode = viewport.yMode,
+            values = viewport.values,
         )
         return result.copy(followLiveEdge = atLiveEdge(result, bounds))
     }

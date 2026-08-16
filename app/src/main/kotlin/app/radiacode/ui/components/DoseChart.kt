@@ -47,7 +47,10 @@ import androidx.compose.ui.unit.dp
 import app.radiacode.ui.logic.ChartBucket
 import app.radiacode.ui.logic.DataGap
 import app.radiacode.ui.logic.TimeBand
+import app.radiacode.ui.chart.ChartAxisLock
+import app.radiacode.ui.chart.ChartGestureInput
 import app.radiacode.ui.chart.ChartLabelLayout
+import app.radiacode.ui.chart.GestureAxis
 import app.radiacode.ui.chart.LabelPriority
 import app.radiacode.ui.chart.PreparedFrame
 import app.radiacode.ui.chart.ChartProjection
@@ -104,6 +107,16 @@ data class DoseChartSpec(
     val baselineMedian: Float? = null,
     val alarmLevel: Float? = null,
     val alarmLabel: String? = null,
+    /**
+     * Второй уровень тревоги из настроек, мкЗв/ч.
+     *
+     * Он есть в настройках и отсутствовал на графике: увидеть, где он проходит
+     * относительно измерений, было нечем. Рисуется он так же, как L1, но
+     * ничего не обещает сверх того, что это ЗАДАННЫЙ уровень — сама тревога
+     * сейчас считается по L1 (`AlarmThresholds`), и справка это говорит.
+     */
+    val alarmLevel2: Float? = null,
+    val alarmLabel2: String? = null,
     val episodes: List<DoseEpisode> = emptyList(),
     /**
      * Episode index → label naming the reference and the duration («выше
@@ -197,7 +210,7 @@ fun DoseChart(
     onCursorDismiss: () -> Unit = {},
     /** Double tap: back to the chosen window at the live edge (spec §10). */
     onResetScale: (() -> Unit)? = null,
-    onTransform: ((panFraction: Float, zoomFactor: Float, focusFraction: Float) -> Unit)? = null,
+    onTransform: ((ChartGestureInput) -> Unit)? = null,
     /**
      * Одиночное нажатие по полю. Задан — курсор по тапу не ставится: у
      * миниатюры одно действие, и это «открыть во весь экран».
@@ -210,6 +223,14 @@ fun DoseChart(
      * перехватывают касание у карточки.
      */
     interactive: Boolean = true,
+    /**
+     * Разрешены ли вертикальные жесты — движение и масштаб оси значений.
+     *
+     * На карточке Главной — НЕТ: вертикаль там принадлежит прокрутке страницы,
+     * и график, забирающий её себе, ломал бы сам экран. Ручной кадр оси при
+     * этом карточка ПОКАЗЫВАЕТ — он общий с полноэкранным графиком.
+     */
+    verticalGestures: Boolean = true,
 ) {
     val appColors = LocalAppColors.current
     val axisStyle = LocalAppTypography.current.axis
@@ -304,6 +325,12 @@ fun DoseChart(
         // отрыва и сам факт отрыва.
         val flingScope = rememberCoroutineScope()
         var flingJob by remember { mutableStateOf<Job?>(null) }
+        // За какую ось держится палец: решается один раз за жест.
+        val touchSlopPx = with(density) { 12.dp.toPx() }
+        val gutterPx = with(density) { VALUE_SCALE_GUTTER.toPx() }
+        val axisLock = remember(widthPx, verticalGestures) {
+            ChartAxisLock(slopPx = touchSlopPx, gutterPx = gutterPx)
+        }
         DisposableEffect(Unit) { onDispose { flingJob?.cancel() } }
         Spacer(
             Modifier
@@ -335,6 +362,18 @@ fun DoseChart(
                             } else {
                                 val velocityX = tracker.calculateVelocity().x
                                 tracker.resetTracking()
+                                // Палец оторвался — следующий жест выбирает
+                                // ось заново.
+                                val axis = axisLock.axis
+                                axisLock.reset()
+                                if (axis == GestureAxis.VALUE ||
+                                    axis == GestureAxis.VALUE_SCALE
+                                ) {
+                                    // Бросок принадлежит времени: инерция у оси
+                                    // значений означала бы, что шкала уезжает
+                                    // сама, уже без руки.
+                                    continue
+                                }
                                 val transform = onTransform
                                 if (transform != null && abs(velocityX) >= MIN_FLING_VELOCITY) {
                                     flingJob = flingScope.launch {
@@ -353,9 +392,14 @@ fun DoseChart(
                                                 // пускает дальше доступной
                                                 // истории и края «сейчас».
                                                 transform(
-                                                    delta / widthPx.coerceAtLeast(1f),
-                                                    1f,
-                                                    0.5f,
+                                                    ChartGestureInput(
+                                                        axis = GestureAxis.TIME,
+                                                        panXFraction = delta /
+                                                            widthPx.coerceAtLeast(1f),
+                                                        panYFraction = 0f,
+                                                        zoom = 1f,
+                                                        focusXFraction = 0.5f,
+                                                    ),
                                                 )
                                             }
                                     }
@@ -398,11 +442,25 @@ fun DoseChart(
                         if (active.value) {
                             setCursor.value(fractionOf(centroid.x, widthPx))
                         } else {
-                            transform.value?.invoke(
-                                pan.x / widthPx.coerceAtLeast(1f),
-                                zoom,
-                                fractionOf(centroid.x, widthPx),
+                            val axis = axisLock.update(
+                                positionXPx = centroid.x,
+                                widthPx = widthPx,
+                                panXPx = pan.x,
+                                panYPx = pan.y,
+                                zoom = zoom,
+                                vertical = verticalGestures,
                             )
+                            if (axis != GestureAxis.UNDECIDED) {
+                                transform.value?.invoke(
+                                    ChartGestureInput(
+                                        axis = axis,
+                                        panXFraction = pan.x / widthPx.coerceAtLeast(1f),
+                                        panYFraction = pan.y / heightPx.coerceAtLeast(1f),
+                                        zoom = zoom,
+                                        focusXFraction = fractionOf(centroid.x, widthPx),
+                                    ),
+                                )
+                            }
                         }
                     }
                 },
@@ -459,6 +517,10 @@ private fun StaticChartLayer(
                 val bandLineColor = colors.ink2.copy(alpha = 0.26f)
                 val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 4.dp.toPx()))
                 val alarmDash = PathEffect.dashPathEffect(floatArrayOf(7.dp.toPx(), 5.dp.toPx()))
+                // Второй уровень отличается не только подписью: штрих длиннее,
+                // линия плотнее. Цвет у обоих один — это один и тот же род
+                // величины, — и различать их одним цветом было бы нечем.
+                val alarm2Dash = PathEffect.dashPathEffect(floatArrayOf(14.dp.toPx(), 4.dp.toPx()))
                 val alarmStroke = 1.dp.toPx()
                 val baselineStroke = 1.5.dp.toPx()
                 val labelInset = 4.dp.toPx()
@@ -484,9 +546,9 @@ private fun StaticChartLayer(
                     .filter { (fraction, _) -> fraction >= -0.05f && fraction <= 1.05f }
                 val unitText = spec.unitLabel.takeIf { it.isNotEmpty() }
                     ?.let { textMeasurer.measure(it, axisStyle) }
-                // §3: далёкий L1 НЕ растягивает ось (это делает ChartMapping),
-                // но и не исчезает — когда он выше кадра, вместо линии
-                // рисуется закреплённый указатель «↑ L1 0,30» у верхней
+                // §3: далёкий порог НЕ растягивает ось (это делает
+                // `DoseScales`), но и не исчезает — когда он выше кадра, вместо
+                // линии рисуется закреплённый указатель «↑ L1 0,30» у верхней
                 // кромки. Порог, о котором забыли, — это порог, которого нет.
                 // Указатель показывается, только пока порог РЯДОМ с кадром: при
                 // фоне 0,15 и пороге 0,30 он ещё говорит «до порога вдвое», а
@@ -494,60 +556,66 @@ private fun StaticChartLayer(
                 // бы над каждым графиком, ничего не сообщая. Мера близости —
                 // высота самого кадра: дальше неё порог перестаёт быть
                 // ориентиром для того, что нарисовано.
-                val frameSpan = (spec.scale.maxValue - spec.scale.minValue).coerceAtLeast(0f)
-                val alarmNear = spec.alarmLevel != null &&
-                    spec.alarmLevel <= spec.scale.maxValue + frameSpan
-                val alarmAbove = alarmNear && spec.alarmLevel != null &&
-                    spec.alarmLevel > spec.scale.maxValue
-                // Симметрично: кадр подогнан к данным и может целиком уйти
-                // ВЫШЕ порога — тогда указатель «↓ L1 0,30» стоит у нижней
-                // кромки. Иначе на графике превышения не было бы видно самой
-                // величины, относительно которой оно превышение.
-                val alarmBelow = spec.alarmLevel != null &&
-                    spec.alarmLevel < spec.scale.minValue
-                val alarmText = spec.alarmLabel
-                    ?.let {
-                        when {
-                            alarmAbove -> "↑ $it"
-                            alarmBelow -> "↓ $it"
-                            else -> it
-                        }
-                    }
-                    ?.let { textMeasurer.measure(it, axisStyle) }
-                // Линия порога рисуется, ТОЛЬКО когда порог лежит внутри
-                // кадра.
                 //
-                // Полевой дефект: при фоне 0,13 и пороге 0,30 красная
-                // пунктирная линия висела у верхней кромки. Причина —
-                // «далёкий» и «очень далёкий» порог различались: у далёкого
-                // (в пределах одной высоты кадра) взводился `alarmAbove` и
-                // рисовался указатель, а у очень далёкого не взводилось
-                // ничего, и линия шла через `yOf`, где доля зажимается в
-                // 0..1 — то есть ложилась ровно на верхний край кадра и
-                // читалась как «порог здесь».
-                val alarmY = spec.alarmLevel
-                    ?.takeIf { it in spec.scale.minValue..spec.scale.maxValue }
-                    ?.let { yOf(it) }
-                // Подпись порога и подписи оси живут в одной колонке пикселей:
+                // Порогов ДВА: L1 ведёт тревогу, L2 — второй уровень из
+                // настроек. Раньше рисовался только первый, и увидеть, где
+                // проходит второй, было нечем.
+                val frameSpan = (spec.scale.maxValue - spec.scale.minValue).coerceAtLeast(0f)
+                fun alarmLine(level: Float?, label: String?): AlarmLine? {
+                    if (level == null) return null
+                    val above = level > spec.scale.maxValue &&
+                        level <= spec.scale.maxValue + frameSpan
+                    // Симметрично: кадр подогнан к данным и может целиком уйти
+                    // ВЫШЕ порога — тогда указатель «↓ L1 0,30» стоит у нижней
+                    // кромки. Иначе на графике превышения не было бы видно
+                    // самой величины, относительно которой оно превышение.
+                    val below = level < spec.scale.minValue
+                    // Линия рисуется, ТОЛЬКО когда порог лежит внутри кадра:
+                    // `yOf` зажимает долю в 0..1, и порог за кадром ложился бы
+                    // ровно на кромку, читаясь как «порог здесь».
+                    val y = level.takeIf { it in spec.scale.minValue..spec.scale.maxValue }
+                        ?.let { yOf(it) }
+                    val text = label
+                        ?.let {
+                            when {
+                                above -> "↑ $it"
+                                below -> "↓ $it"
+                                else -> it
+                            }
+                        }
+                        ?.let { textMeasurer.measure(it, axisStyle) }
+                    if (y == null && !above && !below) return null
+                    return AlarmLine(y = y, text = text, above = above, below = below)
+                }
+                val alarmLines = listOfNotNull(
+                    alarmLine(spec.alarmLevel, spec.alarmLabel),
+                    alarmLine(spec.alarmLevel2, spec.alarmLabel2),
+                )
+                val bandTop = spec.baselineBand?.let { yOf(it.endInclusive) }
+                val bandBottom = spec.baselineBand?.let { yOf(it.start) }
+                val baselineMedianY = spec.baselineMedian?.let { yOf(it) }
+                // Подписи порогов и подписи оси живут в одной колонке пикселей:
                 // когда порог оказывается рядом с линией сетки, они ложились
                 // друг на друга. Уступает младшая — подпись оси: соседние
                 // деления позволяют восстановить её значение, а порог не
                 // повторяется нигде (V2 §25).
-                val bandTop = spec.baselineBand?.let { yOf(it.endInclusive) }
-                val bandBottom = spec.baselineBand?.let { yOf(it.start) }
-                val baselineMedianY = spec.baselineMedian?.let { yOf(it) }
-                // Разрешение столкновений: подпись порога старше подписи оси.
-                val alarmLabelTop = if (alarmY != null && alarmText != null) {
-                    (alarmY - 2f - alarmText.size.height).coerceAtLeast(0f)
-                } else {
-                    null
+                val alarmLabelTops = alarmLines.map { line ->
+                    val y = line.y
+                    val text = line.text
+                    if (y != null && text != null) {
+                        (y - 2f - text.size.height).coerceAtLeast(0f)
+                    } else {
+                        null
+                    }
                 }
                 val labelBoxes = buildList {
-                    if (alarmLabelTop != null && alarmText != null) {
+                    for ((index, line) in alarmLines.withIndex()) {
+                        val top = alarmLabelTops[index] ?: continue
+                        val text = line.text ?: continue
                         add(
                             ChartLabelLayout.Label(
-                                topPx = alarmLabelTop,
-                                heightPx = alarmText.size.height.toFloat(),
+                                topPx = top,
+                                heightPx = text.size.height.toFloat(),
                                 priority = LabelPriority.ALARM_THRESHOLD,
                             ),
                         )
@@ -563,9 +631,9 @@ private fun StaticChartLayer(
                     }
                 }
                 val visibleLabels = ChartLabelLayout.visible(labelBoxes)
-                val tickOffset = if (alarmLabelTop != null && alarmText != null) 1 else 0
+                val alarmLabelCount = alarmLabelTops.count { it != null }
                 val yTexts = allYTexts.filterIndexed { index, _ ->
-                    (index + tickOffset) in visibleLabels
+                    (index + alarmLabelCount) in visibleLabels
                 }
                 val span = spanMillis
                 val episodeRects = spec.episodes.mapIndexed { index, episode ->
@@ -731,60 +799,60 @@ private fun StaticChartLayer(
                         )
                     }
 
-                    // 4. Named alarm level — a line inside the frame, a pinned
-                    // pointer above it.
-                    if (alarmY == null && alarmText != null) {
-                        // Указатель прижат к ПРАВОМУ краю поля, а подписи оси
-                        // значений стоят у левого: у верхней кромки они иначе
-                        // накладывались друг на друга — «↑ L1 0,30» садилось
-                        // ровно на верхнюю подпись сетки. Единица (если она
-                        // показана) занимает правый угол НАД полем, а
-                        // указатель живёт ВНУТРИ поля, поэтому не спорит и с
-                        // ней.
-                        val alarmX = (widthPx - alarmText.size.width - labelInset)
-                            .coerceAtLeast(0f)
-                        if (alarmAbove) {
-                            // Указатель стоит НАД полем, в полосе маркеров, а
-                            // не внутри шкалы: у верхней кромки он вставал
-                            // почти на одну высоту с верхней подписью оси и
-                            // читался как её значение, хотя порог лежит далеко
-                            // за пределами кадра.
-                            drawText(
-                                textLayoutResult = alarmText,
-                                color = colors.crit,
-                                topLeft = Offset(
-                                    alarmX,
-                                    (plotTop - alarmText.size.height - 1f).coerceAtLeast(0f),
-                                ),
-                            )
-                        } else if (alarmBelow) {
-                            drawText(
-                                textLayoutResult = alarmText,
-                                color = colors.crit,
-                                topLeft = Offset(
-                                    alarmX,
-                                    plotTop + plotHeight - alarmText.size.height - 1f,
-                                ),
-                            )
+                    // 4. Названные уровни тревоги: линия внутри кадра,
+                    // закреплённый указатель — когда уровень за кадром.
+                    for ((index, line) in alarmLines.withIndex()) {
+                        val text = line.text
+                        val y = line.y
+                        if (y == null && text != null) {
+                            // Указатель прижат к ПРАВОМУ краю поля, а подписи
+                            // оси значений стоят у левого: у верхней кромки они
+                            // иначе накладывались друг на друга — «↑ L1 0,30»
+                            // садилось ровно на верхнюю подпись сетки.
+                            val alarmX = (widthPx - text.size.width - labelInset)
+                                .coerceAtLeast(0f)
+                            if (line.above) {
+                                // Указатель стоит НАД полем, в полосе маркеров:
+                                // у верхней кромки он вставал почти на одну
+                                // высоту с верхней подписью оси и читался как
+                                // её значение, хотя порог лежит за кадром.
+                                drawText(
+                                    textLayoutResult = text,
+                                    color = colors.crit,
+                                    topLeft = Offset(
+                                        alarmX,
+                                        (plotTop - text.size.height - 1f).coerceAtLeast(0f) +
+                                            index * (text.size.height + 1f),
+                                    ),
+                                )
+                            } else if (line.below) {
+                                drawText(
+                                    textLayoutResult = text,
+                                    color = colors.crit,
+                                    topLeft = Offset(
+                                        alarmX,
+                                        plotTop + plotHeight - text.size.height - 1f -
+                                            index * (text.size.height + 1f),
+                                    ),
+                                )
+                            }
                         }
-                    }
-                    if (alarmY != null) {
-                        drawLine(
-                            color = colors.crit.copy(alpha = 0.7f),
-                            start = Offset(0f, alarmY),
-                            end = Offset(widthPx, alarmY),
-                            strokeWidth = alarmStroke,
-                            pathEffect = alarmDash,
-                        )
-                        if (alarmText != null) {
-                            drawText(
-                                textLayoutResult = alarmText,
-                                color = colors.crit,
-                                topLeft = Offset(
-                                    labelInset,
-                                    (alarmY - 2f - alarmText.size.height).coerceAtLeast(0f),
-                                ),
+                        if (y != null) {
+                            drawLine(
+                                color = colors.crit.copy(alpha = if (index == 0) 0.7f else 0.9f),
+                                start = Offset(0f, y),
+                                end = Offset(widthPx, y),
+                                strokeWidth = alarmStroke,
+                                pathEffect = if (index == 0) alarmDash else alarm2Dash,
                             )
+                            val top = alarmLabelTops[index]
+                            if (text != null && top != null && index in visibleLabels) {
+                                drawText(
+                                    textLayoutResult = text,
+                                    color = colors.crit,
+                                    topLeft = Offset(labelInset, top),
+                                )
+                            }
                         }
                     }
 
@@ -809,6 +877,17 @@ private fun StaticChartLayer(
             },
     )
 }
+
+/** Один названный уровень тревоги, подготовленный к рисованию. */
+private class AlarmLine(
+    /** Строка поля, где проходит уровень; null — он за пределами кадра. */
+    val y: Float?,
+    val text: androidx.compose.ui.text.TextLayoutResult?,
+    /** Уровень выше кадра — указатель у верхней кромки. */
+    val above: Boolean,
+    /** Уровень ниже кадра — указатель у нижней. */
+    val below: Boolean,
+)
 
 private class EpisodeRect(
     val left: Float,
@@ -1185,6 +1264,14 @@ private fun rawDotOffsets(
  * **Инженерный параметр**: медленное отпускание пальца — это остановка, и
  * доезжать после неё значит не слушаться руки.
  */
+/**
+ * Полоса у правого края, жест по которой МАСШТАБИРУЕТ ось значений.
+ * **Инженерный параметр**: 44 dp — рекомендованный размер цели нажатия; уже
+ * этого в неё не попасть большим пальцем, шире — она начинает отбирать
+ * перемещение у самого поля.
+ */
+private val VALUE_SCALE_GUTTER = 44.dp
+
 private const val MIN_FLING_VELOCITY = 200f
 
 /** Трение затухания: больше — короче выбег. */

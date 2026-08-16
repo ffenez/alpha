@@ -51,7 +51,13 @@ class ChartPerformanceTest {
         persistenceSeconds = 120,
     )
 
-    private fun frameOf(windowSpan: Long, gesture: ChartGesture, seconds: Int) = buildFrame(
+    private fun frameOf(
+        windowSpan: Long,
+        gesture: ChartGesture,
+        seconds: Int,
+        withStats: Boolean = true,
+        withHistogram: Boolean = true,
+    ) = buildFrame(
         snapshot = ChartSeriesModel.snapshot(
             aggregates = aggregates(seconds, now - seconds * 1_000L),
             eventTimesMillis = emptyList(),
@@ -72,6 +78,8 @@ class ChartPerformanceTest {
         endpointAlert = false,
         plotWidthPx = phoneWidthPx,
         renderWindow = gesture.rendered,
+        withHistogram = withHistogram,
+        withStats = withStats,
     )
 
     @Test
@@ -123,6 +131,31 @@ class ChartPerformanceTest {
             perRebuildMillis < REBUILD_BUDGET_MILLIS,
             "пересборка кадра $perRebuildMillis мс при бюджете $REBUILD_BUDGET_MILLIS мс",
         )
+    }
+
+    @Test
+    fun `карточка не платит за то, чего не показывает`() {
+        // Мини-график не рисует ни распределения, ни статистики окна, а
+        // считались они всё равно — на каждый новый снимок, трижды по числу
+        // карточек. Самое дорогое здесь — сортировка тысяч значений в
+        // перцентилях.
+        val windowSpan = 6L * 3_600_000L
+        val bounds = ViewportBounds(edgeMillis = now)
+        val gesture = ChartGesture.of(Viewports.atEdge(windowSpan, bounds), bounds)
+        val card = frameOf(
+            windowSpan,
+            gesture,
+            seconds = 21_600,
+            withStats = false,
+            withHistogram = false,
+        )
+        assertTrue(card.stats == null)
+        assertTrue(card.histogram == null)
+        assertTrue(card.histogramLabels.isEmpty())
+        // Картинка при этом та же: колонки, конверты и фон не зависят от того,
+        // показаны ли числа под графиком.
+        val full = frameOf(windowSpan, gesture, seconds = 21_600)
+        assertTrue(card.spec.buckets.size == full.spec.buckets.size)
     }
 
     private companion object {

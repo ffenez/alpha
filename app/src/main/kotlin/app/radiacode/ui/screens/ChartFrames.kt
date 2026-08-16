@@ -8,7 +8,11 @@ import app.radiacode.baseline.Baseline
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.db.MinuteRollup
 import app.radiacode.device.DoseUnits
+import app.radiacode.ui.chart.ChartDataSource
 import app.radiacode.ui.chart.ChartDownsampler
+import app.radiacode.ui.chart.ReadPadding
+import app.radiacode.ui.chart.ChartYAxis
+import app.radiacode.ui.chart.ValueWindow
 import app.radiacode.ui.components.DoseChartSpec
 import app.radiacode.ui.logic.ChartBackground
 import app.radiacode.ui.logic.ChartDetailMode
@@ -24,7 +28,6 @@ import app.radiacode.ui.logic.DoseExtremes
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.DoseHistogram
 import app.radiacode.ui.logic.DoseHistograms
-import app.radiacode.ui.logic.DoseScale
 import app.radiacode.ui.logic.DoseScales
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.HourSlice
@@ -145,7 +148,15 @@ internal fun buildFrame(
      * под рукой. Во время жеста ось замирает, а новый масштаб считается,
      * когда движение остановилось (V2 §7).
      */
-    scaleOverride: DoseScale? = null,
+    /**
+     * Кадр по значениям, заданный рукой; null — ось подбирается по данным.
+     *
+     * Автоподбор намеренно не растягивается до далёкого порога, иначе фон
+     * 0,15 при пороге 0,30 лёг бы плоской чертой. Когда человек хочет увидеть,
+     * ГДЕ проходят пороги, он задаёт кадр сам — и тогда решает он, а не
+     * правило (`ChartYAxis`).
+     */
+    values: ValueWindow? = null,
     /**
      * Ширина поля графика в пикселях; 0 — ещё не измерена.
      *
@@ -165,6 +176,24 @@ internal fun buildFrame(
      * ВИДИМОМУ окну: запас — про плавность, а не про то, что показано.
      */
     renderWindow: ChartWindow? = null,
+    /**
+     * Считать ли распределение значений окна.
+     *
+     * Гистограмма нужна панели разбора на полноэкранном графике; карточка
+     * Главной её не показывает НИКОГДА — а считалась она всё равно, проходом по
+     * всем подсекундным агрегатам на каждый новый снимок. Кадр карточки
+     * пересобирается раз в секунду, пока идёт поток, и эта работа выбрасывалась
+     * целиком.
+     */
+    withHistogram: Boolean = true,
+    /**
+     * Считать ли статистику окна (квантили, MAD, SD).
+     *
+     * Это САМАЯ дорогая часть кадра: взвешенные перцентили сортируют тысячи
+     * значений. На карточке блок чисел выключается в настройках, и тогда
+     * считать их незачем.
+     */
+    withStats: Boolean = true,
 ): ChartFrame {
     // Колонка — это ИНТЕРВАЛ, и в окно она попадает пересечением, а не
     // серединой.
@@ -241,6 +270,11 @@ internal fun buildFrame(
     // Порог L1 задан в единицах дозы: на счёте и на отношении его линии нет —
     // переносить туда дозовый порог было бы выдумкой.
     val alarm = thresholds.l1MicroSvH.takeIf { it > 0f && ChartMetrics.showsAlarmLevel(metric) }
+    // Второй уровень из настроек рисуется рядом с первым: он там задан, а
+    // увидеть, где он проходит, было нечем. Совпал с L1 — линия одна: две
+    // подписи на одной высоте не сообщают ничего, кроме шума.
+    val alarm2 = thresholds.l2MicroSvH
+        .takeIf { it > 0f && it != thresholds.l1MicroSvH && ChartMetrics.showsAlarmLevel(metric) }
     // Полоса профиля задана в единицах ДОЗЫ — на счёте и на отношении её нет
     // по той же причине, что и порога L1.
     val band = baseline
@@ -264,7 +298,7 @@ internal fun buildFrame(
     // верх кадра, хотя из окна он уже ушёл. Запас чтения — решение о
     // производительности, и определять масштаб картинки он не имеет права:
     // видимое окно → значения в нём → поля → кадр.
-    val scale = scaleOverride ?: DoseScales.of(
+    val scale = values?.let { ChartYAxis.scaleOf(it, logScale) } ?: DoseScales.of(
         logarithmic = logScale,
         lows = visible.map { it.q10 },
         highs = visible.map { it.q90 },
@@ -289,13 +323,17 @@ internal fun buildFrame(
     } else {
         emptyList()
     }
-    val histogram = DoseHistograms.build(
-        aggregates = snapshot.aggregates,
-        fromMillis = window.fromMillis,
-        toMillis = window.toMillis,
-        baseline = band,
-        alarmLevel = alarm,
-    )
+    val histogram = if (withHistogram) {
+        DoseHistograms.build(
+            aggregates = snapshot.aggregates,
+            fromMillis = window.fromMillis,
+            toMillis = window.toMillis,
+            baseline = band,
+            alarmLevel = alarm,
+        )
+    } else {
+        null
+    }
     val rawDots = if (dotsVisible) snapshot.aggregates else emptyList()
     // Правый край кадра — «сейчас» плюс небольшой постоянный отступ.
     //
@@ -323,6 +361,10 @@ internal fun buildFrame(
             alarmLabel = alarm
                 ?.takeIf { showDistantAlarm || it <= scale.maxValue }
                 ?.let { "L1 ${DoseFormat.rate(it, unit)}" },
+            alarmLevel2 = alarm2,
+            alarmLabel2 = alarm2
+                ?.takeIf { showDistantAlarm || it <= scale.maxValue }
+                ?.let { "L2 ${DoseFormat.rate(it, unit)}" },
             episodes = episodes,
             // §20: a band must name the reference it is above, not only its
             // duration — «выше порога L1» and «выше исторического P90
@@ -402,11 +444,15 @@ internal fun buildFrame(
         // The long path computes the window statistics once per read (merging
         // sketches is far too expensive for a gesture frame); the exact path
         // recomputes them here from the sub-buckets.
-        stats = snapshot.windowStats ?: ChartSeriesModel.windowStats(
-            snapshot.aggregates,
-            window.fromMillis,
-            window.toMillis,
-        ),
+        stats = if (withStats) {
+            snapshot.windowStats ?: ChartSeriesModel.windowStats(
+                snapshot.aggregates,
+                window.fromMillis,
+                window.toMillis,
+            )
+        } else {
+            null
+        },
         histogram = histogram,
         histogramLabels = histogram
             ?.let { h ->
@@ -439,9 +485,15 @@ internal suspend fun loadSnapshot(
     graph: AppGraph,
     window: ChartWindow,
     metric: ChartMetric,
+    /**
+     * Сколько читать про запас. У карточки Главной запас скромнее: там он
+     * стоит шести тысяч строк на каждое новое измерение ради трёхсот
+     * нарисованных (`ReadPadding`).
+     */
+    padding: ReadPadding = ReadPadding.Full,
 ): ChartSnapshot {
     val now = System.currentTimeMillis()
-    val load = ChartWindows.loadRange(window, now)
+    val load = ChartDataSource.readRange(window, now, padding)
     // Предагрегация (ADR 004) посчитана для дозы; счёт и жёсткость читаются
     // точным путём, и длиннее его окна им не предлагаются вовсе.
     if (metric != ChartMetric.DOSE) {

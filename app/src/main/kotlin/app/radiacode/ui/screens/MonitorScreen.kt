@@ -135,7 +135,9 @@ import app.radiacode.ui.logic.ChartSnapshot
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartTrace
 import app.radiacode.ui.chart.ChartDataSource
+import app.radiacode.ui.chart.ReadPadding
 import app.radiacode.ui.chart.ChartGesture
+import app.radiacode.ui.chart.ChartGestureInput
 import app.radiacode.ui.chart.Viewport
 import app.radiacode.ui.chart.ViewportBounds
 import app.radiacode.ui.chart.Viewports
@@ -323,7 +325,11 @@ fun MonitorScreen(
         ChartWindows.refreshMillis(shortestBucket)
     }
     val liveTick = live?.receivedAtMillis?.let { it / liveTickMillis }
-    LaunchedEffect(chartMetrics, savedSpans, resumeTick, liveTick, gestures) {
+    // Ключ чтения — ПОСЧИТАННЫЕ окна, а не всё состояние жестов: видимое окно
+    // едет за живым краем каждую секунду, и на нём цикл чтения перезапускался
+    // бы вхолостую. Само окно берётся внутри цикла, поэтому оно всегда свежее.
+    val readKey = gestures.mapValues { (_, gesture) -> gesture.frame.window() }
+    LaunchedEffect(chartMetrics, savedSpans, resumeTick, liveTick, readKey) {
         while (true) {
             val now = System.currentTimeMillis()
             val outcome = runCatching {
@@ -361,13 +367,14 @@ fun MonitorScreen(
                                 loadedBucketMillis = it.snapshot.bucketMillis,
                                 window = window,
                                 edgeMillis = now,
+                                padding = ReadPadding.Compact,
                             )
                         }
                         if (reuse != null) {
                             return@associateWith reuse.copy(window = window)
                         }
-                        val load = ChartWindows.loadRange(window, now)
-                        val snapshot = loadSnapshot(graph, window, metric)
+                        val load = ChartDataSource.readRange(window, now, ReadPadding.Compact)
+                        val snapshot = loadSnapshot(graph, window, metric, ReadPadding.Compact)
                         // Трасса конвейера: три среза ОДНОГО окна — база,
                         // снимок, кадр. Считается только при РЕАЛЬНОМ чтении:
                         // это диагностика запроса, а не проекции.
@@ -565,6 +572,15 @@ fun MonitorScreen(
                 gestures = gestures + (metric to next)
                 cache.gestures = gestures
             }
+            // Живой край двигает ВИДИМОЕ окно карточки; кадр остаётся, пока
+            // хватает запаса геометрии. Иначе картинка уехала бы за нарисованный
+            // диапазон и правый край опустел бы — а пересобирать кадр каждую
+            // секунду и есть та работа, из-за которой карточки тормозили.
+            LaunchedEffect(nowMillis / 1_000L, metric) {
+                val current = gestures[metric] ?: return@LaunchedEffect
+                val next = current.followTick(bounds)
+                if (next != current) setGesture(next)
+            }
             // Кадр пересобирается, когда движение улеглось: пока палец водит
             // карточку, двигается уже нарисованная картинка — ровно как на
             // полноэкранном графике (Charts V2 §20: один движок, два размера).
@@ -581,18 +597,24 @@ fun MonitorScreen(
             // именно поэтому он выглядел живым, пока карточка казалась
             // замершей: данные у обоих были одни и те же, а край двигался
             // только у него.
-            val liveSecond = nowMillis / 1_000L
             // Ширина карточки решает, сколько колонок в ней имеет смысл: у
             // миниатюры их меньше, чем на полном экране, и это единственное,
             // чем два размера одной картинки отличаются (Charts V2 §20).
             val plotWidthPx = plotWidths[metric] ?: 0f
+            // Ключи кадра — СНИМОК и посчитанное окно. Раньше здесь стояла
+            // секунда стенных часов, и кадр пересобирался раз в секунду на
+            // каждую карточку, даже когда новых измерений не приходило:
+            // складывались колонки, границы оси, эпизоды и статистика — и
+            // мини-графики подтормаживали. Живой край теперь двигает только
+            // видимое окно, а это перепроекция готовой картинки.
             val frame = remember(
-                loaded, unit, thresholds, baseline, alert, liveSecond, gesture.frame,
-                gesture.rendered, chartDetail, plotWidthPx,
+                loaded?.snapshot, loaded?.earliestMillis, unit, thresholds, baseline, alert,
+                gesture.frame, gesture.rendered, gesture.visible.values, chartDetail,
+                plotWidthPx, blocks.stats,
             ) {
                 loaded?.let {
                     val liveWindow = ChartWindows.limitedByHistory(
-                        Viewports.followTick(gesture.frame, bounds).window(),
+                        gesture.frame.window(),
                         it.earliestMillis,
                     )
                     buildFrame(
@@ -618,6 +640,13 @@ fun MonitorScreen(
                         showDistantAlarm = false,
                         plotWidthPx = plotWidthPx,
                         renderWindow = gesture.rendered,
+                        // Карточка не показывает ни распределения, ни — когда
+                        // блок чисел выключен — статистики окна. Считать их
+                        // на каждый новый снимок значило бы платить за то,
+                        // чего на экране нет.
+                        withHistogram = false,
+                        withStats = blocks.stats,
+                        values = gesture.visible.values,
                     )
                 }
             }
@@ -644,7 +673,7 @@ fun MonitorScreen(
                         plotWidths = plotWidths + (metric to width)
                     }
                 },
-                onTransform = { panFraction, zoomFactor, focusFraction ->
+                onTransform = { input ->
                     lastGestureAt = System.currentTimeMillis()
                     // Жест меняет ВРЕМЯ, а не картинку: из состояния получается
                     // окно, окно идёт в загрузку и в кадр. Готовое изображение
@@ -654,11 +683,11 @@ fun MonitorScreen(
                     // правила, что на полноэкранном графике: карточка и
                     // полный экран это один движок (Charts V2 §20).
                     var next = gesture
-                    if (zoomFactor != 1f) {
-                        next = next.zoom(zoomFactor, focusFraction, bounds)
+                    if (input.zoom != 1f) {
+                        next = next.zoom(input.zoom, input.focusXFraction, bounds)
                     }
-                    if (panFraction != 0f) {
-                        next = next.pan(-panFraction, bounds)
+                    if (input.panXFraction != 0f) {
+                        next = next.pan(-input.panXFraction, bounds)
                     }
                     // Уехали дальше нарисованного — ждать паузы нечего.
                     setGesture(if (next.covered()) next else next.commit(bounds))
@@ -1231,7 +1260,7 @@ private fun MetricChartCard(
      * готовая картинка раскладывается по нему (`ChartGesture`).
      */
     viewWindow: ChartWindow? = null,
-    onTransform: ((panFraction: Float, zoomFactor: Float, focusFraction: Float) -> Unit)? = null,
+    onTransform: ((ChartGestureInput) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -1302,6 +1331,10 @@ private fun MetricChartCard(
                     // на полноэкранном, и то же состояние окна за ними.
                     interactive = true,
                     onTransform = onTransform,
+                    // Вертикаль на Главной принадлежит прокрутке страницы:
+                    // график, забирающий её себе, ломал бы сам экран. Ручной
+                    // кадр оси карточка при этом ПОКАЗЫВАЕТ — он общий.
+                    verticalGestures = false,
                     onResetScale = onBackToNow,
                     // Тап по самому графику открывает его во весь экран: пока
                     // поле принимало жесты, нажатие на него не доходило до

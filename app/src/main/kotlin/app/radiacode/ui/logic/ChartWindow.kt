@@ -129,7 +129,12 @@ object ChartWindows {
      * «приближение» там, где человек ничего не менял. Поэтому у окна, которое
      * читается точно, запас ограничен остатком до границы.
      */
-    fun loadRange(window: ChartWindow, nowMillis: Long): ChartWindow {
+    fun loadRange(
+        window: ChartWindow,
+        nowMillis: Long,
+        paddingFraction: Float = LOAD_PADDING_FRACTION,
+        minPaddingMillis: Long = MIN_LOAD_PADDING_MILLIS,
+    ): ChartWindow {
         val span = window.spanMillis
         // На коротком окне доля окна — это минуты, и запас кончался почти
         // сразу. Чтение по секундам стоит строки на секунду, поэтому там
@@ -137,8 +142,8 @@ object ChartWindows {
         // пятиминутного окна — семь тысяч строк, то есть треть бюджета
         // точного пути, и час хода пальцем без единого запроса.
         val wanted = maxOf(
-            (span * LOAD_PADDING_FRACTION).toLong(),
-            MIN_LOAD_PADDING_MILLIS,
+            (span * paddingFraction).toLong(),
+            minPaddingMillis,
         )
         val exactLimit = QuantilePaths.EXACT_MAX_SPAN_MILLIS
         val pad = if (span >= exactLimit) {
