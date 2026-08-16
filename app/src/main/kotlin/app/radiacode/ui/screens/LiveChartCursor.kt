@@ -315,6 +315,8 @@ internal fun BoxScope.CursorCard(
     unit: DoseUnitSetting,
     baseline: Baseline?,
     alarmLevel: Float?,
+    /** Моменты кратковременных отклонений — для строки «3 события». */
+    eventTimesMillis: List<Long> = emptyList(),
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -395,6 +397,25 @@ internal fun BoxScope.CursorCard(
                     ),
             )
             CursorRow(t.samplesLabel, HistoryFormat.count(bucket.sampleCount))
+            // Сколько кратковременных отклонений пришлось на эту колонку.
+            // Раньше это число стояло над графиком у каждого треугольника
+            // («△3») и читалось как вторая линия данных; здесь оно отвечает на
+            // вопрос там, где его задают, — по нажатию.
+            val eventsHere = eventTimesMillis.count {
+                it >= bucket.startMillis && it < bucket.endMillis
+            }
+            if (eventsHere > 0) {
+                Text(
+                    text = t.cursorEvents(eventsHere),
+                    style = type.footnote,
+                    color = colors.warn,
+                )
+                Text(
+                    text = t.cursorEventsNote,
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
             if (extreme != null) {
                 // Маркер сообщает ФАКТ СРАВНЕНИЯ и сразу показывает оба числа,
                 // на которых он стоит: «выше P90 профиля» без самого P90 —

@@ -92,6 +92,11 @@ interface ChartTextStrings {
         duration: String,
     ): String
     val moreDetails: String
+    /** Чип «события»: метки кратковременных отклонений над полем. */
+    val eventsChip: String
+    /** «3 события» в карточке курсора и что они означают. */
+    fun cursorEvents(count: Int): String
+    val cursorEventsNote: String
     val distribution: String
     val windowStatistics: String
 
@@ -239,6 +244,13 @@ object ChartTextRu : ChartTextStrings {
         duration: String,
     ) = "P10 $p10 · медиана $median · P90 $p90 · n $samples · $duration"
     override val moreDetails = "подробнее ▴"
+    override val eventsChip = "события"
+    override fun cursorEvents(count: Int) = when {
+        count % 10 == 1 && count % 100 != 11 -> "$count событие"
+        count % 10 in 2..4 && count % 100 !in 12..14 -> "$count события"
+        else -> "$count событий"
+    }
+    override val cursorEventsNote = "кратковременные отклонения"
     override val distribution = "Распределение"
     override val windowStatistics = "Статистика окна"
 
@@ -398,6 +410,10 @@ object ChartTextEn : ChartTextStrings {
         duration: String,
     ) = "P10 $p10 · median $median · P90 $p90 · n $samples · $duration"
     override val moreDetails = "details ▴"
+    override val eventsChip = "events"
+    override fun cursorEvents(count: Int) =
+        if (count == 1) "$count event" else "$count events"
+    override val cursorEventsNote = "short deviations"
     override val distribution = "Distribution"
     override val windowStatistics = "Window statistics"
 
@@ -460,7 +476,8 @@ fun ChartTextStrings.allTexts(): List<String> = listOf(
     historicalRangeNote, sessionChip, sessionRangeLabel("12 авг 14:03–16:18", "2 ч 15 мин"),
     loadingLog, emptyWindow, windowLabel("6ч"), windowSheetTitle("6ч"),
     windowStatsLine("0,09", "0,11", "0,14", "21 600", "6ч"),
-    moreDetails, distribution, windowStatistics,
+    moreDetails, eventsChip, cursorEvents(1), cursorEvents(3), cursorEvents(11),
+    cursorEventsNote, distribution, windowStatistics,
     nowChip, pausedChip, logChip,
     median, min, max, samplesLabel, spreadDefinitions,
     quantileMethodLine("KLL k=128"), preAggregationProgress(40, 12, 30),

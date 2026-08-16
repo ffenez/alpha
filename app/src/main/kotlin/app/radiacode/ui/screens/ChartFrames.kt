@@ -65,9 +65,13 @@ internal data class ChartFrame(
  * suspension, O(columns ≤ 200) plus one pass over the sub-buckets. This runs
  * on every gesture frame and must stay that cheap.
  *
- * The scale is fitted to the whole **loaded** range, not to the visible slice,
- * so panning does not make the axis jump under the finger; the debounced
- * reload refits it afterwards.
+ * Кадр подгоняется к ВИДИМОМУ окну: видимые колонки → их устойчивые границы →
+ * поля → ось. Прежде он строился по всему загруженному диапазону, чтобы ось не
+ * шевелилась под пальцем при перелистывании, — и ценой этого удобства
+ * оказалась нечитаемая картинка: ушедший за левый край всплеск продолжал
+ * держать верх оси, а фон 0,15 мкЗв/ч лежал плоской чертой на шкале до 2,00.
+ * Ось, которая подстраивается по ходу жеста, — меньшая беда, чем график,
+ * который ничего не показывает.
  */
 /**
  * Длительность эпизода словами. Эпизод короче секунды существует (колонка на
@@ -110,6 +114,16 @@ internal fun buildFrame(
     showUnit: Boolean = false,
     /** Как из одних и тех же измерений собирается картинка. */
     detail: ChartDetailMode = ChartDetailMode.DEFAULT,
+    /**
+     * Показывать ли метки кратковременных отклонений над полем.
+     *
+     * На карточке Главной — НЕТ. Ряд «△3 △ △2 △5» шёл над кривой второй
+     * строкой данных и выглядел важнее её самой, особенно у жёсткости, где
+     * сама линия почти горизонтальна. События при этом не теряются: они
+     * остаются в полноэкранном графике, где их включают отдельно, и в
+     * карточке курсора, которая называет их временем и числом.
+     */
+    showEvents: Boolean = false,
 ): ChartFrame {
     // Колонка — это ИНТЕРВАЛ, и в окно она попадает пересечением, а не
     // серединой.
@@ -162,10 +176,19 @@ internal fun buildFrame(
     // Точки отдельных измерений — только у сглаженного вида: в подробном сама
     // линия идёт по измерениям, и точки дублировали бы её.
     val dotsVisible = !detailed && ChartSeriesModel.rawDotsVisible(snapshot.bucketMillis)
+    // Кадр считается по ВИДИМЫМ колонкам, а не по загруженному снимку.
+    //
+    // Полевой дефект: при фоне 0,15 ось стояла до 2,00, а жёсткость при 0,60 —
+    // до 5,00, и обе линии превращались в горизонтальную черту. Причина: в
+    // снимок читается запас с обеих сторон окна ради мгновенного
+    // перелистывания, и вчерашний всплеск 2,2 мкЗв/ч продолжал задавать
+    // верх кадра, хотя из окна он уже ушёл. Запас чтения — решение о
+    // производительности, и определять масштаб картинки он не имеет права:
+    // видимое окно → значения в нём → поля → кадр.
     val scale = DoseScales.of(
         logarithmic = logScale,
-        lows = snapshot.buckets.map { it.q10 },
-        highs = snapshot.buckets.map { it.q90 },
+        lows = visible.map { it.q10 },
+        highs = visible.map { it.q90 },
         minSpan = ChartMetrics.minAxisSpan(metric),
         alarmLevel = alarm,
         baselineBand = band,
@@ -178,11 +201,15 @@ internal fun buildFrame(
         alarmMicroSvH = alarm,
         baselineP90MicroSvH = baseline?.doseHighMicroSvH,
     )
-    val markers = DoseExtremes.markers(
-        buckets = visible,
-        alarmMicroSvH = alarm,
-        baselineP90MicroSvH = baseline?.doseHighMicroSvH,
-    )
+    val markers = if (showEvents) {
+        DoseExtremes.markers(
+            buckets = visible,
+            alarmMicroSvH = alarm,
+            baselineP90MicroSvH = baseline?.doseHighMicroSvH,
+        )
+    } else {
+        emptyList()
+    }
     val histogram = DoseHistograms.build(
         aggregates = snapshot.aggregates,
         fromMillis = window.fromMillis,

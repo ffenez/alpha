@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v050Title: String
+    val v050Summary: String
+
     val v049Title: String
     val v049Summary: String
 
@@ -108,6 +111,15 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v050Title = "График показывает то, что в окне"
+    override val v050Summary =
+        "Ось подстраивается под ВИДИМЫЕ измерения: ушедший за край всплеск " +
+        "больше не держит шкалу до 2,00 при фоне 0,15, и линия перестала быть " +
+        "горизонтальной чертой — то же у жёсткости. Метки кратковременных " +
+        "отклонений ушли с карточек Главной в полноэкранный график, где их " +
+        "включает чип «события», а выбор нескольких сессий и спектров снова " +
+        "работает."
 
     override val v049Title = "В журнале везде выбирают одинаково"
     override val v049Summary =
@@ -314,6 +326,15 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v050Title = "The chart shows what is in the window"
+    override val v050Summary =
+        "The axis follows the VISIBLE measurements: a spike that left the window " +
+        "no longer holds the scale at 2.00 while the background is 0.15, and the " +
+        "line stopped being a flat bar — the same for hardness. Markers of short " +
+        "deviations moved from the Home cards to the fullscreen chart, where the " +
+        "«события» chip turns them on, and selecting several sessions or spectra " +
+        "works again."
 
     override val v049Title = "The journal is selected the same way everywhere"
     override val v049Summary =
@@ -527,6 +548,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v050Title, v050Summary,
     v049Title, v049Summary,
     v048Title, v048Summary,
     v047Title, v047Summary,

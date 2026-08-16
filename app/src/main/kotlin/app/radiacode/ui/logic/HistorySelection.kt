@@ -23,7 +23,18 @@ data class HistorySelection(
     fun toggleSpectrum(id: Long): HistorySelection =
         copy(spectra = if (id in spectra) spectra - id else spectra + id)
 
+    /** Начать выбор с чистого листа (вход не через саму запись). */
     fun start(): HistorySelection = HistorySelection(active = true)
+
+    /**
+     * Включить режим выбора, НЕ теряя уже отмеченного.
+     *
+     * Разница с [start] не косметическая: в режим входят долгим нажатием на
+     * саму запись, и это нажатие её же и отмечает. Если бы вход всякий раз
+     * начинал с чистого листа, второй выбранный элемент стирал бы первый —
+     * ровно это и случилось: отметить два снимка было невозможно.
+     */
+    fun activate(): HistorySelection = if (active) this else copy(active = true)
 
     fun cancel(): HistorySelection = HistorySelection()
 

@@ -23,6 +23,23 @@ class HistorySelectionTest {
         assertTrue(!selection.active && selection.isEmpty)
     }
 
+    /**
+     * Полевой дефект: отметить два снимка было невозможно — второй стирал
+     * первого. В режим выбора входят долгим нажатием на саму запись, и это же
+     * нажатие её отмечает; вход, начинающий с чистого листа, стирал бы
+     * отмеченное каждым следующим нажатием.
+     */
+    @Test
+    fun `entering the selection keeps what is already ticked`() {
+        val first = HistorySelection().activate().toggleSpectrum(7)
+        val second = first.activate().toggleSpectrum(8)
+        assertEquals(setOf(7L, 8L), second.spectra)
+        assertTrue(second.active)
+
+        // Повторный вход в уже открытый режим ничего не меняет.
+        assertEquals(second, second.activate())
+    }
+
     @Test
     fun `the action names the count, and says nothing when nothing is ticked`() {
         assertEquals("Удалить", HistoryDeletion.actionLabel(HistorySelection().start()))

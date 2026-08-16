@@ -510,7 +510,7 @@ fun HistoryScreen(
                 selectionActive = selection.active,
                 selected = selection.spectra,
                 onToggle = { id ->
-                    selection = selection.start().toggleSpectrum(id)
+                    selection = selection.activate().toggleSpectrum(id)
                 },
                 mergeNote = mergeNote,
             )
@@ -564,7 +564,7 @@ fun HistoryScreen(
                                     },
                                     onLongClick = {
                                         if (!item.group.running) {
-                                            selection = item.group.ids.fold(selection.start()) {
+                                            selection = item.group.ids.fold(selection.activate()) {
                                                 acc, id ->
                                                 acc.toggleSession(id)
                                             }

@@ -212,6 +212,8 @@ fun LiveChartScreen(
     val historical = !ChartRanges.followsLiveEdge(range)
     val maxSpan = ChartMetrics.maxSpanMillis(metric)
     var logScale by rememberSaveable { mutableStateOf(false) }
+    // Метки кратковременных отклонений: выключены, пока их не попросят.
+    var showEvents by rememberSaveable { mutableStateOf(false) }
     // Вид живого графика — настройка, а не состояние экрана: карточка Главной
     // и полноэкранный график это два размера одной картинки.
     val detailId by graph.settings.chartDetailModeId
@@ -289,7 +291,7 @@ fun LiveChartScreen(
     val axisStrings = ChartAxisCatalogue.of(LocalStrings.current.language)
     val frame = remember(
         snapshot, window, unit, logScale, thresholds, baseline, endpointAlert, metric, follow,
-        detail,
+        detail, showEvents,
         axisStrings,
     ) {
         snapshot?.let {
@@ -308,6 +310,7 @@ fun LiveChartScreen(
                 nowMillis = window.toMillis.takeIf { range == null && follow },
                 axisStrings = axisStrings,
                 detail = detail,
+                showEvents = showEvents,
             )
         }
     }
@@ -439,6 +442,7 @@ fun LiveChartScreen(
                     unit = unit,
                     baseline = baseline,
                     alarmLevel = thresholds.l1MicroSvH,
+                    eventTimesMillis = snapshot?.eventTimesMillis.orEmpty(),
                 )
             }
             if (f == null || f.spec.buckets.isEmpty()) {
@@ -494,6 +498,8 @@ fun LiveChartScreen(
                             )
                         }
                     },
+                    events = showEvents,
+                    onToggleEvents = { showEvents = !showEvents },
                     onOpenDetails = { detailsOpen = true },
                     availablePeriods = periodIndices,
                     periodExact = periodExact,
@@ -576,6 +582,8 @@ fun LiveChartScreen(
                         )
                     }
                 },
+                events = showEvents,
+                onToggleEvents = { showEvents = !showEvents },
                 onOpenDetails = { detailsOpen = true },
                 availablePeriods = periodIndices,
                 periodExact = periodExact,
@@ -929,9 +937,11 @@ private fun RowScope.ControlChips(
     periodIndex: Int,
     logScale: Boolean,
     detailed: Boolean,
+    events: Boolean,
     onSelectPeriod: (Int) -> Unit,
     onToggleScale: () -> Unit,
     onToggleDetail: () -> Unit,
+    onToggleEvents: () -> Unit,
     onOpenDetails: () -> Unit,
     availablePeriods: List<Int> = ChartWindows.PERIODS.indices.toList(),
     periodExact: Boolean = true,
@@ -1008,6 +1018,16 @@ private fun RowScope.ControlChips(
         color = if (detailed) colors.ink2 else colors.dataText,
         selected = !detailed,
         onClick = onToggleDetail,
+    )
+    Spacer(Modifier.width(Dimens.space1))
+    // События — по запросу и только здесь. На карточке Главной их метки шли
+    // над кривой второй строкой данных и выглядели важнее её самой; здесь
+    // места хватает, и включает их тот, кто пришёл разбираться.
+    Chip(
+        text = ChartTextCatalogue.of(LocalStrings.current.language).eventsChip,
+        color = if (events) colors.dataText else colors.ink2,
+        selected = events,
+        onClick = onToggleEvents,
     )
     Spacer(Modifier.width(Dimens.space1))
     // «Подробнее» было хвостом строки чисел — то есть кнопкой, не похожей на
