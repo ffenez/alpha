@@ -180,6 +180,10 @@ class MeasurementRepository(
         origin: String = SpectrumSnapshotEntity.ORIGIN_AUTO,
         label: String? = null,
         analysisMeta: String? = null,
+        trigger: String? = null,
+        deviceSerial: String? = null,
+        firmware: String? = null,
+        epochId: Long? = null,
     ): SpectrumSnapshotEntity {
         val entity = spectrum.toEntity(
             timestamp = clock(),
@@ -188,6 +192,10 @@ class MeasurementRepository(
             origin = origin,
             label = label,
             analysisMeta = analysisMeta,
+            trigger = trigger,
+            deviceSerial = deviceSerial,
+            firmware = firmware,
+            epochId = epochId,
         )
         val id = spectrumDao.insert(entity)
         return entity.copy(id = id)

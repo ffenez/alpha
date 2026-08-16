@@ -41,6 +41,8 @@ import app.radiacode.ui.text.NotificationEn
 import app.radiacode.ui.text.NotificationRu
 import app.radiacode.ui.text.NotificationStrings
 import app.radiacode.ui.text.stringsFor
+import app.radiacode.analysis.SpectrumEpoch
+import app.radiacode.protocol.Spectrum
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.device.DoseUnits
@@ -703,6 +705,45 @@ class MeasurementService : Service() {
         if (ok) graph.deviceControlHub.onApplied(command) else graph.deviceControlHub.onFailed(command)
     }
 
+    /**
+     * Провенанс снимка: чей это спектр и из какой эпохи накопления.
+     *
+     * Считается на каждом опросе — эпоха определяется по самим числам
+     * (ADR 008), поэтому знать о ней можно только читая их подряд.
+     */
+    private var epochMark: SpectrumEpoch.Mark? = null
+
+    private suspend fun updateEpoch(spectrum: Spectrum): SpectrumEpoch.Mark {
+        val serial = (device?.connectionState?.value as? ConnectionState.Connected)
+            ?.info?.serialNumber
+        val previous = epochMark ?: SpectrumEpoch.decode(graph.settings.spectrumEpochMark.first())
+        val mark = SpectrumEpoch.mark(
+            previous = previous,
+            spectrum = spectrum,
+            deviceSerial = serial,
+            newEpochId = System.currentTimeMillis(),
+        )
+        epochMark = mark
+        // На диск — только когда эпоха сменилась или накопление заметно
+        // выросло: запись на каждый опрос стоила бы дороже, чем стоит.
+        if (previous == null ||
+            previous.epochId != mark.epochId ||
+            mark.durationSeconds - previous.durationSeconds >= EPOCH_PERSIST_SECONDS
+        ) {
+            graph.settings.setSpectrumEpochMark(SpectrumEpoch.encode(mark))
+        }
+        return mark
+    }
+
+    private fun spectrumProvenance(): Triple<String?, String?, Long?> {
+        val connected = device?.connectionState?.value as? ConnectionState.Connected
+        return Triple(
+            connected?.info?.serialNumber,
+            connected?.info?.firmware?.toString(),
+            epochMark?.epochId,
+        )
+    }
+
     private suspend fun pollSpectrum(device: RadiaCodeDevice) {
         val bytesBefore = device.spectrumPayloadBytes
         val spectrum = try {
@@ -716,6 +757,7 @@ class MeasurementService : Service() {
         // не оценку по числу опросов.
         graph.serviceStatus.onSpectrumRead(device.spectrumPayloadBytes - bytesBefore)
         val now = System.currentTimeMillis()
+        updateEpoch(spectrum)
         graph.spectrumHub.onSpectrum(spectrum, now)
         val sample = lastSample
         graph.spectrogramStore.onSpectrum(
@@ -726,7 +768,15 @@ class MeasurementService : Service() {
         )
         if (now - lastSpectrumAutosaveAt >= SpectrumHub.AUTOSAVE_INTERVAL_MILLIS) {
             lastSpectrumAutosaveAt = now
-            graph.measurementRepository.saveSpectrum(spectrum, accumulated = false)
+            val (serial, firmware, epochId) = spectrumProvenance()
+            graph.measurementRepository.saveSpectrum(
+                spectrum,
+                accumulated = false,
+                trigger = SpectrumSnapshotEntity.TRIGGER_PERIODIC,
+                deviceSerial = serial,
+                firmware = firmware,
+                epochId = epochId,
+            )
         }
     }
 
@@ -749,21 +799,31 @@ class MeasurementService : Service() {
             SpectrumHub.Command.SAVE_SNAPSHOT -> {
                 val spectrum = graph.spectrumHub.state.value.spectrum ?: return
                 val now = System.currentTimeMillis()
+                val (serial, firmware, epochId) = spectrumProvenance()
                 graph.measurementRepository.saveSpectrum(
                     spectrum,
                     accumulated = false,
                     origin = SpectrumSnapshotEntity.ORIGIN_USER,
+                    trigger = SpectrumSnapshotEntity.TRIGGER_MANUAL,
+                    deviceSerial = serial,
+                    firmware = firmware,
+                    epochId = epochId,
                 )
                 graph.measurementRepository.recordSpectrumSaved(now, spectrum.durationSeconds)
                 graph.spectrumHub.onSaved(now)
             }
             SpectrumHub.Command.RECORD_BACKGROUND -> {
                 val spectrum = graph.spectrumHub.state.value.spectrum ?: return
+                val (serial, firmware, epochId) = spectrumProvenance()
                 graph.measurementRepository.saveSpectrum(
                     spectrum,
                     accumulated = false,
                     isBackgroundReference = true,
                     origin = SpectrumSnapshotEntity.ORIGIN_USER,
+                    trigger = SpectrumSnapshotEntity.TRIGGER_BACKGROUND,
+                    deviceSerial = serial,
+                    firmware = firmware,
+                    epochId = epochId,
                 )
                 // Подтверждение — ПОСЛЕ записи: нажатие без ответа неотличимо
                 // от нажатия, которое ничего не сделало.
@@ -1101,6 +1161,9 @@ class MeasurementService : Service() {
     companion object {
         const val ACTION_START = "app.radiacode.action.START"
         const val ACTION_STOP = "app.radiacode.action.STOP"
+        /** Как часто метка эпохи спектра уходит на диск, с накопления. */
+        private const val EPOCH_PERSIST_SECONDS = 60L
+
         const val ACTION_START_TRACK = "app.radiacode.action.START_TRACK"
         const val ACTION_STOP_TRACK = "app.radiacode.action.STOP_TRACK"
         const val EXTRA_DEVICE_ADDRESS = "device_address"

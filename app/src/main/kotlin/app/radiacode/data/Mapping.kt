@@ -52,6 +52,11 @@ fun Spectrum.toEntity(
     label: String? = null,
     /** Reproducibility stamp for derived spectra (spec §22); null for raw ones. */
     analysisMeta: String? = null,
+    /** Провенанс (ADR 008): чей это спектр и из какой эпохи накопления. */
+    deviceSerial: String? = null,
+    firmware: String? = null,
+    epochId: Long? = null,
+    trigger: String? = null,
 ): SpectrumSnapshotEntity =
     SpectrumSnapshotEntity(
         timestamp = timestamp,
@@ -66,6 +71,10 @@ fun Spectrum.toEntity(
         a2 = a2,
         channelCount = counts.size,
         counts = SpectrumBlob.encode(counts),
+        deviceSerial = deviceSerial,
+        firmware = firmware,
+        epochId = epochId,
+        trigger = trigger,
     )
 
 fun SpectrumSnapshotEntity.toSpectrum(): Spectrum = Spectrum(

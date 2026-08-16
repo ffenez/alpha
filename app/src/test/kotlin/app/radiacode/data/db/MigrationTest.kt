@@ -187,6 +187,50 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 14 to 15 produces exactly the exported v15 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(14))
+            MigrationSql.FROM_14_TO_15.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(15))
+        }
+    }
+
+    /**
+     * Провенанс — наблюдение, а не догадка: какой прибор и какая эпоха стоят
+     * за снимком прежней версии, неизвестно, и подставлять туда сегодняшний
+     * прибор нельзя. Практическое следствие — такие снимки нельзя вычитать.
+     */
+    @Test
+    fun `migration 14 to 15 leaves old snapshots without provenance`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(14))
+            connection.createStatement().use {
+                it.execute(
+                    "INSERT INTO spectra (id, timestamp, accumulated, isBackgroundReference, " +
+                        "origin, durationSeconds, a0, a1, a2, channelCount, counts) " +
+                        "VALUES (1, 1000, 0, 0, 'user', 3600, 0.0, 2.4, 0.0003, 3, x'01')",
+                )
+            }
+            MigrationSql.FROM_14_TO_15.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            connection.createStatement().use { statement ->
+                val rows = statement.executeQuery(
+                    "SELECT durationSeconds, deviceSerial, epochId FROM spectra",
+                )
+                assertTrue(rows.next())
+                assertEquals(3600L, rows.getLong("durationSeconds"))
+                rows.getString("deviceSerial")
+                assertTrue(rows.wasNull(), "прибор снимка не выдумывается")
+                rows.getLong("epochId")
+                assertTrue(rows.wasNull(), "эпоха накопления не выдумывается")
+            }
+        }
+    }
+
+    @Test
     fun `migration 13 to 14 produces exactly the exported v14 schema`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(13))

@@ -324,6 +324,25 @@ data class SpectrumSnapshotEntity(
     val channelCount: Int,
     /** Channel counts encoded as i32 LE array, see [app.radiacode.data.SpectrumBlob]. */
     val counts: ByteArray,
+    /**
+     * Откуда взялся снимок (ADR 008): серийный номер прибора и прошивка.
+     *
+     * Null у строк, записанных прежними версиями, и у импорта: провенанс —
+     * наблюдение, и задним числом он не выдумывается. Вычитать снимки без
+     * провенанса нельзя — на что они похожи, приложение не знает.
+     */
+    val deviceSerial: String? = null,
+    val firmware: String? = null,
+    /**
+     * Эпоха накопления: непрерывный отрезок между сбросами спектра.
+     *
+     * Разность двух снимков имеет смысл только внутри одной эпохи — иначе
+     * вычитание перескакивает через сброс и даёт отрицательные каналы или, что
+     * хуже, правдоподобную чепуху.
+     */
+    val epochId: Long? = null,
+    /** Чем вызван снимок: [TRIGGER_PERIODIC], [TRIGGER_MANUAL] и т. д. */
+    val trigger: String? = null,
 ) {
     // ByteArray needs manual equality; identity by id is enough for entities.
     override fun equals(other: Any?): Boolean = other is SpectrumSnapshotEntity && other.id == id
@@ -342,6 +361,14 @@ data class SpectrumSnapshotEntity(
          * trend built from consecutive device snapshots must not see them.
          */
         const val ORIGIN_DERIVED = "derived"
+
+        // Чем вызван снимок (ADR 008). Это НЕ то же, что `origin`: origin
+        // отвечает «кто его сделал», trigger — «по какому поводу».
+        const val TRIGGER_PERIODIC = "periodic"
+        const val TRIGGER_MANUAL = "manual"
+        const val TRIGGER_BACKGROUND = "background"
+        const val TRIGGER_EXPERIMENT = "experiment"
+        const val TRIGGER_FOOD = "food"
     }
 }
 

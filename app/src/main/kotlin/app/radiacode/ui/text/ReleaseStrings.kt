@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v052Title: String
+    val v052Summary: String
+
     val v051Title: String
     val v051Summary: String
 
@@ -114,6 +117,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v052Title = "Снимок спектра знает, откуда он"
+    override val v052Summary =
+        "Каждый новый снимок запоминает прибор, прошивку и непрерывный отрезок " +
+        "накопления — а по нему приложение теперь умеет считать спектр ИМЕННО ЗА " +
+        "промежуток между двумя снимками, а не за все накопленные часы. Через " +
+        "сброс, смену прибора или несовпадающую калибровку такая разность не " +
+        "считается вовсе: у неё названа причина отказа."
 
     override val v051Title = "Маршрут пишется и со сложенным телефоном"
     override val v051Summary =
@@ -337,6 +348,15 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v052Title = "A saved spectrum knows where it came from"
+    override val v052Summary =
+        "Every saved spectrum remembers the instrument, the firmware and the " +
+        "continuous stretch of accumulation it belongs to — and from that the app " +
+        "can now compute the spectrum for the interval BETWEEN two of them " +
+        "instead of all the accumulated hours. Across a reset, another instrument " +
+        "or a different calibration that difference is refused, with the reason " +
+        "named."
 
     override val v051Title = "A route records with the phone in a pocket"
     override val v051Summary =
@@ -567,6 +587,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v052Title, v052Summary,
     v051Title, v051Summary,
     v050Title, v050Summary,
     v049Title, v049Summary,

@@ -346,6 +346,20 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         dataStore.edit { it[MANUAL_CPS] = text }
     }
 
+    /**
+     * Метка эпохи накопления спектра (ADR 008), закодированная строкой
+     * `epochId|serial|duration|counts`.
+     *
+     * Переживает перезапуск процесса: без неё сброс спектра, случившийся пока
+     * приложение было выключено, остался бы незамеченным — и снимки двух
+     * разных накоплений считались бы одной эпохой.
+     */
+    val spectrumEpochMark: Flow<String?> = dataStore.data.map { it[SPECTRUM_EPOCH] }
+
+    suspend fun setSpectrumEpochMark(encoded: String) {
+        dataStore.edit { it[SPECTRUM_EPOCH] = encoded }
+    }
+
     val hintsVisible: Flow<Boolean> =
         dataStore.data.map { it[HINTS_VISIBLE] ?: false }
 
@@ -614,6 +628,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val ACTIVE_TRACK = longPreferencesKey("active_track_session")
         private val MANUAL_DOSE = stringPreferencesKey("map_manual_dose")
         private val MANUAL_CPS = stringPreferencesKey("map_manual_cps")
+        private val SPECTRUM_EPOCH = stringPreferencesKey("spectrum_epoch_mark")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")
