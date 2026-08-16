@@ -47,8 +47,8 @@ import androidx.compose.ui.unit.dp
 import app.radiacode.ui.logic.ChartBucket
 import app.radiacode.ui.logic.DataGap
 import app.radiacode.ui.logic.TimeBand
-import app.radiacode.ui.logic.ChartPixels
-import app.radiacode.ui.logic.ChartProjection
+import app.radiacode.ui.chart.PreparedFrame
+import app.radiacode.ui.chart.ChartProjection
 import app.radiacode.ui.logic.ValueAggregate
 import app.radiacode.ui.logic.DoseEpisode
 import app.radiacode.ui.logic.DoseReference
@@ -152,7 +152,7 @@ data class DoseChartSpec(
  *  - Both painted layers build their paths and text layouts inside
  *    `drawWithCache`, so a repaint replays prebuilt objects.
  *  - Column pixels are computed once per snapshot/window/size change into
- *    primitive arrays ([ChartPixels]); the draw scope allocates nothing.
+ *    primitive arrays ([PreparedFrame]); the draw scope allocates nothing.
  *  - The crosshair is read through a [State] inside the draw lambda, so
  *    dragging it never re-runs composition or layout.
  */
@@ -753,7 +753,7 @@ private class EpisodeRect(
 @Composable
 private fun SeriesLayer(
     spec: DoseChartSpec,
-    pixels: ChartPixels,
+    pixels: PreparedFrame,
     widthPx: Float,
     plotTop: Float,
     plotHeight: Float,
@@ -888,7 +888,7 @@ private fun SeriesLayer(
  */
 @Composable
 private fun CursorLayer(
-    pixels: ChartPixels,
+    pixels: PreparedFrame,
     cursorFraction: State<Float?>,
     widthPx: Float,
     plotTop: Float,
@@ -921,7 +921,7 @@ private fun CursorLayer(
 }
 
 /** Closed polygon between two y arrays, restarted at every gap. */
-private fun bandPath(pixels: ChartPixels, high: FloatArray, low: FloatArray): Path {
+private fun bandPath(pixels: PreparedFrame, high: FloatArray, low: FloatArray): Path {
     val path = Path()
     var start = -1
     fun flush(end: Int) {
@@ -963,7 +963,7 @@ private fun bandPath(pixels: ChartPixels, high: FloatArray, low: FloatArray): Pa
  * усредняются в ровную линию. Простое «каждое N-е измерение» именно их и
  * теряет — то есть ровно то, ради чего график открывают.
  */
-private fun detailPath(pixels: ChartPixels): Path {
+private fun detailPath(pixels: PreparedFrame): Path {
     val path = Path()
     var penDown = false
     for (i in 0 until pixels.count) {
@@ -981,7 +981,7 @@ private fun detailPath(pixels: ChartPixels): Path {
     return path
 }
 
-private fun linePath(pixels: ChartPixels): Path {
+private fun linePath(pixels: PreparedFrame): Path {
     val path = Path()
     var penDown = false
     for (i in 0 until pixels.count) {
@@ -1009,7 +1009,7 @@ private fun linePath(pixels: ChartPixels): Path {
  * значением, к которой ничего не вело. Одиночное измерение — это точка, и
  * рисовать её надо точкой.
  */
-private fun lonePoints(pixels: ChartPixels): List<Offset> {
+private fun lonePoints(pixels: PreparedFrame): List<Offset> {
     if (pixels.count == 0) return emptyList()
     val out = mutableListOf<Offset>()
     for (i in 0 until pixels.count) {
@@ -1043,7 +1043,7 @@ private const val MARKER_SPACING_FACTOR = 3f
 
 private fun extremeMarks(
     spec: DoseChartSpec,
-    pixels: ChartPixels,
+    pixels: PreparedFrame,
     plotTop: Float,
     sizePx: Float,
 ): List<ExtremeMark> {

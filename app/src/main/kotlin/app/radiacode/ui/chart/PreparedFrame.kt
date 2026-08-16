@@ -1,4 +1,7 @@
-package app.radiacode.ui.logic
+package app.radiacode.ui.chart
+
+import app.radiacode.ui.logic.ChartBucket
+import app.radiacode.ui.logic.DoseScale
 
 /**
  * Bucket → pixel arrays of one chart frame.
@@ -13,7 +16,7 @@ package app.radiacode.ui.logic
  * log scale and a zero median): those columns are left as gaps, never pinned
  * to the frame bottom.
  */
-class ChartPixels(
+class PreparedFrame(
     /** Index of each drawn column inside the snapshot's bucket list. */
     val source: IntArray,
     val x: FloatArray,
@@ -80,7 +83,7 @@ class ChartPixels(
     }
 
     companion object {
-        val EMPTY = ChartPixels(
+        val EMPTY = PreparedFrame(
             IntArray(0), FloatArray(0), FloatArray(0), FloatArray(0),
             FloatArray(0), FloatArray(0), FloatArray(0), FloatArray(0), FloatArray(0),
             BooleanArray(0), BooleanArray(0),
@@ -123,10 +126,10 @@ object ChartProjection {
         widthPx: Float,
         topPx: Float,
         heightPx: Float,
-    ): ChartPixels {
+    ): PreparedFrame {
         val span = toMillis - fromMillis
         if (buckets.isEmpty() || span <= 0L || widthPx <= 0f || heightPx <= 0f) {
-            return ChartPixels.EMPTY
+            return PreparedFrame.EMPTY
         }
         var first = -1
         var last = -2
@@ -138,7 +141,7 @@ object ChartProjection {
             last = i
         }
         val n = last - first + 1
-        if (n <= 0) return ChartPixels.EMPTY
+        if (n <= 0) return PreparedFrame.EMPTY
 
         val source = IntArray(n)
         val x = FloatArray(n)
@@ -184,7 +187,7 @@ object ChartProjection {
             minY[k] = yOf(scale.fractionOrNull(b.min) ?: fMedian, topPx, heightPx)
             maxY[k] = yOf(scale.fractionOrNull(b.max) ?: fMedian, topPx, heightPx)
         }
-        return ChartPixels(
+        return PreparedFrame(
             source = source,
             x = x,
             medianY = medianY,

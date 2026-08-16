@@ -50,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -259,6 +260,10 @@ fun MonitorScreen(
     // картинка появляется сразу, а свежесть догоняет обычным путём.
     val cache = graph.chartCache
     var viewports by remember { mutableStateOf(cache.viewports) }
+    // Ширина поля каждой карточки в пикселях: от неё зависит число колонок
+    // кадра ([ChartDownsampler]). Меряется самой карточкой и живёт здесь,
+    // потому что кадр собирается здесь же.
+    var plotWidths by remember { mutableStateOf<Map<ChartMetric, Float>>(emptyMap()) }
     // Начало истории меняется раз в жизни базы (первая запись, уборка журнала),
     // а спрашивалось раз в проход — на каждый жест по запросу на величину.
     var earliestMillis by remember { mutableStateOf(cache.earliestMillis) }
@@ -555,8 +560,13 @@ fun MonitorScreen(
             // замершей: данные у обоих были одни и те же, а край двигался
             // только у него.
             val liveSecond = nowMillis / 1_000L
+            // Ширина карточки решает, сколько колонок в ней имеет смысл: у
+            // миниатюры их меньше, чем на полном экране, и это единственное,
+            // чем два размера одной картинки отличаются (Charts V2 §20).
+            val plotWidthPx = plotWidths[metric] ?: 0f
             val frame = remember(
                 loaded, unit, thresholds, baseline, alert, liveSecond, viewport, chartDetail,
+                plotWidthPx,
             ) {
                 loaded?.let {
                     val liveWindow = ChartWindows.limitedByHistory(
@@ -584,6 +594,7 @@ fun MonitorScreen(
                         // Далёкий порог на карточке молчит: он не про то, что
                         // здесь нарисовано.
                         showDistantAlarm = false,
+                        plotWidthPx = plotWidthPx,
                     )
                 }
             }
@@ -601,6 +612,11 @@ fun MonitorScreen(
                 onBackToNow = { setViewport(Viewports.jumpToEdge(viewport, bounds)) },
                 onOpenFromChart = {
                     if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
+                },
+                onPlotWidth = { width ->
+                    if (plotWidths[metric] != width) {
+                        plotWidths = plotWidths + (metric to width)
+                    }
                 },
                 onTransform = { panFraction, zoomFactor, focusFraction ->
                     // Жест меняет ВРЕМЯ, а не картинку: из состояния получается
@@ -1178,6 +1194,8 @@ private fun MetricChartCard(
     onBackToNow: () -> Unit = {},
     /** Одиночное нажатие по самому полю — открыть во весь экран. */
     onOpenFromChart: () -> Unit = {},
+    /** Измеренная ширина поля — по ней кадр решает, сколько колонок рисовать. */
+    onPlotWidth: (Float) -> Unit = {},
     onTransform: ((panFraction: Float, zoomFactor: Float, focusFraction: Float) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
@@ -1253,7 +1271,8 @@ private fun MetricChartCard(
                     onTap = onOpenFromChart,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (metric == ChartMetric.DOSE) 168.dp else 132.dp),
+                        .height(if (metric == ChartMetric.DOSE) 168.dp else 132.dp)
+                        .onSizeChanged { onPlotWidth(it.width.toFloat()) },
                 )
                 val stats = frame.stats
                 // Ни одной пояснительной строки под миниатюрой: покрытие окна и

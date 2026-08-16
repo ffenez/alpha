@@ -39,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
@@ -335,10 +336,14 @@ fun LiveChartScreen(
     // for an unchanged picture is exactly the waste this screen must avoid.
     val endpointAlert = follow && deviation.alertSince != null
     val axisStrings = ChartAxisCatalogue.of(LocalStrings.current.language)
+    // Ширина поля решает, сколько колонок имеет смысл рисовать: больше, чем
+    // видно пикселей, — работа впустую на каждом кадре жеста; меньше — грубая
+    // картинка там, где данные подробнее ([ChartDownsampler]).
+    var plotWidthPx by remember { mutableStateOf(0f) }
     val frame = remember(
         snapshot, window, unit, logScale, thresholds, baseline, endpointAlert, metric, follow,
         detail, showEvents, heldScale,
-        axisStrings,
+        axisStrings, plotWidthPx,
     ) {
         snapshot?.let {
             buildFrame(
@@ -358,6 +363,7 @@ fun LiveChartScreen(
                 detail = detail,
                 showEvents = showEvents,
                 scaleOverride = heldScale,
+                plotWidthPx = plotWidthPx,
             )
         }
     }
@@ -448,7 +454,7 @@ fun LiveChartScreen(
     }
 
     val chart: @Composable (Modifier) -> Unit = { chartModifier ->
-        Box(chartModifier) {
+        Box(chartModifier.onSizeChanged { plotWidthPx = it.width.toFloat() }) {
             val f = frame
             // The chart is drawn even for an empty window: axes and gestures
             // stay alive, so panning into a gap is never a dead end.

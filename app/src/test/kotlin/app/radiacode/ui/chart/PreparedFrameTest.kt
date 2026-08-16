@@ -1,4 +1,10 @@
-package app.radiacode.ui.logic
+package app.radiacode.ui.chart
+
+import app.radiacode.ui.logic.ChartBucket
+import app.radiacode.ui.logic.DoseScale
+import app.radiacode.ui.logic.DoseScales
+import app.radiacode.ui.logic.LinearDoseScale
+import app.radiacode.ui.logic.LogDoseScale
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -69,7 +75,7 @@ class ChartProjectionTest {
         assertEquals(0, p.indexOfBucket(1))
         assertEquals(1, p.indexOfBucket(2))
         assertEquals(null, p.indexOfBucket(0))
-        assertEquals(null, ChartPixels.EMPTY.indexOfBucket(0))
+        assertEquals(null, PreparedFrame.EMPTY.indexOfBucket(0))
     }
 
     @Test
@@ -113,7 +119,7 @@ class ChartProjectionTest {
         assertEquals(0, p.nearestIndex(0f))
         assertEquals(1, p.nearestIndex(50f))
         assertEquals(2, p.nearestIndex(110f))
-        assertEquals(null, ChartPixels.EMPTY.nearestIndex(10f))
+        assertEquals(null, PreparedFrame.EMPTY.nearestIndex(10f))
     }
 
     @Test

@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v068Title: String
+    val v068Summary: String
+
     val v067Title: String
     val v067Summary: String
 
@@ -162,6 +165,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v068Title = "График рисует столько, сколько видно"
+    override val v068Summary =
+        "Пятиминутное окно показывает свои триста измерений, а не восемь узлов: " +
+        "разрешение картинки задаёт видимое окно и ширина экрана, а не то, " +
+        "сколько данных прочитано про запас. Сглаженный вид стал правилом — " +
+        "шестьдесят колонок на любом окне, и в каждой есть чему разбрасываться."
 
     override val v067Title = "Щипок на графике стал непрерывным"
     override val v067Summary =
@@ -498,6 +508,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v068Title = "The chart draws as much as is visible"
+    override val v068Summary =
+        "A five-minute window shows its three hundred measurements instead of eight " +
+        "nodes: the resolution follows the visible window and the width of the screen, " +
+        "not how much was read ahead. The smoothed view became a rule — sixty columns " +
+        "on any window, each with something to spread."
 
     override val v067Title = "Pinch on the chart became continuous"
     override val v067Summary =

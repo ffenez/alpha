@@ -89,12 +89,15 @@ class ChartDetailModeTest {
             detailed.spec.buckets.size > 100,
             "подробный вид дал ${detailed.spec.buckets.size} колонок",
         )
-        // Ровно та поломка: сглаженный вид считает колонку по загруженному
-        // диапазону, и пятиминутное окно попадает в десяток колонок.
+        // Сглаженный вид грубее — но по ПРАВИЛУ, а не по случайности запаса
+        // чтения: шестьдесят колонок на любом окне, чтобы в колонке было чему
+        // разбрасываться. Раньше здесь выходил десяток колонок, потому что
+        // ширину задавал прочитанный диапазон (окно плюс час с каждой стороны).
         assertTrue(
-            smoothed.spec.buckets.size < 20,
+            smoothed.spec.buckets.size in 40..80,
             "сглаженный вид дал ${smoothed.spec.buckets.size} колонок",
         )
+        assertTrue(smoothed.spec.buckets.size < detailed.spec.buckets.size)
         assertTrue(detailed.spec.detailed)
         assertTrue(!smoothed.spec.detailed)
     }

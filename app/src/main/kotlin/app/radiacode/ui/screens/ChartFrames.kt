@@ -8,6 +8,7 @@ import app.radiacode.baseline.Baseline
 import app.radiacode.data.DoseUnitSetting
 import app.radiacode.data.db.MinuteRollup
 import app.radiacode.device.DoseUnits
+import app.radiacode.ui.chart.ChartDownsampler
 import app.radiacode.ui.components.DoseChartSpec
 import app.radiacode.ui.logic.ChartBackground
 import app.radiacode.ui.logic.ChartDetailMode
@@ -145,6 +146,15 @@ internal fun buildFrame(
      * когда движение остановилось (V2 §7).
      */
     scaleOverride: DoseScale? = null,
+    /**
+     * Ширина поля графика в пикселях; 0 — ещё не измерена.
+     *
+     * От неё зависит число колонок: рисовать их больше, чем видно пикселей,
+     * значит тратить кадр жеста на геометрию, которую невозможно разглядеть, а
+     * меньше — показывать грубую картинку там, где данные подробнее
+     * ([ChartDownsampler]).
+     */
+    plotWidthPx: Float = 0f,
 ): ChartFrame {
     // Колонка — это ИНТЕРВАЛ, и в окно она попадает пересечением, а не
     // серединой.
@@ -156,7 +166,7 @@ internal fun buildFrame(
     // минуты), и единственная колонка со свежими данными имеет середину ПОЗЖЕ
     // «сейчас» — фильтр по середине выбрасывал её целиком. Чем длиннее окно,
     // тем вернее пропадала вся картинка.
-    // Подробное представление пересобирает колонки по ВИДИМОМУ окну.
+    // Колонки пересобираются по ВИДИМОМУ окну и ширине поля.
     //
     // Ширину колонки задавал загруженный диапазон — окно плюс час запаса с
     // каждой стороны, который читается ради мгновенного перелистывания. На
@@ -165,15 +175,40 @@ internal fun buildFrame(
     // Запас чтения — решение о производительности, и менять из-за него
     // разрешение картинки он не имеет права. Второго запроса здесь нет:
     // складываются те же подсекундные агрегаты, что уже прочитаны.
+    //
+    // Длинные окна читаются слиянием почасовых скетчей (ADR 004), и колонка
+    // там — целое число хранимых часов: пересобрать её тоньше нельзя, потому
+    // что распределение известно только по часам целиком.
     val detailed = detail == ChartDetailMode.DETAILED
-    val columns = if (detailed && snapshot.method != QuantileMethod.KLL_SKETCH) {
-        val fine = ChartSeriesModel.bucketMillis(window.spanMillis)
-        val alignedFrom = ChartMapping.alignedFrom(window.toMillis, window.spanMillis, fine)
+    val refoldable = snapshot.method != QuantileMethod.KLL_SKETCH
+    val columnMillis = if (refoldable) {
+        ChartDownsampler.columnMillis(
+            widthPx = plotWidthPx,
+            spanMillis = window.spanMillis,
+            subBucketMillis = snapshot.subBucketMillis,
+            // Сглаженный вид — это медиана колонки с конвертами разброса, и
+            // колонка обязана быть шире одного измерения, иначе конверт
+            // схлопывается на линию и «сглаженность» становится словом.
+            smoothed = !detailed,
+        )
+    } else {
+        snapshot.bucketMillis
+    }
+    val columns = if (refoldable) {
+        val alignedFrom = ChartMapping.alignedFrom(
+            window.toMillis,
+            window.spanMillis,
+            columnMillis,
+        )
         ChartSeriesModel.fold(
             aggregates = snapshot.aggregates,
             alignedFromMillis = alignedFrom,
-            bucketMillis = fine,
-            bucketCount = ChartSeriesModel.bucketCount(window.spanMillis, fine),
+            bucketMillis = columnMillis,
+            bucketCount = ChartSeriesModel.bucketCount(
+                window.spanMillis,
+                columnMillis,
+                maxColumns = ChartDownsampler.MAX_COLUMNS,
+            ),
             subBucketMillis = snapshot.subBucketMillis,
         ).ifEmpty { snapshot.buckets }
     } else {
@@ -195,8 +230,10 @@ internal fun buildFrame(
     // растягивает ось (CHART SPEC §7 + `DoseScales`). Выброс не теряется — его
     // несут маркер над полем и карточка курсора.
     // Точки отдельных измерений — только у сглаженного вида: в подробном сама
-    // линия идёт по измерениям, и точки дублировали бы её.
-    val dotsVisible = !detailed && ChartSeriesModel.rawDotsVisible(snapshot.bucketMillis)
+    // линия идёт по измерениям, и точки дублировали бы её. И только пока
+    // колонка ШИРЕ агрегата: когда они равны, точки легли бы на узлы линии.
+    val dotsVisible = !detailed &&
+        ChartDownsampler.rawDotsVisible(columnMillis, snapshot.subBucketMillis)
     // Кадр считается по ВИДИМЫМ колонкам, а не по загруженному снимку.
     //
     // Полевой дефект: при фоне 0,15 ось стояла до 2,00, а жёсткость при 0,60 —
@@ -300,7 +337,10 @@ internal fun buildFrame(
                 buckets = visible,
                 fromMillis = window.fromMillis,
                 toMillis = window.toMillis,
-                bucketMillis = snapshot.bucketMillis,
+                // Пропуск меряется НАРИСОВАННОЙ колонкой: она и есть шаг ряда
+                // на экране, а ширина колонки в снимке относится к
+                // прочитанному диапазону.
+                bucketMillis = columnMillis,
             ),
             beforeHistory = ChartBackground.historyStart(
                 earliestSampleMillis = snapshot.buckets.firstOrNull { it.sampleCount > 0 }

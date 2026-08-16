@@ -285,10 +285,21 @@ object ChartSeriesModel {
     fun subBucketMillis(bucketMillis: Long): Long =
         (bucketMillis / SUB_BUCKETS_PER_BUCKET).coerceAtLeast(1_000L)
 
-    /** Columns needed to cover a span, hard-capped so the frame stays bounded. */
-    fun bucketCount(spanMillis: Long, bucketMillis: Long): Int {
+    /**
+     * Columns needed to cover a span, hard-capped so the frame stays bounded.
+     *
+     * Потолок задаётся вызывающим: чтение снимка держит прежнюю геометрию P0
+     * ([MAX_BUCKETS] колонок независимо от экрана), а кадр отрисовки просит
+     * столько колонок, сколько видно пикселей
+     * (`ChartDownsampler.MAX_COLUMNS`).
+     */
+    fun bucketCount(
+        spanMillis: Long,
+        bucketMillis: Long,
+        maxColumns: Int = MAX_BUCKETS,
+    ): Int {
         if (bucketMillis <= 0L) return 0
-        return ((spanMillis / bucketMillis) + 1).toInt().coerceIn(1, MAX_BUCKETS + 2)
+        return ((spanMillis / bucketMillis) + 1).toInt().coerceIn(1, maxColumns + 2)
     }
 
     /**
