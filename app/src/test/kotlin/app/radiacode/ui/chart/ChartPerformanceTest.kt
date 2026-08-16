@@ -134,6 +134,29 @@ class ChartPerformanceTest {
     }
 
     @Test
+    fun `отдаление не пересобирает кадр на каждое событие`() {
+        // Пальцы сходятся — видимое окно почти сразу выходит за нарисованное.
+        // Пересобирать кадр на каждое событие указателя значило бы вернуть
+        // шестьдесят пересборок в секунду; правило по времени оставляет их
+        // около десяти.
+        val bounds = ViewportBounds(edgeMillis = now)
+        var g = ChartGesture.of(Viewports.atEdge(5L * 60_000L, bounds), bounds)
+        var lastCommit = 0L
+        var commits = 0
+        // Секунда жеста при 60 кадрах в секунду: отдаление вдвое за секунду.
+        for (frame in 0 until 60) {
+            val at = frame * 16L
+            g = g.zoom(factor = 0.988f, focusFraction = 0.5f, bounds = bounds)
+            if (g.shouldCommit(at, lastCommit)) {
+                lastCommit = at
+                g = g.commit(bounds)
+                commits += 1
+            }
+        }
+        assertTrue(commits in 1..12, "пересборок за секунду жеста: $commits")
+    }
+
+    @Test
     fun `карточка не платит за то, чего не показывает`() {
         // Мини-график не рисует ни распределения, ни статистики окна, а
         // считались они всё равно — на каждый новый снимок, трижды по числу

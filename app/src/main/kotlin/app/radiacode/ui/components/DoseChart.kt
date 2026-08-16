@@ -234,7 +234,11 @@ fun DoseChart(
 ) {
     val appColors = LocalAppColors.current
     val axisStyle = LocalAppTypography.current.axis
-    val textMeasurer = rememberTextMeasurer()
+    // Кэш измерений текста на весь набор подписей кадра: их около двадцати
+    // (значения оси, время, единица, пороги, эпизоды), а по умолчанию кэш
+    // держит восемь — и на каждом кадре жеста половина подписей мерилась
+    // заново. Измерение строки стоит на порядок дороже её отрисовки.
+    val textMeasurer = rememberTextMeasurer(cacheSize = TEXT_CACHE_SIZE)
     val density = LocalDensity.current
     val palette = remember(appColors) {
         ChartPalette(
@@ -1271,6 +1275,13 @@ private fun rawDotOffsets(
  * перемещение у самого поля.
  */
 private val VALUE_SCALE_GUTTER = 44.dp
+
+/**
+ * Сколько разметок текста держать в кэше.
+ * **Инженерный параметр**: 64 — вчетверо больше, чем подписей в самом плотном
+ * кадре, поэтому попадание в кэш не зависит от порядка отрисовки.
+ */
+private const val TEXT_CACHE_SIZE = 64
 
 private const val MIN_FLING_VELOCITY = 200f
 

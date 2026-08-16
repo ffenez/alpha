@@ -377,6 +377,9 @@ fun LiveChartScreen(
     // ним двигается готовая картинка; ось значений при этом стоит на месте
     // сама собой, потому что принадлежит посчитанному кадру (V2 §7, §13).
     var lastGestureAt by remember { mutableLongStateOf(0L) }
+    // Когда кадр пересобирали в последний раз — чтобы во время жеста это
+    // случалось по времени, а не по числу событий указателя.
+    var lastCommitAt by remember { mutableLongStateOf(0L) }
     LaunchedEffect(lastGestureAt) {
         if (lastGestureAt == 0L) return@LaunchedEffect
         delay(SCALE_SETTLE_MILLIS)
@@ -585,9 +588,17 @@ fun LiveChartScreen(
                 if (historical) g = g.copy(visible = g.visible.copy(followLiveEdge = false))
             }
         }
-        // Уехали дальше нарисованного — ждать паузы нечего: рисовать за краем
-        // кадра нечем, и кадр пересобирается сразу.
-        gesture = if (g.covered()) g else g.commit(b)
+        // Уехали дальше нарисованного — кадр надо пересобрать, но не чаще
+        // нескольких раз в секунду: при отдалении видимое окно покидает
+        // нарисованное почти сразу, и пересборка на каждое событие указателя
+        // вернула бы ровно ту стоимость, ради которой заведены два окна.
+        val at = System.currentTimeMillis()
+        gesture = if (g.shouldCommit(at, lastCommitAt)) {
+            lastCommitAt = at
+            g.commit(b)
+        } else {
+            g
+        }
         if (cursorActive) {
             cursorActive = false
             cursorFraction.value = null
