@@ -165,6 +165,8 @@ interface SpectrumStrings {
 
     // --- дополнительный анализ: отдельные инструменты, а не вид этого графика ---
     val toolsTitle: String
+    val toolFoodTitle: String
+    val toolFoodSubtitle: String
     val toolCompareTitle: String
     val toolCompareSubtitle: String
     val toolSpectrogramTitle: String
@@ -428,6 +430,9 @@ object SpectrumRu : SpectrumStrings {
     override val infoHowToggle = "Как это посчитано"
 
     override val toolsTitle = "Дополнительный анализ"
+    override val toolFoodTitle = "Проверить продукт"
+    override val toolFoodSubtitle =
+        "фон и образец в одной геометрии: скрининг гамма-излучения"
     override val toolCompareTitle = "A/B сравнение"
     override val toolCompareSubtitle = "Сравнить два спектра"
     override val toolSpectrogramTitle = "Спектрограмма"
@@ -772,6 +777,9 @@ object SpectrumEn : SpectrumStrings {
     override val infoHowToggle = "How it is computed"
 
     override val toolsTitle = "Further analysis"
+    override val toolFoodTitle = "Check a product"
+    override val toolFoodSubtitle =
+        "background and sample in one geometry: gamma screening"
     override val toolCompareTitle = "A/B comparison"
     override val toolCompareSubtitle = "Compare two spectra"
     override val toolSpectrogramTitle = "Spectrogram"

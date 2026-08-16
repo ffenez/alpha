@@ -442,12 +442,20 @@ data class ExperimentEntity(
         /** Свои условия: что такое A и B, называет сам человек. */
         const val KIND_CUSTOM = "custom"
 
+        /**
+         * Скрининг продукта: прогон «Фон» и прогон «Продукт» в одной
+         * геометрии. Отдельной сущности у него нет намеренно — это тот же
+         * опыт с двумя прогонами, и анализ у него тот же (`AbAnalysis`).
+         */
+        const val KIND_FOOD = "food"
+
         val KINDS = listOf(
             KIND_BACKGROUND_VS_OBJECT,
             KIND_PLACE_VS_PLACE,
             KIND_DISTANCE,
             KIND_SHIELDING,
             KIND_CUSTOM,
+            KIND_FOOD,
         )
     }
 }

@@ -95,6 +95,7 @@ object ExperimentFormat {
         ExperimentEntity.KIND_DISTANCE -> s.kindDistance
         ExperimentEntity.KIND_SHIELDING -> s.kindShielding
         ExperimentEntity.KIND_CUSTOM -> s.scenarioCustom
+        ExperimentEntity.KIND_FOOD -> s.kindFood
         else -> kind
     }
 
@@ -104,6 +105,7 @@ object ExperimentFormat {
         ExperimentEntity.KIND_DISTANCE -> s.hintDistance
         ExperimentEntity.KIND_SHIELDING -> s.hintShielding
         ExperimentEntity.KIND_CUSTOM -> s.scenarioCustomHint
+        ExperimentEntity.KIND_FOOD -> s.hintFood
         else -> ""
     }
 
@@ -120,6 +122,10 @@ object ExperimentFormat {
         ExperimentEntity.KIND_PLACE_VS_PLACE ->
             s.rolePlace(runLetter(index))
         ExperimentEntity.KIND_DISTANCE -> s.rolePoint(runLetter(index))
+        // У продукта прогоны названы ролями, а не буквами: «A» и «B» человек
+        // тут же забудет, а «фон» и «продукт» помнить не нужно.
+        ExperimentEntity.KIND_FOOD ->
+            if (index == 0) s.roleBackground else s.roleSample
         else -> s.roleRun(runLetter(index))
     }
 

@@ -186,6 +186,10 @@ interface ExperimentStrings {
     val hintShielding: String
     val roleObject: String
     val roleBackground: String
+    /** Прогон с образцом продукта. */
+    val roleSample: String
+    val kindFood: String
+    val hintFood: String
     val roleWithoutMaterial: String
     val roleWithMaterial: String
 
@@ -407,6 +411,9 @@ object ExperimentRu : ExperimentStrings {
             "коэффициентов ослабления из такого опыта не выводится."
     override val roleObject = "объект"
     override val roleBackground = "фон"
+    override val roleSample = "продукт"
+    override val kindFood = "Продукт"
+    override val hintFood = "фон и образец в одной геометрии"
     override val roleWithoutMaterial = "без материала"
     override val roleWithMaterial = "с материалом"
 
@@ -646,6 +653,9 @@ object ExperimentEn : ExperimentStrings {
             "attenuation coefficients do not follow from such an experiment."
     override val roleObject = "object"
     override val roleBackground = "background"
+    override val roleSample = "sample"
+    override val kindFood = "Product"
+    override val hintFood = "background and sample in one geometry"
     override val roleWithoutMaterial = "without the material"
     override val roleWithMaterial = "with the material"
 

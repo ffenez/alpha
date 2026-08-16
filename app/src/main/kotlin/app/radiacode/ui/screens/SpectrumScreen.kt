@@ -127,6 +127,7 @@ fun SpectrumScreen(
     onOpenRadon: () -> Unit = {},
     onOpenLineTrend: () -> Unit = {},
     onOpenExperiments: () -> Unit = {},
+    onOpenFood: () -> Unit = {},
     /** Snapshot id to continue accumulating on top of (История → снимок). */
     continueSnapshotId: Long? = null,
     onStopContinuation: () -> Unit = {},
@@ -426,6 +427,7 @@ fun SpectrumScreen(
         // нет — все трое живут живым потоком.
         if (!viewing) {
             AnalysisToolsSection(
+                onOpenFood = onOpenFood,
                 onOpenExperiments = onOpenExperiments,
                 onOpenSpectrogram = onOpenSpectrogram,
                 onOpenRadon = onOpenRadon,
@@ -461,6 +463,7 @@ fun SpectrumScreen(
  */
 @Composable
 private fun AnalysisToolsSection(
+    onOpenFood: () -> Unit,
     onOpenExperiments: () -> Unit,
     onOpenSpectrogram: () -> Unit,
     onOpenRadon: () -> Unit,
@@ -477,6 +480,10 @@ private fun AnalysisToolsSection(
                 style = type.labelSmall,
                 color = colors.ink2,
             )
+            // Продукт — тот же опыт с двумя прогонами, поэтому он стоит
+            // рядом со сравнением, а не отдельной вкладкой внизу экрана.
+            AnalysisToolRow(t.toolFoodTitle, t.toolFoodSubtitle, onOpenFood)
+            AppDivider()
             AnalysisToolRow(t.toolCompareTitle, t.toolCompareSubtitle, onOpenExperiments)
             AppDivider()
             AnalysisToolRow(t.toolSpectrogramTitle, t.toolSpectrogramSubtitle, onOpenSpectrogram)

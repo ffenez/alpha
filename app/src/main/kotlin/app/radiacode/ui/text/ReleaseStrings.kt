@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v053Title: String
+    val v053Summary: String
+
     val v052Title: String
     val v052Summary: String
 
@@ -117,6 +120,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v053Title = "Проверить продукт"
+    override val v053Summary =
+        "На Спектре появился скрининг: фон и образец снимаются в одной геометрии, " +
+        "и приложение сравнивает их счёт и форму спектра, а заодно говорит, какая " +
+        "добавка вообще была бы заметна за это время. Справка «как измерять» — " +
+        "по кнопке «i»: место, положение прибора, ёмкость, подготовка и границы " +
+        "метода."
 
     override val v052Title = "Снимок спектра знает, откуда он"
     override val v052Summary =
@@ -348,6 +359,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v053Title = "Check a product"
+    override val v053Summary =
+        "The Spectrum screen gained a screening mode: the background and the " +
+        "sample are taken in one geometry, and the app compares their counts and " +
+        "spectral shape while stating which addition would have been visible at " +
+        "all in that time. The «how to measure» guide sits under «i»: the place, " +
+        "the position, the container, the preparation and the limits of the method."
 
     override val v052Title = "A saved spectrum knows where it came from"
     override val v052Summary =
@@ -587,6 +606,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v053Title, v053Summary,
     v052Title, v052Summary,
     v051Title, v051Summary,
     v050Title, v050Summary,

@@ -37,6 +37,7 @@ import app.radiacode.ui.screens.AbExperimentScreen
 import app.radiacode.ui.logic.ChartMetric
 import app.radiacode.ui.logic.ChartRange
 import app.radiacode.ui.screens.FingerprintScreen
+import app.radiacode.ui.screens.FoodScreen
 import app.radiacode.ui.screens.HistoryScreen
 import app.radiacode.ui.logic.SpectrumViewOptions
 import app.radiacode.ui.screens.LiveChartScreen
@@ -74,6 +75,7 @@ private data class ScreenKey(
     val radon: Boolean,
     val lineTrend: Boolean,
     val experiments: Boolean,
+    val food: Boolean,
     val trackMapId: Long?,
     val detailId: Long?,
 )
@@ -131,6 +133,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
     // track map on top. Back and tab switches dismiss them.
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showFingerprint by rememberSaveable { mutableStateOf(false) }
+    var showFood by rememberSaveable { mutableStateOf(false) }
     // Какую величину показывает полноэкранный график: доза с карточки, счёт
     // или жёсткость — экран и жесты одни и те же.
     var chartMetricId by rememberSaveable { mutableStateOf(ChartMetric.DOSE.id) }
@@ -178,12 +181,13 @@ private fun MainScaffoldContent(graph: AppGraph) {
     BackHandler(
         enabled = showSettings || showLiveChart || fullSpectrum || showSpectrogram || showRadon ||
             showLineTrend || showDose ||
-            showExperiments || showFingerprint || sessionDetailId != null ||
+            showExperiments || showFood || showFingerprint || sessionDetailId != null ||
             trackMapSessionId != null || spectrumSnapshotId != null,
     ) {
         when {
             showSettings -> showSettings = false
             fullSpectrum -> fullSpectrum = false
+            showFood -> showFood = false
             showFingerprint -> showFingerprint = false
             showDose -> showDose = false
             showLiveChart -> showLiveChart = false
@@ -261,6 +265,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     radon = showRadon,
                     lineTrend = showLineTrend,
                     experiments = showExperiments,
+                    food = showFood,
                     trackMapId = trackMapId,
                     detailId = detailId,
                 ),
@@ -294,6 +299,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                 key.spectrogram -> SpectrogramScreen(graph, onBack = { showSpectrogram = false })
                 key.radon -> RadonScreen(graph, onBack = { showRadon = false })
                 key.lineTrend -> NuclideTrendScreen(graph, onBack = { showLineTrend = false })
+                key.food -> FoodScreen(graph, onBack = { showFood = false })
                 key.experiments -> AbExperimentScreen(
                     graph = graph,
                     onBack = { showExperiments = false },
@@ -366,6 +372,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     onOpenRadon = { showRadon = true },
                     onOpenLineTrend = { showLineTrend = true },
                     onOpenExperiments = { showExperiments = true },
+                    onOpenFood = { showFood = true },
                     continueSnapshotId = continueSpectrumId,
                     onStopContinuation = { continueSpectrumId = null },
                     onOpenFullscreen = openFullSpectrum,
@@ -397,6 +404,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
             onSelect = {
                 showSettings = false
                 showLiveChart = false
+                showFood = false
                 showSpectrogram = false
                 showRadon = false
                 showLineTrend = false
