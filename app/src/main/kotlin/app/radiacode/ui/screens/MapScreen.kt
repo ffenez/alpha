@@ -225,6 +225,14 @@ fun MapScreen(graph: AppGraph) {
             TrackMetric.CPS -> it.cpsLow to it.cpsHigh
         }
     }
+    val manualDose by graph.settings.manualDoseAnchors
+        .collectAsState(initial = TrackMap.DEFAULT_MANUAL_DOSE)
+    val manualCps by graph.settings.manualCpsAnchors
+        .collectAsState(initial = TrackMap.DEFAULT_MANUAL_CPS)
+    val manualAnchors = when (metric) {
+        TrackMetric.DOSE -> manualDose
+        TrackMetric.CPS -> manualCps
+    }
     // Счётчик тайлов — диагностика, а не интерфейс: он виден только когда
     // человек сам включил отладочный отчёт.
     val debugReport by graph.settings.debugReportEnabled.collectAsState(initial = false)
@@ -353,12 +361,14 @@ fun MapScreen(graph: AppGraph) {
             gridTick++
         }
     }
-    LaunchedEffect(scope, metric, viewport, gridTick, scaleMode, usualBand, tintFactor) {
+    LaunchedEffect(
+        scope, metric, viewport, gridTick, scaleMode, usualBand, tintFactor, manualAnchors,
+    ) {
         if (scope != MapTrackScope.ALL) return@LaunchedEffect
         val current = viewport ?: return@LaunchedEffect
         delay(GRID_DEBOUNCE_MILLIS)
         grid = withContext(Dispatchers.IO) {
-            loadGrid(graph, current, metric, scaleMode, usualBand, tintFactor)
+            loadGrid(graph, current, metric, scaleMode, usualBand, tintFactor, manualAnchors)
         }
     }
 
@@ -446,6 +456,7 @@ fun MapScreen(graph: AppGraph) {
             scaleMode = scaleMode,
             usualBand = usualBand,
             tintFactor = tintFactor,
+            manualAnchors = manualAnchors,
             showTileStats = debugReport,
             onViewport = { viewport = it },
             emptyState = {
@@ -538,7 +549,12 @@ fun MapScreen(graph: AppGraph) {
  * hotspots of that period.
  */
 @Composable
-fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) {
+fun SessionTrackMapScreen(
+    graph: AppGraph,
+    sessionId: Long,
+    onBack: () -> Unit,
+    onOpenChart: ((from: Long, to: Long) -> Unit)? = null,
+) {
     val t = MapCatalogue.of(LocalStrings.current.language)
     var data by remember { mutableStateOf<TrackData?>(null) }
     LaunchedEffect(sessionId) {
@@ -564,7 +580,13 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
             hotspots = hotspots,
         )
     }
-    TrackDetailScreen(graph = graph, data = data, title = t.sessionTrack, onBack = onBack)
+    TrackDetailScreen(
+        graph = graph,
+        data = data,
+        title = t.sessionTrack,
+        onBack = onBack,
+        onOpenChart = onOpenChart,
+    )
 }
 
 /**
@@ -575,7 +597,12 @@ fun SessionTrackMapScreen(graph: AppGraph, sessionId: Long, onBack: () -> Unit) 
  * сессию значило бы искать запись не по тому, чем она является.
  */
 @Composable
-fun RouteMapScreen(graph: AppGraph, routeId: Long, onBack: () -> Unit) {
+fun RouteMapScreen(
+    graph: AppGraph,
+    routeId: Long,
+    onBack: () -> Unit,
+    onOpenChart: ((from: Long, to: Long) -> Unit)? = null,
+) {
     val strings = LocalStrings.current
     val h = HistoryCatalogue.of(strings.language)
     val t = MapCatalogue.of(strings.language)
@@ -602,7 +629,13 @@ fun RouteMapScreen(graph: AppGraph, routeId: Long, onBack: () -> Unit) {
             hotspots = hotspots,
         )
     }
-    TrackDetailScreen(graph = graph, data = data, title = title, onBack = onBack)
+    TrackDetailScreen(
+        graph = graph,
+        data = data,
+        title = title,
+        onBack = onBack,
+        onOpenChart = onOpenChart,
+    )
 }
 
 /** Общий экран одного следа: карта, сводка, экспорт. */
@@ -612,10 +645,14 @@ private fun TrackDetailScreen(
     data: TrackData?,
     title: String,
     onBack: () -> Unit,
+    /** Открыть измерения этого отрезка времени полноэкранным графиком. */
+    onOpenChart: ((from: Long, to: Long) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    val t = MapCatalogue.of(LocalStrings.current.language)
+    val strings = LocalStrings.current
+    val t = MapCatalogue.of(strings.language)
+    val h = HistoryCatalogue.of(strings.language)
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
     // Карта открыта поверх вкладки — горизонтальный жест принадлежит ей.
     MapGestureLock()
@@ -634,6 +671,15 @@ private fun TrackDetailScreen(
             TrackMetric.DOSE -> it.doseLowMicroSvH to it.doseHighMicroSvH
             TrackMetric.CPS -> it.cpsLow to it.cpsHigh
         }
+    }
+
+    val manualDose by graph.settings.manualDoseAnchors
+        .collectAsState(initial = TrackMap.DEFAULT_MANUAL_DOSE)
+    val manualCps by graph.settings.manualCpsAnchors
+        .collectAsState(initial = TrackMap.DEFAULT_MANUAL_CPS)
+    val manualAnchors = when (metric) {
+        TrackMetric.DOSE -> manualDose
+        TrackMetric.CPS -> manualCps
     }
 
     // Курсор один на карту и на график: это один момент одной прогулки.
@@ -687,6 +733,27 @@ private fun TrackDetailScreen(
             }
             Chip(text = title, color = colors.ink)
         }
+        // Сводка маршрута — одна тусклая строка под заголовком, а не карточка
+        // в полэкрана: путь и длительность отвечают «что это за прогулка», и
+        // повторять их плитками поверх карты незачем.
+        data?.takeIf { it.points.isNotEmpty() }?.let { d ->
+            val summary = TrackMap.summary(d.points)
+            Text(
+                text = listOfNotNull(
+                    TrackMap.formatDistance(TrackMap.distanceMeters(d.points), t),
+                    HistoryFormat.duration(
+                        ((d.endedAt ?: System.currentTimeMillis()) - (d.startedAt ?: 0L)) / 1000,
+                        s = h,
+                    ),
+                    summary.avgDoseMicroSvH?.let { "${t.statAvg} ${DoseFormat.rate(it, unit)}" },
+                    summary.maxDoseMicroSvH?.let {
+                        "${t.statMax} ${DoseFormat.rateWithUnit(it, unit, s = strings)}"
+                    },
+                ).joinToString(" · "),
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
         notice?.let { Text(text = it, style = type.footnote, color = colors.muted) }
 
         val d = data
@@ -715,6 +782,7 @@ private fun TrackDetailScreen(
                 scaleMode = scaleMode,
                 usualBand = usualBand,
                 tintFactor = tintFactor,
+                manualAnchors = manualAnchors,
                 cursor = cursorPoint,
                 onTrackPointTap = { timestamp ->
                     cursorIndex = RouteProfile.indexOfTime(
@@ -734,16 +802,33 @@ private fun TrackDetailScreen(
                     metric = metric,
                     cursorIndex = cursorIndex,
                     onCursor = { cursorIndex = it },
-                )
-                cursorPoint?.let { point ->
-                    CursorCard(point = point, unit = unit, onDismiss = { cursorIndex = null })
-                }
-                RouteSummaryCard(
-                    data = d,
-                    unit = unit,
-                    title = t.route,
-                    scaleMode = scaleMode,
-                    scaleIsAbsolute = usualBand != null,
+                    valueLabel = { point ->
+                        when (metric) {
+                            TrackMetric.DOSE -> point.doseMicroSvH
+                                ?.let { DoseFormat.rateWithUnit(it, unit, s = strings) }
+                            TrackMetric.CPS -> point.cps
+                                ?.let { TrackMap.formatCps(it) + " " + t.unitCps }
+                        }
+                    },
+                    timeLabel = { point -> HistoryFormat.timeOfDay(point.timestamp) },
+                    detailLabel = { point ->
+                        listOfNotNull(
+                            when (metric) {
+                                TrackMetric.DOSE -> point.cps
+                                    ?.let { TrackMap.formatCps(it) + " " + t.unitCps }
+                                TrackMetric.CPS -> point.doseMicroSvH
+                                    ?.let { DoseFormat.rateWithUnit(it, unit, s = strings) }
+                            },
+                            MyPosition.accuracy(point.accuracyMeters, t),
+                        ).joinToString(" · ")
+                    },
+                    onOpen = onOpenChart?.let { open ->
+                        {
+                            val from = d.points.first().timestamp
+                            val to = d.points.last().timestamp
+                            open(from, to)
+                        }
+                    },
                 )
             }
         }
@@ -772,6 +857,8 @@ private fun TrackMapCard(
     /** «Обычно здесь» для выбранной величины; null — сравнивать не с чем. */
     usualBand: Pair<Float, Float>? = null,
     tintFactor: Float = DoseTint.DEFAULT_FACTOR,
+    /** Границы ручной шкалы для выбранной величины. */
+    manualAnchors: List<Float> = emptyList(),
     /** Счётчик тайлов — только при включённом отладочном отчёте. */
     showTileStats: Boolean = false,
     /** Общий с графиком курсор: выбранный момент маршрута. */
@@ -786,12 +873,18 @@ private fun TrackMapCard(
     val type = LocalAppTypography.current
     val t = MapCatalogue.of(LocalStrings.current.language)
 
-    val render = remember(data, metric, scaleMode, usualBand, tintFactor) {
+    val render = remember(data, metric, scaleMode, usualBand, tintFactor, manualAnchors) {
         val points = data?.points.orEmpty()
         val metricValues = points.mapNotNull { TrackMap.metricValue(it, metric) }
         RenderModel(
             renderedPoints = TrackMap.downsample(points),
-            scale = TrackMap.scaleFor(scaleMode, usualBand, tintFactor, metricValues),
+            scale = TrackMap.scaleFor(
+                mode = scaleMode,
+                usualBand = usualBand,
+                factor = tintFactor,
+                values = metricValues,
+                manualAnchors = manualAnchors,
+            ),
             bounds = TrackMap.bounds(points),
             summary = TrackMap.summary(points),
             distanceMeters = TrackMap.distanceMeters(points),
@@ -1185,52 +1278,6 @@ private fun HotspotCard(graph: AppGraph, info: MapTapInfo.Hotspot, unit: DoseUni
 
 private const val DWELL_WINDOW_MILLIS = 10L * 60_000
 
-/**
- * Что именно выбрано курсором: момент, измерение и точность фикса.
- *
- * Точность названа рядом с координатами не для полноты: показание привязано к
- * месту ровно настолько, насколько его знал приёмник, и «±25 м» меняет смысл
- * фразы «здесь было столько-то».
- */
-@Composable
-private fun CursorCard(point: MapTrackPoint, unit: DoseUnitSetting, onDismiss: () -> Unit) {
-    val h = HistoryCatalogue.of(LocalStrings.current.language)
-    val strings = LocalStrings.current
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val t = MapCatalogue.of(LocalStrings.current.language)
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = HistoryFormat.dayTime(point.timestamp, System.currentTimeMillis(), s = h),
-                    style = type.label,
-                    color = colors.ink,
-                    modifier = Modifier.weight(1f),
-                )
-                Chip(
-                    text = SearchCatalogue.of(strings.language).hide,
-                    color = colors.ink2,
-                    onClick = onDismiss,
-                )
-            }
-            Text(
-                text = listOfNotNull(
-                    point.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit, s = strings) },
-                    point.cps?.let { TrackMap.formatCps(it) + " " + t.unitCps },
-                ).joinToString(" · ").ifBlank { strings.noData },
-                style = type.value,
-                color = colors.ink,
-            )
-            Text(
-                text = MyPosition.accuracy(point.accuracyMeters, t),
-                style = type.footnote,
-                color = colors.muted,
-            )
-        }
-    }
-}
-
 // --- summary and states ---
 
 @Composable
@@ -1513,6 +1560,7 @@ private suspend fun loadGrid(
     scaleMode: MapColorScale,
     usualBand: Pair<Float, Float>?,
     tintFactor: Float,
+    manualAnchors: List<Float>,
 ): GridData {
     val query = TrackGrid.query(viewport)
     val useDose = metric == TrackMetric.DOSE
@@ -1561,7 +1609,13 @@ private suspend fun loadGrid(
     val medians = cells.map { it.median }
     return GridData(
         cells = cells,
-        scale = TrackMap.scaleFor(scaleMode, usualBand, tintFactor, medians),
+        scale = TrackMap.scaleFor(
+            mode = scaleMode,
+            usualBand = usualBand,
+            factor = tintFactor,
+            values = medians,
+            manualAnchors = manualAnchors,
+        ),
         cellMeters = query.cellMeters,
         stats = if (histogram.isEmpty()) null else TrackGrid.stats(histogram),
         pointCount = summary.valueCount,

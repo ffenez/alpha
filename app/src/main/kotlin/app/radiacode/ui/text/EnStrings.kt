@@ -638,6 +638,13 @@ object EnStrings : Strings {
     override val mapScaleTitle = "Track colour"
     override val mapScaleAbsolute = "by place"
     override val mapScaleContrast = "by route"
+    override val mapScaleManual = "by hand"
+    override val mapScaleDoseAnchors = "dose bounds, µSv/h"
+    override val mapScaleCpsAnchors = "count bounds, s⁻¹"
+    override val mapScaleManualHint =
+        "Bounds separated by a space: between them the colour runs " +
+            "from green to crimson. This is the picture's scale only — it says " +
+            "nothing about whether that is much or little."
     override val stateUnknown = "state unknown"
     override val stateRejected = "the instrument refused · try again"
     override val stateOnByApp = "switched on by this app"

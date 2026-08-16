@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v051Title: String
+    val v051Summary: String
+
     val v050Title: String
     val v050Summary: String
 
@@ -111,6 +114,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v051Title = "Маршрут пишется и со сложенным телефоном"
+    override val v051Summary =
+        "Запись больше не обрывается, когда экран погас или приложение свернули, " +
+        "и продолжается в ту же строку, даже если систему заставили перезапустить " +
+        "приложение. Экран маршрута расчищен: значение и время показывает сам " +
+        "график под пальцем, карточки под ним убраны, а цвет следа можно задать " +
+        "своими границами — отдельно для дозы и для счёта."
 
     override val v050Title = "График показывает то, что в окне"
     override val v050Summary =
@@ -326,6 +337,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v051Title = "A route records with the phone in a pocket"
+    override val v051Summary =
+        "Recording no longer stops when the screen goes off or the app is put " +
+        "away, and it continues into the same entry even if the system restarts " +
+        "the app. The route screen is cleared: the chart itself shows the value " +
+        "and the time under the finger, the cards below are gone, and the trace " +
+        "colour can follow bounds you set — separately for dose and for counts."
 
     override val v050Title = "The chart shows what is in the window"
     override val v050Summary =
@@ -548,6 +567,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v051Title, v051Summary,
     v050Title, v050Summary,
     v049Title, v049Summary,
     v048Title, v048Summary,

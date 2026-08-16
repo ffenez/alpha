@@ -18,9 +18,61 @@ enum class TrackMetric { DOSE, CPS }
  * [ABSOLUTE] — обычным фоном места: одно значение всегда одного цвета, и
  * маршруты сравнимы между собой. [ROUTE_CONTRAST] — самим маршрутом: цвет
  * растянут по его собственным значениям, поэтому мелкие различия видны, а
- * сравнение с другим маршрутом теряет смысл.
+ * сравнение с другим маршрутом теряет смысл. [MANUAL] — границы задал
+ * человек: он же и отвечает за то, что они означают, поэтому названий вроде
+ * «безопасно» у них нет и быть не может.
  */
-enum class MapColorScale { ABSOLUTE, ROUTE_CONTRAST }
+enum class MapColorScale { ABSOLUTE, ROUTE_CONTRAST, MANUAL }
+
+/**
+ * Границы ручной шкалы как их пишет и читает человек.
+ *
+ * Одна строка вместо набора ползунков: границ до шести, они связаны порядком,
+ * и править их удобнее списком, чем шестью отдельными полями. Разделителем
+ * годится и запятая, и пробел, и точка с запятой — угадывать, какой именно
+ * ждёт приложение, человек не обязан; десятичная часть пишется и точкой, и
+ * запятой.
+ */
+object MapAnchors {
+
+    /**
+     * Запятая бывает и разделителем, и десятичным знаком, и угадывать нельзя —
+     * «0,05,0,1» одинаково законно читается как два числа и как четыре.
+     * Поэтому правило деления объявлено заранее:
+     *
+     *  - есть пробел или «;» — они и делят, а запятая означает дробную часть
+     *    («0,05 0,1 0,2» — три числа);
+     *  - запятых больше нет ничего — тогда делит запятая, а дробную часть
+     *    пишут точкой («0.05,0.1,0.2»).
+     *
+     * Мусор просто не попадает в границы: поле не ругается на человека
+     * посреди набора.
+     */
+    fun parse(text: String): List<Float> {
+        val hasOtherSeparator = text.any { it.isWhitespace() || it == ';' }
+        val pieces = if (hasOtherSeparator) {
+            text.split(' ', '\t', '\n', ';')
+        } else {
+            text.split(',')
+        }
+        return pieces
+            .mapNotNull { piece ->
+                val cleaned = if (hasOtherSeparator) piece.replace(',', '.') else piece
+                cleaned.trim().toFloatOrNull()?.takeIf { it.isFinite() && it > 0f }
+            }
+            .distinct()
+            .sorted()
+    }
+
+    fun format(anchors: List<Float>): String = anchors.joinToString(" ") { value ->
+        val text = if (value >= 10f) {
+            String.format(java.util.Locale.US, "%.0f", value)
+        } else {
+            String.format(java.util.Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
+        }
+        text.replace('.', ',')
+    }
+}
 
 /** One track point for map logic — no Room or osmdroid types (JVM-tested). */
 data class MapTrackPoint(
@@ -165,12 +217,41 @@ object TrackMap {
         usualBand: Pair<Float, Float>?,
         factor: Float,
         values: List<Float>,
+        manualAnchors: List<Float> = emptyList(),
     ): RampScale? {
-        if (mode == MapColorScale.ABSOLUTE && usualBand != null) {
-            absoluteScale(usualBand.first, usualBand.second, factor)?.let { return it }
+        when (mode) {
+            MapColorScale.MANUAL -> manualScale(manualAnchors)?.let { return it }
+            MapColorScale.ABSOLUTE ->
+                if (usualBand != null) {
+                    absoluteScale(usualBand.first, usualBand.second, factor)?.let { return it }
+                }
+            MapColorScale.ROUTE_CONTRAST -> Unit
         }
         return contrastScale(values)
     }
+
+    /**
+     * Шкала по границам, которые задал человек.
+     *
+     * Границ ровно [RAMP_STEPS]-1: между ними цвет и переключается. Значения
+     * приводятся в порядок и очищаются от повторов — шкала, у которой две
+     * границы совпали, просто теряет ступень, а не ломается.
+     */
+    fun manualScale(anchors: List<Float>): RampScale? {
+        val clean = anchors.filter { it.isFinite() && it > 0f }.distinct().sorted()
+        if (clean.size < 2) return null
+        val bounds = clean.take(RAMP_STEPS - 1)
+        return RampScale(
+            bounds = bounds,
+            mode = MapColorScale.MANUAL,
+            low = bounds.first(),
+            high = bounds.last(),
+        )
+    }
+
+    /** Границы по умолчанию для ручной шкалы — от них человек и отталкивается. */
+    val DEFAULT_MANUAL_DOSE = listOf(0.05f, 0.10f, 0.20f, 0.30f, 0.60f, 1.00f)
+    val DEFAULT_MANUAL_CPS = listOf(10f, 20f, 40f, 80f, 160f, 320f)
 
     /** Ступень 0..[RAMP_STEPS]-1; вырожденная шкала складывается в нижнюю. */
     fun bucket(value: Float, scale: RampScale): Int {

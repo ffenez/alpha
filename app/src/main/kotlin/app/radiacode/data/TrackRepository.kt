@@ -60,9 +60,11 @@ class TrackRepository(
      *
      * @return сколько записей пришлось закрыть.
      */
-    suspend fun recoverUnfinished(): Int {
+    suspend fun recoverUnfinished(exceptId: Long? = null): Int {
         var recovered = 0
         for (session in trackDao.unfinishedSessions()) {
+            // Возобновлённая запись прерванной не считается: она идёт.
+            if (session.id == exceptId) continue
             val lastPoint = trackDao.lastPointTime(session.id)
             if (lastPoint == null) {
                 trackDao.deleteSession(session.id)

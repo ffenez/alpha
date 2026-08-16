@@ -569,6 +569,10 @@ interface Strings {
     val mapScaleTitle: String
     val mapScaleAbsolute: String
     val mapScaleContrast: String
+    val mapScaleManual: String
+    val mapScaleDoseAnchors: String
+    val mapScaleCpsAnchors: String
+    val mapScaleManualHint: String
 
     val stateUnknown: String
 
@@ -616,7 +620,8 @@ fun Strings.allTexts(): List<String> = listOf(
     deviceSignalsUnknownNote, deviceSignalsOfflineNote,
     baselineStats("0,12", "0,11–0,14", "0,01", 26),
     hintsTitle, doseTintTitle, doseTintFactorTitle, doseTintFactorLabel("2"),
-    mapScaleTitle, mapScaleAbsolute, mapScaleContrast, stateUnknown, stateRejected, stateOnByApp, stateOffByApp, on, off,
+    mapScaleTitle, mapScaleAbsolute, mapScaleContrast, mapScaleManual,
+    mapScaleDoseAnchors, mapScaleCpsAnchors, mapScaleManualHint, stateUnknown, stateRejected, stateOnByApp, stateOffByApp, on, off,
     onboardingBrand, onboardingConnectTitle, onboardingConnectBody, onboardingPermissions,
     onboardingBluetoothDenied, retry, start, onboardingBackgroundTitle, onboardingBackgroundBody,
     onboardingBatteryNote, later, allow, onboardingScanTitle, scanning, onboardingScanBody,

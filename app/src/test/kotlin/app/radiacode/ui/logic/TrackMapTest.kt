@@ -113,6 +113,89 @@ class RampScaleTest {
     }
 }
 
+class ManualScaleTest {
+
+    /**
+     * Границы задаёт человек, и приложение не спорит с ними — только приводит
+     * в порядок: сортирует и убирает повторы. Цвет между ними означает ровно
+     * то, что человек задал, и ничего сверх того.
+     */
+    @Test
+    fun `hand-set bounds are sorted and deduplicated`() {
+        val scale = TrackMap.manualScale(listOf(0.30f, 0.05f, 0.10f, 0.10f, 0.20f))
+        assertNotNull(scale)
+        assertEquals(MapColorScale.MANUAL, scale.mode)
+        assertEquals(listOf(0.05f, 0.10f, 0.20f, 0.30f), scale.bounds)
+        assertEquals(0, TrackMap.bucket(0.04f, scale))
+        assertEquals(2, TrackMap.bucket(0.15f, scale))
+        assertEquals(4, TrackMap.bucket(0.31f, scale))
+    }
+
+    @Test
+    fun `one bound is not a scale, and nonsense is dropped`() {
+        assertNull(TrackMap.manualScale(listOf(0.10f)))
+        assertNull(TrackMap.manualScale(listOf(-1f, 0f, Float.NaN)))
+    }
+
+    /** Больше ступеней, чем у шкалы цветов, взять неоткуда. */
+    @Test
+    fun `no more bounds than the ramp has steps`() {
+        val many = (1..20).map { it * 0.1f }
+        val scale = TrackMap.manualScale(many)
+        assertNotNull(scale)
+        assertEquals(TrackMap.RAMP_STEPS - 1, scale.bounds.size)
+    }
+
+    @Test
+    fun `the chosen mode picks the hand-set scale`() {
+        val scale = TrackMap.scaleFor(
+            mode = MapColorScale.MANUAL,
+            usualBand = 0.09f to 0.14f,
+            factor = 2f,
+            values = listOf(0.10f, 0.30f),
+            manualAnchors = listOf(0.05f, 0.10f, 0.20f),
+        )
+        assertEquals(MapColorScale.MANUAL, scale!!.mode)
+
+        // Границ не задали — шкала честно становится растянутой по маршруту.
+        val fallback = TrackMap.scaleFor(
+            mode = MapColorScale.MANUAL,
+            usualBand = 0.09f to 0.14f,
+            factor = 2f,
+            values = listOf(0.10f, 0.30f),
+            manualAnchors = emptyList(),
+        )
+        assertEquals(MapColorScale.ROUTE_CONTRAST, fallback!!.mode)
+    }
+}
+
+/** Границы пишет человек, а не парсер: разделитель угадывать он не обязан. */
+class MapAnchorsTest {
+
+    /**
+     * Запятая бывает и разделителем, и десятичным знаком: «0,05 0,1» — два
+     * числа, а «0.05,0.1» — тоже два, и правило деления объявлено заранее.
+     */
+    @Test
+    fun `the separator is decided before the comma is read`() {
+        // Есть пробел — делит он, запятая означает дробную часть.
+        assertEquals(listOf(0.05f, 0.1f, 0.2f), MapAnchors.parse("0,05 0,1 0,2"))
+        assertEquals(listOf(0.05f, 0.1f), MapAnchors.parse("0.05; 0.1"))
+        // Ничего, кроме запятых, — делит запятая.
+        assertEquals(listOf(0.05f, 0.1f, 0.2f), MapAnchors.parse("0.05,0.1,0.2"))
+        assertEquals(listOf(10f, 20f, 40f), MapAnchors.parse("40;10;20"))
+        assertEquals(emptyList(), MapAnchors.parse("  "))
+        // Мусор просто не попадает в границы — поле не ругается на человека.
+        assertEquals(listOf(0.1f), MapAnchors.parse("0,1 abc -5 0"))
+    }
+
+    @Test
+    fun `what was typed comes back readable`() {
+        assertEquals("0,05 0,1 0,2", MapAnchors.format(listOf(0.05f, 0.1f, 0.2f)))
+        assertEquals("10 20 40", MapAnchors.format(listOf(10f, 20f, 40f)))
+    }
+}
+
 class ScaleChoiceTest {
 
     private val values = listOf(0.10f, 0.12f, 0.14f, 0.30f)

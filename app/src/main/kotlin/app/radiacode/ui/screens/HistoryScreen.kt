@@ -193,6 +193,8 @@ fun HistoryScreen(
     onContinueSpectrum: (Long) -> Unit = {},
     /** Снимок спектра открывается тем же экраном Спектра, что и живой. */
     onOpenSpectrum: (Long) -> Unit = {},
+    /** Отрезок маршрута — полноэкранным графиком тех же измерений. */
+    onOpenChart: ((from: Long, to: Long) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -293,7 +295,12 @@ fun HistoryScreen(
     }
 
     openRoute?.let { routeId ->
-        RouteMapScreen(graph = graph, routeId = routeId, onBack = { openRoute = null })
+        RouteMapScreen(
+            graph = graph,
+            routeId = routeId,
+            onBack = { openRoute = null },
+            onOpenChart = onOpenChart,
+        )
         return
     }
     comparing?.let { ids ->

@@ -79,7 +79,9 @@ import app.radiacode.ui.components.Segmented
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.logic.DoseTint
+import app.radiacode.ui.logic.MapAnchors
 import app.radiacode.ui.logic.MapColorScale
+import app.radiacode.ui.logic.TrackMap
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.NavConfig
 import app.radiacode.ui.logic.ProfileTree
@@ -1285,20 +1287,55 @@ private fun InterfaceSection(graph: AppGraph) {
                     modifier = Modifier.weight(1f),
                 )
                 Segmented(
-                    options = listOf(strings.mapScaleAbsolute, strings.mapScaleContrast),
-                    selectedIndex = if (mapScale == MapColorScale.ROUTE_CONTRAST) 1 else 0,
+                    options = listOf(
+                        strings.mapScaleAbsolute,
+                        strings.mapScaleContrast,
+                        strings.mapScaleManual,
+                    ),
+                    selectedIndex = MapColorScale.entries.indexOf(mapScale),
                     onSelect = { index ->
                         scope.launch {
-                            graph.settings.setMapColorScale(
-                                if (index == 1) {
-                                    MapColorScale.ROUTE_CONTRAST
-                                } else {
-                                    MapColorScale.ABSOLUTE
-                                },
-                            )
+                            graph.settings.setMapColorScale(MapColorScale.entries[index])
                         }
                     },
                     modifier = Modifier.weight(1.4f),
+                )
+            }
+            // Границы ручной шкалы — по одной строке на величину: у дозы и у
+            // счёта они физически разные, и общей быть не может.
+            if (mapScale == MapColorScale.MANUAL) {
+                val doseAnchors by graph.settings.manualDoseAnchors
+                    .collectAsState(initial = TrackMap.DEFAULT_MANUAL_DOSE)
+                val cpsAnchors by graph.settings.manualCpsAnchors
+                    .collectAsState(initial = TrackMap.DEFAULT_MANUAL_CPS)
+                var doseText by remember(doseAnchors) {
+                    mutableStateOf(MapAnchors.format(doseAnchors))
+                }
+                var cpsText by remember(cpsAnchors) {
+                    mutableStateOf(MapAnchors.format(cpsAnchors))
+                }
+                AppTextField(
+                    value = doseText,
+                    onValueChange = {
+                        doseText = it
+                        scope.launch { graph.settings.setManualDoseAnchors(it) }
+                    },
+                    placeholder = strings.mapScaleDoseAnchors,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                AppTextField(
+                    value = cpsText,
+                    onValueChange = {
+                        cpsText = it
+                        scope.launch { graph.settings.setManualCpsAnchors(it) }
+                    },
+                    placeholder = strings.mapScaleCpsAnchors,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Hint(
+                    text = strings.mapScaleManualHint,
+                    style = type.footnote,
+                    color = colors.muted,
                 )
             }
 

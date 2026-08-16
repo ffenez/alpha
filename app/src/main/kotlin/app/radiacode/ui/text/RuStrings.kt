@@ -630,6 +630,13 @@ object RuStrings : Strings {
     override val mapScaleTitle = "Цвет следа"
     override val mapScaleAbsolute = "по месту"
     override val mapScaleContrast = "по маршруту"
+    override val mapScaleManual = "вручную"
+    override val mapScaleDoseAnchors = "границы дозы, мкЗв/ч"
+    override val mapScaleCpsAnchors = "границы счёта, с⁻¹"
+    override val mapScaleManualHint =
+        "Границы через пробел: между ними цвет переходит от " +
+            "зелёного к багровому. Это только шкала картинки — она ничего не " +
+            "говорит о том, много это или мало."
     override val stateUnknown = "состояние неизвестно"
     override val stateRejected = "прибор не принял · попробуйте ещё раз"
     override val stateOnByApp = "включено этим приложением"

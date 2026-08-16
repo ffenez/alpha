@@ -284,10 +284,17 @@ class MeasurementService : Service() {
                 delay(BASELINE_REFRESH_MILLIS)
             }
         }
-        // Записи, которые никто не останавливал: приложение убили, телефон
-        // выключился. Открытыми они оставаться не могут — в журнале это
-        // выглядит как вечно идущая прогулка.
-        scope.launch { graph.trackRepository.recoverUnfinished() }
+        // Запись маршрута переживает гибель процесса.
+        //
+        // Сначала возобновляется та, которую человек начал и не останавливал:
+        // система вправе убить процесс когда угодно, и «Начать маршрут»
+        // означает «пиши, пока не скажу стоп», а не «пиши, пока жив процесс».
+        // И только потом закрываются ОСТАЛЬНЫЕ незакрытые записи — те, что
+        // остались от прежних запусков.
+        scope.launch {
+            val resumed = resumeTrackingIfAny()
+            graph.trackRepository.recoverUnfinished(exceptId = resumed)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -824,10 +831,39 @@ class MeasurementService : Service() {
             return null
         }
         trackSessionId = id
+        graph.settings.setActiveTrackSessionId(id)
         graph.serviceStatus.onTrackRecording(
             ServiceStatus.TrackRecording(sessionId = id, startedAt = trackStartedAt),
         )
         return id
+    }
+
+    /**
+     * Продолжить запись, начатую до перезапуска службы.
+     *
+     * @return id возобновлённой записи; null — возобновлять нечего.
+     */
+    private suspend fun resumeTrackingIfAny(): Long? {
+        if (tracking) return trackSessionId
+        val stored = graph.settings.activeTrackSessionId.first() ?: return null
+        val session = graph.trackRepository.session(stored)
+        // Запись уже закрыта (остановили в прошлом запуске) — возобновлять
+        // нечего, и метку надо убрать, чтобы она не воскрешала её потом.
+        if (session == null || session.endedAt != null) {
+            graph.settings.setActiveTrackSessionId(null)
+            return null
+        }
+        if (!hasLocationPermission() && !hasCoarseLocationPermission()) return null
+        tracking = true
+        trackSessionId = stored
+        trackStartedAt = session.startedAt
+        hotspotDetector = HotspotDetector(thresholds.l1MicroSvH)
+        graph.serviceStatus.onTrackRecording(
+            ServiceStatus.TrackRecording(sessionId = stored, startedAt = session.startedAt),
+        )
+        startForegroundWithCurrentTypes()
+        registerLocationUpdates()
+        return stored
     }
 
     private fun stopTracking() {
@@ -842,6 +878,7 @@ class MeasurementService : Service() {
         val sessionId = trackSessionId
         trackSessionId = null
         graph.serviceStatus.onTrackRecording(null)
+        scope.launch { graph.settings.setActiveTrackSessionId(null) }
         if (sessionId != null) {
             // Маршрут без единой точки не попадает в журнал: показывать
             // «прогулку», которой не было, хуже, чем не показывать ничего.
@@ -995,9 +1032,21 @@ class MeasurementService : Service() {
 
     // --- notification ---
 
+    /**
+     * Объявление типов службы.
+     *
+     * Тип `location` включается по ФЛАГУ ЗАПИСИ, а не по наличию строки
+     * маршрута в журнале. Это тот самый дефект «маршрут пишется, пока открыт
+     * экран, и обрывается, когда свернул»: строка появляется с первой
+     * координатой, а служба объявляется работающей ДО подписки — то есть
+     * ровно тогда, когда `trackSessionId` ещё пуст. Служба уходила в фон без
+     * типа `location`, и система переставала слать ей фиксы; пока приложение
+     * было на переднем плане, координаты шли по общему правилу, поэтому на
+     * открытом экране всё выглядело исправным.
+     */
     private fun startForegroundWithCurrentTypes() {
         var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-        if (trackSessionId != null && (hasLocationPermission() || hasCoarseLocationPermission())) {
+        if (tracking && (hasLocationPermission() || hasCoarseLocationPermission())) {
             types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
         }
         ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), types)
@@ -1025,7 +1074,7 @@ class MeasurementService : Service() {
         }
         val text = when (state) {
             is ConnectionState.Connected ->
-                state.info.serialNumber + if (trackSessionId != null) " · recording track" else ""
+                state.info.serialNumber + if (tracking) " · recording track" else ""
             is ConnectionState.Connecting -> "Connecting…"
             is ConnectionState.Reconnecting -> "Reconnecting…"
             ConnectionState.Disconnected -> "Disconnected"

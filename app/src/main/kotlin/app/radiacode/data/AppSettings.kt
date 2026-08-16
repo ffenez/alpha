@@ -2,7 +2,9 @@ package app.radiacode.data
 
 import app.radiacode.ui.logic.ChartDetailMode
 import app.radiacode.ui.logic.DoseTint
+import app.radiacode.ui.logic.MapAnchors
 import app.radiacode.ui.logic.MapColorScale
+import app.radiacode.ui.logic.TrackMap
 import app.radiacode.ui.text.RuStrings
 import app.radiacode.ui.theme.UiScale
 import app.radiacode.ui.text.Strings
@@ -303,6 +305,47 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         dataStore.edit { it[MAP_COLOR_SCALE] = scale.name }
     }
 
+    /**
+     * Идущая запись маршрута — чтобы пережить гибель процесса.
+     *
+     * Нажатие «Начать маршрут» — намерение человека, а не состояние экрана:
+     * система вправе убить процесс в любой момент, и после перезапуска службы
+     * запись обязана продолжиться в ту же строку журнала, а не оборваться и не
+     * начаться заново второй.
+     */
+    val activeTrackSessionId: Flow<Long?> = dataStore.data.map { it[ACTIVE_TRACK] }
+
+    suspend fun setActiveTrackSessionId(sessionId: Long?) {
+        dataStore.edit {
+            if (sessionId == null) it.remove(ACTIVE_TRACK) else it[ACTIVE_TRACK] = sessionId
+        }
+    }
+
+    /**
+     * Ручные границы шкалы следа — отдельно для дозы и для счёта.
+     *
+     * Отдельно, потому что величины физически разные: одни и те же числа
+     * означали бы для них совершенно разное, и общая шкала врала бы при каждом
+     * переключении «Доза | CPS».
+     */
+    val manualDoseAnchors: Flow<List<Float>> = dataStore.data.map {
+        it[MANUAL_DOSE]?.let(MapAnchors::parse)?.takeIf { anchors -> anchors.size >= 2 }
+            ?: TrackMap.DEFAULT_MANUAL_DOSE
+    }
+
+    val manualCpsAnchors: Flow<List<Float>> = dataStore.data.map {
+        it[MANUAL_CPS]?.let(MapAnchors::parse)?.takeIf { anchors -> anchors.size >= 2 }
+            ?: TrackMap.DEFAULT_MANUAL_CPS
+    }
+
+    suspend fun setManualDoseAnchors(text: String) {
+        dataStore.edit { it[MANUAL_DOSE] = text }
+    }
+
+    suspend fun setManualCpsAnchors(text: String) {
+        dataStore.edit { it[MANUAL_CPS] = text }
+    }
+
     val hintsVisible: Flow<Boolean> =
         dataStore.data.map { it[HINTS_VISIBLE] ?: false }
 
@@ -568,6 +611,9 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val DOSE_TINT = booleanPreferencesKey("dose_tint")
         private val DOSE_TINT_FACTOR = floatPreferencesKey("dose_tint_factor")
         private val MAP_COLOR_SCALE = stringPreferencesKey("map_color_scale")
+        private val ACTIVE_TRACK = longPreferencesKey("active_track_session")
+        private val MANUAL_DOSE = stringPreferencesKey("map_manual_dose")
+        private val MANUAL_CPS = stringPreferencesKey("map_manual_cps")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")

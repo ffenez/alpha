@@ -302,6 +302,12 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     graph = graph,
                     sessionId = key.trackMapId,
                     onBack = { trackMapSessionId = null },
+                    onOpenChart = { from, to ->
+                        chartMetricId = ChartMetric.DOSE.id
+                        chartRangeFrom = from
+                        chartRangeTo = to
+                        showLiveChart = true
+                    },
                 )
                 key.detailId != null -> SessionDetailScreen(
                     graph = graph,
@@ -368,6 +374,12 @@ private fun MainScaffoldContent(graph: AppGraph) {
                 AppTab.HISTORY -> HistoryScreen(
                     graph = graph,
                     onOpenSession = { sessionDetailId = it },
+                    onOpenChart = { from, to ->
+                        chartMetricId = ChartMetric.DOSE.id
+                        chartRangeFrom = from
+                        chartRangeTo = to
+                        showLiveChart = true
+                    },
                     onOpenSpectrum = { spectrumSnapshotId = it },
                     onContinueSpectrum = {
                         continueSpectrumId = it
