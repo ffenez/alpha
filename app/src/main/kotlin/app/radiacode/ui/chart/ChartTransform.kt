@@ -1,4 +1,6 @@
-package app.radiacode.ui.logic
+package app.radiacode.ui.chart
+
+import app.radiacode.ui.logic.ChartWindow
 
 /**
  * Визуальное преобразование готового кадра — основа перепроекции под пальцем.

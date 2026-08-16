@@ -66,7 +66,6 @@ import app.radiacode.ui.logic.ChartBucket
 import app.radiacode.ui.logic.ChartInteraction
 import app.radiacode.ui.logic.ChartInteractions
 import app.radiacode.ui.logic.ChartWindow
-import app.radiacode.ui.logic.ChartViewport
 import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.analysis.Hardness
 import app.radiacode.ui.logic.ChartMetric

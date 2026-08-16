@@ -62,11 +62,12 @@ import app.radiacode.ui.components.DistributionStrip
 import app.radiacode.ui.components.DoseChart
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
+import app.radiacode.ui.chart.ChartDataSource
+import app.radiacode.ui.chart.Viewport
+import app.radiacode.ui.chart.ViewportBounds
+import app.radiacode.ui.chart.Viewports
 import app.radiacode.ui.logic.ChartBucket
-import app.radiacode.ui.logic.ChartInteraction
-import app.radiacode.ui.logic.ChartInteractions
 import app.radiacode.ui.logic.ChartWindow
-import app.radiacode.ui.logic.ChartViewport
 import app.radiacode.ui.logic.DoseScale
 import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.analysis.Hardness
@@ -112,14 +113,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-/**
- * Gestures move an already-loaded snapshot; the database is asked again only
- * after the window has been still for this long. `collectLatest` cancels the
- * pending read on every new window, so a pinch that changes the window sixty
- * times a second still produces exactly one query.
- */
-private const val RELOAD_DEBOUNCE_MILLIS = 250L
 
 /** Ширина шага ленты периодов — чип плюс интервал; для авто-прокрутки. */
 /** Доезд до «сейчас»: достаточно, чтобы проследить глазом, и не тормозит. */
@@ -232,7 +225,6 @@ fun LiveChartScreen(
     val detailId by graph.settings.chartDetailModeId
         .collectAsState(initial = ChartDetailMode.DEFAULT.id)
     val detail = remember(detailId) { ChartDetailMode.of(detailId) }
-    var follow by rememberSaveable(historical) { mutableStateOf(!historical) }
     var cursorActive by rememberSaveable { mutableStateOf(false) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
     var detailsOpen by rememberSaveable { mutableStateOf(false) }
@@ -241,20 +233,49 @@ fun LiveChartScreen(
     val cursorFraction = remember { mutableStateOf<Float?>(null) }
 
     val savedSpans by graph.settings.chartSpans.collectAsState(initial = emptyMap())
-    var window by remember(metric, range) {
+    // Начало истории — левый предел жестов: дальше первого измерения ехать
+    // некуда. Спрашивается один раз: меняется оно первой записью и уборкой
+    // журнала, а не движением пальца.
+    var earliestMillis by remember { mutableStateOf<Long?>(null) }
+    // Состояние графика — само ОКНО, а не ступень лестницы (Charts V2 §3):
+    // после щипка окно может быть каким угодно, и график в нём остаётся.
+    var viewport by remember(metric, range) {
         mutableStateOf(
             if (range != null) {
-                ChartRanges.initialWindow(range, maxSpan)
+                val initial = ChartRanges.initialWindow(range, maxSpan)
+                Viewport(initial.fromMillis, initial.toMillis, followLiveEdge = false)
             } else {
-                ChartMetrics.startWindow(metric, emptyMap(), System.currentTimeMillis())
+                val initial = ChartMetrics.startWindow(metric, emptyMap(), System.currentTimeMillis())
+                Viewport(initial.fromMillis, initial.toMillis, followLiveEdge = true)
             },
         )
     }
+    val window = viewport.window()
+    val follow = viewport.followLiveEdge
+
+    /** Границы, в которых окну разрешено двигаться, на текущий момент. */
+    fun bounds(nowMillis: Long = System.currentTimeMillis()) = ViewportBounds(
+        edgeMillis = ChartRanges.edgeMillis(range, nowMillis),
+        // У исторического графика левый предел — начало сессии: за ним лежит
+        // не «нет данных», а другая запись, к этому экрану не относящаяся.
+        earliestMillis = range?.fromMillis ?: earliestMillis,
+        maxSpanMillis = maxSpan,
+    )
+
+    /** Историческому окну живой край не принадлежит: слежению там неоткуда взяться. */
+    fun setViewport(next: Viewport) {
+        viewport = if (historical) next.copy(followLiveEdge = false) else next
+    }
+
     // Экран открывается там, где его закрыли: окно — это ЧТО человек смотрит,
     // и переспрашивать об этом каждый раз незачем. Восстанавливается один раз,
     // после того как настройки прочитаны.
     var spanRestored by remember(metric) { mutableStateOf(false) }
     LaunchedEffect(metric, savedSpans, historical) {
+        val earliest = withContext(Dispatchers.IO) {
+            graph.measurementRepository.earliestSampleMillis()
+        }
+        earliestMillis = earliest
         // Окно исторического графика задано диапазоном сессии: запомненное
         // окно живого экрана к нему отношения не имеет.
         if (historical) return@LaunchedEffect
@@ -263,12 +284,13 @@ fun LiveChartScreen(
         val now = System.currentTimeMillis()
         // Ступень — максимум, а не обещание, что данные за неё есть: окно
         // открытия подтягивается к первому измерению. Только ОТКРЫТИЕ: дальше
-        // окном распоряжаются жесты и лестница, и подтягивать его на каждом
-        // щипке значило бы отбирать у человека управление.
-        window = ChartWindows.limitedByHistory(
+        // окном распоряжаются жесты, и подтягивать его на каждом щипке значило
+        // бы отбирать у человека управление.
+        val start = ChartWindows.limitedByHistory(
             ChartMetrics.startWindow(metric, savedSpans, now),
-            graph.measurementRepository.earliestSampleMillis(),
+            earliest,
         )
+        viewport = Viewport(start.fromMillis, start.toMillis, followLiveEdge = true)
     }
     // Лестница следует за окном, а не наоборот: щипок меняет окно плавно, и
     // подсвеченный чип обязан говорить правду о том, что на экране.
@@ -279,20 +301,20 @@ fun LiveChartScreen(
     // Live-follow: advance the right edge at the cadence at which a new column
     // can actually appear (1 s on short windows, at most 15 s on long ones) —
     // never faster than the display could show a difference.
-    LaunchedEffect(follow, periodIndex, historical) {
+    LaunchedEffect(follow, window.spanMillis, historical) {
         while (follow && !historical) {
             delay(
                 ChartWindows.refreshMillis(
                     ChartSeriesModel.bucketMillis(window.spanMillis),
                 ),
             )
-            window = ChartWindows.follow(window, System.currentTimeMillis())
+            viewport = Viewports.followTick(viewport, bounds())
         }
     }
 
     LaunchedEffect(graph, metric) {
-        snapshotFlow { window }.collectLatest { w ->
-            delay(RELOAD_DEBOUNCE_MILLIS)
+        snapshotFlow { viewport.window() }.collectLatest { w ->
+            delay(ChartDataSource.RELOAD_DEBOUNCE_MILLIS)
             snapshot = withContext(Dispatchers.IO) { loadSnapshot(graph, w, metric) }
         }
     }
@@ -340,12 +362,9 @@ fun LiveChartScreen(
         }
     }
 
-    /** Правый предел времени: «сейчас» на живом графике, конец сессии — на историческом. */
-    fun edge(): Long = ChartRanges.edgeMillis(range, System.currentTimeMillis())
-
     fun selectPeriod(index: Int) {
         val span = ChartWindows.PERIODS[index].second
-        window = ChartWindows.latest(span, edge())
+        setViewport(Viewports.withSpan(viewport, span, bounds()))
         // Запомненное окно принадлежит ЖИВОМУ экрану (и карточке Главной):
         // выбор ступени при разглядывании прошлой сессии не должен переставлять
         // то, что человек смотрит на Главной.
@@ -353,8 +372,6 @@ fun LiveChartScreen(
             spanRestored = true
             settingsScope.launch { graph.settings.setChartSpan(metric.id, span) }
         }
-        val next = ChartInteractions.periodChanged()
-        follow = next.follow && !historical
         cursorActive = false
         cursorFraction.value = null
     }
@@ -378,17 +395,17 @@ fun LiveChartScreen(
         cursorActive = false
         cursorFraction.value = null
         val target = if (range != null) {
-            ChartRanges.initialWindow(range, maxSpan)
+            val full = ChartRanges.initialWindow(range, maxSpan)
+            Viewport(full.fromMillis, full.toMillis, followLiveEdge = false)
         } else {
-            ChartWindows.follow(window, System.currentTimeMillis())
+            Viewports.jumpToEdge(viewport, bounds())
         }
-        val from = window
-        val distance = kotlin.math.abs(target.toMillis - from.toMillis)
+        val from = viewport
+        val distance = kotlin.math.abs(target.endMillis - from.endMillis)
         // Далёкий возврат не «летит» через часы истории: доезд имеет смысл,
         // пока глаз успевает проследить, иначе это просто медленный телепорт.
         if (distance > from.spanMillis * FAR_JUMP_SPANS) {
-            window = target
-            if (range == null) follow = ChartInteractions.jumpToNow().follow
+            setViewport(target)
             return
         }
         edgeJob?.cancel()
@@ -397,64 +414,33 @@ fun LiveChartScreen(
             for (step in 1..steps) {
                 val fraction = step.toFloat() / steps
                 val eased = 1f - (1f - fraction) * (1f - fraction)
-                val to = from.toMillis + ((target.toMillis - from.toMillis) * eased).toLong()
-                window = ChartWindow(to - from.spanMillis, to)
+                val to = from.endMillis + ((target.endMillis - from.endMillis) * eased).toLong()
+                // Едет и длина окна: «⌖ сессия» возвращает к полному диапазону,
+                // и подменять его в последнем кадре значило бы прыжок в конце
+                // плавного движения.
+                val span = from.spanMillis +
+                    ((target.spanMillis - from.spanMillis) * eased).toLong()
+                setViewport(Viewport(to - span, to, followLiveEdge = false))
                 delay(EDGE_ANIMATION_MILLIS / steps)
             }
-            window = target
-            if (range == null) follow = ChartInteractions.jumpToNow().follow
+            setViewport(target)
         }
     }
 
-    val pinch = remember(metric) { ChartViewport.PinchAccumulator() }
     val onTransform: (Float, Float, Float) -> Unit = { pan, zoom, focus ->
         if (!interacting) heldScale = frame?.spec?.scale
         interacting = true
         lastGestureAt = System.currentTimeMillis()
-        val now = edge()
-        var w = window
-        // Зум СТУПЕНЧАТЫЙ — то же правило, что на карточке Главной
-        // ([ChartViewport]): щипок переводит на соседнюю ступень лестницы, а не
-        // растягивает окно непрерывно. Причина не в удобстве: от длины окна
-        // зависят ширина колонки и путь чтения квантилей, и при произвольных
-        // интервалах одно и то же место истории выглядит по-разному после
-        // каждого жеста. Фокус щипка сохранён — приближают то место, за которое
-        // держатся пальцы.
-        if (zoom != 1f) {
-            // Множитель приходит ЗА КАДР: за событие пальцы расходятся на
-            // проценты, и порог «в полтора раза» не срабатывал никогда — щипок
-            // не масштабировал вовсе. Кадры копятся в накопителе.
-            val direction = pinch.add(zoom)
-            if (direction != 0) {
-                val current = ChartWindows.nearestPeriodIndex(w.spanMillis, periodIndices)
-                val next = periodIndices
-                    .getOrNull(periodIndices.indexOf(current) + direction)
-                    ?: current
-                val span = ChartWindows.PERIODS[next].second
-                // Точка под пальцем остаётся на месте: окно пересобирается
-                // вокруг неё, а не вокруг края.
-                val anchor = w.fromMillis + (w.spanMillis * focus.coerceIn(0f, 1f)).toLong()
-                val from = (anchor - (span * focus.coerceIn(0f, 1f)).toLong())
-                w = ChartWindow(from, from + span)
-            }
-        }
-        // Dragging right pulls earlier data into view.
-        if (pan != 0f) w = ChartWindows.pan(w, -pan, now)
-        // Щипок не должен выводить окно за пределы того, что величина умеет
-        // показать честно: у счёта и жёсткости нет предагрегации длинных окон.
-        val limit = maxSpan
-        if (w.spanMillis > limit) w = ChartWindows.latest(limit, minOf(w.toMillis, now))
-        window = w
-        val atEdge = !historical && ChartWindows.isAtLiveEdge(
-            w,
-            now,
-            ChartSeriesModel.bucketMillis(w.spanMillis),
-        )
-        val next = ChartInteractions.afterTransform(
-            ChartInteraction(follow, cursorFraction.value),
-            atEdge,
-        )
-        follow = next.follow
+        val b = bounds()
+        var v = viewport
+        // Зум НЕПРЕРЫВНЫЙ (Charts V2 §5.3): множитель кадра идёт прямо в окно,
+        // а точка под пальцами остаётся на месте. Прежний ступенчатый зум
+        // копил множители до полутора раз и переключал ступень целиком — между
+        // ступенями показать было нечего, и щипок ощущался как рывок.
+        if (zoom != 1f) v = Viewports.zoom(v, zoom, focus, b)
+        // Тянут вправо — в кадр приходит более раннее время.
+        if (pan != 0f) v = Viewports.pan(v, -pan, b)
+        setViewport(v)
         if (cursorActive) {
             cursorActive = false
             cursorFraction.value = null
@@ -474,7 +460,9 @@ fun LiveChartScreen(
                     cursorActive = cursorActive,
                     onCursorFraction = { fraction ->
                         cursorActive = true
-                        follow = false
+                        // Видимый курсор останавливает слежение: иначе ряд
+                        // уезжал бы из-под показания, которое разглядывают.
+                        viewport = viewport.copy(followLiveEdge = false)
                         cursorFraction.value = fraction
                     },
                     onResetScale = {
@@ -484,17 +472,12 @@ fun LiveChartScreen(
                         selectPeriod(periodIndex)
                     },
                     onCursorDismiss = {
-                        val atEdge = !historical && ChartWindows.isAtLiveEdge(
-                            window,
-                            System.currentTimeMillis(),
-                            ChartSeriesModel.bucketMillis(window.spanMillis),
-                        )
                         cursorActive = false
                         cursorFraction.value = null
-                        follow = ChartInteractions.dismissCursor(
-                            ChartInteraction(follow, null),
-                            atEdge,
-                        ).follow
+                        // Слежение возобновляется, только если окно всё ещё
+                        // стоит у живого края: уведённый в прошлое график
+                        // остаётся там, где его оставили.
+                        setViewport(Viewports.clamp(viewport, bounds()))
                     },
                     onTransform = onTransform,
                 )

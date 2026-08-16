@@ -133,7 +133,10 @@ import app.radiacode.ui.logic.coverageWording
 import app.radiacode.ui.logic.ChartSnapshot
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartTrace
-import app.radiacode.ui.logic.ChartViewport
+import app.radiacode.ui.chart.ChartDataSource
+import app.radiacode.ui.chart.Viewport
+import app.radiacode.ui.chart.ViewportBounds
+import app.radiacode.ui.chart.Viewports
 import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.ui.logic.LoadedChart
 import app.radiacode.ui.logic.TrendPoint
@@ -168,18 +171,6 @@ private const val LIVE_TICK_WINDOW_FRACTION = 200L
 private const val TREND_WINDOW_MILLIS = 3_600_000L
 
 // Как это окно называется в подписи под значением — MonitorStrings.trendWindowHour.
-
-/**
- * Ширина колонки, которую даст чтение этого окна.
- *
- * Нужна ровно для одного: понять, годится ли уже прочитанный снимок. Диапазон
- * может покрывать окно, но если ступень сменилась, колонки станут другой
- * ширины — и переиспользовать снимок значит нарисовать не тот масштаб.
- */
-private fun expectedBucket(window: ChartWindow, metric: ChartMetric): Long =
-    app.radiacode.ui.logic.ChartSeriesModel.bucketMillis(
-        ChartWindows.loadRange(window, window.toMillis).spanMillis,
-    )
 
 /**
  * Монитор (Главная): the 2-3 second answer — current dose rate with its
@@ -334,12 +325,14 @@ fun MonitorScreen(
                             ?.also { earliestMillis = it }
                     chartMetrics.associateWith { metric ->
                         val viewport = viewports[metric]
-                        val chosen = viewport?.window(now)
+                        val chosen = viewport
+                            ?.let { Viewports.followTick(it, ViewportBounds(edgeMillis = now)) }
+                            ?.window()
                             ?: ChartMetrics.startWindow(metric, savedSpans, now)
                         // Подтяжка к началу истории — только у живого края:
                         // если человек сам увёл окно в прошлое, оно принадлежит
                         // ему, и двигать его границы значит отбирать управление.
-                        val window = if (viewport == null || viewport.follow) {
+                        val window = if (viewport == null || viewport.followLiveEdge) {
                             ChartWindows.limitedByHistory(chosen, earliest)
                         } else {
                             chosen
@@ -349,9 +342,14 @@ fun MonitorScreen(
                         // Именно этим жест и становится мгновенным — раньше
                         // каждый рывок пальцем упирался в диск.
                         val previous = charts[metric]
-                        val reuse = previous
-                            ?.takeIf { ChartWindows.covers(it.loadedRange, window) }
-                            ?.takeIf { it.snapshot.bucketMillis == expectedBucket(window, metric) }
+                        val reuse = previous?.takeIf {
+                            ChartDataSource.reusable(
+                                loadedRange = it.loadedRange,
+                                loadedBucketMillis = it.snapshot.bucketMillis,
+                                window = window,
+                                edgeMillis = now,
+                            )
+                        }
                         if (reuse != null) {
                             return@associateWith reuse.copy(window = window)
                         }
@@ -537,15 +535,16 @@ fun MonitorScreen(
             // ступень, правый край и слежение за «сейчас». Пока оно жило в
             // двух местах, возможна была картина «большой живой, мелкий
             // замерший» — данные общие, край двигался у одного.
-            val viewport = viewports[metric] ?: ChartViewport.atLiveEdge(
-                ChartWindows.nearestPeriodIndex(
-                    ChartMetrics.startWindow(metric, savedSpans, nowMillis).spanMillis,
-                    ChartMetrics.periodIndices(metric),
-                ),
-                nowMillis,
+            val bounds = ViewportBounds(
+                edgeMillis = nowMillis,
+                earliestMillis = earliestMillis,
+                maxSpanMillis = ChartMetrics.maxSpanMillis(metric),
             )
-            val pinch = remember(metric) { ChartViewport.PinchAccumulator() }
-            fun setViewport(next: ChartViewport) {
+            val viewport = viewports[metric] ?: Viewports.atEdge(
+                ChartMetrics.startWindow(metric, savedSpans, nowMillis).spanMillis,
+                bounds,
+            )
+            fun setViewport(next: Viewport) {
                 viewports = viewports + (metric to next)
                 cache.viewports = viewports
             }
@@ -561,7 +560,7 @@ fun MonitorScreen(
             ) {
                 loaded?.let {
                     val liveWindow = ChartWindows.limitedByHistory(
-                        viewport.window(nowMillis),
+                        Viewports.followTick(viewport, bounds).window(),
                         it.earliestMillis,
                     )
                     buildFrame(
@@ -598,26 +597,27 @@ fun MonitorScreen(
                 onOpen = {
                     if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
                 },
-                following = viewport.follow,
-                onBackToNow = { setViewport(ChartViewport.jumpToNow(viewport, nowMillis)) },
+                following = viewport.followLiveEdge,
+                onBackToNow = { setViewport(Viewports.jumpToEdge(viewport, bounds)) },
                 onOpenFromChart = {
                     if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
                 },
-                onTransform = { panFraction, zoomFactor, _ ->
+                onTransform = { panFraction, zoomFactor, focusFraction ->
                     // Жест меняет ВРЕМЯ, а не картинку: из состояния получается
                     // окно, окно идёт в загрузку и в кадр. Готовое изображение
                     // не растягивается — иначе агрегация перестала бы отвечать
                     // масштабу, а геометрия графика у нас следует времени.
-                    // Щипок приходит МНОЖИТЕЛЕМ ЗА КАДР — за событие пальцы
-                    // расходятся на проценты, и порог «в полтора раза» не
-                    // срабатывал никогда. Кадры копятся в накопителе.
-                    setViewport(
-                        ChartViewport.step(
-                            ChartViewport.pan(viewport, panFraction, nowMillis),
-                            pinch.add(zoomFactor),
-                            nowMillis,
-                        ),
-                    )
+                    // Щипок непрерывный и вокруг точки под пальцами — те же
+                    // правила, что на полноэкранном графике: карточка и
+                    // полный экран это один движок (Charts V2 §20).
+                    var next = viewport
+                    if (zoomFactor != 1f) {
+                        next = Viewports.zoom(next, zoomFactor, focusFraction, bounds)
+                    }
+                    if (panFraction != 0f) {
+                        next = Viewports.pan(next, -panFraction, bounds)
+                    }
+                    setViewport(next)
                 },
             )
         }

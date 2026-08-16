@@ -28,7 +28,7 @@ class ChartCache {
     var charts: Map<ChartMetric, LoadedChart> = emptyMap()
 
     /** Куда человек увёл окно: возврат на вкладку не должен сбрасывать жест. */
-    var viewports: Map<ChartMetric, ChartViewport> = emptyMap()
+    var viewports: Map<ChartMetric, app.radiacode.ui.chart.Viewport> = emptyMap()
 
     /** Начало истории: меняется первой записью и уборкой журнала. */
     var earliestMillis: Long? = null

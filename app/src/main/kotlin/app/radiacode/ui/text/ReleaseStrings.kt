@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v067Title: String
+    val v067Summary: String
+
     val v066Title: String
     val v066Summary: String
 
@@ -159,6 +162,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v067Title = "Щипок на графике стал непрерывным"
+    override val v067Summary =
+        "Окно принимает любую длину — 3 мин 42 с, 8 мин 17 с — и график в нём " +
+        "остаётся; точка под пальцами не уезжает. Раньше щипок копил движение и " +
+        "перескакивал на соседнюю ступень целиком: картинка стояла, потом прыгала."
 
     override val v066Title = "На оси графика видно, где сменился день"
     override val v066Summary =
@@ -489,6 +498,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v067Title = "Pinch on the chart became continuous"
+    override val v067Summary =
+        "The window takes any length — 3 min 42 s, 8 min 17 s — and the chart stays " +
+        "in it; the point under the fingers does not drift. Pinch used to accumulate " +
+        "movement and jump a whole step: the picture stood still, then leapt."
 
     override val v066Title = "The chart axis shows where the day changed"
     override val v066Summary =
