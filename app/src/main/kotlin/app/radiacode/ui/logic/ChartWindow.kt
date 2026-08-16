@@ -230,18 +230,6 @@ object ChartWindows {
     /** Допуск совпадения окна со ступенью. **Инженерный параметр.** */
     const val PERIOD_TOLERANCE = 0.02
 
-    /**
-     * Ряд чипов стал длиннее экрана, поэтому он прокручивается, а не
-     * подрезается: раньше видимое окно из четырёх чипов скользило вместе с
-     * выбором, и соседние ступени приходилось угадывать. Экран сам подкручивает
-     * ленту к выбранному чипу — это [scrollTargetIndex].
-     *
-     * Возвращает индекс, к которому нужно подвести ленту, чтобы выбранный чип
-     * оказался не у самого края и было видно, что ряд продолжается.
-     */
-    fun scrollTargetIndex(selectedIndex: Int, lead: Int = 1): Int =
-        (selectedIndex - lead).coerceIn(0, (PERIODS.size - 1).coerceAtLeast(0))
-
     /** Window ending at now with the given span. */
     fun latest(spanMillis: Long, nowMillis: Long): ChartWindow {
         val span = spanMillis.coerceIn(MIN_SPAN_MILLIS, MAX_SPAN_MILLIS)

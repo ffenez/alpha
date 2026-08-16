@@ -27,8 +27,14 @@ class ChartCache {
     /** Снимок и окно по величине — то, что рисовалось в последний раз. */
     var charts: Map<ChartMetric, LoadedChart> = emptyMap()
 
-    /** Куда человек увёл окно: возврат на вкладку не должен сбрасывать жест. */
-    var viewports: Map<ChartMetric, app.radiacode.ui.chart.Viewport> = emptyMap()
+    /**
+     * Куда человек увёл окно — по величине.
+     *
+     * Возврат на вкладку не должен сбрасывать жест; и карточка Главной, и
+     * полноэкранный график берут окно ОТСЮДА, поэтому тап по карточке
+     * открывает ровно то, что на ней видно, а не «пять минут по умолчанию».
+     */
+    var gestures: Map<ChartMetric, app.radiacode.ui.chart.ChartGesture> = emptyMap()
 
     /** Начало истории: меняется первой записью и уборкой журнала. */
     var earliestMillis: Long? = null

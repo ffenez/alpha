@@ -63,8 +63,6 @@ import app.radiacode.ui.components.DoseChart
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.logic.ChartBucket
-import app.radiacode.ui.logic.ChartInteraction
-import app.radiacode.ui.logic.ChartInteractions
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.analysis.Hardness
@@ -317,6 +315,14 @@ internal fun BoxScope.CursorCard(
     alarmLevel: Float?,
     /** Моменты кратковременных отклонений — для строки «3 события». */
     eventTimesMillis: List<Long> = emptyList(),
+    /**
+     * Записанный фон Поиска, имп/с; null — график открыт не из Поиска или фон
+     * ещё не замерен.
+     *
+     * Число приходит из движка Поиска, а не считается здесь: второй фон,
+     * посчитанный по-своему, спорил бы с тем, что говорит сам экран Поиска.
+     */
+    searchBackgroundCps: Float? = null,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -433,6 +439,24 @@ internal fun BoxScope.CursorCard(
             // Раньше это число стояло над графиком у каждого треугольника
             // («△3») и читалось как вторая линия данных; здесь оно отвечает на
             // вопрос там, где его задают, — по нажатию.
+            // Из Поиска график открывают с одним вопросом: во сколько раз
+            // здесь больше, чем там, где мерили фон. Отношение всегда называет
+            // знаменатель — «×2,4 к фону поиска 25,5», а не «×2,4 к фону».
+            if (searchBackgroundCps != null && searchBackgroundCps > 0f) {
+                val ratio = bucket.median / searchBackgroundCps
+                Text(
+                    text = if (ratio >= 1f) {
+                        t.cursorSearchBackground(
+                            Uncertainty.num1(ratio),
+                            Uncertainty.num1(searchBackgroundCps),
+                        )
+                    } else {
+                        t.cursorSearchBackgroundBelow
+                    },
+                    style = type.footnote,
+                    color = colors.ink2,
+                )
+            }
             val eventsHere = eventTimesMillis.count {
                 it >= bucket.startMillis && it < bucket.endMillis
             }

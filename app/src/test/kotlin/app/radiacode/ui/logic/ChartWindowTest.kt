@@ -203,17 +203,6 @@ class ChartWindowTest {
     }
 
     @Test
-    fun `the chip row scrolls to keep the selection off the edge`() {
-        for (selected in ChartWindows.PERIODS.indices) {
-            val target = ChartWindows.scrollTargetIndex(selected)
-            assertTrue("target $target out of range", target in ChartWindows.PERIODS.indices)
-            assertTrue("target $target is past the selection $selected", target <= selected)
-        }
-        // Первый чип не уезжает за левый край.
-        assertEquals(0, ChartWindows.scrollTargetIndex(0))
-    }
-
-    @Test
     fun `the ladder steps like a clock face and starts at a minute`() {
         val labels = ChartWindows.PERIODS.map { it.first }
         assertEquals("1м", labels.first())

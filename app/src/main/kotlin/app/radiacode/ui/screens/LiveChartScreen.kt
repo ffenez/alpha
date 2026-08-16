@@ -61,12 +61,14 @@ import app.radiacode.ui.components.DoseChart
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.chart.ChartDataSource
+import app.radiacode.ui.chart.ChartContext
 import app.radiacode.ui.chart.ChartGesture
 import app.radiacode.ui.chart.ChartYAxis
 import app.radiacode.ui.chart.Viewport
 import app.radiacode.ui.chart.ViewportBounds
 import app.radiacode.ui.chart.Viewports
 import app.radiacode.ui.logic.ChartBucket
+import app.radiacode.ui.logic.LocalBackground
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.DoseScale
 import app.radiacode.ui.logic.ChartWindows
@@ -183,15 +185,17 @@ fun LiveChartScreen(
     onBack: () -> Unit,
     metric: ChartMetric = ChartMetric.DOSE,
     /**
-     * Фиксированный диапазон (сессия из Истории) вместо живого края.
+     * Откуда открыт график: живой край, сессия, маршрут или Поиск.
      *
      * Экран один и тот же намеренно: два графика с разной математикой уже
      * однажды разошлись между Главной и полным экраном, и человек искал на
-     * большом графике то, что видел на маленьком. Здесь меняется только КРАЙ —
-     * жесты, конверты, курсор, маркеры и статистика остаются те же.
+     * большом графике то, что видел на маленьком. От контекста зависит только
+     * КРАЙ времени, подпись чипа возврата и то, с чем сравнивает курсор
+     * (ТЗ §22); жесты, конверты, маркеры и статистика у всех одни.
      */
-    range: ChartRange? = null,
+    context: ChartContext = ChartContext.Live,
 ) {
+    val range = context.range
     val h = HistoryCatalogue.of(LocalStrings.current.language)
     val colors = LocalAppColors.current
     val settingsScope = rememberCoroutineScope()
@@ -254,8 +258,14 @@ fun LiveChartScreen(
             earliestMillis = range?.fromMillis,
             maxSpanMillis = maxSpan,
         )
+        // Живой график открывается ТАМ ЖЕ, где стоит карточка Главной: окно
+        // живёт в одном месте на обе стороны (`ChartCache.gestures`). Иначе тап
+        // по карточке не увеличивает картинку, а подменяет её другим временем —
+        // ровно та жалоба, из-за которой карточка и полный экран когда-то
+        // разошлись (Charts V2 §20).
+        val shared = graph.chartCache.gestures[metric]?.takeIf { range == null }
         mutableStateOf(
-            ChartGesture.of(
+            shared ?: ChartGesture.of(
                 if (range != null) {
                     val initial = ChartRanges.initialWindow(range, maxSpan)
                     Viewport(initial.fromMillis, initial.toMillis, followLiveEdge = false)
@@ -267,6 +277,13 @@ fun LiveChartScreen(
                 startBounds,
             ),
         )
+    }
+    // Окно, которое человек выбрал здесь, возвращается на карточку: это одна и
+    // та же картинка в двух размерах, и разъезжаться ей нельзя.
+    LaunchedEffect(gesture, historical) {
+        if (!historical) {
+            graph.chartCache.gestures = graph.chartCache.gestures + (metric to gesture)
+        }
     }
     val window = gesture.visible.window()
     val follow = gesture.visible.followLiveEdge
@@ -302,6 +319,9 @@ fun LiveChartScreen(
         if (historical) return@LaunchedEffect
         if (spanRestored) return@LaunchedEffect
         spanRestored = true
+        // Окно уже пришло с карточки — восстанавливать запомненную ступень
+        // значит отобрать у человека то, на что он только что смотрел.
+        if (graph.chartCache.gestures[metric] != null) return@LaunchedEffect
         val now = System.currentTimeMillis()
         // Ступень — максимум, а не обещание, что данные за неё есть: окно
         // открытия подтягивается к первому измерению. Только ОТКРЫТИЕ: дальше
@@ -514,6 +534,13 @@ fun LiveChartScreen(
         shownScale = target
     }
 
+    // Фон Поиска — только когда график открыт ИЗ Поиска и показывает ту же
+    // величину, в которой фон записан: сравнивать дозу с фоном в имп/с нечем.
+    val searchBackground by graph.localBackground.state.collectAsState()
+    val searchBackgroundCps = (searchBackground as? LocalBackground.Done)
+        ?.cps
+        ?.takeIf { context == ChartContext.Search && metric == ChartMetric.COUNT_RATE }
+
     val chart: @Composable (Modifier) -> Unit = { chartModifier ->
         Box(chartModifier.onSizeChanged { plotWidthPx = it.width.toFloat() }) {
             val f = frame
@@ -566,6 +593,7 @@ fun LiveChartScreen(
                     baseline = baseline,
                     alarmLevel = thresholds.l1MicroSvH,
                     eventTimesMillis = snapshot?.eventTimesMillis.orEmpty(),
+                    searchBackgroundCps = searchBackgroundCps,
                 )
             }
             if (f == null || f.spec.buckets.isEmpty()) {
@@ -594,7 +622,7 @@ fun LiveChartScreen(
                 onInfo = { infoOpen = true },
                 onJumpToEdge = ::jumpToEdge,
                 onOpenDetails = { detailsOpen = true },
-                range = range,
+                context = context,
                 atRange = range != null && ChartRanges.atFullRange(window, range, maxSpan),
             )
             Row(
@@ -667,7 +695,7 @@ fun LiveChartScreen(
             onInfo = { infoOpen = true },
             onJumpToEdge = ::jumpToEdge,
             metric = metric,
-            range = range,
+            context = context,
             atRange = range != null && ChartRanges.atFullRange(window, range, maxSpan),
         )
         chart(Modifier.weight(1f).fillMaxWidth())
@@ -856,10 +884,11 @@ private fun PortraitTopBar(
     onInfo: () -> Unit,
     onJumpToEdge: () -> Unit,
     metric: ChartMetric = ChartMetric.DOSE,
-    /** Исторический диапазон: живого значения у прошлого нет. */
-    range: ChartRange? = null,
+    /** Откуда открыт график: у прошлого нет живого значения. */
+    context: ChartContext = ChartContext.Live,
     atRange: Boolean = false,
 ) {
+    val range = context.range
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Column {
@@ -891,7 +920,7 @@ private fun PortraitTopBar(
                 RangeLabel(range, compact = true)
                 if (paused) FreshnessOrPause(Freshness.NoData, paused = true)
             }
-            EdgeChip(range = range, follow = follow, atRange = atRange, onClick = onJumpToEdge)
+            EdgeChip(context = context, follow = follow, atRange = atRange, onClick = onJumpToEdge)
             Chip(text = "i", color = colors.ink2, onClick = onInfo)
         }
         AppDivider()
@@ -906,7 +935,7 @@ private fun PortraitTopBar(
  */
 @Composable
 private fun EdgeChip(
-    range: ChartRange?,
+    context: ChartContext,
     follow: Boolean,
     atRange: Boolean,
     onClick: () -> Unit,
@@ -914,11 +943,15 @@ private fun EdgeChip(
     val colors = LocalAppColors.current
     val t = ChartTextCatalogue.of(LocalStrings.current.language)
     // У исторического графика «сейчас» не значит ничего: живой край относится
-    // к другому времени. Чип возвращает к диапазону сессии, а подсветка
-    // подчиняется тому же правилу — горит названное состояние.
-    val selected = if (range == null) follow else atRange
+    // к другому времени. Чип возвращает к тому, откуда график открыт, — и
+    // называет это словом: маршрут не сессия, хотя оба стоят на прошлом.
+    val selected = if (context.range == null) follow else atRange
     Chip(
-        text = if (range == null) t.nowChip else t.sessionChip,
+        text = when (context) {
+            ChartContext.Live, ChartContext.Search -> t.nowChip
+            is ChartContext.Session -> t.sessionChip
+            is ChartContext.Route -> t.routeChip
+        },
         color = if (selected) colors.dataText else colors.ink2,
         selected = selected,
         onClick = onClick,
@@ -990,9 +1023,10 @@ private fun BoxScope.LandscapeTopBar(
     onInfo: () -> Unit,
     onJumpToEdge: () -> Unit,
     onOpenDetails: () -> Unit,
-    range: ChartRange? = null,
+    context: ChartContext = ChartContext.Live,
     atRange: Boolean = false,
 ) {
+    val range = context.range
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Row(
@@ -1038,7 +1072,7 @@ private fun BoxScope.LandscapeTopBar(
         } else if (paused) {
             FreshnessOrPause(Freshness.NoData, paused = true)
         }
-        EdgeChip(range = range, follow = follow, atRange = atRange, onClick = onJumpToEdge)
+        EdgeChip(context = context, follow = follow, atRange = atRange, onClick = onJumpToEdge)
         Chip(text = "i", color = colors.ink2, onClick = onInfo)
     }
 }

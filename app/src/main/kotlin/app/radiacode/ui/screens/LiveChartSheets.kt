@@ -62,8 +62,6 @@ import app.radiacode.ui.components.DoseChart
 import app.radiacode.ui.components.StatCell
 import app.radiacode.ui.components.StatGrid
 import app.radiacode.ui.logic.ChartBucket
-import app.radiacode.ui.logic.ChartInteraction
-import app.radiacode.ui.logic.ChartInteractions
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.analysis.Hardness

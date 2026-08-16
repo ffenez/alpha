@@ -3,6 +3,7 @@ package app.radiacode.smoke
 import androidx.compose.ui.test.junit4.createComposeRule
 import app.radiacode.AppGraph
 import app.radiacode.ui.logic.ChartMetric
+import app.radiacode.ui.chart.ChartContext
 import app.radiacode.ui.logic.ChartRange
 import app.radiacode.ui.logic.SearchMode
 import app.radiacode.ui.logic.SpectrumViewOptions
@@ -201,7 +202,11 @@ class ScreenSmokeTest(variantId: String) {
         val (graph, seeded) = seededGraph()
         val now = System.currentTimeMillis()
         compose.showScreen(variant) {
-            LiveChartScreen(graph, onBack = {}, range = ChartRange(now - 150_000L, now))
+            LiveChartScreen(
+                graph,
+                onBack = {},
+                context = ChartContext.Session(ChartRange(now - 150_000L, now)),
+            )
         }
     }
 

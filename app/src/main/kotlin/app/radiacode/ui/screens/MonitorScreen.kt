@@ -135,6 +135,7 @@ import app.radiacode.ui.logic.ChartSnapshot
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartTrace
 import app.radiacode.ui.chart.ChartDataSource
+import app.radiacode.ui.chart.ChartGesture
 import app.radiacode.ui.chart.Viewport
 import app.radiacode.ui.chart.ViewportBounds
 import app.radiacode.ui.chart.Viewports
@@ -150,6 +151,13 @@ import kotlinx.coroutines.withContext
  * проход это запрос в базу.
  */
 private const val CHART_REFRESH_MILLIS = 15_000L
+
+/**
+ * Пауза, после которой кадр карточки пересобирается под то окно, в которое
+ * уехал палец. **Инженерный параметр**: те же 120 мс, что на полноэкранном
+ * графике, — рука уже стоит, а глаз ещё не начал разглядывать детали.
+ */
+private const val CHART_SETTLE_MILLIS = 120L
 
 /**
  * Доля окна, за которую картинка обязана обновиться хотя бы раз.
@@ -259,7 +267,7 @@ fun MonitorScreen(
     // собирал экран с нуля. Кэш хранит РЕЗУЛЬТАТ последнего чтения, поэтому
     // картинка появляется сразу, а свежесть догоняет обычным путём.
     val cache = graph.chartCache
-    var viewports by remember { mutableStateOf(cache.viewports) }
+    var gestures by remember { mutableStateOf(cache.gestures) }
     // Ширина поля каждой карточки в пикселях: от неё зависит число колонок
     // кадра ([ChartDownsampler]). Меряется самой карточкой и живёт здесь,
     // потому что кадр собирается здесь же.
@@ -315,7 +323,7 @@ fun MonitorScreen(
         ChartWindows.refreshMillis(shortestBucket)
     }
     val liveTick = live?.receivedAtMillis?.let { it / liveTickMillis }
-    LaunchedEffect(chartMetrics, savedSpans, resumeTick, liveTick, viewports) {
+    LaunchedEffect(chartMetrics, savedSpans, resumeTick, liveTick, gestures) {
         while (true) {
             val now = System.currentTimeMillis()
             val outcome = runCatching {
@@ -329,7 +337,7 @@ fun MonitorScreen(
                         ?: graph.measurementRepository.earliestSampleMillis()
                             ?.also { earliestMillis = it }
                     chartMetrics.associateWith { metric ->
-                        val viewport = viewports[metric]
+                        val viewport = gestures[metric]?.visible
                         val chosen = viewport
                             ?.let { Viewports.followTick(it, ViewportBounds(edgeMillis = now)) }
                             ?.window()
@@ -545,13 +553,27 @@ fun MonitorScreen(
                 earliestMillis = earliestMillis,
                 maxSpanMillis = ChartMetrics.maxSpanMillis(metric),
             )
-            val viewport = viewports[metric] ?: Viewports.atEdge(
-                ChartMetrics.startWindow(metric, savedSpans, nowMillis).spanMillis,
+            val gesture = gestures[metric] ?: ChartGesture.of(
+                Viewports.atEdge(
+                    ChartMetrics.startWindow(metric, savedSpans, nowMillis).spanMillis,
+                    bounds,
+                ),
                 bounds,
             )
-            fun setViewport(next: Viewport) {
-                viewports = viewports + (metric to next)
-                cache.viewports = viewports
+            val viewport = gesture.visible
+            fun setGesture(next: ChartGesture) {
+                gestures = gestures + (metric to next)
+                cache.gestures = gestures
+            }
+            // Кадр пересобирается, когда движение улеглось: пока палец водит
+            // карточку, двигается уже нарисованная картинка — ровно как на
+            // полноэкранном графике (Charts V2 §20: один движок, два размера).
+            var lastGestureAt by remember(metric) { mutableLongStateOf(0L) }
+            LaunchedEffect(lastGestureAt) {
+                if (lastGestureAt == 0L) return@LaunchedEffect
+                delay(CHART_SETTLE_MILLIS)
+                val current = gestures[metric] ?: return@LaunchedEffect
+                if (current.moved) setGesture(current.commit(bounds))
             }
             // Правый край кадра идёт за «сейчас» КАЖДУЮ СЕКУНДУ, не дожидаясь
             // следующего чтения базы: снимок неизменен, а окно — арифметика по
@@ -565,12 +587,12 @@ fun MonitorScreen(
             // чем два размера одной картинки отличаются (Charts V2 §20).
             val plotWidthPx = plotWidths[metric] ?: 0f
             val frame = remember(
-                loaded, unit, thresholds, baseline, alert, liveSecond, viewport, chartDetail,
-                plotWidthPx,
+                loaded, unit, thresholds, baseline, alert, liveSecond, gesture.frame,
+                gesture.rendered, chartDetail, plotWidthPx,
             ) {
                 loaded?.let {
                     val liveWindow = ChartWindows.limitedByHistory(
-                        Viewports.followTick(viewport, bounds).window(),
+                        Viewports.followTick(gesture.frame, bounds).window(),
                         it.earliestMillis,
                     )
                     buildFrame(
@@ -595,6 +617,7 @@ fun MonitorScreen(
                         // здесь нарисовано.
                         showDistantAlarm = false,
                         plotWidthPx = plotWidthPx,
+                        renderWindow = gesture.rendered,
                     )
                 }
             }
@@ -609,7 +632,10 @@ fun MonitorScreen(
                     if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
                 },
                 following = viewport.followLiveEdge,
-                onBackToNow = { setViewport(Viewports.jumpToEdge(viewport, bounds)) },
+                onBackToNow = {
+                    setGesture(gesture.withViewport(Viewports.jumpToEdge(viewport, bounds), bounds))
+                },
+                viewWindow = ChartWindows.withRightPadding(viewport.window()),
                 onOpenFromChart = {
                     if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
                 },
@@ -619,6 +645,7 @@ fun MonitorScreen(
                     }
                 },
                 onTransform = { panFraction, zoomFactor, focusFraction ->
+                    lastGestureAt = System.currentTimeMillis()
                     // Жест меняет ВРЕМЯ, а не картинку: из состояния получается
                     // окно, окно идёт в загрузку и в кадр. Готовое изображение
                     // не растягивается — иначе агрегация перестала бы отвечать
@@ -626,14 +653,15 @@ fun MonitorScreen(
                     // Щипок непрерывный и вокруг точки под пальцами — те же
                     // правила, что на полноэкранном графике: карточка и
                     // полный экран это один движок (Charts V2 §20).
-                    var next = viewport
+                    var next = gesture
                     if (zoomFactor != 1f) {
-                        next = Viewports.zoom(next, zoomFactor, focusFraction, bounds)
+                        next = next.zoom(zoomFactor, focusFraction, bounds)
                     }
                     if (panFraction != 0f) {
-                        next = Viewports.pan(next, -panFraction, bounds)
+                        next = next.pan(-panFraction, bounds)
                     }
-                    setViewport(next)
+                    // Уехали дальше нарисованного — ждать паузы нечего.
+                    setGesture(if (next.covered()) next else next.commit(bounds))
                 },
             )
         }
@@ -1196,6 +1224,13 @@ private fun MetricChartCard(
     onOpenFromChart: () -> Unit = {},
     /** Измеренная ширина поля — по ней кадр решает, сколько колонок рисовать. */
     onPlotWidth: (Float) -> Unit = {},
+    /**
+     * Окно, которое видно СЕЙЧАС, внутри посчитанного кадра.
+     *
+     * Пока идёт жест, кадр не пересобирается: меняется только это окно, и
+     * готовая картинка раскладывается по нему (`ChartGesture`).
+     */
+    viewWindow: ChartWindow? = null,
     onTransform: ((panFraction: Float, zoomFactor: Float, focusFraction: Float) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
@@ -1257,7 +1292,10 @@ private fun MetricChartCard(
                 )
             } else {
                 DoseChart(
-                    spec = frame.spec,
+                    spec = frame.spec.copy(
+                        viewFromMillis = viewWindow?.fromMillis,
+                        viewToMillis = viewWindow?.toMillis,
+                    ),
                     cursorFraction = cursor,
                     // Щипок меняет ступень, перетаскивание уводит в прошлое,
                     // двойное нажатие возвращает к «сейчас» — те же жесты, что

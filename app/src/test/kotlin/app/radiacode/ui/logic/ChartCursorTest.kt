@@ -17,52 +17,9 @@ class ChartCursorTest {
         sampleCount = 1,
     )
 
-    // --- live-follow / pause ---
-
-    @Test
-    fun `placing the crosshair suspends live-follow and shows the pause`() {
-        val state = ChartInteractions.cursorAt(ChartInteraction(follow = true), 0.4f)
-        assertFalse(state.follow)
-        assertEquals(0.4f, state.cursorFraction)
-        assertTrue(state.paused)
-    }
-
-    @Test
-    fun `the crosshair fraction is clamped to the plot`() {
-        assertEquals(0f, ChartInteractions.cursorAt(ChartInteraction(), -3f).cursorFraction)
-        assertEquals(1f, ChartInteractions.cursorAt(ChartInteraction(), 9f).cursorFraction)
-    }
-
-    @Test
-    fun `dismissing resumes following only at the live edge`() {
-        val paused = ChartInteractions.cursorAt(ChartInteraction(), 0.5f)
-        assertTrue(ChartInteractions.dismissCursor(paused, atLiveEdge = true).follow)
-        assertFalse(ChartInteractions.dismissCursor(paused, atLiveEdge = false).follow)
-        assertNull(ChartInteractions.dismissCursor(paused, atLiveEdge = false).cursorFraction)
-    }
-
-    @Test
-    fun `a pan into the past stops following, a pan back to now resumes it`() {
-        val live = ChartInteraction(follow = true)
-        assertFalse(ChartInteractions.afterTransform(live, atLiveEdge = false).follow)
-        val parked = ChartInteraction(follow = false)
-        assertTrue(ChartInteractions.afterTransform(parked, atLiveEdge = true).follow)
-    }
-
-    @Test
-    fun `a transform always drops the crosshair, it referred to another range`() {
-        val withCursor = ChartInteraction(follow = false, cursorFraction = 0.3f)
-        assertNull(ChartInteractions.afterTransform(withCursor, atLiveEdge = false).cursorFraction)
-    }
-
-    @Test
-    fun `jump to now and period change are both fully live states`() {
-        for (state in listOf(ChartInteractions.jumpToNow(), ChartInteractions.periodChanged())) {
-            assertTrue(state.follow)
-            assertNull(state.cursorFraction)
-            assertFalse(state.paused)
-        }
-    }
+    // Правила слежения и паузы переехали в движок графика: они теперь
+    // свойства окна, а не отдельного состояния экрана — см. `ViewportTest` и
+    // `ChartGestureTest` в `ui/chart`.
 
     // --- column lookup ---
 

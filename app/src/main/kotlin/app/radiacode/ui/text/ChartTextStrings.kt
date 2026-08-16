@@ -97,6 +97,16 @@ interface ChartTextStrings {
     /** Подпись свёрнутого курсора: остальное — по нажатию. */
     val cursorMoreDetails: String
     /** «3 события» в карточке курсора и что они означают. */
+    /**
+     * Отношение к записанному фону Поиска — со ЗНАМЕНАТЕЛЕМ: «×2,4 к фону
+     * поиска 25,5 имп/с». Отношение без названного знаменателя утверждением не
+     * является (правило вывода).
+     */
+    fun cursorSearchBackground(ratio: String, background: String): String
+
+    /** Фон Поиска записан, но курсор стоит не выше него. */
+    val cursorSearchBackgroundBelow: String
+
     fun cursorEvents(count: Int): String
     val cursorEventsNote: String
     val distribution: String
@@ -106,6 +116,9 @@ interface ChartTextStrings {
 
     /** Исторический режим вместо «⌖ сейчас»: вернуться к диапазону сессии. */
     val sessionChip: String
+
+    /** То же для маршрута: вернуться к отрезку времени записанного следа. */
+    val routeChip: String
 
     /** Шапка исторического графика: «12 авг 14:03–16:18 · 2 ч 15 мин». */
     fun sessionRangeLabel(range: String, duration: String): String
@@ -265,12 +278,16 @@ object ChartTextRu : ChartTextStrings {
         count % 10 in 2..4 && count % 100 !in 12..14 -> "$count события"
         else -> "$count событий"
     }
+    override fun cursorSearchBackground(ratio: String, background: String) =
+        "×$ratio к фону поиска $background"
+    override val cursorSearchBackgroundBelow = "не выше фона поиска"
     override val cursorEventsNote = "кратковременные отклонения"
     override val distribution = "Распределение"
     override val windowStatistics = "Статистика окна"
 
     override val nowChip = "⌖ сейчас"
     override val sessionChip = "⌖ сессия"
+    override val routeChip = "⌖ маршрут"
     override fun sessionRangeLabel(range: String, duration: String) = "$range · $duration"
     override val pausedChip = "пауза"
     override val logChip = "лог"
@@ -433,12 +450,16 @@ object ChartTextEn : ChartTextStrings {
     override val cursorMoreDetails = "tap for details"
     override fun cursorEvents(count: Int) =
         if (count == 1) "$count event" else "$count events"
+    override fun cursorSearchBackground(ratio: String, background: String) =
+        "×$ratio of the search background $background"
+    override val cursorSearchBackgroundBelow = "not above the search background"
     override val cursorEventsNote = "short deviations"
     override val distribution = "Distribution"
     override val windowStatistics = "Window statistics"
 
     override val nowChip = "⌖ now"
     override val sessionChip = "⌖ session"
+    override val routeChip = "⌖ route"
     override fun sessionRangeLabel(range: String, duration: String) = "$range · $duration"
     override val pausedChip = "paused"
     override val logChip = "log"
@@ -497,10 +518,12 @@ fun ChartTextStrings.allTexts(): List<String> = listOf(
     smoothChip, detailNote, smoothedNote,
     logScaleNote, logScaleDroppedNote(3),
     gestureZoomPan, gestureCursor, gestureMarkerTap, gestureDoubleTap, gestureDoubleTapRange,
-    historicalRangeNote, sessionChip, sessionRangeLabel("12 авг 14:03–16:18", "2 ч 15 мин"),
+    historicalRangeNote, sessionChip, routeChip, sessionRangeLabel("12 авг 14:03–16:18", "2 ч 15 мин"),
     loadingLog, emptyWindow, windowLabel("6ч"), windowSheetTitle("6ч"),
     windowStatsLine("0,09", "0,11", "0,14", "21 600", "6ч"),
-    moreDetails, eventsChip, cursorMoreDetails, cursorEvents(1), cursorEvents(3), cursorEvents(11),
+    moreDetails, eventsChip, cursorMoreDetails,
+    cursorSearchBackground("2,4", "25,5"), cursorSearchBackgroundBelow,
+    cursorEvents(1), cursorEvents(3), cursorEvents(11),
     cursorEventsNote, distribution, windowStatistics,
     nowChip, pausedChip, logChip, linearChip, allHistory, windowPicker, resetScale,
     median, min, max, samplesLabel, spreadDefinitions,

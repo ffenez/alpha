@@ -35,7 +35,7 @@ import app.radiacode.ui.logic.NavConfig
 import app.radiacode.ui.screens.DoseScreen
 import app.radiacode.ui.screens.AbExperimentScreen
 import app.radiacode.ui.logic.ChartMetric
-import app.radiacode.ui.logic.ChartRange
+import app.radiacode.ui.chart.ChartContexts
 import app.radiacode.ui.screens.FingerprintScreen
 import app.radiacode.ui.screens.FoodScreen
 import app.radiacode.ui.screens.HistoryScreen
@@ -141,6 +141,9 @@ private fun MainScaffoldContent(graph: AppGraph) {
     // Полноэкранный график, открытый для ДИАПАЗОНА сессии: границы живут
     // здесь, потому что экран графика один и тот же, а край времени у него
     // может быть либо «сейчас», либо конец этой сессии.
+    // Откуда открыт полноэкранный график: от этого зависят край времени,
+    // подпись чипа возврата и то, с чем сравнивает курсор (`ChartContext`).
+    var chartContextId by rememberSaveable { mutableStateOf(ChartContexts.LIVE) }
     var chartRangeFrom by rememberSaveable { mutableStateOf<Long?>(null) }
     var chartRangeTo by rememberSaveable { mutableStateOf<Long?>(null) }
     // Снимок спектра из Истории, открытый на просмотр.
@@ -239,7 +242,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
             metric = ChartMetric.of(chartMetricId),
             // Диапазон есть — график стоит на прошлом; нет — едет за живым
             // краем. Экран один, различается только край.
-            range = if (from != null && to != null) ChartRange(from, to) else null,
+            context = ChartContexts.of(chartContextId, from, to),
         )
         return
     }
@@ -310,6 +313,9 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     onBack = { trackMapSessionId = null },
                     onOpenChart = { from, to ->
                         chartMetricId = ChartMetric.DOSE.id
+                        // Открыто со следа на карте: это маршрут, и чип
+                        // возврата обязан называть его маршрутом.
+                        chartContextId = ChartContexts.ROUTE
                         chartRangeFrom = from
                         chartRangeTo = to
                         showLiveChart = true
@@ -322,6 +328,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     onOpenTrack = { trackMapSessionId = key.detailId },
                     onOpenChart = { from, to ->
                         chartMetricId = ChartMetric.DOSE.id
+                        chartContextId = ChartContexts.SESSION
                         chartRangeFrom = from
                         chartRangeTo = to
                         showLiveChart = true
@@ -342,12 +349,14 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     onOpenChart = {
                         chartMetricId = ChartMetric.DOSE.id
                         // С Главной график живой: диапазон снимается.
+                        chartContextId = ChartContexts.LIVE
                         chartRangeFrom = null
                         chartRangeTo = null
                         showLiveChart = true
                     },
                     onOpenMetricChart = { metric ->
                         chartMetricId = metric.id
+                        chartContextId = ChartContexts.LIVE
                         chartRangeFrom = null
                         chartRangeTo = null
                         showLiveChart = true
@@ -369,6 +378,9 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     // двух размерах: тап открывает счёт во весь экран.
                     onOpenChart = {
                         chartMetricId = ChartMetric.COUNT_RATE.id
+                        // Открыто из Поиска: курсор там сравнивает с
+                        // записанным фоном поиска.
+                        chartContextId = ChartContexts.SEARCH
                         chartRangeFrom = null
                         chartRangeTo = null
                         showLiveChart = true
@@ -391,6 +403,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     onOpenSession = { sessionDetailId = it },
                     onOpenChart = { from, to ->
                         chartMetricId = ChartMetric.DOSE.id
+                        chartContextId = ChartContexts.SESSION
                         chartRangeFrom = from
                         chartRangeTo = to
                         showLiveChart = true

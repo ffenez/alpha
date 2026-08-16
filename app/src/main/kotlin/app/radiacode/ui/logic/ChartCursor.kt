@@ -6,53 +6,6 @@ import app.radiacode.ui.text.ChartAxisStrings
 import java.util.Locale
 
 /**
- * Interaction state of the fullscreen chart: whether the right edge follows
- * «сейчас» and where the crosshair sits.
- *
- * The rule the screen must never break: **a visible crosshair suspends
- * live-follow**. Otherwise the series would slide out from under the reading
- * the user is looking at. While it is suspended the top bar carries a «пауза»
- * chip, so the screen never silently stops being live (SPEC §21 — freshness
- * is always visible).
- */
-data class ChartInteraction(
-    val follow: Boolean = true,
-    /** Plot fraction 0..1 of the crosshair; null = no crosshair. */
-    val cursorFraction: Float? = null,
-) {
-    /** True while the chart deliberately does not track «сейчас». */
-    val paused: Boolean get() = cursorFraction != null
-}
-
-object ChartInteractions {
-
-    /** Long-press or drag: place the crosshair and suspend live-follow. */
-    fun cursorAt(state: ChartInteraction, fraction: Float): ChartInteraction =
-        ChartInteraction(follow = false, cursorFraction = fraction.coerceIn(0f, 1f))
-
-    /**
-     * Tap outside the crosshair: drop it. Following resumes only if the window
-     * is still at the live edge — a chart panned into the past stays there.
-     */
-    fun dismissCursor(state: ChartInteraction, atLiveEdge: Boolean): ChartInteraction =
-        ChartInteraction(follow = atLiveEdge, cursorFraction = null)
-
-    /** «⌖ сейчас»: back to the live edge, crosshair dropped. */
-    fun jumpToNow(): ChartInteraction = ChartInteraction(follow = true, cursorFraction = null)
-
-    /**
-     * After a pan/pinch: following resumes by itself when the window came back
-     * to the live edge; the crosshair is dropped because it referred to a
-     * different time range.
-     */
-    fun afterTransform(state: ChartInteraction, atLiveEdge: Boolean): ChartInteraction =
-        ChartInteraction(follow = atLiveEdge, cursorFraction = null)
-
-    /** Period chip: a fresh live window. */
-    fun periodChanged(): ChartInteraction = jumpToNow()
-}
-
-/**
  * What a ratio is divided by. CHART SPEC §17: a ratio without its denominator
  * named is not a statement — «×4,8 к привычному» is forbidden wording.
  */

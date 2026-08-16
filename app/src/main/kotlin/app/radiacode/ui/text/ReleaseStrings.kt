@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v071Title: String
+    val v071Summary: String
+
     val v070Title: String
     val v070Summary: String
 
@@ -171,6 +174,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v071Title = "Карточка и полный экран — одно окно"
+    override val v071Summary =
+        "Тап по карточке открывает ровно то время, которое на ней видно, и " +
+        "возвращает выбранное обратно. Из Поиска курсор называет отношение к " +
+        "записанному фону поиска, а чип возврата к маршруту так и называется."
 
     override val v070Title = "Окно выбирают сеткой, а не прокруткой"
     override val v070Summary =
@@ -528,6 +537,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v071Title = "The card and the full screen share one window"
+    override val v071Summary =
+        "Tapping the card opens exactly the time visible on it and hands the chosen " +
+        "window back. Opened from Поиск, the cursor names the ratio to the recorded " +
+        "search background, and the chip back to a route says «route»."
 
     override val v070Title = "The window is picked from a grid, not a scroll strip"
     override val v070Summary =
