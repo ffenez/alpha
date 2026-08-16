@@ -37,9 +37,25 @@ object TimeAxis {
         var tick = -Math.floorDiv(-(fromMillis + offsetMillis), stepMillis) * stepMillis -
             offsetMillis
         val result = mutableListOf<Pair<Float, String>>()
+        // Первая метка нового дня несёт ЧИСЛО.
+        //
+        // На окне короче двух суток подписи были только часами, и переход
+        // через полночь ничем не отмечался: «23:00 · 01:00 · 03:00» читается
+        // как один вечер, хотя между второй и третьей меткой сменилась дата.
+        // Числа у КАЖДОЙ метки при этом не нужны — повторённое четыре раза
+        // «3 авг» не различает ничего.
+        var previousDate = Instant.ofEpochMilli(fromMillis).atZone(zone).toLocalDate()
         while (tick <= toMillis) {
             val fraction = (tick - fromMillis).toFloat() / window
-            result += fraction to Instant.ofEpochMilli(tick).atZone(zone).format(HH_MM)
+            val moment = Instant.ofEpochMilli(tick).atZone(zone)
+            val clock = moment.format(HH_MM)
+            val date = moment.toLocalDate()
+            result += fraction to if (date != previousDate) {
+                HistoryFormat.day(tick, zone) + " " + clock
+            } else {
+                clock
+            }
+            previousDate = date
             tick += stepMillis
         }
         return result

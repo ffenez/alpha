@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v066Title: String
+    val v066Summary: String
+
     val v065Title: String
     val v065Summary: String
 
@@ -156,6 +159,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v066Title = "На оси графика видно, где сменился день"
+    override val v066Summary =
+        "Первая метка нового дня теперь несёт число: «3 авг 00:00». Раньше окно " +
+        "короче двух суток подписывалось только часами, и «23:00 · 01:00» " +
+        "читалось как один вечер, хотя между метками сменилась дата."
 
     override val v065Title = "Панель графика — окно, шкала и «⋯»"
     override val v065Summary =
@@ -480,6 +489,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v066Title = "The chart axis shows where the day changed"
+    override val v066Summary =
+        "The first label of a new day now carries the date: «3 авг 00:00». A " +
+        "window shorter than two days used to be labelled by the clock alone, and " +
+        "«23:00 · 01:00» read as one evening though the date had changed between them."
 
     override val v065Title = "The chart panel is the window, the scale and «⋯»"
     override val v065Summary =
@@ -813,6 +828,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v066Title, v066Summary,
     v065Title, v065Summary,
     v064Title, v064Summary,
     v063Title, v063Summary,
