@@ -590,6 +590,10 @@ object RuStrings : Strings {
     override val unitMicroR = "мкР/ч"
     override val unitDoseMicroSv = "мкЗв"
     override val unitDoseMicroR = "мкР"
+    override val colorsTitle = "Цвета"
+    override val homeLayoutTitle = "Главная"
+    override val hintsNote = "Короткие подсказки рядом со сложными показателями."
+    override val doseTintNote = "Главное значение меняет цвет при заметном отличии от обычного."
     override val interfaceTitle = "Интерфейс"
     override val atLeastOneTab = "Кроме Главной должна остаться хотя бы одна вкладка."
     override val monitorBlocksNote =

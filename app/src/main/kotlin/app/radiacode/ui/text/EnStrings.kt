@@ -597,6 +597,10 @@ object EnStrings : Strings {
     override val unitMicroR = "µR/h"
     override val unitDoseMicroSv = "µSv"
     override val unitDoseMicroR = "µR"
+    override val colorsTitle = "Colours"
+    override val homeLayoutTitle = "Home"
+    override val hintsNote = "Short prompts next to the harder numbers."
+    override val doseTintNote = "The main value changes colour when it differs noticeably from usual."
     override val interfaceTitle = "Interface"
     override val atLeastOneTab = "Besides Monitor, at least one tab has to remain."
     override val monitorBlocksNote =

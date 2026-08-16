@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v076Title: String
+    val v076Summary: String
+
     val v075Title: String
     val v075Summary: String
 
@@ -186,6 +189,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v076Title = "«Интерфейс» и «Прибор» — на том же языке"
+    override val v076Summary =
+        "Язык, оформление, единицы и шкала карты стали строками со значением, тема " +
+        "осталась выбором целиком, цвета и настройка Главной разъехались по своим " +
+        "группам. У прибора сверху сводка — имя, связь, батарея, температура, поток, " +
+        "— а «Калибровка по природному фону» честно названа проверкой: она ничего не " +
+        "калибрует в приборе."
 
     override val v075Title = "Настройки показывают, что выбрано"
     override val v075Summary =
@@ -575,6 +586,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v076Title = "«Interface» and «Instrument» speak the same language"
+    override val v076Summary =
+        "Language, skin, units and the map scale became rows with a value, the theme " +
+        "stayed a choice in full, and colours and the Home layout moved into their own " +
+        "groups. The instrument opens with a summary — name, link, battery, temperature, " +
+        "stream — and «calibration from natural background» is honestly called a check: " +
+        "it calibrates nothing in the instrument."
 
     override val v075Title = "Settings show what is set"
     override val v075Summary =

@@ -24,6 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -148,6 +150,52 @@ fun SettingRow(
         }
         trailing?.invoke()
         if (onClick != null && trailing == null) NavArrow()
+    }
+}
+
+/**
+ * Строка редкого выбора: значение справа, варианты — списком поверх.
+ *
+ * Язык, оформление, единицы меняют раз в жизни прибора. Постоянный
+ * сегментированный переключатель ради такого выбора занимает строку экрана
+ * навсегда и уравнивает редкое с частым; строка со значением показывает то же
+ * самое одним словом, а список открывается по нажатию.
+ *
+ * Список — всплывающий, а не выезжающий снизу: он остаётся РЯДОМ со строкой,
+ * из которой открыт, поэтому видно, что именно выбирают. Модальная панель на
+ * пол-экрана ради двух вариантов прячет сам вопрос.
+ */
+@Composable
+fun <T> ChoiceSettingRow(
+    title: String,
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        SettingRow(
+            title = title,
+            subtitle = subtitle,
+            value = label(selected),
+            onClick = { open = true },
+        )
+        AppMenu(expanded = open, onDismiss = { open = false }, alignment = Alignment.BottomEnd) {
+            for (option in options) {
+                AppMenuItem(
+                    text = label(option),
+                    state = if (option == selected) "•" else null,
+                    stateOn = option == selected,
+                    onClick = {
+                        open = false
+                        if (option != selected) onSelect(option)
+                    },
+                )
+            }
+        }
     }
 }
 

@@ -73,6 +73,7 @@ import app.radiacode.ui.components.AppTab
 import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.AppSwitch
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.ChoiceSettingRow
 import app.radiacode.ui.components.SettingRow
 import app.radiacode.ui.components.SettingsDivider
 import app.radiacode.ui.components.SettingsSection
@@ -247,23 +248,12 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                 BaselineSection(graph)
             }
             SettingsCategory.SOUND -> SoundSection(graph)
-            SettingsCategory.VIEW -> {
-                LanguageSection(graph)
-                SkinSection(graph)
-                ThemeSection(graph)
-                ScaleSection(graph)
-                UnitsSection(graph)
-                InterfaceSection(graph)
-            }
+            SettingsCategory.VIEW -> InterfaceScreen(graph)
             SettingsCategory.DEVICE -> {
                 if (calibrationOpen) {
                     CalibrationScreen(graph) { calibrationOpen = false }
                 } else {
-                    DeviceSection(graph)
-                    BootSection(graph)
-                    DeviceSignalsSection(graph)
-                    SpectralRangesSection(graph)
-                    CalibrationEntry { calibrationOpen = true }
+                    DeviceScreen(graph) { calibrationOpen = true }
                 }
             }
             // Всё, что не ежедневная настройка: хранилище, темп фоновой записи
@@ -373,36 +363,6 @@ private class SettingsSummaries(
         if (category == SettingsCategory.DEVICE) deviceTitle else null
 }
 
-/** Вход в диагностику калибровки по природному фону (Настройки → Прибор). */
-@Composable
-private fun CalibrationEntry(onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val c = CalibrationCatalogue.of(LocalStrings.current.language)
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = Dimens.touchTarget)
-                .clickable(onClick = onClick),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(text = c.entryTitle, style = type.label, color = colors.ink)
-                Text(text = c.entrySubtitle, style = type.footnote, color = colors.muted)
-            }
-            NavArrow()
-        }
-    }
-}
-
-// --- Звук ---
-
-/**
- * Всё, что звучит и вибрирует, в одном месте: отклик Поиска (тот же самый
- * выбор, что на экране Поиска — одна настройка, две двери) и ссылка на
- * системный канал тревоги.
- */
 @Composable
 private fun SoundSection(graph: AppGraph) {
     val colors = LocalAppColors.current
@@ -795,91 +755,238 @@ private fun trackDiagnostics(graph: AppGraph, nowMillis: Long): TrackDiagnostics
 private val FILE_STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm")
 private val REPORT_STAMP = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
 
-// --- Вид: тема ---
+// --- Интерфейс ---
 
 /**
- * Язык интерфейса.
+ * Настройки → Интерфейс: как приложение выглядит и что показывает.
  *
- * Переключается мгновенно, без пересоздания активности: язык — это выбор
- * каталога строк, а не системная локаль процесса. Список открытый — добавить
- * язык значит добавить каталог.
+ * Экран собран из четырёх групп вместо восьми карточек: язык, оформление,
+ * тема и единицы отвечают на вопрос «как это выглядит», масштаб — «какого
+ * размера», цвета — «что подсвечивать», Главная — «что на ней есть». Редкий
+ * выбор (язык, стиль, единицы, шкала карты) стоит строкой со значением и
+ * раскрывается списком: постоянный переключатель ради выбора, который делают
+ * раз в жизни прибора, занимает строку экрана навсегда.
  */
 @Composable
-private fun LanguageSection(graph: AppGraph) {
-    val colors = LocalAppColors.current
+private fun InterfaceScreen(graph: AppGraph) {
     val strings = LocalStrings.current
-    val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
-    val current by graph.settings.language.collectAsState(initial = AppLanguage.SYSTEM)
+    val language by graph.settings.language.collectAsState(initial = AppLanguage.SYSTEM)
+    val skin by graph.settings.skin.collectAsState(initial = AppSkin.TERMINAL)
+    val theme by graph.settings.themeSetting.collectAsState(initial = ThemeSetting.SYSTEM)
+    val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle(strings.languageTitle)
-            Segmented(
-                options = AppLanguage.entries.map {
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        SettingsSection(title = strings.interfaceTitle) {
+            ChoiceSettingRow(
+                title = strings.languageTitle,
+                options = AppLanguage.entries,
+                selected = language,
+                label = {
                     if (it == AppLanguage.SYSTEM) strings.languageSystem else it.nativeName
                 },
-                selectedIndex = AppLanguage.entries.indexOf(current),
-                onSelect = { index ->
-                    scope.launch { graph.settings.setLanguage(AppLanguage.entries[index]) }
-                },
-                modifier = Modifier.fillMaxWidth(),
+                onSelect = { scope.launch { graph.settings.setLanguage(it) } },
             )
-        }
-    }
-}
-
-
-/**
- * Вариант оформления.
- *
- * Отдельно от светлой/тёмной темы: та отвечает на вопрос «сколько вокруг
- * света», а этот — «как это выглядит». 8-bit существует и в светлом, и в
- * тёмном варианте, и меняет только токены — цвета, шрифт и радиусы, — не
- * трогая ни формулировки, ни расчёты.
- */
-@Composable
-private fun SkinSection(graph: AppGraph) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val type = LocalAppTypography.current
-    val scope = rememberCoroutineScope()
-    val current by graph.settings.skin.collectAsState(initial = AppSkin.TERMINAL)
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle(strings.skinTitle)
-            Segmented(
-                options = AppSkin.entries.map { it.title(strings) },
-                selectedIndex = AppSkin.entries.indexOf(current),
-                onSelect = { index ->
-                    scope.launch { graph.settings.setSkin(AppSkin.entries[index]) }
-                },
-                modifier = Modifier.fillMaxWidth(),
+            SettingsDivider()
+            // Оформление — не то же, что тема: тема отвечает на вопрос
+            // «сколько вокруг света», оформление — «как это выглядит».
+            ChoiceSettingRow(
+                title = strings.skinTitle,
+                options = AppSkin.entries,
+                selected = skin,
+                label = { it.title(strings) },
+                onSelect = { scope.launch { graph.settings.setSkin(it) } },
             )
-        }
-    }
-}
-
-@Composable
-private fun ThemeSection(graph: AppGraph) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val type = LocalAppTypography.current
-    val scope = rememberCoroutineScope()
-    val theme by graph.settings.themeSetting.collectAsState(initial = ThemeSetting.SYSTEM)
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle(strings.themeTitle)
-            Segmented(
+            SettingsDivider()
+            // Тему меняют часто и понимают сразу — она стоит выбором целиком.
+            SettingsChoiceRowInline(
+                title = strings.themeTitle,
                 options = ThemeSetting.entries.map { it.title(strings) },
                 selectedIndex = ThemeSetting.entries.indexOf(theme),
                 onSelect = { index ->
-                    scope.launch { graph.settings.setThemeSetting(ThemeSetting.entries[index]) }
+                    scope.launch {
+                        graph.settings.setThemeSetting(ThemeSetting.entries[index])
+                    }
                 },
-                modifier = Modifier.fillMaxWidth(),
             )
+            SettingsDivider()
+            ChoiceSettingRow(
+                title = strings.unitsTitle,
+                options = listOf(DoseUnitSetting.MICRO_SIEVERT, DoseUnitSetting.MICRO_ROENTGEN),
+                selected = unit,
+                label = {
+                    if (it == DoseUnitSetting.MICRO_SIEVERT) strings.unitMicroSv else strings.unitMicroR
+                },
+                onSelect = { scope.launch { graph.settings.setDoseUnit(it) } },
+            )
+        }
+        ScaleSection(graph)
+        ColorsSection(graph)
+        HomeLayoutSection(graph)
+    }
+}
+
+/**
+ * Частый выбор прямо в строке: название слева, сегменты справа.
+ *
+ * Отдельный элемент, а не строка с раскрытием, ровно для тех настроек, где
+ * вариантов два-три и их меняют по ходу дела: лишнее нажатие ради выбора,
+ * который и так виден целиком, — это работа на пустом месте.
+ */
+@Composable
+private fun SettingsChoiceRowInline(
+    title: String,
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    weight: Float = 1.4f,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTarget)
+            .padding(horizontal = Dimens.space3, vertical = Dimens.space2),
+    ) {
+        Text(
+            text = title,
+            style = type.body,
+            color = colors.ink,
+            modifier = Modifier.weight(1f),
+        )
+        Segmented(
+            options = options,
+            selectedIndex = selectedIndex.coerceAtLeast(0),
+            onSelect = onSelect,
+            modifier = Modifier.weight(weight),
+        )
+    }
+}
+
+/**
+ * Цвета: чем приложение подсвечивает отклонение и чем красит след на карте.
+ *
+ * Настройки, зависящие от выключателя, ПОЯВЛЯЮТСЯ, а не тускнеют: строка,
+ * которую нельзя нажать, занимает место и заставляет гадать, чем её включить.
+ */
+@Composable
+private fun ColorsSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val strings = LocalStrings.current
+    val type = LocalAppTypography.current
+    val scope = rememberCoroutineScope()
+    val hints by graph.settings.hintsVisible.collectAsState(initial = false)
+    val tint by graph.settings.doseTint.collectAsState(initial = true)
+    val factor by graph.settings.doseTintFactor.collectAsState(initial = DoseTint.DEFAULT_FACTOR)
+    val mapScale by graph.settings.mapColorScale.collectAsState(initial = MapColorScale.ABSOLUTE)
+
+    SettingsSection(title = strings.colorsTitle) {
+        // Пояснения объясняют экран, а не измеряют: тому, кто носит прибор
+        // каждый день, они через неделю становятся шумом. Состояния («нет
+        // связи», «прибор не подключён») выключатель НЕ трогает — экран без
+        // них выглядел бы работающим, когда он не работает.
+        SwitchSettingRow(
+            title = strings.hintsTitle,
+            subtitle = strings.hintsNote,
+            checked = hints,
+            onChange = { on -> scope.launch { graph.settings.setHintsVisible(on) } },
+        )
+        SettingsDivider()
+        // Цвет главного числа читается быстрее слов, но кому-то меняющийся
+        // оттенок мешает — поэтому выключатель, а не умолчание.
+        SwitchSettingRow(
+            title = strings.doseTintTitle,
+            subtitle = strings.doseTintNote,
+            checked = tint,
+            onChange = { on -> scope.launch { graph.settings.setDoseTint(on) } },
+        )
+        AnimatedVisibility(
+            visible = tint,
+            enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
+            exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
+        ) {
+            Column {
+                SettingsDivider()
+                // Множитель, а не абсолютное значение: у каждого места свой
+                // уровень, и «от 0,30» означало бы в одном месте вдвое выше
+                // обычного, а в другом — вдесятеро.
+                SettingsChoiceRowInline(
+                    title = strings.doseTintFactorTitle,
+                    options = DoseTint.FACTORS.map {
+                        strings.doseTintFactorLabel(DoseTint.factorLabel(it))
+                    },
+                    selectedIndex = DoseTint.FACTORS.indexOfFirst { it == factor },
+                    onSelect = { index ->
+                        scope.launch { graph.settings.setDoseTintFactor(DoseTint.FACTORS[index]) }
+                    },
+                )
+            }
+        }
+        SettingsDivider()
+        // Чем заданы границы цвета следа на карте. Растяжение по маршруту —
+        // аналитический режим: оно находит малые различия, но красит ровную
+        // прогулку во всю шкалу, поэтому выбирается осознанно.
+        ChoiceSettingRow(
+            title = strings.mapScaleTitle,
+            options = MapColorScale.entries,
+            selected = mapScale,
+            label = {
+                when (it) {
+                    MapColorScale.ABSOLUTE -> strings.mapScaleAbsolute
+                    MapColorScale.ROUTE_CONTRAST -> strings.mapScaleContrast
+                    MapColorScale.MANUAL -> strings.mapScaleManual
+                }
+            },
+            onSelect = { scope.launch { graph.settings.setMapColorScale(it) } },
+        )
+        AnimatedVisibility(
+            visible = mapScale == MapColorScale.MANUAL,
+            enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
+            exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
+        ) {
+            val doseAnchors by graph.settings.manualDoseAnchors
+                .collectAsState(initial = TrackMap.DEFAULT_MANUAL_DOSE)
+            val cpsAnchors by graph.settings.manualCpsAnchors
+                .collectAsState(initial = TrackMap.DEFAULT_MANUAL_CPS)
+            var doseText by remember(doseAnchors) { mutableStateOf(MapAnchors.format(doseAnchors)) }
+            var cpsText by remember(cpsAnchors) { mutableStateOf(MapAnchors.format(cpsAnchors)) }
+            Column(
+                modifier = Modifier.padding(
+                    start = Dimens.space3,
+                    end = Dimens.space3,
+                    bottom = Dimens.space3,
+                ),
+                verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+            ) {
+                // Границы ручной шкалы — по одной строке на величину: у дозы и
+                // у счёта они физически разные, и общей быть не может.
+                AppTextField(
+                    value = doseText,
+                    onValueChange = {
+                        doseText = it
+                        scope.launch { graph.settings.setManualDoseAnchors(it) }
+                    },
+                    placeholder = strings.mapScaleDoseAnchors,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                AppTextField(
+                    value = cpsText,
+                    onValueChange = {
+                        cpsText = it
+                        scope.launch { graph.settings.setManualCpsAnchors(it) }
+                    },
+                    placeholder = strings.mapScaleCpsAnchors,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = strings.mapScaleManualHint,
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
         }
     }
 }
@@ -950,15 +1057,134 @@ private fun BaselineSection(graph: AppGraph) {
 // --- Прибор ---
 
 /**
+ * Настройки → Прибор: состояние связи, что делать после перезагрузки, сигналы
+ * самого прибора и спектральный анализ.
+ *
+ * Сверху — компактная сводка состояния: имя прибора, связь, батарея,
+ * температура, поток. Это не настройка, а ответ на вопрос «а он вообще на
+ * связи», с которого экран и открывают; поэтому она стоит до списка, а не
+ * растворена в нём строками «модель», «серийник», «прошивка».
+ */
+@Composable
+private fun DeviceScreen(graph: AppGraph, onOpenCalibration: () -> Unit) {
+    val strings = LocalStrings.current
+    val scope = rememberCoroutineScope()
+    val startOnBoot by graph.settings.startOnBoot.collectAsState(initial = false)
+
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        DeviceStatusCard(graph)
+        SettingsSection {
+            SwitchSettingRow(
+                title = strings.startOnBootTitle,
+                subtitle = strings.startOnBootNote,
+                checked = startOnBoot,
+                onChange = { on -> scope.launch { graph.settings.setStartOnBoot(on) } },
+            )
+        }
+        DeviceSignalsSection(graph)
+        SpectralAnalysisSection(graph, onOpenCalibration)
+    }
+}
+
+/**
+ * Сводка о приборе: имя, связь и живые числа.
+ *
+ * Числа стоят рядом друг с другом, а не строками «подпись — значение» на всю
+ * ширину: батарею, температуру и поток читают вместе, одним взглядом.
+ */
+@Composable
+private fun DeviceStatusCard(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val strings = LocalStrings.current
+    val type = LocalAppTypography.current
+    val connection by graph.serviceStatus.connection.collectAsState()
+    val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
+    val rareData by graph.measurementRepository.latestRareData().collectAsState(initial = null)
+    val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
+
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1_000)
+            nowMillis = System.currentTimeMillis()
+        }
+    }
+    val freshness = Freshness.of(sample?.timestamp, nowMillis)
+    val connected = connection as? ConnectionState.Connected
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Text(
+                text = connected?.info?.model?.displayName ?: strings.instrumentTitle,
+                style = type.title,
+                color = colors.ink,
+            )
+            // Состояние связи несут и точка, и слово: цвет один различие не
+            // переносит.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+            ) {
+                Text(
+                    text = if (connected != null) "●" else "○",
+                    style = type.footnote,
+                    color = if (connected != null) colors.data else colors.muted,
+                )
+                Text(
+                    text = when (val state = connection) {
+                        is ConnectionState.Connected -> strings.bluetoothConnected
+                        is ConnectionState.Connecting -> strings.bluetoothConnecting
+                        is ConnectionState.Reconnecting ->
+                            strings.bluetoothReconnecting(state.attempt)
+                        ConnectionState.Disconnected ->
+                            if (serviceRunning) strings.bluetoothNoLink else strings.serviceStopped
+                    },
+                    style = type.body,
+                    color = if (connected != null) colors.ink else colors.ink2,
+                )
+            }
+            val cells = buildList {
+                rareData?.let { rare ->
+                    add(StatCell("${rare.batteryPercent.toInt()} %", strings.instrumentBattery))
+                    add(StatCell("${rare.temperature.toInt()} °C", strings.temperature))
+                }
+                add(
+                    StatCell(
+                        when (freshness) {
+                            Freshness.NoData -> strings.noData
+                            is Freshness.Fresh -> strings.streamActive
+                            is Freshness.Stale -> freshnessLabel(freshness)
+                        },
+                        strings.stream,
+                    ),
+                )
+            }
+            StatGrid(cells = cells)
+            connected?.let { state ->
+                // Серийник и прошивка нужны раз в жизни — в переписке с
+                // поддержкой и в отчёте. Они здесь, но одной приглушённой
+                // строкой, а не тремя равновесными.
+                Text(
+                    text = "${strings.serialNumber} ${state.info.serialNumber} · " +
+                        "${strings.firmware} ${state.info.firmware}",
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+            }
+        }
+    }
+}
+
+/**
  * Сигналы САМОГО прибора: он пищит и вибрирует без телефона.
  *
  * Отдельно от звука приложения намеренно — это разные вещи, и человек должен
  * понимать, что произойдёт, когда телефон в кармане или выключен.
  *
- * Состояние показывается честно: прибор подтверждает запись, но опросить
- * текущее значение мы не умеем, поэтому до первой команды в этом сеансе
- * состояние НЕИЗВЕСТНО — и так и написано, вместо выключенного тумблера,
- * который выглядел бы как факт.
+ * Состояние честное: прибор подтверждает запись, но опросить его текущее
+ * значение мы не умеем, поэтому до первой команды в сеансе оно НЕИЗВЕСТНО —
+ * так и написано под названием, вместо выключенного тумблера, который
+ * выглядел бы как факт.
  */
 @Composable
 private fun DeviceSignalsSection(graph: AppGraph) {
@@ -971,79 +1197,59 @@ private fun DeviceSignalsSection(graph: AppGraph) {
     val failed by graph.deviceControlHub.failed.collectAsState()
     val connected = connection is ConnectionState.Connected
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle(strings.deviceSignals)
-            Hint(
-                text = strings.deviceSignalsNote,
-                style = type.bodySmall,
-                color = colors.ink2,
-            )
-            DeviceSignalRow(
-                title = strings.deviceSound,
-                state = applied.sound,
-                asked = desired.sound,
-                rejected = failed.sound == true,
-                enabled = connected,
-                onSet = { graph.deviceControlHub.request(DeviceControlHub.Command.Sound(it)) },
-            )
-            DeviceSignalRow(
-                title = strings.deviceVibro,
-                state = applied.vibro,
-                asked = desired.vibro,
-                rejected = failed.vibro == true,
-                enabled = connected,
-                onSet = { graph.deviceControlHub.request(DeviceControlHub.Command.Vibro(it)) },
-            )
-            Text(
-                text = if (connected) {
-                    strings.deviceSignalsUnknownNote
-                } else {
-                    strings.deviceSignalsOfflineNote
-                },
-                style = type.footnote,
-                color = colors.muted,
-            )
-        }
+    SettingsSection(title = strings.deviceSignals) {
+        DeviceSignalRow(
+            title = strings.deviceSound,
+            state = applied.sound,
+            asked = desired.sound,
+            rejected = failed.sound == true,
+            enabled = connected,
+            onSet = { graph.deviceControlHub.request(DeviceControlHub.Command.Sound(it)) },
+        )
+        SettingsDivider()
+        DeviceSignalRow(
+            title = strings.deviceVibro,
+            state = applied.vibro,
+            asked = desired.vibro,
+            rejected = failed.vibro == true,
+            enabled = connected,
+            onSet = { graph.deviceControlHub.request(DeviceControlHub.Command.Vibro(it)) },
+        )
+        Text(
+            text = if (connected) {
+                strings.deviceSignalsUnknownNote
+            } else {
+                strings.deviceSignalsOfflineNote
+            },
+            style = type.footnote,
+            color = colors.muted,
+            modifier = Modifier.padding(
+                start = Dimens.space3,
+                end = Dimens.space3,
+                bottom = Dimens.space2,
+            ),
+        )
     }
 }
 
 /**
- * Продолжать ли измерение после перезагрузки телефона.
+ * Спектральный анализ: энергетические окна и проверка калибровки.
  *
- * Живёт рядом с прибором, а не в «Уведомлениях»: решение о том, поднимать ли
- * связь самому, относится к прибору. По умолчанию выключено — приложение не
- * начинает обмен по Bluetooth без спроса.
+ * Две вещи про одно — про то, как читается спектр, — и стоят они вместе, а не
+ * двумя отдельными карточками среди настроек связи.
  */
 @Composable
-private fun BootSection(graph: AppGraph) {
-    val colors = LocalAppColors.current
+private fun SpectralAnalysisSection(graph: AppGraph, onOpenCalibration: () -> Unit) {
     val strings = LocalStrings.current
-    val type = LocalAppTypography.current
-    val scope = rememberCoroutineScope()
-    val enabled by graph.settings.startOnBoot.collectAsState(initial = false)
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle(strings.startOnBootTitle)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = strings.startOnBootNote,
-                    style = type.bodySmall,
-                    color = colors.ink2,
-                    modifier = Modifier.weight(1f),
-                )
-                Chip(
-                    text = if (enabled) strings.on else strings.off,
-                    color = if (enabled) colors.dataText else colors.ink2,
-                    selected = enabled,
-                    onClick = { scope.launch { graph.settings.setStartOnBoot(!enabled) } },
-                )
-            }
+    val c = CalibrationCatalogue.of(LocalStrings.current.language)
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        SpectralRangesSection(graph)
+        SettingsSection {
+            SettingRow(
+                title = c.entryTitle,
+                subtitle = c.entrySubtitle,
+                onClick = onOpenCalibration,
+            )
         }
     }
 }
@@ -1071,10 +1277,13 @@ private fun DeviceSignalRow(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTarget)
+            .padding(horizontal = Dimens.space3, vertical = Dimens.space2),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(text = title, style = type.label, color = colors.ink)
+            Text(text = title, style = type.body, color = colors.ink)
             Text(
                 text = when {
                     rejected -> strings.stateRejected
@@ -1100,139 +1309,20 @@ private fun DeviceSignalRow(
     }
 }
 
-@Composable
-private fun DeviceSection(graph: AppGraph) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val type = LocalAppTypography.current
-    val connection by graph.serviceStatus.connection.collectAsState()
-    val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
-    val rareData by graph.measurementRepository.latestRareData().collectAsState(initial = null)
-    val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
-
-    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1_000)
-            nowMillis = System.currentTimeMillis()
-        }
-    }
-    val freshness = Freshness.of(sample?.timestamp, nowMillis)
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle(strings.instrumentTitle)
-
-            when (val state = connection) {
-                is ConnectionState.Connected -> {
-                    InfoRow(strings.modelLabel, state.info.model.displayName)
-                    InfoRow(strings.serialNumber, state.info.serialNumber)
-                    InfoRow(strings.firmware, state.info.firmware.toString())
-                    InfoRow("bluetooth", strings.bluetoothConnected)
-                }
-                is ConnectionState.Connecting -> InfoRow("bluetooth", strings.bluetoothConnecting)
-                is ConnectionState.Reconnecting ->
-                    InfoRow("bluetooth", strings.bluetoothReconnecting(state.attempt))
-                ConnectionState.Disconnected ->
-                    InfoRow("bluetooth", if (serviceRunning) strings.bluetoothNoLink else strings.serviceStopped)
-            }
-
-            rareData?.let { rare ->
-                InfoRow(strings.instrumentBattery, "${rare.batteryPercent.toInt()} %")
-                InfoRow(strings.temperature, "${rare.temperature.toInt()} °C")
-            }
-
-            when (freshness) {
-                Freshness.NoData -> InfoRow(strings.stream, strings.noData)
-                is Freshness.Fresh -> InfoRow(strings.stream, strings.streamActive)
-                is Freshness.Stale -> Text(
-                    text = freshnessLabel(freshness),
-                    style = type.value,
-                    color = colors.warn,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val type = LocalAppTypography.current
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(text = label, style = type.bodySmall, color = colors.muted)
-        Spacer(Modifier.weight(1f))
-        Text(text = value, style = type.valueSmall, color = colors.ink)
-    }
-}
-
-// --- Единицы ---
-
-@Composable
-private fun UnitsSection(graph: AppGraph) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val type = LocalAppTypography.current
-    val scope = rememberCoroutineScope()
-    val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle(strings.unitsTitle)
-            UnitOption(
-                title = strings.unitMicroSv,
-                selected = unit == DoseUnitSetting.MICRO_SIEVERT,
-                onSelect = {
-                    scope.launch { graph.settings.setDoseUnit(DoseUnitSetting.MICRO_SIEVERT) }
-                },
-            )
-            UnitOption(
-                title = strings.unitMicroR,
-                selected = unit == DoseUnitSetting.MICRO_ROENTGEN,
-                onSelect = {
-                    scope.launch { graph.settings.setDoseUnit(DoseUnitSetting.MICRO_ROENTGEN) }
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun UnitOption(
-    title: String,
-    selected: Boolean,
-    onSelect: () -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val type = LocalAppTypography.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = Dimens.touchTarget)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onSelect,
-            ),
-    ) {
-        RadioMark(selected)
-        Text(text = title, style = type.value, color = colors.ink)
-    }
-}
-
-// --- Интерфейс ---
-
 /**
- * Кастомизация: видимость и порядок вкладок нижнего меню (Главная
- * фиксирована; минимум одна вкладка кроме неё) и необязательные блоки
- * Монитора. Дефолты совпадают с сегодняшним видом; сброс возвращает их.
+ * Настройка Главной: какие вкладки видны, в каком они порядке и какие блоки
+ * показывает Монитор.
+ *
+ * Раньше это была часть общей карточки «Интерфейс» вперемешку с цветами и
+ * шкалой карты. Здесь всё про один экран, и видно, что настраивается именно
+ * он: сверху вкладки в их порядке, ниже блоки самой Главной.
+ *
+ * Стрелки ↑/↓ остались вместо перетаскивания: их видно и ими попадают пальцем,
+ * а перетаскивание в списке из пяти строк требует своей механики захвата, и
+ * без неё длинное нажатие конфликтует с прокруткой страницы.
  */
 @Composable
-private fun InterfaceSection(graph: AppGraph) {
+private fun HomeLayoutSection(graph: AppGraph) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
     val type = LocalAppTypography.current
@@ -1247,170 +1337,19 @@ private fun InterfaceSection(graph: AppGraph) {
         scope.launch { graph.settings.setNavTabsRaw(NavConfig.serialize(newEntries)) }
     }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            SectionTitle(strings.interfaceTitle)
-
-            // Пояснения объясняют экран, а не измеряют: тому, кто носит прибор
-            // каждый день, они через неделю становятся шумом. Состояния («нет
-            // связи», «прибор не подключён») выключатель НЕ трогает — экран без
-            // них выглядел бы работающим, когда он не работает.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = strings.hintsTitle,
-                    style = type.label,
-                    color = colors.ink,
-                    modifier = Modifier.weight(1f),
-                )
-                val hints by graph.settings.hintsVisible.collectAsState(initial = false)
-                Chip(
-                    text = if (hints) strings.on else strings.off,
-                    color = if (hints) colors.dataText else colors.ink2,
-                    selected = hints,
-                    onClick = { scope.launch { graph.settings.setHintsVisible(!hints) } },
-                )
-            }
-
-            // Цвет главного числа: он читается быстрее слов, но кому-то
-            // меняющийся оттенок мешает — поэтому выключатель, а не умолчание.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = strings.doseTintTitle,
-                    style = type.label,
-                    color = colors.ink,
-                    modifier = Modifier.weight(1f),
-                )
-                val tint by graph.settings.doseTint.collectAsState(initial = true)
-                Chip(
-                    text = if (tint) strings.on else strings.off,
-                    color = if (tint) colors.dataText else colors.ink2,
-                    selected = tint,
-                    onClick = { scope.launch { graph.settings.setDoseTint(!tint) } },
-                )
-            }
-
-            // Где цвет насыщается — во сколько раз выше обычного. Множитель, а
-            // не абсолютное значение: у каждого места свой уровень, и «от
-            // 0,30» означало бы в одном месте вдвое выше обычного, а в другом
-            // — вдесятеро.
-            val tintOn by graph.settings.doseTint.collectAsState(initial = true)
-            if (tintOn) {
-                val factor by graph.settings.doseTintFactor
-                    .collectAsState(initial = DoseTint.DEFAULT_FACTOR)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = strings.doseTintFactorTitle,
-                        style = type.label,
-                        color = colors.ink,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Segmented(
-                        options = DoseTint.FACTORS.map {
-                            strings.doseTintFactorLabel(DoseTint.factorLabel(it))
-                        },
-                        selectedIndex = DoseTint.FACTORS.indexOfFirst { it == factor }
-                            .coerceAtLeast(0),
-                        onSelect = { index ->
-                            scope.launch {
-                                graph.settings.setDoseTintFactor(DoseTint.FACTORS[index])
-                            }
-                        },
-                        modifier = Modifier.weight(1.4f),
-                    )
-                }
-            }
-
-            // Чем заданы границы цвета следа на карте. Растяжение по маршруту
-            // — аналитический режим: оно находит малые различия, но красит
-            // ровную прогулку во всю шкалу, поэтому выбирается осознанно.
-            val mapScale by graph.settings.mapColorScale
-                .collectAsState(initial = MapColorScale.ABSOLUTE)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = strings.mapScaleTitle,
-                    style = type.label,
-                    color = colors.ink,
-                    modifier = Modifier.weight(1f),
-                )
-                Segmented(
-                    options = listOf(
-                        strings.mapScaleAbsolute,
-                        strings.mapScaleContrast,
-                        strings.mapScaleManual,
-                    ),
-                    selectedIndex = MapColorScale.entries.indexOf(mapScale),
-                    onSelect = { index ->
-                        scope.launch {
-                            graph.settings.setMapColorScale(MapColorScale.entries[index])
-                        }
-                    },
-                    modifier = Modifier.weight(1.4f),
-                )
-            }
-            // Границы ручной шкалы — по одной строке на величину: у дозы и у
-            // счёта они физически разные, и общей быть не может.
-            if (mapScale == MapColorScale.MANUAL) {
-                val doseAnchors by graph.settings.manualDoseAnchors
-                    .collectAsState(initial = TrackMap.DEFAULT_MANUAL_DOSE)
-                val cpsAnchors by graph.settings.manualCpsAnchors
-                    .collectAsState(initial = TrackMap.DEFAULT_MANUAL_CPS)
-                var doseText by remember(doseAnchors) {
-                    mutableStateOf(MapAnchors.format(doseAnchors))
-                }
-                var cpsText by remember(cpsAnchors) {
-                    mutableStateOf(MapAnchors.format(cpsAnchors))
-                }
-                AppTextField(
-                    value = doseText,
-                    onValueChange = {
-                        doseText = it
-                        scope.launch { graph.settings.setManualDoseAnchors(it) }
-                    },
-                    placeholder = strings.mapScaleDoseAnchors,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                AppTextField(
-                    value = cpsText,
-                    onValueChange = {
-                        cpsText = it
-                        scope.launch { graph.settings.setManualCpsAnchors(it) }
-                    },
-                    placeholder = strings.mapScaleCpsAnchors,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Hint(
-                    text = strings.mapScaleManualHint,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
-            }
-
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        SettingsSection(title = strings.homeLayoutTitle) {
             // Строки «Главная — всегда видна» здесь нет: если вкладку нельзя
             // убрать, это не настройка, а сообщение о том, как устроено
             // приложение, и место ему не в списке переключателей.
             entries.forEachIndexed { index, entry ->
+                if (index > 0) SettingsDivider()
                 NavTabRow(
                     entry = entry,
                     canMoveUp = index > 0,
                     canMoveDown = index < entries.lastIndex,
                     onMove = { delta -> save(NavConfig.move(entries, entry.tab, delta)) },
-                    onToggle = {
+                    onToggle = { on ->
                         val toggled = NavConfig.toggle(entries, entry.tab)
                         if (toggled == null) guardNote = true else save(toggled)
                     },
@@ -1419,36 +1358,59 @@ private fun InterfaceSection(graph: AppGraph) {
             if (guardNote) {
                 Text(
                     text = strings.atLeastOneTab,
-                    style = type.bodySmall,
+                    style = type.footnote,
                     color = colors.warn,
+                    modifier = Modifier.padding(
+                        start = Dimens.space3,
+                        end = Dimens.space3,
+                        bottom = Dimens.space2,
+                    ),
                 )
             }
-
-            AppDivider()
-            Hint(
-                text = strings.monitorBlocksNote,
-                style = type.bodySmall,
-                color = colors.ink2,
+        }
+        SettingsSection(title = strings.monitorBlocksNote) {
+            SwitchSettingRow(
+                title = strings.blockTrend,
+                checked = blocks.trend,
+                onChange = { on ->
+                    scope.launch { graph.settings.setMonitorBlocks(blocks.copy(trend = on)) }
+                },
             )
-            BlockToggleRow(strings.blockTrend, blocks.trend) {
-                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(trend = it)) }
-            }
-            BlockToggleRow(strings.blockDoseToday, blocks.doseToday) {
-                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(doseToday = it)) }
-            }
-            BlockToggleRow(strings.blockCountChart, blocks.countRateChart) {
-                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(countRateChart = it)) }
-            }
-            BlockToggleRow(strings.blockHardnessChart, blocks.hardnessChart) {
-                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(hardnessChart = it)) }
-            }
-            BlockToggleRow(strings.blockStats, blocks.stats) {
-                scope.launch { graph.settings.setMonitorBlocks(blocks.copy(stats = it)) }
-            }
-
-            AppDivider()
-            AppButton(
-                text = strings.resetInterface,
+            SettingsDivider()
+            SwitchSettingRow(
+                title = strings.blockDoseToday,
+                checked = blocks.doseToday,
+                onChange = { on ->
+                    scope.launch { graph.settings.setMonitorBlocks(blocks.copy(doseToday = on)) }
+                },
+            )
+            SettingsDivider()
+            SwitchSettingRow(
+                title = strings.blockCountChart,
+                checked = blocks.countRateChart,
+                onChange = { on ->
+                    scope.launch { graph.settings.setMonitorBlocks(blocks.copy(countRateChart = on)) }
+                },
+            )
+            SettingsDivider()
+            SwitchSettingRow(
+                title = strings.blockHardnessChart,
+                checked = blocks.hardnessChart,
+                onChange = { on ->
+                    scope.launch { graph.settings.setMonitorBlocks(blocks.copy(hardnessChart = on)) }
+                },
+            )
+            SettingsDivider()
+            SwitchSettingRow(
+                title = strings.blockStats,
+                checked = blocks.stats,
+                onChange = { on ->
+                    scope.launch { graph.settings.setMonitorBlocks(blocks.copy(stats = on)) }
+                },
+            )
+            SettingsDivider()
+            SettingRow(
+                title = strings.resetInterface,
                 onClick = {
                     guardNote = false
                     scope.launch { graph.settings.resetInterfaceCustomization() }
@@ -1464,40 +1426,27 @@ private fun NavTabRow(
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onMove: (Int) -> Unit,
-    onToggle: () -> Unit,
+    onToggle: (Boolean) -> Unit,
 ) {
     val colors = LocalAppColors.current
-    val strings = LocalStrings.current
     val type = LocalAppTypography.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
         modifier = Modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = Dimens.touchTarget),
+            .defaultMinSize(minHeight = Dimens.touchTarget)
+            .padding(horizontal = Dimens.space3, vertical = Dimens.space1),
     ) {
         Text(
             text = entry.tab.title(LocalStrings.current),
-            style = type.label,
+            style = type.body,
             color = if (entry.visible) colors.ink else colors.muted,
             modifier = Modifier.weight(1f),
         )
         ArrowButton(text = "↑", enabled = canMoveUp) { onMove(-1) }
         ArrowButton(text = "↓", enabled = canMoveDown) { onMove(1) }
-        Text(
-            text = if (entry.visible) strings.visible else strings.hidden,
-            style = type.value,
-            color = if (entry.visible) colors.ink else colors.muted,
-            modifier = Modifier
-                .defaultMinSize(minWidth = 64.dp, minHeight = Dimens.touchTarget)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onToggle,
-                )
-                .wrapContentHeight(),
-            textAlign = TextAlign.End,
-        )
+        AppSwitch(checked = entry.visible, onChange = onToggle)
     }
 }
 

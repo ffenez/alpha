@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,7 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import app.radiacode.AppGraph
 import app.radiacode.ui.components.AppButton
-import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.SettingRow
+import app.radiacode.ui.components.SettingsDivider
+import app.radiacode.ui.components.SettingsSection
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
@@ -45,14 +48,14 @@ fun ScaleSection(graph: AppGraph) {
     val elementPercent by graph.settings.elementScalePercent
         .collectAsState(initial = UiScale.DEFAULT_PERCENT)
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Text(
-                text = strings.scaleTitle.uppercase(),
-                style = type.labelSmall,
-                color = colors.ink2,
-            )
-
+    SettingsSection(title = strings.scaleTitle) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = Dimens.space3,
+                vertical = Dimens.space2,
+            ),
+            verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
             ScaleSlider(
                 label = strings.scaleFont,
                 percent = fontPercent,
@@ -67,22 +70,22 @@ fun ScaleSection(graph: AppGraph) {
                 max = UiScale.ELEMENT_MAX_PERCENT,
                 onCommit = { scope.launch { graph.settings.setElementScalePercent(it) } },
             )
-
-
-            if (fontPercent != UiScale.DEFAULT_PERCENT ||
-                elementPercent != UiScale.DEFAULT_PERCENT
-            ) {
-                AppButton(
-                    text = strings.scaleReset,
-                    onClick = {
-                        scope.launch {
-                            graph.settings.setFontScalePercent(UiScale.DEFAULT_PERCENT)
-                            graph.settings.setElementScalePercent(UiScale.DEFAULT_PERCENT)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+        }
+        // Кнопка возврата появляется, только когда возвращать есть что: сто
+        // процентов — это и есть «ничего не менял».
+        if (fontPercent != UiScale.DEFAULT_PERCENT ||
+            elementPercent != UiScale.DEFAULT_PERCENT
+        ) {
+            SettingsDivider()
+            SettingRow(
+                title = strings.scaleReset,
+                onClick = {
+                    scope.launch {
+                        graph.settings.setFontScalePercent(UiScale.DEFAULT_PERCENT)
+                        graph.settings.setElementScalePercent(UiScale.DEFAULT_PERCENT)
+                    }
+                },
+            )
         }
     }
 }

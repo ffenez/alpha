@@ -113,9 +113,8 @@ interface CalibrationStrings {
 object CalibrationRu : CalibrationStrings {
     override val chartUnavailable = "кривую пока не построить: измерений не хватает"
 
-    override val entryTitle = "Калибровка по природному фону"
-    override val entrySubtitle =
-        "что приложение измерило о ширине линий и энергетической шкале этого прибора"
+    override val entryTitle = "Проверка спектральной калибровки"
+    override val entrySubtitle = "энергетическая шкала и разрешение детектора"
     override val screenTitle = "Калибровка (диагностика)"
     override val tag = "диагностика"
     override val intro =
@@ -280,9 +279,8 @@ object CalibrationEn : CalibrationStrings {
     override val chartUnavailable =
         "the curve cannot be drawn yet: there are not enough measurements"
 
-    override val entryTitle = "Calibration from natural background"
-    override val entrySubtitle =
-        "what the app has measured about this instrument's line widths and energy scale"
+    override val entryTitle = "Spectral calibration check"
+    override val entrySubtitle = "the energy scale and the detector's resolution"
     override val screenTitle = "Calibration (diagnostics)"
     override val tag = "diagnostics"
     override val intro =

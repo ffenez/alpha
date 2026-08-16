@@ -541,6 +541,18 @@ interface Strings {
     val unitDoseMicroSv: String
     val unitDoseMicroR: String
     val interfaceTitle: String
+
+    /** Группа настроек цвета: подсветка отклонений и цвет следа. */
+    val colorsTitle: String
+
+    /** Группа настроек Главной: вкладки и блоки. */
+    val homeLayoutTitle: String
+
+    /** Одна строка о том, что делают пояснения на экранах. */
+    val hintsNote: String
+
+    /** Одна строка о том, что делает подсветка главного числа. */
+    val doseTintNote: String
     val atLeastOneTab: String
     val monitorBlocksNote: String
     val blockTrend: String
@@ -727,6 +739,7 @@ fun Strings.allTexts(): List<String> = listOf(
     unitMicroSv, unitMicroR,
     unitDoseMicroSv, unitDoseMicroR, interfaceTitle,
     atLeastOneTab,
+    colorsTitle, homeLayoutTitle, hintsNote, doseTintNote,
     monitorBlocksNote, blockTrend, blockDoseToday,
     blockCountChart, blockHardnessChart, blockStats,
     resetInterface, visible, hidden,
