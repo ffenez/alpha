@@ -124,6 +124,17 @@ internal fun buildFrame(
      * карточке курсора, которая называет их временем и числом.
      */
     showEvents: Boolean = false,
+    /**
+     * Показывать ли указатель «↑ L1 0,30», когда порог ушёл за кадр.
+     *
+     * На карточке Главной — НЕТ. Красная отметка порога висела над графиком
+     * постоянно, хотя при фоне 0,13 и пороге 0,30 она не говорит ничего о
+     * нарисованном: до порога вдвое, и сам он в кадр не попадает. Карточка
+     * отвечает на вопрос «что сейчас», а не «где-то там есть порог»; когда
+     * порог действительно рядом — он внутри кадра, и тогда его видно линией.
+     * Полноэкранный график указатель сохраняет: туда приходят разбираться.
+     */
+    showDistantAlarm: Boolean = true,
 ): ChartFrame {
     // Колонка — это ИНТЕРВАЛ, и в окно она попадает пересечением, а не
     // серединой.
@@ -236,7 +247,9 @@ internal fun buildFrame(
             baselineBand = band,
             baselineMedian = baseline?.doseMedianMicroSvH,
             alarmLevel = alarm,
-            alarmLabel = alarm?.let { "L1 ${DoseFormat.rate(it, unit)}" },
+            alarmLabel = alarm
+                ?.takeIf { showDistantAlarm || it <= scale.maxValue }
+                ?.let { "L1 ${DoseFormat.rate(it, unit)}" },
             episodes = episodes,
             // §20: a band must name the reference it is above, not only its
             // duration — «выше порога L1» and «выше исторического P90

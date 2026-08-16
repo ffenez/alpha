@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v055Title: String
+    val v055Summary: String
+
     val v054Title: String
     val v054Summary: String
 
@@ -123,6 +126,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v055Title = "Измерение продукта не теряется, а порог не мешает"
+    override val v055Summary =
+        "Уход с экрана и сворачивание больше не прерывают проверку продукта: " +
+        "вернувшись, вы попадаете на тот же шаг, а к измерению можно приложить " +
+        "фото образца и выгрузить его одним файлом N42 — образец вместе с фоном. " +
+        "Красная линия порога на карточке Главной теперь появляется, только " +
+        "когда порог действительно рядом со значением."
 
     override val v054Title = "Измерения продуктов остаются в журнале"
     override val v054Summary =
@@ -370,6 +381,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v055Title = "A product measurement survives, and the threshold steps back"
+    override val v055Summary =
+        "Leaving the screen or putting the app away no longer interrupts a " +
+        "product check: you come back to the same step, and a measurement can " +
+        "carry a photo of the sample and be exported as one N42 file — sample " +
+        "together with background. The red threshold line on the Home card now " +
+        "appears only when the threshold is genuinely near the reading."
 
     override val v054Title = "Product measurements stay in the journal"
     override val v054Summary =
@@ -625,6 +644,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v055Title, v055Summary,
     v054Title, v054Summary,
     v053Title, v053Summary,
     v052Title, v052Summary,

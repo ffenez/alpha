@@ -360,6 +360,23 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         dataStore.edit { it[SPECTRUM_EPOCH] = encoded }
     }
 
+    /**
+     * Идущее измерение продукта — чтобы пережить уход с экрана.
+     *
+     * Прогон живёт в графе приложения и не прерывается, а вот ЭКРАН помнил,
+     * какой опыт он ведёт, только пока был на виду: свернул приложение или
+     * ушёл на другую вкладку — и вернуться к тому же измерению было нельзя.
+     * Само измерение при этом продолжалось, что хуже: оно шло, а человек его
+     * не видел.
+     */
+    val activeFoodExperimentId: Flow<Long?> = dataStore.data.map { it[ACTIVE_FOOD] }
+
+    suspend fun setActiveFoodExperimentId(experimentId: Long?) {
+        dataStore.edit {
+            if (experimentId == null) it.remove(ACTIVE_FOOD) else it[ACTIVE_FOOD] = experimentId
+        }
+    }
+
     val hintsVisible: Flow<Boolean> =
         dataStore.data.map { it[HINTS_VISIBLE] ?: false }
 
@@ -626,6 +643,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val DOSE_TINT_FACTOR = floatPreferencesKey("dose_tint_factor")
         private val MAP_COLOR_SCALE = stringPreferencesKey("map_color_scale")
         private val ACTIVE_TRACK = longPreferencesKey("active_track_session")
+        private val ACTIVE_FOOD = longPreferencesKey("active_food_experiment")
         private val MANUAL_DOSE = stringPreferencesKey("map_manual_dose")
         private val MANUAL_CPS = stringPreferencesKey("map_manual_cps")
         private val SPECTRUM_EPOCH = stringPreferencesKey("spectrum_epoch_mark")

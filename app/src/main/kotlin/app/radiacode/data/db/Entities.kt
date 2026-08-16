@@ -425,6 +425,12 @@ data class ExperimentEntity(
     val algorithmVersion: Int,
     /** Analysis parameters as flat JSON ([app.radiacode.data.JsonMap]). */
     val params: String = "",
+    /**
+     * Фото образца — ССЫЛКА на снимок в галерее телефона (content URI), а не
+     * копия внутри приложения: заводить своё хранилище картинок ради строки в
+     * журнале незачем. Null — фото не выбирали.
+     */
+    val photoUri: String? = null,
 ) {
     companion object {
         /** Фон vs объект: run A = object, run B = background, same geometry. */

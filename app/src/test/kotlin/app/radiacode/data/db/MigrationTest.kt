@@ -187,6 +187,17 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 15 to 16 produces exactly the exported v16 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(15))
+            MigrationSql.FROM_15_TO_16.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(16))
+        }
+    }
+
+    @Test
     fun `migration 14 to 15 produces exactly the exported v15 schema`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(14))

@@ -106,6 +106,7 @@ class ExperimentRepository(
         orientation: String = "",
         plannedSeconds: Long = 0,
         windowSpecs: List<EnergyWindowSpec> = EnergyWindows.DEFAULTS,
+        photoUri: String? = null,
     ): Long = experimentDao.insert(
         ExperimentEntity(
             kind = kind,
@@ -119,6 +120,7 @@ class ExperimentRepository(
             plannedSeconds = plannedSeconds,
             algorithmVersion = AlgorithmVersions.AB_ANALYSIS,
             params = paramsJson(windowSpecs),
+            photoUri = photoUri,
         ),
     )
 

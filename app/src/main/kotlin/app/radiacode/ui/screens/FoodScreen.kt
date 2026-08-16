@@ -27,7 +27,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.Dialog
 import app.radiacode.AppGraph
 import app.radiacode.analysis.FoodScreening
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import app.radiacode.data.db.ExperimentEntity
+import app.radiacode.data.export.N42
+import app.radiacode.data.export.SpectrumExport
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.device.ConnectionState
 import app.radiacode.ui.components.AppButton
@@ -47,7 +53,10 @@ import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppTypography
+import app.radiacode.data.FOOD_LABEL_BACKGROUND
+import app.radiacode.data.FOOD_LABEL_SAMPLE
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** Шаг измерения продукта. Два прогона и вывод — больше здесь ничего нет. */
@@ -80,6 +89,7 @@ fun FoodScreen(
     val t = FoodCatalogue.of(strings.language)
     val h = HistoryCatalogue.of(strings.language)
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val connection by graph.serviceStatus.connection.collectAsState()
     val connected = connection is ConnectionState.Connected
@@ -93,6 +103,12 @@ fun FoodScreen(
     var name by rememberSaveable { mutableStateOf("") }
     var mass by rememberSaveable { mutableStateOf("") }
     var geometry by rememberSaveable { mutableStateOf(FoodGeometry.JAR_LITRE) }
+    // Фото образца — ссылка на снимок в галерее телефона, а не копия внутри
+    // приложения: копировать чужие файлы к себе ради строки в журнале
+    // значило бы заводить своё хранилище картинок. Выбор идёт системным
+    // диалогом (`PickVisualMedia`), и он не требует НИ ОДНОГО нового
+    // разрешения: доступ выдаётся ровно к выбранному файлу.
+    var photoUri by rememberSaveable { mutableStateOf<String?>(null) }
     var container by rememberSaveable { mutableStateOf("") }
     var guideOpen by rememberSaveable { mutableStateOf(false) }
     var result by remember { mutableStateOf<FoodScreening.Result?>(null) }
@@ -128,6 +144,80 @@ fun FoodScreen(
 
     suspend fun computeResult() {
         result = graph.experimentRepository.foodResult(experimentId)
+    }
+
+    // Экран не владеет измерением: он находит его по метке и восстанавливает
+    // свой шаг по тому, какие прогоны уже записаны.
+    LaunchedEffect(openMeasurementId) {
+        if (openMeasurementId != null) return@LaunchedEffect
+        val active = graph.settings.activeFoodExperimentId.first() ?: return@LaunchedEffect
+        val runs = graph.experimentRepository.runs(active)
+        if (runs.isEmpty() && graph.abRun.state.value?.experimentId != active) {
+            // Опыт заведён, но ни один прогон не начат: продолжать нечего.
+            return@LaunchedEffect
+        }
+        experimentId = active
+        val hasBackground = runs.any { it.label == FOOD_LABEL_BACKGROUND && it.endedAt != null }
+        val hasSample = runs.any { it.label == FOOD_LABEL_SAMPLE && it.endedAt != null }
+        step = when {
+            hasSample -> FoodStep.RESULT
+            hasBackground -> FoodStep.SAMPLE
+            else -> FoodStep.BACKGROUND
+        }
+        if (step == FoodStep.RESULT) computeResult()
+    }
+
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            // Разрешение на чтение переживает перезапуск: иначе снимок,
+            // выбранный сегодня, завтра открывался бы ошибкой.
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            photoUri = uri.toString()
+        }
+    }
+
+    // Экспорт измерения — N42: это стандарт гамма-спектрометрии, и он один
+    // умеет то, чем измерение продукта и является, — образец ВМЕСТЕ с фоном,
+    // каждый со своей выдержкой и калибровкой. CSV из двух спектров такого не
+    // выражает: он оставил бы связь фона с образцом на честном слове.
+    var pendingExport by remember { mutableStateOf<String?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri ->
+        val content = pendingExport
+        pendingExport = null
+        if (uri != null && content != null) {
+            scope.launch { writeTextToUri(context, uri, content) }
+        }
+    }
+
+    suspend fun exportMeasurement() {
+        val runs = graph.experimentRepository.runs(experimentId)
+        val backgroundId = runs.firstOrNull { it.label == FOOD_LABEL_BACKGROUND }?.spectrumId
+        val sampleId = runs.firstOrNull { it.label == FOOD_LABEL_SAMPLE }?.spectrumId
+        val background = backgroundId?.let { graph.experimentRepository.spectrum(it) }
+        val sample = sampleId?.let { graph.experimentRepository.spectrum(it) } ?: return
+        val experiment = graph.experimentRepository.byId(experimentId)
+        pendingExport = N42.write(
+            foreground = SpectrumExport.toN42Measurement(sample, N42.CLASS_FOREGROUND),
+            background = background?.let {
+                SpectrumExport.toN42Measurement(it, N42.CLASS_BACKGROUND)
+            },
+            // Условия измерения едут вместе с данными: без геометрии эти
+            // спектры сравнимы только сами с собой.
+            remarks = listOfNotNull(
+                experiment?.note?.ifBlank { null },
+                experiment?.geometry?.ifBlank { null },
+            ),
+        )
+        exportLauncher.launch(SpectrumExport.fileName(sample.timestamp, "n42"))
     }
 
     if (guideOpen) {
@@ -211,6 +301,29 @@ fun FoodScreen(
                             placeholder = t.note,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                        ) {
+                            Chip(
+                                text = if (photoUri == null) t.addPhoto else t.changePhoto,
+                                color = colors.ink2,
+                                onClick = {
+                                    photoPicker.launch(
+                                        PickVisualMediaRequest(
+                                            ActivityResultContracts.PickVisualMedia.ImageOnly,
+                                        ),
+                                    )
+                                },
+                            )
+                            photoUri?.let {
+                                Text(
+                                    text = t.photoAttached,
+                                    style = type.footnote,
+                                    color = colors.muted,
+                                )
+                            }
+                        }
                         AppButton(
                             text = t.start,
                             primary = true,
@@ -232,7 +345,9 @@ fun FoodScreen(
                                             name.trim().ifBlank { null },
                                             mass.trim().ifBlank { null }?.let { "$it г" },
                                         ).joinToString(" · "),
+                                        photoUri = photoUri,
                                     )
+                                    graph.settings.setActiveFoodExperimentId(experimentId)
                                     step = FoodStep.BACKGROUND
                                 }
                             },
@@ -260,7 +375,7 @@ fun FoodScreen(
                                 onClick = {
                                     scope.launch {
                                         startRun(
-                                            if (isBackground) LABEL_BACKGROUND else LABEL_SAMPLE,
+                                            if (isBackground) FOOD_LABEL_BACKGROUND else FOOD_LABEL_SAMPLE,
                                         )
                                     }
                                 },
@@ -285,6 +400,9 @@ fun FoodScreen(
                                         } else {
                                             step = FoodStep.RESULT
                                             computeResult()
+                                            // Измерение закончено: метка снята,
+                                            // и следующий вход начинает новое.
+                                            graph.settings.setActiveFoodExperimentId(null)
                                         }
                                     }
                                 },
@@ -295,10 +413,9 @@ fun FoodScreen(
 
                     FoodStep.RESULT -> FoodResult(
                         result = result,
-                        onContinue = {
-                            step = FoodStep.SAMPLE
-                        },
+                        onContinue = { step = FoodStep.SAMPLE },
                         onRecompute = { scope.launch { computeResult() } },
+                        onExport = { scope.launch { exportMeasurement() } },
                     )
                 }
             }
@@ -311,6 +428,7 @@ private fun FoodResult(
     result: FoodScreening.Result?,
     onContinue: () -> Unit,
     onRecompute: () -> Unit,
+    onExport: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -348,8 +466,6 @@ private fun FoodResult(
     }
     Hint(text = t.screeningDisclaimer, style = type.footnote, color = colors.muted)
     AppButton(text = t.continueMeasuring, onClick = onContinue, modifier = Modifier.fillMaxWidth())
+    AppButton(text = t.exportMeasurement, onClick = onExport, modifier = Modifier.fillMaxWidth())
 }
 
-/** Метки прогонов: они же — подписи в отчёте и в Истории. */
-private const val LABEL_BACKGROUND = "Фон"
-private const val LABEL_SAMPLE = "Продукт"

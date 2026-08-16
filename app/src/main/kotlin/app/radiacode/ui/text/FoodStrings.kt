@@ -32,6 +32,9 @@ interface FoodStrings {
     val sampleMass: String
     val container: String
     val note: String
+    val addPhoto: String
+    val changePhoto: String
+    val photoAttached: String
 
     // --- геометрия ---
     val geometryJarHalf: String
@@ -59,6 +62,8 @@ interface FoodStrings {
     fun sensitivityLine(fraction: String, cps: String): String
     fun recommendedLine(duration: String, fraction: String): String
     val continueMeasuring: String
+    /** Экспорт измерения одним файлом: образец и фон вместе. */
+    val exportMeasurement: String
 
     // --- справка ---
     val guideTitle: String
@@ -88,6 +93,9 @@ object FoodRu : FoodStrings {
     override val sampleMass = "Масса, г"
     override val container = "Ёмкость"
     override val note = "Заметка"
+    override val addPhoto = "Фото образца"
+    override val changePhoto = "Другое фото"
+    override val photoAttached = "фото выбрано"
 
     override val geometryJarHalf = "Банка 0,5 л"
     override val geometryJarLitre = "Банка 1 л"
@@ -134,6 +142,7 @@ object FoodRu : FoodStrings {
     override fun recommendedLine(duration: String, fraction: String) =
         "чтобы заметить $fraction фона, копить около $duration на каждый шаг"
     override val continueMeasuring = "Копить дальше"
+    override val exportMeasurement = "Экспорт N42 (образец и фон)"
 
     override val guideTitle = "Как измерять правильно"
 
@@ -219,6 +228,9 @@ object FoodEn : FoodStrings {
     override val sampleMass = "Mass, g"
     override val container = "Container"
     override val note = "Note"
+    override val addPhoto = "Photo of the sample"
+    override val changePhoto = "Another photo"
+    override val photoAttached = "photo chosen"
 
     override val geometryJarHalf = "Jar 0.5 l"
     override val geometryJarLitre = "Jar 1 l"
@@ -264,6 +276,7 @@ object FoodEn : FoodStrings {
     override fun recommendedLine(duration: String, fraction: String) =
         "to notice $fraction of the background, collect about $duration per step"
     override val continueMeasuring = "Keep collecting"
+    override val exportMeasurement = "Export N42 (sample and background)"
 
     override val guideTitle = "How to measure properly"
 
@@ -330,7 +343,7 @@ val FoodCatalogue = AreaCatalogue(ru = FoodRu, en = FoodEn)
 fun FoodStrings.allTexts(): List<String> = listOf(
     title, subtitle,
     stepBackground, stepSample, stepResult, start, backgroundHint, sampleHint,
-    sampleName, sampleMass, container, note,
+    sampleName, sampleMass, container, note, addPhoto, changePhoto, photoAttached,
     geometryJarHalf, geometryJarLitre, geometryCup, geometryBag, geometryPlate,
     geometryCustom, geometryJarHint, geometryCupHint, geometryBagHint,
     geometryPlateHint, geometryCustomHint,
@@ -339,5 +352,5 @@ fun FoodStrings.allTexts(): List<String> = listOf(
     verdictLine, verdictLineBody("662 кэВ"),
     verdictNotEnough, verdictNotEnoughBody, screeningDisclaimer,
     sensitivityLine("2 %", "0,5 имп/с"), recommendedLine("30 мин", "2 %"),
-    continueMeasuring, guideTitle,
+    continueMeasuring, exportMeasurement, guideTitle,
 ) + guide().flatMap { listOf(it.first, it.second) }

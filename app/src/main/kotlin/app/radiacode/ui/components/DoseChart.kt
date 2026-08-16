@@ -397,8 +397,19 @@ private fun StaticChartLayer(
                         }
                     }
                     ?.let { textMeasurer.measure(it, axisStyle) }
+                // Линия порога рисуется, ТОЛЬКО когда порог лежит внутри
+                // кадра.
+                //
+                // Полевой дефект: при фоне 0,13 и пороге 0,30 красная
+                // пунктирная линия висела у верхней кромки. Причина —
+                // «далёкий» и «очень далёкий» порог различались: у далёкого
+                // (в пределах одной высоты кадра) взводился `alarmAbove` и
+                // рисовался указатель, а у очень далёкого не взводилось
+                // ничего, и линия шла через `yOf`, где доля зажимается в
+                // 0..1 — то есть ложилась ровно на верхний край кадра и
+                // читалась как «порог здесь».
                 val alarmY = spec.alarmLevel
-                    ?.takeIf { !alarmAbove && !alarmBelow }
+                    ?.takeIf { it in spec.scale.minValue..spec.scale.maxValue }
                     ?.let { yOf(it) }
                 val bandTop = spec.baselineBand?.let { yOf(it.endInclusive) }
                 val bandBottom = spec.baselineBand?.let { yOf(it.start) }
