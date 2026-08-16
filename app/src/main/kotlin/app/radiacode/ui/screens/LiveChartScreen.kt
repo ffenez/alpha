@@ -119,6 +119,13 @@ import kotlinx.coroutines.withContext
 private const val RELOAD_DEBOUNCE_MILLIS = 250L
 
 /** Ширина шага ленты периодов — чип плюс интервал; для авто-прокрутки. */
+/** Доезд до «сейчас»: достаточно, чтобы проследить глазом, и не тормозит. */
+private const val EDGE_ANIMATION_MILLIS = 220L
+private const val EDGE_ANIMATION_STEPS = 11
+
+/** Дальше этого числа окон возврат не едет, а переносится. */
+private const val FAR_JUMP_SPANS = 6
+
 private const val CHIP_STEP_DP = 52
 
 internal val CURSOR_TIME = DateTimeFormatter.ofPattern("HH:mm:ss")
@@ -335,15 +342,50 @@ fun LiveChartScreen(
     }
 
     /** «⌖ сейчас» на живом графике, «⌖ сессия» — на историческом. */
+    var edgeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    /**
+     * Возврат к «сейчас» — доездом, а не телепортом.
+     *
+     * Мгновенная подмена окна не читается как перемещение: картинка просто
+     * становится другой, и глазу нечем связать то, что было, с тем, что стало.
+     * Короткий проезд (около 220 мс) показывает, КУДА уехало окно, и человек
+     * не теряет место, откуда он смотрел.
+     *
+     * Едет ВРЕМЯ окна, а не пиксели: длительность окна сохраняется, меняется
+     * только его правый край. Данные при этом не анимируются — двигается
+     * представление (V2 §8).
+     */
     fun jumpToEdge() {
-        if (range != null) {
-            window = ChartRanges.initialWindow(range, maxSpan)
-        } else {
-            window = ChartWindows.follow(window, System.currentTimeMillis())
-            follow = ChartInteractions.jumpToNow().follow
-        }
         cursorActive = false
         cursorFraction.value = null
+        val target = if (range != null) {
+            ChartRanges.initialWindow(range, maxSpan)
+        } else {
+            ChartWindows.follow(window, System.currentTimeMillis())
+        }
+        val from = window
+        val distance = kotlin.math.abs(target.toMillis - from.toMillis)
+        // Далёкий возврат не «летит» через часы истории: доезд имеет смысл,
+        // пока глаз успевает проследить, иначе это просто медленный телепорт.
+        if (distance > from.spanMillis * FAR_JUMP_SPANS) {
+            window = target
+            if (range == null) follow = ChartInteractions.jumpToNow().follow
+            return
+        }
+        edgeJob?.cancel()
+        edgeJob = settingsScope.launch {
+            val steps = EDGE_ANIMATION_STEPS
+            for (step in 1..steps) {
+                val fraction = step.toFloat() / steps
+                val eased = 1f - (1f - fraction) * (1f - fraction)
+                val to = from.toMillis + ((target.toMillis - from.toMillis) * eased).toLong()
+                window = ChartWindow(to - from.spanMillis, to)
+                delay(EDGE_ANIMATION_MILLIS / steps)
+            }
+            window = target
+            if (range == null) follow = ChartInteractions.jumpToNow().follow
+        }
     }
 
     val pinch = remember(metric) { ChartViewport.PinchAccumulator() }

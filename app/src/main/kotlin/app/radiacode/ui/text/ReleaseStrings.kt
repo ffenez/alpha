@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v061Title: String
+    val v061Summary: String
+
     val v060Title: String
     val v060Summary: String
 
@@ -141,6 +144,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v061Title = "Возврат к «сейчас» доезжает, а не телепортирует"
+    override val v061Summary =
+        "Кнопка «сейчас» на графике теперь доводит окно за пару десятых секунды, " +
+        "и видно, куда оно уехало. Дальний возврат по-прежнему мгновенный: " +
+        "медленный полёт через часы истории — это не подсказка, а ожидание."
 
     override val v060Title = "Поиск не занимает экран разговорами о фоне"
     override val v060Summary =
@@ -433,6 +442,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v061Title = "Returning to «now» travels instead of teleporting"
+    override val v061Summary =
+        "The «now» button on a chart now drives the window there over a couple of " +
+        "tenths of a second, so it is visible where it went. A distant return " +
+        "stays instant: a slow flight across hours of history is waiting, not a hint."
 
     override val v060Title = "Поиск stops talking about the background"
     override val v060Summary =
@@ -734,6 +749,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v061Title, v061Summary,
     v060Title, v060Summary,
     v059Title, v059Summary,
     v058Title, v058Summary,
