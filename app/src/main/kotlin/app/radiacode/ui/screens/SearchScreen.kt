@@ -629,11 +629,25 @@ fun SearchScreen(
                     animationSpec = Motion.normal(),
                     label = "searchTint",
                 )
+                // Разбор открывает и само ЧИСЛО, а не только строка вывода.
+                //
+                // Когда счёт держится на уровне фона, выводу сказать нечего, и
+                // строка пуста — вместе с ней исчезала единственная цель
+                // нажатия, хотя вопрос «почему так решено» в этот момент
+                // задают чаще всего.
                 Text(
                     text = cps?.let { Uncertainty.num1(it) } ?: "—",
                     style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
                     color = numberTint,
                     textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { whyOpen = true },
+                        )
+                        .padding(horizontal = Dimens.space2),
                 )
                 // Под числом не осталось ничего: величина названа заголовком
                 // экрана, а σ разбирают в «Почему», рядом с окном, по которому

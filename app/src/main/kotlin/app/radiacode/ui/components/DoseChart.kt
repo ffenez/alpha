@@ -1,6 +1,15 @@
 package app.radiacode.ui.components
 
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -9,8 +18,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
@@ -249,9 +261,75 @@ fun DoseChart(
                 pixels.indexOfBucket(marker.bucketIndex)?.let { pixels.x[it] }
             }
         }
+        // Инерция: бросок пальцем продолжает движение с затуханием.
+        //
+        // Наблюдающий слой, а не ещё один обработчик жестов: события читаются
+        // на ПЕРВОМ проходе и НЕ поглощаются, поэтому перемещение, щипок,
+        // курсор и нажатия работают ровно как раньше. Здесь только две вещи,
+        // которых у `detectTransformGestures` нет вовсе, — скорость в момент
+        // отрыва и сам факт отрыва.
+        val flingScope = rememberCoroutineScope()
+        var flingJob by remember { mutableStateOf<Job?>(null) }
+        DisposableEffect(Unit) { onDispose { flingJob?.cancel() } }
         Spacer(
             Modifier
                 .fillMaxSize()
+                .pointerInput(widthPx, interactive) {
+                    if (!interactive) return@pointerInput
+                    val tracker = VelocityTracker()
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val pressed = event.changes.filter { it.pressed }
+                            if (pressed.isNotEmpty()) {
+                                // Касание во время броска немедленно забирает
+                                // управление: график обязан слушаться пальца,
+                                // а не доезжать по своим делам.
+                                flingJob?.cancel()
+                                flingJob = null
+                                // Скорость снимается по ОДНОМУ пальцу: у щипка
+                                // своя геометрия, и бросок после него означал
+                                // бы движение, которого человек не делал.
+                                if (pressed.size == 1) {
+                                    tracker.addPosition(
+                                        pressed[0].uptimeMillis,
+                                        pressed[0].position,
+                                    )
+                                } else {
+                                    tracker.resetTracking()
+                                }
+                            } else {
+                                val velocityX = tracker.calculateVelocity().x
+                                tracker.resetTracking()
+                                val transform = onTransform
+                                if (transform != null && abs(velocityX) >= MIN_FLING_VELOCITY) {
+                                    flingJob = flingScope.launch {
+                                        var previous = 0f
+                                        androidx.compose.animation.core.Animatable(0f)
+                                            .animateDecay(
+                                                initialVelocity = velocityX,
+                                                animationSpec = exponentialDecay(
+                                                    frictionMultiplier = FLING_FRICTION,
+                                                ),
+                                            ) {
+                                                val delta = value - previous
+                                                previous = value
+                                                // Окно двигает та же функция,
+                                                // что и палец: экран сам не
+                                                // пускает дальше доступной
+                                                // истории и края «сейчас».
+                                                transform(
+                                                    delta / widthPx.coerceAtLeast(1f),
+                                                    1f,
+                                                    0.5f,
+                                                )
+                                            }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 .pointerInput(widthPx) {
                     detectDragGesturesAfterLongPress(
                         onDragStart = { setCursor.value(fractionOf(it.x, widthPx)) },
@@ -1014,3 +1092,13 @@ private fun rawDotOffsets(
     }
     return out
 }
+
+/**
+ * Ниже этой скорости бросок не считается броском, px/с.
+ * **Инженерный параметр**: медленное отпускание пальца — это остановка, и
+ * доезжать после неё значит не слушаться руки.
+ */
+private const val MIN_FLING_VELOCITY = 200f
+
+/** Трение затухания: больше — короче выбег. */
+private const val FLING_FRICTION = 1.6f

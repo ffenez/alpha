@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v062Title: String
+    val v062Summary: String
+
     val v061Title: String
     val v061Summary: String
 
@@ -144,6 +147,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v062Title = "График продолжает движение за броском пальца"
+    override val v062Summary =
+        "Полноэкранный график получил инерцию: брошенный пальцем, он едет дальше " +
+        "с затуханием, а касание немедленно его останавливает. И разбор вывода в " +
+        "Поиске снова открывается нажатием на само число — когда счёт держится на " +
+        "уровне фона, строка вывода пуста, и нажимать было не на что."
 
     override val v061Title = "Возврат к «сейчас» доезжает, а не телепортирует"
     override val v061Summary =
@@ -442,6 +452,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v062Title = "The chart keeps moving after the finger lets go"
+    override val v062Summary =
+        "The fullscreen chart gained inertia: thrown with a finger it travels on " +
+        "and decays, and a touch stops it at once. And the reasoning in Поиск " +
+        "opens from the number itself again — while the count sits at background " +
+        "level the verdict line is empty, and there was nothing left to tap."
 
     override val v061Title = "Returning to «now» travels instead of teleporting"
     override val v061Summary =
@@ -749,6 +766,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v062Title, v062Summary,
     v061Title, v061Summary,
     v060Title, v060Summary,
     v059Title, v059Summary,
