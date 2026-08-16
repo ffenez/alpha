@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -1063,39 +1065,50 @@ private fun RowScope.ControlChips(
     // Правило на всю панель: подсвечен = названное состояние ВКЛЮЧЕНО.
     // Название у чипа постоянное («лог»), иначе подсветка ничего не значила
     // бы — надпись и так меняла бы смысл под ней.
+    val texts = ChartTextCatalogue.of(LocalStrings.current.language)
+    val strings = LocalStrings.current
     Chip(
-        text = ChartTextCatalogue.of(LocalStrings.current.language).logChip,
+        text = texts.logChip,
         color = if (logScale) colors.dataText else colors.ink2,
         selected = logScale,
         onClick = onToggleScale,
     )
     Spacer(Modifier.width(Dimens.space1))
-    // Рядом с «лог» и по тому же правилу: подсвечен — названное состояние
-    // включено. Названо СГЛАЖИВАНИЕ, потому что включают именно его: подробный
-    // вид — это картинка без него, а не отдельная надстройка. Тем же словом
-    // назван сглаживатель спектра, и означает оно там то же самое.
-    Chip(
-        text = ChartTextCatalogue.of(LocalStrings.current.language).smoothChip,
-        color = if (detailed) colors.ink2 else colors.dataText,
-        selected = !detailed,
-        onClick = onToggleDetail,
-    )
-    Spacer(Modifier.width(Dimens.space1))
-    // События — по запросу и только здесь. На карточке Главной их метки шли
-    // над кривой второй строкой данных и выглядели важнее её самой; здесь
-    // места хватает, и включает их тот, кто пришёл разбираться.
-    Chip(
-        text = ChartTextCatalogue.of(LocalStrings.current.language).eventsChip,
-        color = if (events) colors.dataText else colors.ink2,
-        selected = events,
-        onClick = onToggleEvents,
-    )
-    Spacer(Modifier.width(Dimens.space1))
-    // «Подробнее» было хвостом строки чисел — то есть кнопкой, не похожей на
-    // кнопку. Здесь оно стоит среди других управляющих чипов, где его и ищут.
-    Chip(
-        text = ChartTextCatalogue.of(LocalStrings.current.language).moreDetails,
-        color = colors.ink2,
-        onClick = onOpenDetails,
-    )
+    // Остальное — под «⋯».
+    //
+    // Шесть равнозначных чипов стояли в строке постоянно, хотя сглаживание,
+    // события и разбор трогают раз в сеанс, а место они занимали всегда — и
+    // отнимали его у самого графика. Видимыми остались те два, которыми
+    // управляют по ходу чтения: окно и вид шкалы (V2 §16).
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        Chip(text = "⋯", color = colors.ink2, onClick = { menuOpen = true })
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        texts.smoothChip + " · " + if (detailed) strings.off else strings.on,
+                    )
+                },
+                onClick = {
+                    menuOpen = false
+                    onToggleDetail()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(texts.eventsChip + " · " + if (events) strings.on else strings.off) },
+                onClick = {
+                    menuOpen = false
+                    onToggleEvents()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(texts.moreDetails) },
+                onClick = {
+                    menuOpen = false
+                    onOpenDetails()
+                },
+            )
+        }
+    }
 }

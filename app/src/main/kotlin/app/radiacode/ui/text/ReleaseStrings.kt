@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v065Title: String
+    val v065Summary: String
+
     val v064Title: String
     val v064Summary: String
 
@@ -153,6 +156,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v065Title = "Панель графика — окно, шкала и «⋯»"
+    override val v065Summary =
+        "Сглаживание, события и разбор ушли под «⋯»: их трогают раз в сеанс, а " +
+        "место они занимали всегда и отнимали его у самого графика. Видимыми " +
+        "остались те два переключателя, которыми управляют по ходу чтения."
 
     override val v064Title = "Курсор сначала называет момент и значение"
     override val v064Summary =
@@ -471,6 +480,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v065Title = "The chart panel is the window, the scale and «⋯»"
+    override val v065Summary =
+        "Smoothing, events and the breakdown moved under «⋯»: they are touched " +
+        "once a session yet took space permanently, and took it from the chart " +
+        "itself. The two switches used while reading stayed visible."
 
     override val v064Title = "The cursor names the moment and the value first"
     override val v064Summary =
@@ -798,6 +813,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v065Title, v065Summary,
     v064Title, v064Summary,
     v063Title, v063Summary,
     v062Title, v062Summary,
