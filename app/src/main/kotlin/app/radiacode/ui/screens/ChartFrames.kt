@@ -23,6 +23,7 @@ import app.radiacode.ui.logic.DoseExtremes
 import app.radiacode.ui.logic.DoseFormat
 import app.radiacode.ui.logic.DoseHistogram
 import app.radiacode.ui.logic.DoseHistograms
+import app.radiacode.ui.logic.DoseScale
 import app.radiacode.ui.logic.DoseScales
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.HourSlice
@@ -135,6 +136,15 @@ internal fun buildFrame(
      * Полноэкранный график указатель сохраняет: туда приходят разбираться.
      */
     showDistantAlarm: Boolean = true,
+    /**
+     * Готовый кадр оси — на время жеста.
+     *
+     * Пока палец двигает график, ось пересчитывалась каждый кадр: в окно
+     * входили и выходили колонки, границы дёргались, и весь график «дышал»
+     * под рукой. Во время жеста ось замирает, а новый масштаб считается,
+     * когда движение остановилось (V2 §7).
+     */
+    scaleOverride: DoseScale? = null,
 ): ChartFrame {
     // Колонка — это ИНТЕРВАЛ, и в окно она попадает пересечением, а не
     // серединой.
@@ -196,7 +206,7 @@ internal fun buildFrame(
     // верх кадра, хотя из окна он уже ушёл. Запас чтения — решение о
     // производительности, и определять масштаб картинки он не имеет права:
     // видимое окно → значения в нём → поля → кадр.
-    val scale = DoseScales.of(
+    val scale = scaleOverride ?: DoseScales.of(
         logarithmic = logScale,
         lows = visible.map { it.q10 },
         highs = visible.map { it.q90 },

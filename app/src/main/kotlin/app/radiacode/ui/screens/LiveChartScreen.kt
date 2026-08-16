@@ -65,6 +65,7 @@ import app.radiacode.ui.logic.ChartInteraction
 import app.radiacode.ui.logic.ChartInteractions
 import app.radiacode.ui.logic.ChartWindow
 import app.radiacode.ui.logic.ChartViewport
+import app.radiacode.ui.logic.DoseScale
 import app.radiacode.ui.logic.ChartWindows
 import app.radiacode.analysis.Hardness
 import app.radiacode.ui.logic.ChartMetric
@@ -120,6 +121,9 @@ private const val RELOAD_DEBOUNCE_MILLIS = 250L
 
 /** Ширина шага ленты периодов — чип плюс интервал; для авто-прокрутки. */
 /** Доезд до «сейчас»: достаточно, чтобы проследить глазом, и не тормозит. */
+/** Пауза, после которой ось пересчитывается: движение улеглось. */
+private const val SCALE_SETTLE_MILLIS = 120L
+
 private const val EDGE_ANIMATION_MILLIS = 220L
 private const val EDGE_ANIMATION_STEPS = 11
 
@@ -291,6 +295,17 @@ fun LiveChartScreen(
         }
     }
 
+    // Ось замирает на время жеста и оживает, когда движение улеглось.
+    var interacting by remember { mutableStateOf(false) }
+    var lastGestureAt by remember { mutableLongStateOf(0L) }
+    var heldScale by remember(metric) { mutableStateOf<DoseScale?>(null) }
+    LaunchedEffect(lastGestureAt) {
+        if (lastGestureAt == 0L) return@LaunchedEffect
+        delay(SCALE_SETTLE_MILLIS)
+        interacting = false
+        heldScale = null
+    }
+
     // Keyed on the alert *flag*, not on the deviation snapshot: the engine
     // republishes that object every second and rebuilding the frame at 1 Hz
     // for an unchanged picture is exactly the waste this screen must avoid.
@@ -298,7 +313,7 @@ fun LiveChartScreen(
     val axisStrings = ChartAxisCatalogue.of(LocalStrings.current.language)
     val frame = remember(
         snapshot, window, unit, logScale, thresholds, baseline, endpointAlert, metric, follow,
-        detail, showEvents,
+        detail, showEvents, heldScale,
         axisStrings,
     ) {
         snapshot?.let {
@@ -318,6 +333,7 @@ fun LiveChartScreen(
                 axisStrings = axisStrings,
                 detail = detail,
                 showEvents = showEvents,
+                scaleOverride = heldScale,
             )
         }
     }
@@ -390,6 +406,9 @@ fun LiveChartScreen(
 
     val pinch = remember(metric) { ChartViewport.PinchAccumulator() }
     val onTransform: (Float, Float, Float) -> Unit = { pan, zoom, focus ->
+        if (!interacting) heldScale = frame?.spec?.scale
+        interacting = true
+        lastGestureAt = System.currentTimeMillis()
         val now = edge()
         var w = window
         // Зум СТУПЕНЧАТЫЙ — то же правило, что на карточке Главной

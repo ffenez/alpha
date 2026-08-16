@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v063Title: String
+    val v063Summary: String
+
     val v062Title: String
     val v062Summary: String
 
@@ -147,6 +150,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v063Title = "Ось не дышит под пальцем"
+    override val v063Summary =
+        "Пока график двигают или щиплют, вертикальная ось замирает: раньше она " +
+        "пересчитывалась на каждом кадре, и картинка ходила ходуном от колонок, " +
+        "входящих в окно и выходящих из него. Новый масштаб считается, когда " +
+        "движение улеглось."
 
     override val v062Title = "График продолжает движение за броском пальца"
     override val v062Summary =
@@ -452,6 +462,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v063Title = "The axis stops breathing under the finger"
+    override val v063Summary =
+        "While the chart is panned or pinched the vertical axis holds still: it " +
+        "used to be recomputed every frame, and the picture heaved as columns " +
+        "entered and left the window. The new scale is computed once the movement " +
+        "has settled."
 
     override val v062Title = "The chart keeps moving after the finger lets go"
     override val v062Summary =
@@ -766,6 +783,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v063Title, v063Summary,
     v062Title, v062Summary,
     v061Title, v061Summary,
     v060Title, v060Summary,
