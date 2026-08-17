@@ -219,6 +219,10 @@ object HtmlDocument {
           border-radius: 8px; padding: 4px 10px; font-size: 13px; cursor: pointer;
         }
         .controls button[aria-pressed="true"] { color: var(--data); border-color: var(--data); }
+        .legend {
+          display: flex; gap: 16px; flex-wrap: wrap;
+          font-size: 13px; margin: 0 0 4px;
+        }
         .readout {
           font-size: 13px; color: var(--ink2); min-height: 1.5em;
           font-variant-numeric: tabular-nums;

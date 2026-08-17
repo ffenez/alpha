@@ -182,6 +182,83 @@ object HtmlChart {
         return out.toString()
     }
 
+    /** Один ряд наложения: своя кривая и своё имя в легенде. */
+    data class Series(val label: String, val points: List<Point>)
+
+    /**
+     * Несколько рядов на одном поле.
+     *
+     * Кривые различаются ЦВЕТОМ И ИМЕНЕМ в легенде: цвет один различие не
+     * несёт — на печати без цвета и при цветовой слепоте остаётся подпись, а
+     * порядок кривых в легенде совпадает с порядком в таблице записей.
+     *
+     * Шкала — общая: ряды, нарисованные каждый в своём масштабе, выглядят
+     * одинаковыми при разнице в десять раз.
+     */
+    fun overlay(
+        id: String,
+        series: List<Series>,
+        axisLabels: List<Pair<Double, String>>,
+        valueUnit: String,
+        title: String,
+    ): String {
+        val drawn = series.map { it.copy(points = downsample(it.points)) }
+            .filter { it.points.isNotEmpty() }
+        if (drawn.isEmpty()) return ""
+        val minX = drawn.minOf { s -> s.points.minOf { it.x } }
+        val maxX = drawn.maxOf { s -> s.points.maxOf { it.x } }
+        val spanX = (maxX - minX).takeIf { it > 0 } ?: 1.0
+        fun px(x: Double) = PAD_LEFT + (WIDTH - PAD_LEFT - PAD_RIGHT) * (x - minX) / spanX
+
+        val maxValue = max(drawn.maxOf { s -> s.points.maxOf { it.value } }, 1e-9)
+        val minValue = drawn.minOf { s -> s.points.minOf { it.value } }.coerceAtLeast(0.0)
+        fun py(value: Double): Double {
+            val span = (maxValue - minValue).takeIf { it > 1e-12 } ?: 1.0
+            return HEIGHT - PAD_BOTTOM -
+                (HEIGHT - PAD_TOP - PAD_BOTTOM) * (value - minValue) / span
+        }
+
+        val out = StringBuilder(16 * 1024)
+        out.append("<figure id=\"").append(HtmlDocument.escape(id)).append("\">\n")
+        out.append("<p class=\"legend\">")
+        for ((index, s) in drawn.withIndex()) {
+            out.append("<span style=\"color:").append(seriesColor(index)).append("\">\u25A0 ")
+                .append(HtmlDocument.escape(s.label)).append("</span> ")
+        }
+        out.append("</p>\n")
+        out.append("<svg viewBox=\"0 0 $WIDTH $HEIGHT\" role=\"img\" aria-label=\"")
+            .append(HtmlDocument.escape(title)).append("\">\n")
+
+        appendGrid(out, "lin", ::py, minValue, maxValue, valueUnit)
+        for ((x, label) in axisLabels) {
+            val position = px(x)
+            out.append("<line x1=\"").append(fmt(position)).append("\" y1=\"$PAD_TOP\" x2=\"")
+                .append(fmt(position)).append("\" y2=\"").append(HEIGHT - PAD_BOTTOM)
+                .append("\" stroke=\"var(--line)\" stroke-width=\"1\"/>\n")
+            out.append("<text x=\"").append(fmt(position)).append("\" y=\"")
+                .append(HEIGHT - 8).append("\" fill=\"var(--muted)\" font-size=\"11\" ")
+                .append("text-anchor=\"middle\">").append(HtmlDocument.escape(label))
+                .append("</text>\n")
+        }
+        for ((index, s) in drawn.withIndex()) {
+            out.append("<path fill=\"none\" stroke=\"").append(seriesColor(index))
+                .append("\" stroke-width=\"1.6\" d=\"")
+            for ((pointIndex, point) in s.points.withIndex()) {
+                out.append(if (pointIndex == 0) 'M' else 'L')
+                out.append(fmt(px(point.x))).append(' ').append(fmt(py(point.value))).append(' ')
+            }
+            out.append("\"/>\n")
+        }
+        out.append("</svg>\n</figure>\n")
+        return out.toString()
+    }
+
+    /** Цвета кривых: те же переменные темы, что и на остальной странице. */
+    private fun seriesColor(index: Int): String {
+        val palette = listOf("var(--data)", "var(--warn)", "var(--crit)", "var(--ink2)")
+        return palette[index % palette.size]
+    }
+
     /** Названная вертикальная отметка — пик спектра или момент события. */
     data class Mark(val x: Double, val label: String, val key: String)
 

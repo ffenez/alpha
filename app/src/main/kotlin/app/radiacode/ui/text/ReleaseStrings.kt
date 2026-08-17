@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v079Title: String
+    val v079Summary: String
+
     val v078Title: String
     val v078Summary: String
 
@@ -195,6 +198,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v079Title = "Отчёт о записи одним файлом"
+    override val v079Summary =
+        "Сессия, маршрут, спектр и опыт выгружаются из Журнала одним нажатием: отчёт " +
+        "открывается в браузере без интернета и несёт графики, карту маршрута и условия " +
+        "опыта, а рядом лежат те же данные для обработки. Перед выгрузкой маршрута " +
+        "приложение спрашивает, что делать с координатами."
 
     override val v078Title = "Резервная копия всей истории одним файлом"
     override val v078Summary =
@@ -605,6 +615,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v079Title = "A record as one report file"
+    override val v079Summary =
+        "A session, a route, a spectrum and an experiment are exported from the History " +
+        "in one tap: the report opens in a browser with no internet and carries the " +
+        "charts, the route map and the conditions of the experiment, with the same data " +
+        "for processing next to it. Before a route is exported the app asks what to do " +
+        "with the coordinates."
 
     override val v078Title = "A backup of the whole history in one file"
     override val v078Summary =

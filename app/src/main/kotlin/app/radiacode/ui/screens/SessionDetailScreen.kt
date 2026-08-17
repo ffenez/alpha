@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -36,7 +34,10 @@ import app.radiacode.device.DoseUnits
 import app.radiacode.ui.components.LocalHintsVisible
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
+import app.radiacode.data.export.ReportFactories
 import app.radiacode.data.export.SeriesExport
+import app.radiacode.data.export.html.ReportEvent
+import app.radiacode.data.export.html.SessionReportHtml
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.ChartNotesDialog
 import app.radiacode.ui.components.Chip
@@ -51,6 +52,7 @@ import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.TimeAxis
 import androidx.compose.runtime.saveable.rememberSaveable
 import app.radiacode.ui.text.ChartTextCatalogue
+import app.radiacode.ui.text.ExportCatalogue
 import app.radiacode.ui.text.SearchCatalogue
 import app.radiacode.ui.text.HistoryCatalogue
 import app.radiacode.ui.text.HistoryRu
@@ -108,19 +110,8 @@ fun SessionDetailScreen(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var pendingCsv by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
-    val csvLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/csv"),
-    ) { uri ->
-        val content = pendingCsv
-        pendingCsv = null
-        if (uri != null && content != null) {
-            scope.launch {
-                notice = if (writeTextToUri(context, uri, content)) t.exportSaved else t.exportFailed
-            }
-        }
-    }
+    val saver = rememberFileSaver { ok -> notice = if (ok) t.exportSaved else t.exportFailed }
 
     var detail by remember { mutableStateOf<SessionDetail?>(null) }
     var missing by remember { mutableStateOf(false) }
@@ -166,24 +157,74 @@ fun SessionDetailScreen(
             // есть срез, а не ход измерения. Сохранение — явное действие через
             // системный диалог, как и у спектров.
             detail?.let { d ->
-                Chip(
-                    // Действие названо действием: «CSV» само по себе — формат,
-                    // а не то, что произойдёт по нажатию.
-                    text = t.exportCsv,
-                    color = colors.dataText,
-                    onClick = {
-                        scope.launch {
-                            pendingCsv = SeriesExport.csv(
-                                graph.measurementRepository.samplesList(
-                                    d.summary.startedAt,
-                                    d.summary.endedAt ?: d.toMillis,
-                                ),
-                            )
-                            csvLauncher.launch(
-                                SeriesExport.fileName(d.summary.startedAt, "csv"),
-                            )
-                        }
-                    },
+                val e = ExportCatalogue.of(strings.language)
+                // Три формата за одним чипом: отчёт для чтения, таблица для
+                // обработки, данные для программ. Читать сессию глазами нужно
+                // чаще, поэтому отчёт стоит первым.
+                fun withSamples(block: (List<app.radiacode.data.db.SampleEntity>) -> Unit) {
+                    scope.launch {
+                        block(
+                            graph.measurementRepository.samplesList(
+                                d.summary.startedAt,
+                                d.summary.endedAt ?: d.toMillis,
+                            ),
+                        )
+                    }
+                }
+                ExportMenuChip(
+                    options = listOf(
+                        ExportOptions.report(e) {
+                            withSamples { samples ->
+                                saver.save(
+                                    ExportFile.HTML,
+                                    SeriesExport.fileName(d.summary.startedAt, "html"),
+                                    SessionReportHtml.render(
+                                        ReportFactories.session(
+                                            summary = d.summary,
+                                            samples = samples,
+                                            events = d.events.map { event ->
+                                                ReportEvent(
+                                                    timeText = HistoryFormat.dayTime(
+                                                        event.timestamp,
+                                                        System.currentTimeMillis(),
+                                                        s = HistoryCatalogue.of(strings.language),
+                                                    ),
+                                                    text = if (
+                                                        event.source == EventEntity.SOURCE_DEVIATION
+                                                    ) {
+                                                        t.deviationEvent
+                                                    } else {
+                                                        t.excursionEvent
+                                                    },
+                                                )
+                                            },
+                                            appName = REPORT_APP,
+                                            appVersion = appVersionName(context) ?: "",
+                                            language = strings.language,
+                                        ),
+                                    ),
+                                )
+                            }
+                        },
+                        ExportOptions.table(e) {
+                            withSamples { samples ->
+                                saver.save(
+                                    ExportFile.CSV,
+                                    SeriesExport.fileName(d.summary.startedAt, "csv"),
+                                    SeriesExport.csv(samples),
+                                )
+                            }
+                        },
+                        ExportOptions.data(e) {
+                            withSamples { samples ->
+                                saver.save(
+                                    ExportFile.JSON,
+                                    SeriesExport.fileName(d.summary.startedAt, "json"),
+                                    ReportFactories.sessionJson(d.summary, samples),
+                                )
+                            }
+                        },
+                    ),
                 )
             }
         }

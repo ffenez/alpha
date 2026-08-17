@@ -22,6 +22,16 @@ interface BackupStrings {
     val createBackupNote: String
     val restoreBackup: String
     val restoreBackupNote: String
+
+    /**
+     * Где живёт выгрузка отдельной записи.
+     *
+     * Копия и экспорт решают разные задачи, и их путают: копия возвращает
+     * приложение к себе самому, а отчёт или таблица уезжают к другому
+     * человеку. Второй путь не повторяется в настройках отдельным экраном —
+     * он назван там, где его ищут, у самих записей.
+     */
+    val exportWhere: String
     val dataSize: String
 
     val saving: String
@@ -65,6 +75,8 @@ object BackupRu : BackupStrings {
     override val createBackupNote = "Один файл со всей историей и настройками"
     override val restoreBackup = "Восстановить из копии"
     override val restoreBackupNote = "Сначала копия читается и проверяется"
+    override val exportWhere = "Отдельная сессия, маршрут, спектр или опыт выгружаются " +
+        "из Журнала: у каждой записи есть «Экспорт» — отчёт для чтения или файл для обработки."
     override val dataSize = "Размер данных"
 
     override val saving = "Создание резервной копии"
@@ -148,6 +160,8 @@ object BackupEn : BackupStrings {
     override val createBackupNote = "One file with the whole history and the settings"
     override val restoreBackup = "Restore from a backup"
     override val restoreBackupNote = "The copy is read and checked first"
+    override val exportWhere = "A single session, route, spectrum or experiment is exported " +
+        "from the History: every record has «Export» — a report to read or a file to process."
     override val dataSize = "Data size"
 
     override val saving = "Creating the backup"
@@ -235,7 +249,7 @@ val BackupCatalogue = AreaCatalogue(ru = BackupRu, en = BackupEn)
 
 /** Все строки области — для проверок, действующих на каждый язык. */
 fun BackupStrings.allTexts(): List<String> = listOf(
-    sectionBackup, sectionStorage, createBackup, createBackupNote,
+    sectionBackup, sectionStorage, createBackup, createBackupNote, exportWhere,
     restoreBackup, restoreBackupNote, dataSize,
     saving, checking, restoring, saved, restored, failed, close, cancel,
     backupFound, contains, howToRestore, merge, mergeNote, replace, replaceNote,

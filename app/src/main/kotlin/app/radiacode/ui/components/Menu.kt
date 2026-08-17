@@ -56,6 +56,12 @@ fun AppMenu(
     modifier: Modifier = Modifier,
     /** Куда расти относительно якоря: у правого края экрана — влево. */
     alignment: Alignment = Alignment.BottomStart,
+    /**
+     * Сдвиг относительно якоря в пикселях. По умолчанию — вверх на шаг сетки;
+     * меню, которому есть куда падать вниз, передаёт высоту своего якоря и
+     * раскрывается под ним.
+     */
+    offset: IntOffset? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (!expanded) return
@@ -66,7 +72,7 @@ fun AppMenu(
         alignment = alignment,
         // Вверх от якоря, с зазором в один шаг сетки: меню не должно
         // накрывать кнопку, которой его открыли.
-        offset = IntOffset(0, -gap),
+        offset = offset ?: IntOffset(0, -gap),
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true),
     ) {

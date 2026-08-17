@@ -71,6 +71,11 @@ import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.BarChart
 import app.radiacode.ui.components.BarChartSpec
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import app.radiacode.ui.components.AppMenu
+import app.radiacode.ui.components.AppMenuItem
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.CheckMark
 import app.radiacode.ui.components.Chip
@@ -89,7 +94,9 @@ import app.radiacode.ui.logic.HistorySelection
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.SpectrumFormat
 import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.AppLanguage
 import app.radiacode.ui.text.LocalStrings
+import app.radiacode.ui.text.SessionRadonCatalogue
 import app.radiacode.ui.theme.Dimens
 import app.radiacode.ui.theme.LocalAppColors
 import app.radiacode.ui.theme.LocalAppMetrics
@@ -110,10 +117,19 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import app.radiacode.baseline.BaselineState
+import app.radiacode.data.export.GeoJson
+import app.radiacode.data.export.ReportFactories
 import app.radiacode.data.export.SeriesExport
+import app.radiacode.data.export.html.ComparisonReportHtml
+import app.radiacode.data.export.html.ReportEvent
+import app.radiacode.data.export.html.RoutePrivacy
+import app.radiacode.data.export.html.RouteReportHtml
+import app.radiacode.data.export.html.RouteTrim
+import app.radiacode.data.export.html.SessionReportHtml
+import app.radiacode.data.export.html.SpectrumReportHtml
+import app.radiacode.data.export.SpectrumReportFactory
+import app.radiacode.ui.text.ExportCatalogue
 import app.radiacode.ui.components.StatusRow
 import app.radiacode.ui.logic.DoseTint
 import app.radiacode.ui.logic.MapColorScale
@@ -289,17 +305,68 @@ fun HistoryScreen(
         reload += 1
     }
 
-    val routeGpxLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/gpx+xml"),
-    ) { uri ->
-        val route = exportingRoute
-        exportingRoute = null
-        if (uri != null && route != null) {
-            scope.launch {
-                val points = graph.trackRepository.points(route.id).first()
-                val title = RouteFormat.title(route, System.currentTimeMillis(), h)
-                writeTextToUri(context, uri, SeriesExport.gpx(points, title))
+    // Маршрут уезжает в любом из четырёх форматов, и любой из них несёт
+    // координаты — поэтому после формата задаётся вопрос о них.
+    var routeFormat by remember { mutableStateOf<ExportFile?>(null) }
+    var exportNote by remember { mutableStateOf<String?>(null) }
+    val e = ExportCatalogue.of(strings.language)
+    val fileSaver = rememberFileSaver { ok -> exportNote = if (ok) e.saved else e.failed }
+    val folderSaver = rememberFolderSaver { saved, failed ->
+        exportNote = if (failed == 0) e.filesSaved(saved) else e.failed
+    }
+
+    fun exportRoute(route: RouteSummary, format: ExportFile, privacy: RoutePrivacy) {
+        scope.launch {
+            val all = graph.trackRepository.points(route.id).first()
+            val kept = if (privacy == RoutePrivacy.FULL) all else RouteTrim.ends(all)
+            val title = RouteFormat.title(route, System.currentTimeMillis(), h)
+            val name = SeriesExport.fileName(route.startedAt, format.extension)
+            when (format) {
+                ExportFile.HTML -> fileSaver.save(
+                    format,
+                    name,
+                    RouteReportHtml.render(
+                        ReportFactories.route(
+                            summary = route,
+                            points = all,
+                            privacy = privacy,
+                            appName = REPORT_APP,
+                            appVersion = appVersionName(context) ?: "",
+                            language = strings.language,
+                        ),
+                    ),
+                )
+                ExportFile.GEOJSON -> fileSaver.save(format, name, GeoJson.route(kept, title))
+                ExportFile.GPX -> fileSaver.save(format, name, SeriesExport.gpx(kept, title))
+                else -> fileSaver.save(format, name, SeriesExport.trackCsv(kept))
             }
+        }
+    }
+
+    // Формат → координаты → системный диалог: три вопроса подряд, но каждый
+    // задаётся один раз и только про то, что человек уже начал делать.
+    exportingRoute?.let { route ->
+        if (routeFormat == null) {
+            ExportFormatDialog(
+                options = listOf(
+                    ExportOptions.report(e) { routeFormat = ExportFile.HTML },
+                    ExportOptions.map(e) { routeFormat = ExportFile.GEOJSON },
+                    ExportOptions.track(e) { routeFormat = ExportFile.GPX },
+                    ExportOptions.table(e) { routeFormat = ExportFile.CSV },
+                ),
+                onDismiss = { exportingRoute = null },
+            )
+        } else {
+            val format = routeFormat!!
+            RoutePrivacyDialog(
+                allowNoCoordinates = format == ExportFile.HTML,
+                onPick = { privacy ->
+                    exportingRoute = null
+                    routeFormat = null
+                    exportRoute(route, format, privacy)
+                },
+                onDismiss = { exportingRoute = null; routeFormat = null },
+            )
         }
     }
 
@@ -486,10 +553,7 @@ fun HistoryScreen(
                         }
                     },
                     onRename = { renaming = it },
-                    onExport = { route ->
-                        exportingRoute = route
-                        routeGpxLauncher.launch(SeriesExport.fileName(route.startedAt, "gpx"))
-                    },
+                    onExport = { route -> exportingRoute = route },
                     onDelete = { confirmingDelete = listOf(it) },
                     onCompare = { ids -> comparing = ids },
                 )
@@ -666,6 +730,66 @@ fun HistoryScreen(
                                     modifier = Modifier.weight(1f),
                                 )
                             }
+                        }
+                        // Выгрузка выбранного: либо один общий отчёт, либо по
+                        // файлу на запись в выбранную папку. Больше форматов
+                        // здесь нет намеренно — таблица и данные снимаются с
+                        // самой записи, где видно, что именно уезжает.
+                        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                            ExportMenuButton(
+                                enabled = !selection.isEmpty,
+                                options = listOf(
+                                    ExportOptions.oneReport(e) {
+                                        scope.launch {
+                                            val records = selection.sessions.mapNotNull { id ->
+                                                val summary = graph.sessionRepository.summary(id)
+                                                    ?: return@mapNotNull null
+                                                summary to samplesOf(graph, summary)
+                                            }.sortedBy { it.first.startedAt }
+                                            if (records.isEmpty()) {
+                                                exportNote = e.nothingSelected
+                                            } else {
+                                                fileSaver.save(
+                                                    ExportFile.HTML,
+                                                    SeriesExport.fileName(
+                                                        records.first().first.startedAt,
+                                                        "html",
+                                                    ),
+                                                    ComparisonReportHtml.render(
+                                                        ReportFactories.comparison(
+                                                            records = records,
+                                                            appName = REPORT_APP,
+                                                            appVersion =
+                                                                appVersionName(context) ?: "",
+                                                            language = strings.language,
+                                                        ),
+                                                    ),
+                                                )
+                                                selection = selection.cancel()
+                                            }
+                                        }
+                                    },
+                                    ExportOptions.separateFiles(e) {
+                                        val sessions = selection.sessions
+                                        val spectra = selection.spectra
+                                        val version = appVersionName(context) ?: ""
+                                        folderSaver.save {
+                                            reportsFor(
+                                                graph = graph,
+                                                sessionIds = sessions,
+                                                spectrumIds = spectra,
+                                                appVersion = version,
+                                                language = strings.language,
+                                            )
+                                        }
+                                        selection = selection.cancel()
+                                    },
+                                ),
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        exportNote?.let {
+                            Text(text = it, style = type.footnote, color = colors.muted)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                             AppButton(
@@ -941,23 +1065,32 @@ private fun RouteCard(
                     } else if (route.interrupted) {
                         StatusRow(text = h.routeInterrupted, color = colors.warn)
                     }
-                    Box {
+                    // Меню строки — в языке терминала: материаловская карточка
+                    // с тенью рядом с чипами читалась как чужое приложение.
+                    var menuHeight by remember { mutableIntStateOf(0) }
+                    val menuGap = with(LocalDensity.current) { Dimens.space1.roundToPx() }
+                    Box(modifier = Modifier.onSizeChanged { menuHeight = it.height }) {
                         Chip(text = MENU_GLYPH, color = colors.ink2, onClick = { menuOpen = true })
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(h.routeRename) },
+                        AppMenu(
+                            expanded = menuOpen,
+                            onDismiss = { menuOpen = false },
+                            alignment = Alignment.TopEnd,
+                            offset = IntOffset(0, menuHeight + menuGap),
+                        ) {
+                            AppMenuItem(
+                                text = h.routeRename,
                                 onClick = { menuOpen = false; onRename() },
                             )
-                            DropdownMenuItem(
-                                text = { Text(h.routeCompare) },
+                            AppMenuItem(
+                                text = h.routeCompare,
                                 onClick = { menuOpen = false; if (picked) onCompare() else onPick() },
                             )
-                            DropdownMenuItem(
-                                text = { Text(h.routeExport) },
+                            AppMenuItem(
+                                text = h.routeExport,
                                 onClick = { menuOpen = false; onExport() },
                             )
-                            DropdownMenuItem(
-                                text = { Text(strings.delete) },
+                            AppMenuItem(
+                                text = strings.delete,
                                 onClick = { menuOpen = false; onDelete() },
                             )
                         }
@@ -1684,4 +1817,82 @@ private fun DeleteConfirmDialog(
             }
         }
     }
+}
+
+/**
+ * Измерения сессии для отчёта.
+ *
+ * У идущей записи конца нет, поэтому границей служит текущий момент: отчёт о
+ * ней описывает то, что записано К ЭТОЙ МИНУТЕ, и подписан этим временем.
+ */
+private suspend fun samplesOf(graph: AppGraph, summary: SessionSummary) =
+    graph.measurementRepository.samplesList(
+        summary.startedAt,
+        summary.endedAt ?: System.currentTimeMillis(),
+    )
+
+/**
+ * Пакет отчётов: по файлу на выбранную запись.
+ *
+ * Имена файлов различаются временем записи, а не порядковым номером: папка с
+ * «report-1…report-9» через месяц не говорит ни о чём.
+ */
+private suspend fun reportsFor(
+    graph: AppGraph,
+    sessionIds: Set<Long>,
+    spectrumIds: Set<Long>,
+    appVersion: String,
+    language: AppLanguage,
+): List<ExportDocument> {
+    val out = mutableListOf<ExportDocument>()
+    for (id in sessionIds) {
+        val summary = graph.sessionRepository.summary(id) ?: continue
+        val to = summary.endedAt ?: System.currentTimeMillis()
+        val events = graph.sessionRepository.deviationEvents(from = summary.startedAt, to = to)
+        val h = HistoryCatalogue.of(language)
+        val sessionStrings = SessionRadonCatalogue.of(language)
+        out += ExportDocument(
+            name = SeriesExport.fileName(summary.startedAt, "html"),
+            mime = ExportFile.HTML.mime,
+            content = SessionReportHtml.render(
+                ReportFactories.session(
+                    summary = summary,
+                    samples = samplesOf(graph, summary),
+                    events = events.map { event ->
+                        ReportEvent(
+                            timeText = HistoryFormat.dayTime(
+                                event.timestamp,
+                                System.currentTimeMillis(),
+                                s = h,
+                            ),
+                            text = if (event.source == EventEntity.SOURCE_DEVIATION) {
+                                sessionStrings.deviationEvent
+                            } else {
+                                sessionStrings.excursionEvent
+                            },
+                        )
+                    },
+                    appName = REPORT_APP,
+                    appVersion = appVersion,
+                    language = language,
+                ),
+            ),
+        )
+    }
+    for (id in spectrumIds) {
+        val entity = graph.measurementRepository.spectrumById(id) ?: continue
+        out += ExportDocument(
+            name = SpectrumExport.fileName(entity.timestamp, "html"),
+            mime = ExportFile.HTML.mime,
+            content = SpectrumReportHtml.render(
+                SpectrumReportFactory.build(
+                    entity = entity,
+                    appName = REPORT_APP,
+                    appVersion = appVersion,
+                    language = language,
+                ),
+            ),
+        )
+    }
+    return out
 }

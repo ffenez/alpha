@@ -80,6 +80,39 @@ object SeriesExport {
         }
 
     /**
+     * Точки маршрута таблицей.
+     *
+     * То же правило, что и у измерений сессии: единицы СИ в заголовке столбца,
+     * десятичная точка. Координаты идут как есть — решение о том, что уезжает
+     * в файл, принимается ДО выгрузки, а не урезанием чисел в столбце.
+     */
+    fun trackCsv(points: List<TrackPointEntity>, zone: ZoneId = ZoneId.systemDefault()): String =
+        buildString {
+            appendLine(
+                "timestamp_ms,timestamp_local,latitude,longitude,altitude_m,accuracy_m," +
+                    "dose_rate_uSv_h,count_rate_cps",
+            )
+            for (p in points) {
+                append(p.timestamp)
+                append(',')
+                append(Instant.ofEpochMilli(p.timestamp).atZone(zone).format(LOCAL_STAMP))
+                append(',')
+                append(num(p.latitude))
+                append(',')
+                append(num(p.longitude))
+                append(',')
+                append(p.altitudeMeters?.let { num(it) } ?: "")
+                append(',')
+                append(num(p.accuracyMeters))
+                append(',')
+                append(p.doseRate?.let { num(DoseUnits.rawToMicroSievertPerHour(it)) } ?: "")
+                append(',')
+                append(p.countRate?.let { num(it) } ?: "")
+                appendLine()
+            }
+        }
+
+    /**
      * Трек в GPX 1.1.
      *
      * Мощность дозы кладётся в `<extensions>` собственного пространства имён:

@@ -29,6 +29,7 @@ import app.radiacode.data.export.backup.RestoreSelection
 import app.radiacode.data.export.backup.RestoreSummary
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.SettingRow
 import app.radiacode.ui.components.SettingsDivider
 import app.radiacode.ui.components.SettingsSection
@@ -110,6 +111,8 @@ internal fun BackupSection(graph: AppGraph) {
                 // копия.
                 onClick = { openLauncher.launch(arrayOf("*/*")) },
             )
+            SettingsDivider()
+            Hint(text = t.exportWhere)
         }
 
         JobCard(

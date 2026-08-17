@@ -59,7 +59,13 @@ import app.radiacode.device.DoseUnits
 import app.radiacode.service.MeasurementService
 import app.radiacode.service.ServiceStatus
 import app.radiacode.ui.components.AppButton
+import app.radiacode.data.export.GeoJson
+import app.radiacode.data.export.ReportFactories
 import app.radiacode.data.export.SeriesExport
+import app.radiacode.data.export.html.RoutePrivacy
+import app.radiacode.data.export.html.RouteReportHtml
+import app.radiacode.data.export.html.RouteTrim
+import app.radiacode.ui.text.ExportCatalogue
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Hint
@@ -688,16 +694,42 @@ private fun TrackDetailScreen(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var pendingGpx by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
-    val gpxLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/gpx+xml"),
-    ) { uri ->
-        val content = pendingGpx
-        pendingGpx = null
-        if (uri != null && content != null) {
-            scope.launch {
-                notice = if (writeTextToUri(context, uri, content)) t.exportSaved else t.exportFailed
+    val saver = rememberFileSaver { ok -> notice = if (ok) t.exportSaved else t.exportFailed }
+    // Любой файл маршрута несёт координаты, поэтому вопрос о них задаётся
+    // ОДИН раз — между выбором формата и системным диалогом сохранения.
+    var pendingFormat by remember { mutableStateOf<ExportFile?>(null) }
+
+    fun exportRoute(trackId: Long, format: ExportFile, privacy: RoutePrivacy) {
+        scope.launch {
+            val all = graph.trackRepository.points(trackId).first()
+            val kept = if (privacy == RoutePrivacy.FULL) all else RouteTrim.ends(all)
+            val stamp = all.firstOrNull()?.timestamp ?: System.currentTimeMillis()
+            val name = SeriesExport.fileName(stamp, format.extension)
+            when (format) {
+                ExportFile.HTML -> {
+                    val session = graph.trackRepository.session(trackId)
+                    val summary = session?.let { graph.trackRepository.routeSummary(it) }
+                    if (summary != null) {
+                        saver.save(
+                            format,
+                            name,
+                            RouteReportHtml.render(
+                                ReportFactories.route(
+                                    summary = summary,
+                                    points = all,
+                                    privacy = privacy,
+                                    appName = REPORT_APP,
+                                    appVersion = appVersionName(context) ?: "",
+                                    language = strings.language,
+                                ),
+                            ),
+                        )
+                    }
+                }
+                ExportFile.GEOJSON -> saver.save(format, name, GeoJson.route(kept, title))
+                ExportFile.GPX -> saver.save(format, name, SeriesExport.gpx(kept, title))
+                else -> saver.save(format, name, SeriesExport.trackCsv(kept))
             }
         }
     }
@@ -712,23 +744,28 @@ private fun TrackDetailScreen(
             // Трек в GPX: стандарт, который открывают карты и GIS. Сохранение —
             // явное действие через системный диалог; ничего не уходит само.
             data?.trackSessionId?.let { trackId ->
-                Chip(
-                    text = t.exportGpx,
-                    color = colors.dataText,
-                    onClick = {
-                        scope.launch {
-                            val points = graph.trackRepository.points(trackId).first()
-                            pendingGpx = SeriesExport.gpx(points, title)
-                            gpxLauncher.launch(
-                                SeriesExport.fileName(
-                                    points.firstOrNull()?.timestamp
-                                        ?: System.currentTimeMillis(),
-                                    "gpx",
-                                ),
-                            )
-                        }
-                    },
+                val e = ExportCatalogue.of(strings.language)
+                ExportMenuChip(
+                    options = listOf(
+                        ExportOptions.report(e) { pendingFormat = ExportFile.HTML },
+                        ExportOptions.map(e) { pendingFormat = ExportFile.GEOJSON },
+                        ExportOptions.track(e) { pendingFormat = ExportFile.GPX },
+                        ExportOptions.table(e) { pendingFormat = ExportFile.CSV },
+                    ),
                 )
+                pendingFormat?.let { format ->
+                    RoutePrivacyDialog(
+                        // «Без координат» оставляет только ход измерения во
+                        // времени: у карты и следа от такого файла ничего не
+                        // остаётся, поэтому вариант предлагается лишь отчёту.
+                        allowNoCoordinates = format == ExportFile.HTML,
+                        onPick = { privacy ->
+                            pendingFormat = null
+                            exportRoute(trackId, format, privacy)
+                        },
+                        onDismiss = { pendingFormat = null },
+                    )
+                }
                 Spacer(Modifier.width(Dimens.space2))
             }
             Chip(text = title, color = colors.ink)

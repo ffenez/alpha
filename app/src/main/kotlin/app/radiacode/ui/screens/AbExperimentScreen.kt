@@ -50,6 +50,10 @@ import app.radiacode.data.db.ExperimentEntity
 import app.radiacode.data.db.ExperimentRunEntity
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.data.export.ExperimentReport
+import app.radiacode.data.export.ReportFactories
+import app.radiacode.data.export.SeriesExport
+import app.radiacode.data.export.html.ExperimentReportHtml
+import app.radiacode.ui.text.ExportCatalogue
 import app.radiacode.data.export.ProcessingMetadata
 import app.radiacode.data.toEntity
 import app.radiacode.device.ConnectionState
@@ -499,6 +503,7 @@ private fun ExperimentDetail(
             }
         }
     }
+    val saver = rememberFileSaver { ok -> notice = if (ok) t.reportSaved else t.reportFailed }
 
     Screen {
         Header(title = t.detailTitle, back = t.back, onBack = onBack)
@@ -748,29 +753,79 @@ private fun ExperimentDetail(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            AppButton(
-                text = t.reportToFile,
+            // Опыт уезжает наружу целиком: отчёт с геометрией — для чтения,
+            // таблица и данные — для обработки, текст — чтобы вставить в
+            // переписку. Формат выбирается в меню, а не четырьмя кнопками.
+            val language = LocalStrings.current.language
+            val e = ExportCatalogue.of(language)
+            val fileStamp = current.createdAt
+            ExportMenuButton(
                 enabled = runs.isNotEmpty(),
-                onClick = {
-                    scope.launch {
-                        val profileName = current.profileId
-                            ?.let { graph.profileRepository.byId(it)?.name }
-                        pendingReport = ExperimentReport.render(
-                            experiment = current,
-                            profileName = profileName,
-                            runs = runData,
-                            comparison = comparison,
-                            windowSpecs = windowSpecs,
-                            distance = if (current.kind == ExperimentEntity.KIND_DISTANCE) {
-                                AbExperiment.distanceSeries(runData)
-                            } else {
-                                emptyList()
-                            },
-                            appVersion = appVersionName(context),
+                options = listOf(
+                    ExportOptions.report(e) {
+                        scope.launch {
+                            val profileName = current.profileId
+                                ?.let { graph.profileRepository.byId(it)?.name }
+                            saver.save(
+                                ExportFile.HTML,
+                                SeriesExport.fileName(fileStamp, "html"),
+                                ExperimentReportHtml.render(
+                                    ReportFactories.experiment(
+                                        entity = current,
+                                        profileName = profileName,
+                                        runs = runData,
+                                        comparison = comparison,
+                                        verdictText = comparison?.let {
+                                            ExperimentFormat.verdictHeadline(
+                                                it.verdict,
+                                                it.a.label,
+                                                it.b.label,
+                                                t,
+                                            )
+                                        } ?: t.needTwoRuns,
+                                        appName = REPORT_APP,
+                                        appVersion = appVersionName(context) ?: "",
+                                        language = language,
+                                    ),
+                                ),
+                            )
+                        }
+                    },
+                    ExportOptions.table(e) {
+                        saver.save(
+                            ExportFile.CSV,
+                            SeriesExport.fileName(fileStamp, "csv"),
+                            ReportFactories.experimentCsv(runData),
                         )
-                        exportLauncher.launch(ExperimentReport.fileName(current))
-                    }
-                },
+                    },
+                    ExportOptions.data(e) {
+                        saver.save(
+                            ExportFile.JSON,
+                            SeriesExport.fileName(fileStamp, "json"),
+                            ReportFactories.experimentJson(current, runData, comparison),
+                        )
+                    },
+                    ExportOptions.text(e) {
+                        scope.launch {
+                            val profileName = current.profileId
+                                ?.let { graph.profileRepository.byId(it)?.name }
+                            pendingReport = ExperimentReport.render(
+                                experiment = current,
+                                profileName = profileName,
+                                runs = runData,
+                                comparison = comparison,
+                                windowSpecs = windowSpecs,
+                                distance = if (current.kind == ExperimentEntity.KIND_DISTANCE) {
+                                    AbExperiment.distanceSeries(runData)
+                                } else {
+                                    emptyList()
+                                },
+                                appVersion = appVersionName(context),
+                            )
+                            exportLauncher.launch(ExperimentReport.fileName(current))
+                        }
+                    },
+                ),
                 modifier = Modifier.weight(1f),
             )
             AppButton(
