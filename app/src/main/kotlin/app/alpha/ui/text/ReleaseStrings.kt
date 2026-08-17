@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0160Title: String
+    val v0160Summary: String
+
     val v0150Title: String
     val v0150Summary: String
 
@@ -273,6 +276,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0160Title = "Медицина, техника и проверочные источники"
+    override val v0160Summary =
+        "Спектр знает ещё семь нуклидов: технеций-99m после сцинтиграфии, иридий-192 из " +
+        "дефектоскопии, натрий-22, барий-133 и кобальт-57 из проверочных наборов, европий-152 " +
+        "и европий-154. У каждого своя справка, а неразделимые соседи — 140 кэВ технеция и " +
+        "122 кэВ кобальта — названы парой."
 
     override val v0150Title = "Библиотека линий выросла вдвое"
     override val v0150Summary =
@@ -852,6 +862,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0160Title = "Medicine, industry and check sources"
+    override val v0160Summary =
+        "The spectrum knows seven more nuclides: technetium-99m after a scan, iridium-192 from " +
+        "weld inspection, sodium-22, barium-133 and cobalt-57 from check sets, europium-152 " +
+        "and europium-154. Each has its reference card, and inseparable neighbours — the " +
+        "140 keV of technetium and the 122 keV of cobalt — are named as a pair."
 
     override val v0150Title = "The line library has doubled"
     override val v0150Summary =

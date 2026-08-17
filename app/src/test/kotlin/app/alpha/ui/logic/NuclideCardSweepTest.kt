@@ -62,15 +62,17 @@ class NuclideCardSweepTest {
         // Нуклиды, у которых прибор видит ровно одну линию. Появится новый —
         // тест заставит проверить и его формулировку.
         assertEquals(
-            listOf("K-40", "Cs-137", "Am-241", "Bi-212", "Ra-226"),
+            listOf("K-40", "Cs-137", "Am-241", "Tc-99m", "Na-22", "Bi-212", "Ra-226"),
             single.map { it.symbol },
         )
         for (nuclide in single) {
             val card = cardFor(nuclide.symbol, nuclide.lines.first().energyKeV)
-            // Ra-226 — исключение по физике, а не по коду: его единственная
-            // линия 186,2 кэВ неотличима от 185,7 кэВ U-235, и выбирать между
-            // ними этим прибором нечем.
-            if (nuclide.symbol == "Ra-226") {
+            // Исключения по физике, а не по коду: единственная линия нуклида
+            // лежит под чужой и этим прибором не отделяется. Ra-226 186,2 кэВ
+            // против U-235 185,7 кэВ; Tc-99m 140,5 кэВ против Co-57 136,5 и
+            // 122,1 кэВ — при FWHM около 25 кэВ на этой энергии всё это один
+            // бугор.
+            if (nuclide.symbol in listOf("Ra-226", "Tc-99m")) {
                 assertEquals(NuclideCardStatus.AMBIGUOUS, card.status.status, nuclide.symbol)
                 continue
             }

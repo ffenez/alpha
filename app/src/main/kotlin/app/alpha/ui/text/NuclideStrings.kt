@@ -139,6 +139,50 @@ interface NuclideStrings {
     // Символ («K-40»), энергии линий и выходы — данные, они лежат в
     // NuclideInfoLibrary и не переводятся; здесь только текст.
 
+    val ba133Name: String
+    val ba133HalfLife: String
+    val ba133Decay: String
+    val ba133Everyday: String
+    val ba133Confirmation: String
+
+    val co57Name: String
+    val co57HalfLife: String
+    val co57Decay: String
+    val co57Everyday: String
+    val co57Confirmation: String
+
+    val tc99mName: String
+    val tc99mHalfLife: String
+    val tc99mDecay: String
+    val tc99mEveryday: String
+    val tc99mConfirmation: String
+
+    val na22Name: String
+    val na22HalfLife: String
+    val na22Decay: String
+    val na22Everyday: String
+    val na22Confirmation: String
+
+    val ir192Name: String
+    val ir192HalfLife: String
+    val ir192Decay: String
+    val ir192Everyday: String
+    val ir192Confirmation: String
+
+    val eu152Name: String
+    val eu152HalfLife: String
+    val eu152Decay: String
+    val eu152Everyday: String
+    val eu152Confirmation: String
+
+    val eu154Name: String
+    val eu154HalfLife: String
+    val eu154Decay: String
+    val eu154Everyday: String
+    val eu154Confirmation: String
+
+
+
     val ac228Name: String
     val ac228HalfLife: String
     val ac228Decay: String
@@ -357,6 +401,86 @@ object NuclideRu : NuclideStrings {
         "Точное сравнение отношения линий ограничено: относительная эффективность " +
             "детектора для этих энергий не откалибрована, поэтому наблюдаемое и " +
             "табличное отношения показаны раздельно."
+
+
+    override val ba133Name = "барий-133"
+    override val ba133HalfLife = "10,5 года"
+    override val ba133Decay = "захват электрона → Cs-133"
+    override val ba133Everyday =
+        "Проверочный источник: закрытые эталоны в лабораториях и учебных наборах. " +
+            "В природе не встречается."
+    override val ba133Confirmation =
+        "Осмысленное совпадение — 356 кэВ вместе с 81 и 303 кэВ. Линия 356 кэВ " +
+            "стоит рядом с 352 кэВ Pb-214 из природного ряда, и по ней одной " +
+            "выбрать нельзя."
+
+    override val co57Name = "кобальт-57"
+    override val co57HalfLife = "271,7 суток"
+    override val co57Decay = "захват электрона → Fe-57"
+    override val co57Everyday =
+        "Проверочный источник и калибровочная метка в медицинской технике. Из-за " +
+            "периода в девять месяцев старые источники слабеют заметно."
+    override val co57Confirmation =
+        "Осмысленное совпадение — 122 кэВ с 136 кэВ рядом. На этой энергии " +
+            "калибровка шкалы наименее точна, а рядом лежат линии европия-152 и " +
+            "европия-154."
+
+    override val tc99mName = "технеций-99m"
+    override val tc99mHalfLife = "6,01 ч"
+    override val tc99mDecay = "изомерный переход → Tc-99"
+    override val tc99mEveryday =
+        "Самый частый изотоп ядерной медицины: после сцинтиграфии человек несколько " +
+            "часов остаётся источником. Через сутки от него практически ничего не " +
+            "остаётся."
+    override val tc99mConfirmation =
+        "Линия одна, 140,5 кэВ, и подтвердить её нечем: у нуклида нет второй " +
+            "линии. Косвенный довод — быстрый спад: за шесть часов счёт падает вдвое."
+
+    override val na22Name = "натрий-22"
+    override val na22HalfLife = "2,60 года"
+    override val na22Decay = "β⁺ и захват электрона → Ne-22"
+    override val na22Everyday =
+        "Лабораторный источник; в природе рождается космическими лучами в " +
+            "ничтожных количествах. На распад даёт 1275 кэВ и две аннигиляционные " +
+            "линии 511 кэВ."
+    override val na22Confirmation =
+        "Различимая линия одна — 1275 кэВ, и рядом лежит 1274 кэВ европия-154. " +
+            "Пик 511 кэВ приложение относит к аннигиляции: её даёт любое излучение " +
+            "выше 1022 кэВ, и на выбор нуклида она не работает."
+
+    override val ir192Name = "иридий-192"
+    override val ir192HalfLife = "73,8 суток"
+    override val ir192Decay = "β⁻ → Pt-192, захват электрона → Os-192"
+    override val ir192Everyday =
+        "Источник промышленной дефектоскопии: им просвечивают сварные швы. " +
+            "Потерянный или попавший в металлолом источник — типичная находка " +
+            "поискового прибора."
+    override val ir192Confirmation =
+        "Осмысленное совпадение — 317 и 468 кэВ вместе, к ним 296 и 308 кэВ. " +
+            "Область 300 кэВ густо занята природными линиями, поэтому одиночного " +
+            "совпадения там мало."
+
+    override val eu152Name = "европий-152"
+    override val eu152HalfLife = "13,5 года"
+    override val eu152Decay = "захват электрона (72 %) → Sm-152, β⁻ (28 %) → Gd-152"
+    override val eu152Everyday =
+        "Искусственный: калибровочные источники со многими линиями и застарелое " +
+            "загрязнение почвы рядом с местами аварий и испытаний."
+    override val eu152Confirmation =
+        "У него много линий, и это его же и подтверждает: 122, 344, 964, 1112 и " +
+            "1408 кэВ вместе. Линия 122 кэВ неотличима от кобальта-57 и европия-154."
+
+    override val eu154Name = "европий-154"
+    override val eu154HalfLife = "8,6 года"
+    override val eu154Decay = "β⁻ → Gd-154"
+    override val eu154Everyday =
+        "Спутник европия-152 в тех же местах: калибровочные источники и старое " +
+            "загрязнение почвы."
+    override val eu154Confirmation =
+        "Осмысленное совпадение — 123 кэВ вместе с 723, 1005 и 1274 кэВ. Линия " +
+            "1274 кэВ совпадает с линией натрия-22, а 123 кэВ — с линиями " +
+            "европия-152 и кобальта-57."
+
 
 
     override val ac228Name = "актиний-228"
@@ -677,6 +801,87 @@ object NuclideEn : NuclideStrings {
             "and the tabulated ratios are shown separately."
 
 
+    override val ba133Name = "barium-133"
+    override val ba133HalfLife = "10.5 years"
+    override val ba133Decay = "electron capture → Cs-133"
+    override val ba133Everyday =
+        "A check source: sealed standards in laboratories and teaching sets. It " +
+            "does not occur in nature."
+    override val ba133Confirmation =
+        "A meaningful match is 356 keV together with 81 and 303 keV. The 356 keV " +
+            "line sits next to the 352 keV of Pb-214 from the natural series, and " +
+            "that line alone cannot choose between them."
+
+    override val co57Name = "cobalt-57"
+    override val co57HalfLife = "271.7 days"
+    override val co57Decay = "electron capture → Fe-57"
+    override val co57Everyday =
+        "A check source and a calibration marker in medical equipment. With a " +
+            "nine-month half-life old sources weaken noticeably."
+    override val co57Confirmation =
+        "A meaningful match is 122 keV with 136 keV beside it. At that energy the " +
+            "scale calibration is at its least accurate, and the lines of " +
+            "europium-152 and europium-154 lie nearby."
+
+    override val tc99mName = "technetium-99m"
+    override val tc99mHalfLife = "6.01 h"
+    override val tc99mDecay = "isomeric transition → Tc-99"
+    override val tc99mEveryday =
+        "The most common isotope of nuclear medicine: after a scan a person stays " +
+            "a source for several hours. A day later almost nothing is left of it."
+    override val tc99mConfirmation =
+        "There is one line, 140.5 keV, and nothing to confirm it with: the nuclide " +
+            "has no second line. The indirect argument is the fast decline — the " +
+            "count halves in six hours."
+
+    override val na22Name = "sodium-22"
+    override val na22HalfLife = "2.60 years"
+    override val na22Decay = "β⁺ and electron capture → Ne-22"
+    override val na22Everyday =
+        "A laboratory source; in nature it is made by cosmic rays in negligible " +
+            "amounts. Per decay it gives 1275 keV and two annihilation photons of " +
+            "511 keV."
+    override val na22Confirmation =
+        "There is one distinguishable line, 1275 keV, and 1274 keV of europium-154 " +
+            "lies beside it. A 511 keV peak is put down to annihilation: any " +
+            "radiation above 1022 keV produces it, so it cannot pick a nuclide."
+
+    override val ir192Name = "iridium-192"
+    override val ir192HalfLife = "73.8 days"
+    override val ir192Decay = "β⁻ → Pt-192, electron capture → Os-192"
+    override val ir192Everyday =
+        "An industrial radiography source used to inspect welds. A lost source or " +
+            "one that ended up in scrap metal is a typical find for a search " +
+            "instrument."
+    override val ir192Confirmation =
+        "A meaningful match is 317 and 468 keV together, with 296 and 308 keV " +
+            "beside them. The 300 keV region is crowded with natural lines, so a " +
+            "single match there is not enough."
+
+    override val eu152Name = "europium-152"
+    override val eu152HalfLife = "13.5 years"
+    override val eu152Decay = "electron capture (72 %) → Sm-152, β⁻ (28 %) → Gd-152"
+    override val eu152Everyday =
+        "Artificial: multi-line calibration sources and long-standing soil " +
+            "contamination near accident and test sites."
+    override val eu152Confirmation =
+        "Its many lines are its own argument: 122, 344, 964, 1112 and 1408 keV " +
+            "together. The 122 keV line is indistinguishable from cobalt-57 and " +
+            "europium-154."
+
+    override val eu154Name = "europium-154"
+    override val eu154HalfLife = "8.6 years"
+    override val eu154Decay = "β⁻ → Gd-154"
+    override val eu154Everyday =
+        "A companion of europium-152 in the same places: calibration sources and " +
+            "old soil contamination."
+    override val eu154Confirmation =
+        "A meaningful match is 123 keV together with 723, 1005 and 1274 keV. The " +
+            "1274 keV line coincides with a line of sodium-22, and 123 keV with the " +
+            "lines of europium-152 and cobalt-57."
+
+
+
     override val ac228Name = "actinium-228"
     override val ac228HalfLife = "6.15 h"
     override val ac228Decay = "β⁻ → Th-228"
@@ -878,6 +1083,13 @@ val NuclideCatalogue = AreaCatalogue(ru = NuclideRu, en = NuclideEn)
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun NuclideStrings.allTexts(): List<String> = listOf(
+    ba133Name, ba133HalfLife, ba133Decay, ba133Everyday, ba133Confirmation,
+    co57Name, co57HalfLife, co57Decay, co57Everyday, co57Confirmation,
+    tc99mName, tc99mHalfLife, tc99mDecay, tc99mEveryday, tc99mConfirmation,
+    na22Name, na22HalfLife, na22Decay, na22Everyday, na22Confirmation,
+    ir192Name, ir192HalfLife, ir192Decay, ir192Everyday, ir192Confirmation,
+    eu152Name, eu152HalfLife, eu152Decay, eu152Everyday, eu152Confirmation,
+    eu154Name, eu154HalfLife, eu154Decay, eu154Everyday, eu154Confirmation,
     ac228Name, ac228HalfLife, ac228Decay, ac228Everyday, ac228Confirmation,
     bi212Name, bi212HalfLife, bi212Decay, bi212Everyday, bi212Confirmation,
     ra226Name, ra226HalfLife, ra226Decay, ra226Everyday, ra226Confirmation,

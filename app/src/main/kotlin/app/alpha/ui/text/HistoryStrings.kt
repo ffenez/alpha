@@ -111,6 +111,8 @@ interface HistoryStrings {
 
     // ------------------------------------------------------------- маршруты
     /** Фильтры журнала: что он показывает. */
+    /** Заголовок строки снимка спектра, которому не дали имени. */
+    val spectrumTitle: String
     val filterAll: String
     val filterSessions: String
     val filterRoutes: String
@@ -270,6 +272,7 @@ object HistoryRu : HistoryStrings {
         "Записанные маршруты на Карте и сохранённые спектры остаются — их удаляют " +
             "отдельно. Обычный фон профиля пересчитается без удалённых измерений."
 
+    override val spectrumTitle = "Спектр"
     override val filterAll = "Все"
     override val filterSessions = "Сессии"
     override val filterRoutes = "Маршруты"
@@ -448,6 +451,7 @@ object HistoryEn : HistoryStrings {
         "Recorded tracks on the Map and saved spectra stay — they are deleted separately. " +
             "The profile's usual background will be recomputed without the deleted measurements."
 
+    override val spectrumTitle = "Spectrum"
     override val filterAll = "All"
     override val filterSessions = "Sessions"
     override val filterRoutes = "Routes"
@@ -530,6 +534,7 @@ val HistoryCatalogue = AreaCatalogue(ru = HistoryRu, en = HistoryEn)
 fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
     openOnMap, openOnChart,
     today, yesterday,
+    spectrumTitle,
     filterAll, filterSessions, filterRoutes, filterSpectra, filterFood,
     noFoodYet, foodExplained,
     routeAuto("18:51"), routesTitle, noRoutesYet, routesExplained, routeRecording,

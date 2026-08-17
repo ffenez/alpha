@@ -1010,7 +1010,7 @@ fun HistoryScreen(
                                         HistoryRow(
                                             // Дата стоит в заголовке дня,
                                             // время — во второй строке.
-                                            title = entity.label ?: strings.spectrum,
+                                            title = entity.label ?: h.spectrumTitle,
                                             subtitle = HistoryFormat.dayTime(
                                                 entity.timestamp,
                                                 now,

@@ -73,10 +73,12 @@ class IsotopeMatcherTest {
 
     @Test
     fun `ambiguous peak lists alternatives`() {
-        // 600 кэВ подходит и Cs-134 (604,7), и Bi-214 (609,3), и Tl-208 (583,2):
-        // ближайшая линия выигрывает, остальные названы альтернативами.
+        // 600 кэВ подходит нескольким нуклидам сразу: ближайшая по энергии
+        // линия выигрывает, остальные названы альтернативами. Победитель
+        // берётся из библиотеки, а не вписан числом: библиотека пополняется.
+        val nearest = GammaLineLibrary.LINES.minBy { kotlin.math.abs(it.energyKeV - 600f) }
         val hint = IsotopeMatcher.match(listOf(peak(600f, significance = 9f))).first()
-        assertEquals("Cs-134", hint.isotope, "closest line wins")
+        assertEquals(nearest.isotope, hint.isotope, "closest line wins")
         assertTrue("Bi-214" in hint.alternatives, "alternatives: ${hint.alternatives}")
         assertTrue("Tl-208" in hint.alternatives, "alternatives: ${hint.alternatives}")
     }
