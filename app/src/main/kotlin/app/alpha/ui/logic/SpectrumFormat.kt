@@ -180,6 +180,24 @@ object SpectrumFormat {
             }
         }
 
+    /**
+     * Импульсы коротко: «17,0 млн имп», «842 тыс имп», «9 312 имп».
+     *
+     * В сводке экрана точное «17 003 655» не помогает: разряды читаются
+     * дольше, чем несёт смысла, а порядок величины виден сразу. Точное число
+     * никуда не делось — оно в технических данных.
+     */
+    fun countsShort(totalCounts: Long, s: SpectrumStrings = SpectrumRu): String {
+        val text = when {
+            totalCounts >= 1_000_000 ->
+                String.format(java.util.Locale.US, "%.1f", totalCounts / 1_000_000.0)
+                    .replace('.', ',') + " " + s.unitMillions
+            totalCounts >= 10_000 -> (totalCounts / 1000).toString() + " " + s.unitThousands
+            else -> groupThousands(totalCounts)
+        }
+        return "$text ${s.unitCounts}"
+    }
+
     /** Header chip: «Δt 12:34 · 184 302 имп». */
     fun accumulationChip(
         durationSeconds: Long,

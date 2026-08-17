@@ -256,6 +256,43 @@ interface SpectrumStrings {
 
     // --- нижние действия экрана ---
     val moreActions: String
+
+    // --- компактный экран (V3) ---
+
+    /** Сводка спектра под заголовком: профиль · накопление · импульсы. */
+    fun spectrumSummary(profile: String, accumulation: String, counts: String): String
+
+    /** Профиль не выбран — так и говорим, а не молчим. */
+    val noProfileShort: String
+
+    /** Короткие множители в сводке: «млн», «тыс». */
+    val unitMillions: String
+    val unitThousands: String
+
+    /** Снимок объявлен обычной обстановкой места. */
+    val backgroundTag: String
+
+    /** Масштаб оси значений — выбор из трёх видов. */
+    val scaleMenuTitle: String
+
+    /** Раздел «Анализ» — одна строка вместо карточки со списком. */
+    val analysisRow: String
+
+    /** Технические данные: то, что нужно редко и подробно. */
+    val technicalTitle: String
+
+    /** Действие снимка названо результатом: появится снимок. */
+    val makeSnapshot: String
+
+    /** Заголовок листа пика: энергия крупно, остальное под ней. */
+    val peakSheetSignificance: String
+    val peakSheetArea: String
+    val peakLineTrend: String
+    fun peakHelp(nuclide: String): String
+
+    /** Подтверждение сброса — что именно очистится. */
+    val resetConfirmTitle: String
+    val resetConfirmBody: String
     val resetAccumulation: String
     val formatsTitle: String
 
@@ -554,6 +591,24 @@ object SpectrumRu : SpectrumStrings {
     override val done = "Готово"
 
     override val moreActions = "Ещё"
+
+    override fun spectrumSummary(profile: String, accumulation: String, counts: String) =
+        "$profile · $accumulation · $counts"
+    override val noProfileShort = "Без профиля"
+    override val unitMillions = "млн"
+    override val unitThousands = "тыс"
+    override val backgroundTag = "фоновый"
+    override val scaleMenuTitle = "Масштаб Y"
+    override val analysisRow = "Анализ"
+    override val technicalTitle = "Технические данные"
+    override val makeSnapshot = "Создать снимок"
+    override val peakSheetSignificance = "значимость"
+    override val peakSheetArea = "площадь"
+    override val peakLineTrend = "Линия во времени"
+    override fun peakHelp(nuclide: String) = "Справка о $nuclide"
+    override val resetConfirmTitle = "Сбросить накопленный спектр?"
+    override val resetConfirmBody =
+        "Прибор начнёт накопление заново. Сохранённые снимки останутся в журнале."
     override val resetAccumulation = "Сбросить накопление"
     override val formatsTitle = "О форматах"
 
@@ -908,6 +963,24 @@ object SpectrumEn : SpectrumStrings {
     override val done = "Done"
 
     override val moreActions = "More"
+
+    override fun spectrumSummary(profile: String, accumulation: String, counts: String) =
+        "$profile · $accumulation · $counts"
+    override val noProfileShort = "No profile"
+    override val unitMillions = "M"
+    override val unitThousands = "k"
+    override val backgroundTag = "background"
+    override val scaleMenuTitle = "Y scale"
+    override val analysisRow = "Analysis"
+    override val technicalTitle = "Technical data"
+    override val makeSnapshot = "Take a snapshot"
+    override val peakSheetSignificance = "significance"
+    override val peakSheetArea = "area"
+    override val peakLineTrend = "Line over time"
+    override fun peakHelp(nuclide: String) = "About $nuclide"
+    override val resetConfirmTitle = "Clear the accumulated spectrum?"
+    override val resetConfirmBody =
+        "The instrument starts accumulating anew. Saved snapshots stay in the journal."
     override val resetAccumulation = "Reset the accumulation"
     override val formatsTitle = "About the formats"
 
@@ -1037,6 +1110,10 @@ val SpectrumCatalogue = AreaCatalogue(ru = SpectrumRu, en = SpectrumEn)
  * забытая строка означала бы непроверенный текст.
  */
 fun SpectrumStrings.allTexts(): List<String> = listOf(
+    spectrumSummary("Дом", "191 ч", "17,0 млн имп"), noProfileShort, backgroundTag,
+    unitMillions, unitThousands, scaleMenuTitle, analysisRow, technicalTitle, makeSnapshot,
+    peakSheetSignificance, peakSheetArea, peakLineTrend, peakHelp("K-40"),
+    resetConfirmTitle, resetConfirmBody,
     toolLineTitle, toolLineSubtitle, infoActionsTitle, showBackgroundCurve,
     backgroundRecordedAt("14:32"), needBackgroundTitle, needBackgroundSubtract, needBackgroundCurve, needBackgroundHow,
     needBackgroundNoDevice,

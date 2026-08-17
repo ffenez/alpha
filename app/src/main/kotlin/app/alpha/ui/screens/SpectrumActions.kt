@@ -159,9 +159,6 @@ internal fun SpectrumActionsBar(
 
     var notice by remember { mutableStateOf<SpectrumFileNotice?>(null) }
     var savedAtMillis by remember { mutableStateOf<Long?>(null) }
-    var moreOpen by remember { mutableStateOf(false) }
-    var confirmReset by remember { mutableStateOf(false) }
-    var exporting by remember { mutableStateOf(false) }
 
     val e = ExportCatalogue.of(strings.language)
     val saver = rememberFileSaver { ok ->
@@ -175,80 +172,24 @@ internal fun SpectrumActionsBar(
             )
         }
     }
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            scope.launch { notice = importRcXmlFile(graph, context, uri, s = t) }
-        }
-    }
 
-    // Живой спектр выгружается тем же окном форматов, что и сохранённый
-    // снимок: разница между ними — только в том, есть ли у записи прошлое.
-    if (exporting && spectrum != null) {
-        val now = System.currentTimeMillis()
-        val entity = spectrum.toEntity(timestamp = now, accumulated = false)
-        EntityExportSheet(
-            title = e.export,
-            groups = spectrumExportGroups(
-                entity = entity,
-                e = e,
-                appVersion = appVersionName(context),
-                language = strings.language,
-                saver = saver,
-                onPicked = { exporting = false },
-            ),
-            onDismiss = { exporting = false },
-        )
-    }
-
-    // Приборные действия остаются на своих местах и просто гаснут: исчезнув,
-    // они заставили бы искать, куда делась кнопка. Причина названа строкой
-    // ниже — «недоступно» без причины хуже отсутствия.
-    val deviceBlock = SpectrumSources.deviceActionBlock(viewingSnapshot = false, connected)
-    val deviceActionsEnabled = deviceBlock == DeviceActionBlock.NONE
-    // Кнопки НАЗЫВАЮТ РЕЗУЛЬТАТ и объясняют себя одной строкой: «Записать
-    // фон» и «Сохранить» звучали как одно и то же действие, и разницу
-    // приходилось спрашивать. Снимок уходит в журнал; фон объявляет спектр
-    // обычной обстановкой — именно его вычитает режим «− фон».
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier.weight(1f),
-        ) {
-            // Подписей под кнопками нет: что делает каждая, сказано в справке
-            // «i». Постоянные две строки мелким шрифтом читаются один раз, а
-            // место у самого частого действия занимают всегда.
-            AppButton(
-                text = t.saveSnapshot,
-                onClick = onSaveOverride ?: { hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
-                // Снимок уже сохранён — сохранять его во второй раз незачем.
-                enabled = spectrum != null,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier.weight(1f),
-        ) {
-            AppButton(
-                text = t.setAsBackground,
-                onClick = { hub.request(SpectrumHub.Command.RECORD_BACKGROUND) },
-                enabled = deviceActionsEnabled,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        // Цель нажатия не меньше пальца: у кнопки из одного символа ширина
-        // иначе получается вдвое меньше высоты.
-        AppButton(
-            text = "⋯",
-            onClick = { moreOpen = true },
-            modifier = Modifier.defaultMinSize(minWidth = Dimens.touchTarget),
-        )
-    }
+    // Одно действие внизу вместо трёх кнопок.
+    //
+    // Раньше здесь стояли «Сохранить в историю», «Сделать фоном» и «⋯»:
+    // три равновеликие цели у экрана, где смотрят на спектр, а не нажимают.
+    // Осталось то, ради чего сюда возвращаются, — снимок; фон, экспорт,
+    // импорт, масштаб и сброс живут в «⋮» шапки, где их и ищут.
+    //
+    // Название говорит РЕЗУЛЬТАТ: «Сохранить в историю» звучало как «записать
+    // куда-то», а появляется именно снимок — запись со своим временем,
+    // накоплением и профилем.
+    AppButton(
+        text = t.makeSnapshot,
+        primary = true,
+        onClick = onSaveOverride ?: { hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
+        enabled = spectrum != null,
+        modifier = Modifier.fillMaxWidth(),
+    )
 
     // Статус фона — компактной строкой у своей кнопки: «фон: 11 авг · 51 ч».
     // Пока фона нет, на его месте стоит объяснение, что он даёт: пустое
@@ -285,39 +226,6 @@ internal fun SpectrumActionsBar(
             color = colors.muted,
             modifier = Modifier.padding(horizontal = Dimens.space1),
         )
-    }
-
-    if (moreOpen) {
-        SpectrumMoreDialog(
-            t = t,
-            hasSpectrum = spectrum != null,
-            connected = deviceActionsEnabled,
-            onReset = { moreOpen = false; confirmReset = true },
-            onImport = { moreOpen = false; importLauncher.launch(arrayOf("*/*")) },
-            onExport = { moreOpen = false; exporting = true },
-            onDismiss = { moreOpen = false },
-        )
-    }
-
-    if (confirmReset) {
-        Dialog(onDismissRequest = { confirmReset = false }) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(strings.resetSpectrumTitle, style = type.title, color = colors.ink)
-                    Text(text = strings.resetSpectrumBody, style = type.body, color = colors.ink2)
-                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                        AppButton(
-                            text = strings.reset,
-                            onClick = {
-                                confirmReset = false
-                                hub.request(SpectrumHub.Command.RESET)
-                            },
-                        )
-                        AppButton(text = strings.cancel, onClick = { confirmReset = false })
-                    }
-                }
-            }
-        }
     }
 
     notice?.let { current ->
@@ -379,56 +287,6 @@ internal fun SnapshotPickerDialog(
  */
 /** Имя приложения в подписи отчёта: его читают там, где приложения нет. */
 private const val REPORT_APP_NAME = "Alpha"
-
-@Composable
-internal fun SpectrumMoreDialog(
-    t: SpectrumStrings,
-    hasSpectrum: Boolean,
-    connected: Boolean,
-    onReset: () -> Unit,
-    onImport: () -> Unit,
-    onExport: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val strings = LocalStrings.current
-    Dialog(onDismissRequest = onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = t.moreActions, style = type.title, color = colors.ink)
-                AppButton(
-                    text = t.resetAccumulation,
-                    onClick = onReset,
-                    enabled = connected,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                AppButton(
-                    text = strings.importAction,
-                    onClick = onImport,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                // Один пункт вместо четырёх кнопок форматов: форматы живут в
-                // окне экспорта, одном на всё приложение.
-                AppButton(
-                    text = ExportCatalogue.of(strings.language).export,
-                    onClick = onExport,
-                    enabled = hasSpectrum,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    text = strings.cancel,
-                    style = type.bodySmall,
-                    color = colors.ink2,
-                    modifier = Modifier
-                        .align(Alignment.End)
-                        .clickable(onClick = onDismiss)
-                        .padding(Dimens.space1),
-                )
-            }
-        }
-    }
-}
 
 /**
  * Плашка режима «продолжить накопление»: честно объясняет семантику — прибор

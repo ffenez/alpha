@@ -97,6 +97,9 @@ fun SpectralRangesCard(
     counts: List<Int>,
     durationSeconds: Long,
     calibration: EnergyCalibration,
+    /** Технические данные открываются из «⋮» экрана, а не чипом в карточке. */
+    technicalOpen: Boolean = false,
+    onCloseTechnical: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -134,11 +137,12 @@ fun SpectralRangesCard(
                         )
                                             }
                     if (!expanded) {
+                        // В свёрнутом виде — только сколько диапазонов.
+                        // Отношение стояло рядом числом без знаменателя и
+                        // читалось как вывод; оно живёт развёрнутой строкой,
+                        // где рядом стоят сами диапазоны.
                         Text(
-                            text = t.rangesSummary(
-                                analysis.windows.size,
-                                index?.let { SpectrumFormat.ratioShort(it) },
-                            ),
+                            text = t.rangesSummary(analysis.windows.size, null),
                             style = type.footnote,
                             color = colors.muted,
                         )
@@ -153,19 +157,11 @@ fun SpectralRangesCard(
                 exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    RangesTable(analysis, details, t)
+                    // Компактно: диапазон · скорость · доля. Импульсы, ±σ и
+                    // покрытие каналами — в технических данных: они нужны
+                    // редко и подробно, а место занимали всегда.
+                    RangesTable(analysis, details = false, t = t)
                     RatioRow(index, t, onExplain = { explaining = true })
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Chip(
-                            text = t.rangeDetails + if (details) " ▴" else " ▾",
-                            color = colors.ink2,
-                            onClick = { details = !details },
-                        )
-                        Spacer(Modifier.weight(1f))
-                    }
                     // Кнопка настройки диапазонов уехала в Настройки → Прибор:
                     // границы это ПАРАМЕТР АНАЛИЗА, который задают один раз, а
                     // на рабочем экране он занимал место постоянно.
@@ -176,6 +172,78 @@ fun SpectralRangesCard(
 
     if (explaining) {
         RatioExplainDialog(analysis, t, onDismiss = { explaining = false })
+    }
+    if (technicalOpen) {
+        TechnicalDataSheet(analysis, t, onDismiss = onCloseTechnical)
+    }
+}
+
+/**
+ * Технические данные диапазонов.
+ *
+ * Импульсы, стандартная неопределённость и фактические границы каналов — то,
+ * чем проверяют результат, а не то, чем его читают. На рабочем экране они
+ * занимали место всегда и читались один раз; здесь они собраны вместе и
+ * открываются по требованию.
+ */
+@Composable
+private fun TechnicalDataSheet(
+    analysis: EnergyWindows.Analysis,
+    t: SpectrumStrings,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
+                Text(text = t.technicalTitle, style = type.title, color = colors.ink)
+                analysis.windows.forEach { window ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = SpectrumFormat.rangeLabel(window.spec),
+                            style = type.label,
+                            color = colors.ink,
+                        )
+                        if (window.isEmpty) {
+                            Text(text = "—", style = type.footnote, color = colors.muted)
+                        } else {
+                            Text(
+                                text = SpectrumFormat.rangeRate(window),
+                                style = type.valueSmall,
+                                color = colors.ink2,
+                            )
+                            Text(
+                                text = t.rangeCounts(
+                                    SpectrumFormat.groupThousands(window.counts),
+                                ) + " · " + t.rangeCovered(SpectrumFormat.rangeCovered(window)),
+                                style = type.footnote,
+                                color = colors.muted,
+                            )
+                        }
+                    }
+                }
+                analysis.index?.let { index ->
+                    AppDivider()
+                    Text(text = t.ratioTitle, style = type.label, color = colors.ink)
+                    Text(
+                        text = SpectrumFormat.ratioValue(index),
+                        style = type.valueSmall,
+                        color = colors.ink2,
+                    )
+                }
+                Text(text = t.windowsEdgeNote, style = type.footnote, color = colors.muted)
+                AppButton(
+                    text = strings.close,
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 }
 

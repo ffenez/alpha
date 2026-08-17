@@ -50,8 +50,9 @@ data class EntityMenuItem(
 @Composable
 fun EntityHeader(
     title: String,
-    onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    /** null — экран открыт вкладкой, и уходить с него некуда. */
+    onBack: (() -> Unit)? = null,
     /** Вторая строка: время, длительность, состояние — то, что уточняет имя. */
     subtitle: String? = null,
     menu: List<EntityMenuItem> = emptyList(),
@@ -69,7 +70,7 @@ fun EntityHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
     ) {
-        Chip(text = "←", color = colors.ink2, onClick = onBack)
+        if (onBack != null) Chip(text = "←", color = colors.ink2, onClick = onBack)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,

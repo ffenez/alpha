@@ -125,7 +125,7 @@ import kotlinx.coroutines.launch
 internal fun PeakTable(
     rows: List<PeakRow>,
     highlightedNuclide: String?,
-    onSelect: (String?) -> Unit,
+    onSelect: (PeakRow) -> Unit,
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -134,74 +134,53 @@ internal fun PeakTable(
 
     Column {
         Row(Modifier.fillMaxWidth().padding(bottom = 5.dp)) {
-            TableHeader(strings.peakTableEnergy, 0.9f)
-            TableHeader(strings.peakTableNet, 0.9f)
+            TableHeader(strings.peakTableEnergy, 1f)
             TableHeader(strings.peakTableSignificance, 0.9f)
-            // Четвёртый заголовок — такой же, как остальные три.
-            //
-            // Он был собран иначе: своим стилем, без ограничения строк и в
-            // своей `Row` с центрированием по вертикали. Пока текст был
-            // коротким, разницы не было видно; от слова «ВОЗМОЖНОЕ» он
-            // переносился, растил высоту всей строки заголовков, а соседи
-            // оставались прижатыми к верху — между заголовками и первой
-            // строкой появлялась пустота во весь перенос.
-            //
-            // Метка «гипотеза» рядом больше не нужна: слово «возможное» в
-            // самом заголовке говорит ровно то же и не занимает ширины.
-            TableHeader(strings.peakTableCandidate, 1.6f)
+            TableHeader(strings.peakTableCandidate, 1.5f)
         }
         AppDivider()
         rows.forEachIndexed { index, row ->
             val match = row.match
-            val target = match.primaryNuclide
             val isHighlighted = highlightedNuclide != null && match.involves(highlightedNuclide)
-            Column(
+            // Строка читается за секунду: энергия, значимость, кандидат.
+            // Площадь, механизм артефакта и отклонённые кандидаты уехали в лист
+            // самого пика — в таблице они делали каждую строку трёхэтажной, и
+            // пять пиков переставали читаться с одного взгляда.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = target != null) { onSelect(target) }
-                    .padding(vertical = 6.dp),
+                    .clickable { onSelect(row) }
+                    .padding(vertical = 7.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TableCell(SpectrumFormat.energyCell(row.peak.energyKeV), 0.9f, colors.ink)
-                    TableCell(SpectrumFormat.netCell(row.peak.netCounts), 0.9f, colors.ink)
-                    TableCell(
-                        SpectrumFormat.significanceCell(row.peak.significance),
-                        0.9f,
-                        colors.ink,
-                    )
-                    // Искусственный кандидат — единственное, что выделяется
-                    // весом и цветом внимания; артефакты и прочерки приглушены.
-                    val artificial = match is PeakMatch.Candidate && !match.natural ||
-                        match is PeakMatch.AmbiguousGroup && !match.natural
-                    Text(
-                        text = (if (isHighlighted) "▸ " else "") +
-                            SpectrumFormat.matchCell(match, t),
-                        style = if (artificial) {
-                            type.valueSmall.copy(fontWeight = FontWeight.SemiBold)
-                        } else {
-                            type.valueSmall
-                        },
-                        color = when {
-                            artificial -> colors.warn
-                            match is PeakMatch.Candidate ||
-                                match is PeakMatch.AmbiguousGroup -> colors.ink2
-                            else -> colors.muted
-                        },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1.6f),
-                    )
-                }
-                // Детали строки: противоречие, группа неразрешимости или
-                // механизм артефакта — тихой строкой под самим пиком.
-                SpectrumFormat.matchNotes(match, t).forEach { note ->
-                    Text(
-                        text = note,
-                        style = type.footnote,
-                        color = colors.muted,
-                        modifier = Modifier.padding(top = 1.dp),
-                    )
-                }
+                TableCell(SpectrumFormat.energyCell(row.peak.energyKeV), 1f, colors.ink)
+                TableCell(
+                    SpectrumFormat.significanceCell(row.peak.significance),
+                    0.9f,
+                    colors.ink,
+                )
+                // Искусственный кандидат — единственное, что выделяется
+                // весом и цветом внимания; артефакты и прочерки приглушены.
+                val artificial = match is PeakMatch.Candidate && !match.natural ||
+                    match is PeakMatch.AmbiguousGroup && !match.natural
+                Text(
+                    text = (if (isHighlighted) "▸ " else "") +
+                        SpectrumFormat.matchCell(match, t),
+                    style = if (artificial) {
+                        type.valueSmall.copy(fontWeight = FontWeight.SemiBold)
+                    } else {
+                        type.valueSmall
+                    },
+                    color = when {
+                        artificial -> colors.warn
+                        match is PeakMatch.Candidate ||
+                            match is PeakMatch.AmbiguousGroup -> colors.ink2
+                        else -> colors.muted
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1.5f),
+                )
             }
             if (index < rows.size - 1) AppDivider()
         }

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v092Title: String
+    val v092Summary: String
+
     val v091Title: String
     val v091Summary: String
 
@@ -216,6 +219,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v092Title = "Спектр стал рабочим экраном"
+    override val v092Summary =
+        "Сверху теперь видно, чей это спектр: профиль, накопление и импульсы одной строкой, " +
+        "а переключатели вида, экспорт, импорт и сброс уехали в «⋮». Таблица пиков читается " +
+        "за секунды — площадь, отклонённые кандидаты и технические числа открываются по " +
+        "нажатию на сам пик, а список инструментов — одной строкой «Анализ»."
 
     override val v091Title = "Вывод говорит о наблюдении, а поиск прощает опечатки"
     override val v091Summary =
@@ -672,6 +682,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v092Title = "The spectrum became a working screen"
+    override val v092Summary =
+        "The top now says whose spectrum it is — profile, accumulation and counts in one " +
+        "line — while the view switches, export, import and reset moved into «⋮». The peak " +
+        "table reads in seconds: area, rejected candidates and technical numbers open by " +
+        "tapping the peak itself, and the tools are one «Analysis» row."
 
     override val v091Title = "The verdict speaks of the reading, and search forgives typos"
     override val v091Summary =

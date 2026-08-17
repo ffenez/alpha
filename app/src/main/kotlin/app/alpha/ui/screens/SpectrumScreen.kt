@@ -66,6 +66,10 @@ import app.alpha.ui.components.AppDivider
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.ConfirmDialog
 import app.alpha.ui.components.EntityHeader
+import app.alpha.ui.components.DisclosureArrow
+import app.alpha.ui.components.EntityMenuItem
+import app.alpha.ui.text.ExportStrings
+import app.alpha.ui.text.Strings
 import app.alpha.ui.components.RenameDialog
 import app.alpha.ui.components.EvidenceTag
 import app.alpha.ui.components.Chip
@@ -187,6 +191,16 @@ fun SpectrumScreen(
         snapshotEntity = loaded
         snapshotMissing = snapshotId != null && loaded == null
     }
+    // Действия живого спектра: всё, что раньше стояло кнопками и полосами
+    // переключателей, теперь открывается из «⋮» шапки.
+    var exportingLive by remember { mutableStateOf(false) }
+    var importingLive by remember { mutableStateOf(false) }
+    var scaleMenuOpen by remember { mutableStateOf(false) }
+    var technicalOpen by remember { mutableStateOf(false) }
+    var helpOpen by remember { mutableStateOf(false) }
+    var confirmReset by remember { mutableStateOf(false) }
+    var fileNotice by remember { mutableStateOf<SpectrumFileNotice?>(null) }
+
     // Действия над открытым снимком: экспорт, сравнение, имя, удаление.
     var exportingSnapshot by remember { mutableStateOf(false) }
     var renamingSnapshot by remember { mutableStateOf(false) }
@@ -404,27 +418,84 @@ fun SpectrumScreen(
         }
     }
 
+    // Импорт чужого файла работает и без прибора: это чтение, а не измерение.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch { fileNotice = importRcXmlFile(graph, context, uri, s = t) }
+        }
+    }
+    LaunchedEffect(importingLive) {
+        if (importingLive) {
+            importingLive = false
+            importLauncher.launch(arrayOf("*/*"))
+        }
+    }
+    if (exportingLive && spectrum != null) {
+        val now = System.currentTimeMillis()
+        val liveEntity = spectrum.toEntity(timestamp = now, accumulated = false)
+        EntityExportSheet(
+            title = exportStrings.export,
+            groups = spectrumExportGroups(
+                entity = liveEntity,
+                e = exportStrings,
+                appVersion = appVersionName(context),
+                language = strings.language,
+                saver = fileSaver,
+                onPicked = { exportingLive = false },
+            ),
+            onDismiss = { exportingLive = false },
+        )
+    }
+    if (scaleMenuOpen) {
+        SpectrumScaleDialog(graph = graph, onDismiss = { scaleMenuOpen = false })
+    }
+    if (confirmReset) {
+        ConfirmDialog(
+            title = t.resetConfirmTitle,
+            body = t.resetConfirmBody,
+            confirmText = strings.reset,
+            onConfirm = {
+                confirmReset = false
+                hub.request(SpectrumHub.Command.RESET)
+            },
+            onDismiss = { confirmReset = false },
+        )
+    }
+    fileNotice?.let { current ->
+        SpectrumFileNoticeDialog(notice = current, onDismiss = { fileNotice = null })
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(Dimens.space3),
-        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+            .padding(Dimens.space3)
+            .padding(top = 0.dp),
+        // Плотнее: главный вес на экране — у графика, а не у промежутков между
+        // разделами. Шаг между блоками уменьшен на ступень.
+        verticalArrangement = Arrangement.spacedBy(Dimens.space2),
     ) {
         // Открытый снимок — такая же запись, как сессия и маршрут, и шапка у
         // него та же: имя, время съёмки с накоплением и «⋮» с действиями.
         // Живой спектр — не запись, у него шапки нет: он всегда «сейчас».
+        // Одна шапка на снимок и на живой спектр: имя, сводка одной строкой и
+        // «⋮». Сводка отвечает на вопросы, которые задают о спектре в первую
+        // очередь — ЧЕЙ он, СКОЛЬКО копился и сколько в нём импульсов, — а
+        // переключатели вида уехали туда, где их ищут по надобности.
         val entity = snapshotEntity
-        if (entity != null && onBack != null) {
+        if (entity != null) {
             EntityHeader(
                 title = SpectrumExport.title(entity),
-                subtitle = t.snapshotTakenAt(
-                    at = HistoryFormat.dayTime(
-                        entity.timestamp,
-                        System.currentTimeMillis(),
-                        s = HistoryCatalogue.of(strings.language),
-                    ),
+                subtitle = t.spectrumSummary(
+                    profile = entity.profileName?.takeIf { it.isNotBlank() }
+                        ?: t.noProfileShort,
                     accumulation = SpectrumFormat.accumulationClock(entity.durationSeconds),
+                    counts = SpectrumFormat.countsShort(
+                        spectrum?.counts?.sumOf { c -> c.toLong() } ?: 0L,
+                        t,
+                    ),
                 ),
                 onBack = onBack,
                 menu = EntityMenus.spectrum(
@@ -441,25 +512,37 @@ fun SpectrumScreen(
                 ),
             )
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (onBack != null) {
-                    AppButton(text = "← ${strings.back}", onClick = onBack)
-                    Spacer(Modifier.width(Dimens.space2))
-                }
-                if (viewing) {
-                    Chip(text = t.snapshotViewTag, color = colors.ink)
-                }
-                Spacer(Modifier.weight(1f))
-                Chip(
-                    text = spectrum?.let {
-                        SpectrumFormat.accumulationChip(
-                            it.durationSeconds,
+            val activeProfile by graph.profileRepository.activeProfile()
+                .collectAsState(initial = null)
+            EntityHeader(
+                title = strings.tabSpectrum,
+                subtitle = spectrum?.let {
+                    t.spectrumSummary(
+                        profile = activeProfile?.name ?: t.noProfileShort,
+                        accumulation = SpectrumFormat.accumulationClock(it.durationSeconds),
+                        counts = SpectrumFormat.countsShort(
                             it.counts.sumOf { c -> c.toLong() },
                             t,
-                        )
-                    } ?: strings.noData,
-                )
-            }
+                        ),
+                    )
+                } ?: strings.noData,
+                onBack = onBack,
+                menu = liveSpectrumMenu(
+                    t = t,
+                    strings = strings,
+                    export = exportStrings,
+                    hasSpectrum = spectrum != null,
+                    connected = connected,
+                    onSnapshot = { onSaveMerged?.invoke() ?: hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
+                    onBackground = { hub.request(SpectrumHub.Command.RECORD_BACKGROUND) },
+                    onExport = { exportingLive = true },
+                    onImport = { importingLive = true },
+                    onScale = { scaleMenuOpen = true },
+                    onTechnical = { technicalOpen = true },
+                    onHelp = { helpOpen = true },
+                    onReset = { confirmReset = true },
+                ),
+            )
         }
         if (snapshotMissing) {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -524,20 +607,15 @@ fun SpectrumScreen(
                 connected = connected,
                 viewingSnapshot = viewing,
                 onOpenFullscreen = onOpenFullscreen,
-            )
-        }
-
-        // Спектрограмма, радон и A/B — отдельные ИНСТРУМЕНТЫ, а не способы
-        // нарисовать текущий спектр: они стоят после результатов анализа, а
-        // не тремя мелкими чипами среди переключателей графика. У снимка их
-        // нет — все трое живут живым потоком.
-        if (!viewing) {
-            AnalysisToolsSection(
                 onOpenFood = onOpenFood,
                 onOpenExperiments = onOpenExperiments,
                 onOpenSpectrogram = onOpenSpectrogram,
                 onOpenRadon = onOpenRadon,
                 onOpenLineTrend = onOpenLineTrend,
+                technicalOpen = technicalOpen,
+                onCloseTechnical = { technicalOpen = false },
+                helpOpen = helpOpen,
+                onCloseHelp = { helpOpen = false },
             )
         }
 
@@ -573,35 +651,32 @@ fun SpectrumScreen(
  * строка нажимается.
  */
 @Composable
-private fun AnalysisToolsSection(
+private fun AnalysisToolsSheet(
     onOpenFood: () -> Unit,
     onOpenExperiments: () -> Unit,
     onOpenSpectrogram: () -> Unit,
     onOpenRadon: () -> Unit,
     onOpenLineTrend: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val strings = LocalStrings.current
     val t = SpectrumCatalogue.of(strings.language)
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
-            Text(
-                text = t.toolsTitle.uppercase(),
-                style = type.labelSmall,
-                color = colors.ink2,
-            )
-            // Продукт — тот же опыт с двумя прогонами, поэтому он стоит
-            // рядом со сравнением, а не отдельной вкладкой внизу экрана.
-            AnalysisToolRow(t.toolFoodTitle, t.toolFoodSubtitle, onOpenFood)
-            AppDivider()
-            AnalysisToolRow(t.toolCompareTitle, t.toolCompareSubtitle, onOpenExperiments)
-            AppDivider()
-            AnalysisToolRow(t.toolSpectrogramTitle, t.toolSpectrogramSubtitle, onOpenSpectrogram)
-            AppDivider()
-            AnalysisToolRow(t.toolRadonTitle, t.toolRadonSubtitle, onOpenRadon)
-            AppDivider()
-            AnalysisToolRow(t.toolLineTitle, t.toolLineSubtitle, onOpenLineTrend)
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                Text(text = t.toolsTitle, style = type.title, color = colors.ink)
+                AnalysisToolRow(t.toolFoodTitle, t.toolFoodSubtitle, onOpenFood)
+                AppDivider()
+                AnalysisToolRow(t.toolCompareTitle, t.toolCompareSubtitle, onOpenExperiments)
+                AppDivider()
+                AnalysisToolRow(t.toolSpectrogramTitle, t.toolSpectrogramSubtitle, onOpenSpectrogram)
+                AppDivider()
+                AnalysisToolRow(t.toolRadonTitle, t.toolRadonSubtitle, onOpenRadon)
+                AppDivider()
+                AnalysisToolRow(t.toolLineTitle, t.toolLineSubtitle, onOpenLineTrend)
+            }
         }
     }
 }
@@ -754,6 +829,16 @@ private fun SpectrumContent(
     viewingSnapshot: Boolean = false,
     /** Тап по графику открывает его во весь экран — в том же виде. */
     onOpenFullscreen: ((SpectrumViewOptions) -> Unit)? = null,
+    onOpenFood: () -> Unit = {},
+    onOpenExperiments: () -> Unit = {},
+    onOpenSpectrogram: () -> Unit = {},
+    onOpenRadon: () -> Unit = {},
+    onOpenLineTrend: () -> Unit = {},
+    /** Технические данные и справка открываются из «⋮» шапки. */
+    technicalOpen: Boolean = false,
+    onCloseTechnical: () -> Unit = {},
+    helpOpen: Boolean = false,
+    onCloseHelp: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -792,8 +877,8 @@ private fun SpectrumContent(
         )
     }
     var smoothing by rememberSaveable { mutableStateOf(false) }
+    var scalePicker by remember { mutableStateOf(false) }
     var window by remember { mutableStateOf<EnergyWindow?>(null) }
-    var infoOpen by rememberSaveable { mutableStateOf(false) }
 
     val backgroundEntity by graph.measurementRepository.backgroundReference()
         .collectAsState(initial = null)
@@ -817,49 +902,41 @@ private fun SpectrumContent(
     )
     val resolution662 = model.peakResolution662
 
-    // --- controls: mode + scale ---
+    // --- две кнопки вместо двух рядов переключателей ---
+    //
+    // Раньше здесь стояли шесть сегментов («Спектр | − фон» и «Лин | Степень |
+    // Лог») плюс «i». Лин/Степень/Лог — выбор ВИДА, который делают один раз
+    // под задачу, и держать его постоянной панелью над графиком значит
+    // отбирать высоту у самого графика: масштаб уехал в «⋮ → Масштаб Y», а
+    // здесь остался чип с текущим видом (он же открывает выбор) и «− фон».
     Row(
-        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // «Накопл. | −фон» не говорило, ЧТО вычитается: теперь режим назван
-        // целиком, спектр и спектр минус записанный фон.
-        Segmented(
-            options = listOf(strings.spectrumModeRaw, strings.spectrumModeMinusBackground),
-            selectedIndex = if (subtractOn) 1 else 0,
-            // Режим «− фон» ЖИВОЙ и без записанного фона: на нажатие он
-            // объясняет, чего ему не хватает, и предлагает это записать.
-            // Выключенным он выглядел как поломка.
-            onSelect = { index ->
+        Chip(
+            text = when (scale) {
+                SpectrumScale.Linear -> strings.scaleLinear
+                is SpectrumScale.Power -> strings.scalePower
+                SpectrumScale.Log -> strings.scaleLog
+            },
+            color = colors.ink2,
+            onClick = { scalePicker = true },
+        )
+        Chip(
+            text = strings.spectrumModeMinusBackground,
+            color = if (subtractOn) colors.dataText else colors.ink2,
+            selected = subtractOn,
+            onClick = {
                 when {
-                    index == 0 -> minusBackground = false
+                    subtractOn -> minusBackground = false
                     background != null -> minusBackground = true
                     else -> needBackground = t.needBackgroundSubtract
                 }
             },
-            modifier = Modifier.weight(1.7f),
         )
-        Segmented(
-            options = listOf(strings.scaleLinear, strings.scalePower, strings.scaleLog),
-            selectedIndex = when (scale) {
-                SpectrumScale.Linear -> 0
-                is SpectrumScale.Power -> 1
-                SpectrumScale.Log -> 2
-            },
-            onSelect = { index ->
-                settingsScope.launch {
-                    graph.settings.setSpectrumScale(
-                        when (index) {
-                            0 -> SpectrumScale.Linear.id
-                            1 -> SpectrumScale.Power(scaleRoot).id
-                            else -> SpectrumScale.Log.id
-                        },
-                    )
-                }
-            },
-            modifier = Modifier.weight(1.6f),
-        )
-        Chip(text = "i", color = colors.ink2, onClick = { infoOpen = !infoOpen })
+    }
+    if (scalePicker) {
+        SpectrumScaleDialog(graph = graph, onDismiss = { scalePicker = false })
     }
     // Ползунок степени: 1/1 совпадает с линейным, 1/2 — привычный в
     // гамма-спектрометрии корень, дальше вид приближается к логарифму, не
@@ -904,7 +981,7 @@ private fun SpectrumContent(
     // Справка раскрывается тем же движением, что на Поиске: одно и то же
     // действие обязано выглядеть одинаково на всех экранах.
     AnimatedVisibility(
-        visible = infoOpen,
+        visible = helpOpen,
         enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
         exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
     ) {
@@ -918,7 +995,7 @@ private fun SpectrumContent(
             ),
             edgeLine = edgeLine,
             subtracted = subtractOn,
-            onClose = { infoOpen = false },
+            onClose = onCloseHelp,
         )
     }
 
@@ -1034,6 +1111,25 @@ private fun SpectrumContent(
                 onDismiss = { infoIsotope = null },
             )
         }
+    }
+    // Тап по строке пика открывает его лист: площадь, отклонённые кандидаты и
+    // переходы. В самой таблице их нет — она читается за секунды.
+    var openPeak by remember { mutableStateOf<PeakRow?>(null) }
+    openPeak?.let { row ->
+        PeakDetailsSheet(
+            row = row,
+            t = t,
+            onOpenNuclide = { symbol ->
+                openPeak = null
+                infoIsotope = symbol
+            },
+            onOpenLineTrend = if (!viewingSnapshot) {
+                { openPeak = null; onOpenLineTrend() }
+            } else {
+                null
+            },
+            onDismiss = { openPeak = null },
+        )
     }
     // Подсвеченный нуклид: выбранный тапом, иначе первый искусственный
     // кандидат, иначе первый кандидат вообще — тот же порядок, что был у
@@ -1224,9 +1320,9 @@ private fun SpectrumContent(
                 else -> PeakTable(
                     rows = peakVerdict.rows,
                     highlightedNuclide = highlightedNuclide,
-                    onSelect = { isotope ->
-                        highlightedIsotope = isotope
-                        infoIsotope = isotope
+                    onSelect = { row ->
+                        highlightedIsotope = row.match.primaryNuclide
+                        openPeak = row
                     },
                 )
             }
@@ -1269,5 +1365,239 @@ private fun SpectrumContent(
         counts = spectrum.counts,
         durationSeconds = spectrum.durationSeconds,
         calibration = calibration,
+        technicalOpen = technicalOpen,
+        onCloseTechnical = onCloseTechnical,
     )
+
+    // --- анализ: одна строка вместо карточки-лаунчера ---
+    //
+    // Пять инструментов списком занимали пол-экрана под спектром, хотя
+    // открывают их редко и по конкретному поводу. Строка называет, что за
+    // ней, а сам список приезжает по нажатию.
+    if (!viewingSnapshot) {
+        var toolsOpen by remember { mutableStateOf(false) }
+        Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = Dimens.touchTarget)
+                    .clickable { toolsOpen = true },
+            ) {
+                Text(
+                    text = t.analysisRow.uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                    modifier = Modifier.weight(1f),
+                )
+                DisclosureArrow(expanded = false)
+            }
+        }
+        if (toolsOpen) {
+            AnalysisToolsSheet(
+                onOpenFood = { toolsOpen = false; onOpenFood() },
+                onOpenExperiments = { toolsOpen = false; onOpenExperiments() },
+                onOpenSpectrogram = { toolsOpen = false; onOpenSpectrogram() },
+                onOpenRadon = { toolsOpen = false; onOpenRadon() },
+                onOpenLineTrend = { toolsOpen = false; onOpenLineTrend() },
+                onDismiss = { toolsOpen = false },
+            )
+        }
+    }
 }
+
+
+/**
+ * Выбор масштаба оси значений.
+ *
+ * Три вида смотрят на один спектр по-разному: линейный показывает, где счёт
+ * действительно велик, степенной вытягивает середину, логарифм уравнивает
+ * декады. Это выбор ПОД ЗАДАЧУ, который делают один раз, — поэтому он живёт в
+ * «⋮», а не полосой сегментов над графиком.
+ */
+@Composable
+internal fun SpectrumScaleDialog(graph: AppGraph, onDismiss: () -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = SpectrumCatalogue.of(strings.language)
+    val scope = rememberCoroutineScope()
+    val scaleId by graph.settings.spectrumScaleId.collectAsState(initial = SpectrumScale.Log.id)
+    val scaleRoot by graph.settings.spectrumScaleRoot.collectAsState(initial = 2)
+    val scale = remember(scaleId, scaleRoot) { SpectrumScale.of(scaleId, scaleRoot) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(text = t.scaleMenuTitle, style = type.title, color = colors.ink)
+                Segmented(
+                    options = listOf(strings.scaleLinear, strings.scalePower, strings.scaleLog),
+                    selectedIndex = when (scale) {
+                        SpectrumScale.Linear -> 0
+                        is SpectrumScale.Power -> 1
+                        SpectrumScale.Log -> 2
+                    },
+                    onSelect = { index ->
+                        scope.launch {
+                            graph.settings.setSpectrumScale(
+                                when (index) {
+                                    0 -> SpectrumScale.Linear.id
+                                    1 -> SpectrumScale.Power(scaleRoot).id
+                                    else -> SpectrumScale.Log.id
+                                },
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                // Степень — параметр выбранного вида, поэтому ползунок стоит
+                // рядом с ним и только тогда, когда вид выбран.
+                if (scale is SpectrumScale.Power) {
+                    Text(
+                        text = strings.powerDegree(scaleRoot),
+                        style = type.footnote,
+                        color = colors.ink2,
+                    )
+                    Slider(
+                        value = scaleRoot.toFloat(),
+                        onValueChange = { value ->
+                            scope.launch {
+                                graph.settings.setSpectrumScaleRoot(value.roundToInt())
+                            }
+                        },
+                        valueRange = SpectrumScale.MIN_ROOT.toFloat()..
+                            SpectrumScale.MAX_ROOT.toFloat(),
+                        steps = SpectrumScale.MAX_ROOT - SpectrumScale.MIN_ROOT - 1,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                AppButton(
+                    text = strings.close,
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Лист пика: то, что не поместилось в строку таблицы.
+ *
+ * Площадь, механизм артефакта и отклонённые кандидаты — ответы на второй
+ * вопрос, а не на первый. В таблице они делали каждую строку трёхэтажной, и
+ * пять пиков переставали читаться с одного взгляда; здесь они относятся к
+ * одному пику, который человек уже выбрал.
+ */
+@Composable
+internal fun PeakDetailsSheet(
+    row: PeakRow,
+    t: SpectrumStrings,
+    onOpenNuclide: (String) -> Unit,
+    onOpenLineTrend: (() -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val nuclide = row.match.primaryNuclide
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(
+                    text = SpectrumFormat.energyCell(row.peak.energyKeV) + " " + t.unitKeV,
+                    style = type.title,
+                    color = colors.ink,
+                )
+                if (nuclide != null) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(text = nuclide, style = type.label, color = colors.ink)
+                        // Слово «возможное» остаётся при имени всегда: имя
+                        // нуклида без него читается как найденный нуклид.
+                        Text(
+                            text = strings.peakTableCandidate.lowercase(),
+                            style = type.footnote,
+                            color = colors.muted,
+                        )
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = t.peakSheetSignificance,
+                            style = type.overline,
+                            color = colors.muted,
+                        )
+                        Text(
+                            text = SpectrumFormat.significanceCell(row.peak.significance),
+                            style = type.value,
+                            color = colors.ink,
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = t.peakSheetArea, style = type.overline, color = colors.muted)
+                        Text(
+                            text = SpectrumFormat.netCell(row.peak.netCounts),
+                            style = type.value,
+                            color = colors.ink,
+                        )
+                    }
+                }
+                // Отклонённые кандидаты и механизм артефакта — здесь, а не
+                // строкой под каждым пиком в таблице.
+                SpectrumFormat.matchNotes(row.match, t).forEach { note ->
+                    Text(text = note, style = type.footnote, color = colors.muted)
+                }
+                if (onOpenLineTrend != null) {
+                    AppButton(
+                        text = t.peakLineTrend,
+                        onClick = onOpenLineTrend,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (nuclide != null) {
+                    AppButton(
+                        text = t.peakHelp(nuclide),
+                        onClick = { onOpenNuclide(nuclide) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                AppButton(
+                    text = strings.close,
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * «⋮» живого спектра: всё, что делают со спектром, в одном месте и в порядке
+ * частоты. Сброс накопления стоит последним и спрашивает подтверждение —
+ * разрушающее действие не должно быть первым, куда попадает палец.
+ */
+internal fun liveSpectrumMenu(
+    t: SpectrumStrings,
+    strings: Strings,
+    export: ExportStrings,
+    hasSpectrum: Boolean,
+    connected: Boolean,
+    onSnapshot: () -> Unit,
+    onBackground: () -> Unit,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+    onScale: () -> Unit,
+    onTechnical: () -> Unit,
+    onHelp: () -> Unit,
+    onReset: () -> Unit,
+): List<EntityMenuItem> = listOf(
+    EntityMenuItem(t.makeSnapshot, enabled = hasSpectrum, onClick = onSnapshot),
+    EntityMenuItem(t.setAsBackground, enabled = hasSpectrum && connected, onClick = onBackground),
+    EntityMenuItem(export.export, enabled = hasSpectrum, onClick = onExport),
+    EntityMenuItem(strings.importAction, onClick = onImport),
+    EntityMenuItem(t.scaleMenuTitle, onClick = onScale),
+    EntityMenuItem(t.technicalTitle, enabled = hasSpectrum, onClick = onTechnical),
+    EntityMenuItem(t.infoTitle, onClick = onHelp),
+    EntityMenuItem(t.resetAccumulation, enabled = connected, onClick = onReset),
+)

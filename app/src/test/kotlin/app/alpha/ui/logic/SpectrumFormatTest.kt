@@ -103,4 +103,17 @@ class SpectrumFormatTest {
         confidence = confidence,
         alternatives = emptyList(),
     )
+
+    /**
+     * Импульсы в сводке читаются порядком величины, а не разрядами.
+     *
+     * «17 003 655» на экране прочитывается дольше, чем несёт смысла: в шапке
+     * важно, миллионы там или тысячи. Точное число живёт в технических данных.
+     */
+    @Test
+    fun `импульсы в сводке короткие`() {
+        assertEquals("17,0 млн имп", SpectrumFormat.countsShort(17_003_655))
+        assertEquals("842 тыс имп", SpectrumFormat.countsShort(842_300))
+        assertEquals("9 312 имп", SpectrumFormat.countsShort(9_312))
+    }
 }
