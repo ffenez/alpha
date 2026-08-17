@@ -89,10 +89,9 @@ class MeasurementService : Service() {
     private var trackSessionId: Long? = null
 
     /**
-     * Идёт ли запись маршрута ПРЯМО СЕЙЧАС. Отдельно от `trackSessionId`,
-     * потому что между нажатием и первой координатой строки в журнале ещё
-     * нет, а запись уже идёт — и второй старт в этот момент обязан быть
-     * отброшен.
+     * Идёт ли запись маршрута прямо сейчас. Отдельно от `trackSessionId`:
+     * между нажатием и первой координатой строки в журнале ещё нет, а второй
+     * старт в этот момент обязан быть отброшен.
      */
     private var tracking = false
     private var trackStartedAt = 0L
@@ -116,9 +115,8 @@ class MeasurementService : Service() {
     private var activeProfileId: Long? = null
 
     /**
-     * Имя профиля НА МОМЕНТ СЪЁМКИ: снимок подписывается тем именем, под
-     * которым место звалось тогда. Позже человек может переименовать место, и
-     * старый снимок не должен молча сменить контекст.
+     * Имя профиля на момент съёмки: снимок подписывается тем именем, под
+     * которым место звалось тогда.
      */
     private var activeProfileName: String? = null
 
@@ -165,9 +163,8 @@ class MeasurementService : Service() {
     private var sessionId: Long? = null
 
     /**
-     * Язык уведомлений. Сервис читает его сам: `LocalStrings` живёт в
-     * композиции, а уведомление пишется без экрана — и человек, выбравший
-     * английский, не должен получать русскую тревогу.
+     * Язык уведомлений: `LocalStrings` живёт в композиции, а уведомление
+     * пишется без экрана.
      */
     @Volatile
     private var texts: NotificationStrings = NotificationRu
@@ -208,8 +205,7 @@ class MeasurementService : Service() {
         }
         scope.launch {
             // История спектрограммы переживает процесс (ADR 007): окно
-            // поднимается из базы ДО первого опроса, поэтому экран открывается
-            // на продолжении картинки, а не на пустоте.
+            // поднимается из базы до первого опроса.
             graph.spectrogramStore.restore(System.currentTimeMillis())
             while (true) {
                 graph.spectrogramStore.compact(System.currentTimeMillis())
@@ -235,7 +231,7 @@ class MeasurementService : Service() {
                 )
                 texts = NotificationCatalogue.of(language)
                 // Имя канала видно в системных настройках: после смены языка
-                // его нужно переписать, иначе там остаётся прежний язык.
+                // его нужно переписать.
                 Notifications.ensureChannels(this@MeasurementService, texts)
             }
         }
@@ -253,11 +249,9 @@ class MeasurementService : Service() {
                     rebuildTrackers()
                     refreshBaseline()
                 }
-                // Смена места — НАСТОЯЩАЯ граница записи, в отличие от разрыва
-                // связи. Полевой случай: человек ушёл из дома, контекст честно
-                // переключился на «В пути», карта писала след — а в журнале
-                // этой записи не было вовсе: она осталась внутри записи «Дом»,
-                // потому что профиль запоминается один раз, при открытии.
+                // Смена места — граница записи, в отличие от разрыва связи:
+                // профиль запоминается при открытии сессии, поэтому переход
+                // «Дом» → «В пути» обязан закрыть прежнюю запись.
                 if (placeChanged && previousSession != null) {
                     graph.sessionRepository.close(
                         sessionId = previousSession,
@@ -294,13 +288,9 @@ class MeasurementService : Service() {
                 delay(BASELINE_REFRESH_MILLIS)
             }
         }
-        // Запись маршрута переживает гибель процесса.
-        //
-        // Сначала возобновляется та, которую человек начал и не останавливал:
-        // система вправе убить процесс когда угодно, и «Начать маршрут»
-        // означает «пиши, пока не скажу стоп», а не «пиши, пока жив процесс».
-        // И только потом закрываются ОСТАЛЬНЫЕ незакрытые записи — те, что
-        // остались от прежних запусков.
+        // Запись маршрута переживает гибель процесса: сначала возобновляется
+        // та, которую человек не останавливал, затем закрываются остальные
+        // незакрытые записи прежних запусков.
         scope.launch {
             val resumed = resumeTrackingIfAny()
             graph.trackRepository.recoverUnfinished(exceptId = resumed)
@@ -377,9 +367,8 @@ class MeasurementService : Service() {
     }
 
     /**
-     * Эталон места создаётся САМ, по достижении зрелости профиля (ADR 005):
-     * пользователь не обязан ничего нажимать, чтобы функция заработала. Если
-     * эталон уже есть, здесь не происходит ничего — заменяет его только явное
+     * Эталон места создаётся по достижении зрелости профиля (ADR 005). Если
+     * эталон уже есть, здесь не происходит ничего: заменяет его только явное
      * «Обновить эталон».
      */
     private suspend fun ensureFingerprint(profileId: Long, state: BaselineState) {
@@ -520,9 +509,8 @@ class MeasurementService : Service() {
         }
         when (action) {
             SessionGate.Action.None -> Unit
-            // Первое подключение после запуска службы ПРОДОЛЖАЕТ последнюю
-            // запись, если она о том же месте и только что шла: перезапуск
-            // процесса системой — не решение человека закончить измерение.
+            // Первое подключение после запуска службы продолжает последнюю
+            // запись, если она о том же месте и только что шла.
             SessionGate.Action.Open -> scope.launch {
                 sessionId = graph.sessionRepository.resumeOrOpen(
                     profileId = activeProfileId,
@@ -570,9 +558,8 @@ class MeasurementService : Service() {
                 val outcome = graph.measurementRepository.record(records, activeProfileId) { sample ->
                     admissionOf(sample, now).storageKey
                 }
-                // Покадровая трасса обмена — единственное, что отличает
-                // «записи не пришли» от «пришли, но не записались»; на экране
-                // обе беды выглядят как «нет новых данных · N с».
+                // Покадровая трасса обмена отличает «записи не пришли» от
+                // «пришли, но не записались».
                 graph.streamTrace.add(
                     StreamTrace.Tick(
                         atMillis = now,
@@ -610,8 +597,8 @@ class MeasurementService : Service() {
         }
         deviceJobs += scope.launch {
             newDevice.connectionState.collect { state ->
-                // Причина отказа едет вместе со статусом: она нужна только
-                // отладочному отчёту и только когда подключение не удалось.
+                // Причина отказа едет вместе со статусом: нужна отладочному
+                // отчёту.
                 graph.serviceStatus.lastConnectionFailure = newDevice.lastFailure
                 graph.serviceStatus.seqGapTotal = newDevice.seqGapTotal
                 if (state is ConnectionState.Reconnecting) {
@@ -643,11 +630,10 @@ class MeasurementService : Service() {
                     return@collectLatest
                 }
                 // Spectrum poll interleaves with the 1 Hz DATA_BUF poll on the
-                // single-in-flight ProtocolClient. Частота — ЯВНАЯ политика
+                // single-in-flight ProtocolClient. Частота — явная политика
                 // (ADR 007): открытый Спектр/Спектрограмма всегда 5 с, иначе
-                // выбранная ступень. Каждый опрос это ещё и срез истории
-                // спектрограммы, поэтому политика решает не «живость экрана», а
-                // временное разрешение записи.
+                // выбранная ступень. Каждый опрос — ещё и срез истории
+                // спектрограммы, то есть временное разрешение записи.
                 while (true) {
                     pollSpectrum(newDevice)
                     delay(intervalMillis)
@@ -665,10 +651,8 @@ class MeasurementService : Service() {
             }
         }
         deviceJobs += scope.launch {
-            // Просьба человека доносится до прибора при КАЖДОМ подключении.
-            // Нажатие в момент переподключения раньше исчезало: слушателя
-            // команд в этот момент не было, а буфера воспроизведения у потока
-            // нет — и повторить нажатие было нечем, тумблер уже стоял как надо.
+            // Просьба человека доносится до прибора при каждом подключении:
+            // буфера воспроизведения у потока команд нет.
             newDevice.connectionState.collect { state ->
                 if (state !is ConnectionState.Connected) return@collect
                 for (command in graph.deviceControlHub.pending()) {
@@ -677,9 +661,8 @@ class MeasurementService : Service() {
             }
         }
         deviceJobs += scope.launch {
-            // Приложение на экране → короткий период DATA_BUF. Те же записи,
-            // вчетверо меньше задержка подбора; почему это не «4 измерения в
-            // секунду» — в KDoc FastPollHub.
+            // Приложение на экране → короткий период DATA_BUF: те же записи,
+            // вчетверо меньше задержка подбора (KDoc FastPollHub).
             graph.fastPollHub.watchers.collect { watchers ->
                 newDevice.pollIntervalMillis = FastPollHub.intervalMillis(watchers)
             }
@@ -689,11 +672,8 @@ class MeasurementService : Service() {
     // --- spectrum acquisition ---
 
     /**
-     * Пишет настройку в прибор и ЧЕСТНО сообщает исход.
-     *
-     * Состояние помечается применённым только после подтверждения прибором:
-     * иначе тумблер показывал бы желаемое, а не то, что в приборе. Отказ тоже
-     * не проглатывается — молчащая кнопка неотличима от сломанной.
+     * Пишет настройку в прибор и сообщает исход. Состояние помечается
+     * применённым только после подтверждения прибором; отказ не проглатывается.
      */
     private suspend fun applyDeviceControl(
         device: RadiaCodeDevice,
@@ -714,10 +694,8 @@ class MeasurementService : Service() {
     }
 
     /**
-     * Провенанс снимка: чей это спектр и из какой эпохи накопления.
-     *
-     * Считается на каждом опросе — эпоха определяется по самим числам
-     * (ADR 008), поэтому знать о ней можно только читая их подряд.
+     * Провенанс снимка: чей это спектр и из какой эпохи накопления. Считается
+     * на каждом опросе — эпоха определяется по самим числам (ADR 008).
      */
     private var epochMark: SpectrumEpoch.Mark? = null
 
@@ -733,7 +711,7 @@ class MeasurementService : Service() {
         )
         epochMark = mark
         // На диск — только когда эпоха сменилась или накопление заметно
-        // выросло: запись на каждый опрос стоила бы дороже, чем стоит.
+        // выросло.
         if (previous == null ||
             previous.epochId != mark.epochId ||
             mark.durationSeconds - previous.durationSeconds >= EPOCH_PERSIST_SECONDS
@@ -761,8 +739,8 @@ class MeasurementService : Service() {
         } catch (_: Exception) {
             return // link hiccup or timeout: the loop retries on the next tick
         }
-        // Цена частоты записывается на каждом опросе — ADR 007 обещает факты, а
-        // не оценку по числу опросов.
+        // Цена частоты записывается на каждом опросе: ADR 007 обещает
+        // измеренные счётчики, а не оценку по числу опросов.
         graph.serviceStatus.onSpectrumRead(device.spectrumPayloadBytes - bytesBefore)
         val now = System.currentTimeMillis()
         updateEpoch(spectrum)
@@ -839,8 +817,7 @@ class MeasurementService : Service() {
                     profileId = activeProfileId,
                     profileName = activeProfileName,
                 )
-                // Подтверждение — ПОСЛЕ записи: нажатие без ответа неотличимо
-                // от нажатия, которое ничего не сделало.
+                // Подтверждение — после записи.
                 graph.spectrumHub.onBackgroundRecorded(System.currentTimeMillis())
             }
         }
@@ -851,24 +828,16 @@ class MeasurementService : Service() {
     /**
      * Запись маршрута.
      *
-     * Маршрут НЕ заводится в журнале в момент нажатия: сначала он черновик, а
-     * строка появляется с первой принятой координатой. Полевой дефект был
-     * ровно об этом — в Истории копились пустые записи «идёт запись, 0 с, 0
-     * измерений»: старт приходил дважды (кнопка и служба), запись создавалась
-     * до всякой координаты, а `trackSessionId` присваивался внутри корутины,
-     * поэтому проверка «уже пишем» пропускала второй старт.
-     *
-     * Отсюда три правила: флаг ставится СИНХРОННО, строка создаётся по первой
-     * точке, а запись без единой точки не остаётся в журнале вовсе.
+     * Строка в журнале появляется с первой принятой координатой, а не в момент
+     * нажатия. Отсюда три правила: флаг [tracking] ставится синхронно (иначе
+     * второй старт проходит проверку), строка создаётся по первой точке,
+     * запись без единой точки в журнале не остаётся.
      */
     private fun startTracking() {
         if (tracking) return
         tracking = true
-        // Достаточно ЛЮБОГО разрешения на место. Раньше требовалось только
-        // точное, и человек, выбравший в системном диалоге «Приблизительно»,
-        // получал молчащую кнопку: запись не начиналась и не объясняла почему.
-        // Приблизительный след честнее отсутствующего — его точность видна
-        // кружком у каждой точки.
+        // Достаточно любого разрешения на место: приблизительный след честнее
+        // отсутствующего, его точность видна кружком у каждой точки.
         if (!hasLocationPermission() && !hasCoarseLocationPermission()) return
 
         // Track hotspots share the alarm L1 level (single user-facing threshold).
@@ -880,26 +849,22 @@ class MeasurementService : Service() {
             ServiceStatus.TrackRecording(sessionId = null, startedAt = trackStartedAt),
         )
         // Сначала служба объявляется работающей С МЕСТОПОЛОЖЕНИЕМ, и только
-        // потом подписывается: с Android 14 система смотрит на тип службы
-        // в момент подписки, и подписка «не того» типа не получает ни
-        // одного обновления — молча.
+        // потом подписывается: с Android 14 система смотрит на тип службы в
+        // момент подписки, и подписка «не того» типа не получает обновлений.
         startForegroundWithCurrentTypes()
         registerLocationUpdates()
     }
 
     /**
-     * Строка маршрута в журнале — по первой координате, не раньше.
-     *
-     * Вызывается из обработчика координат, то есть с главного потока, поэтому
-     * `trackSessionId` присваивается здесь же, а не внутри корутины: гонка
-     * между двумя первыми фиксами дала бы два маршрута на одну прогулку.
+     * Строка маршрута в журнале — по первой координате. Вызывается с главного
+     * потока, поэтому `trackSessionId` присваивается здесь же: гонка двух
+     * первых фиксов дала бы два маршрута на одну прогулку.
      */
     private suspend fun ensureTrackSession(): Long? {
         if (!tracking) return null
         trackSessionId?.let { return it }
         val id = graph.trackRepository.startSession(name = "")
-        // Пока шла вставка, запись могли остановить — тогда пустой маршрут
-        // тут же убирается, а не остаётся в журнале.
+        // Пока шла вставка, запись могли остановить — пустой маршрут убирается.
         if (!tracking) {
             graph.trackRepository.discardIfEmpty(id)
             return null
@@ -921,8 +886,7 @@ class MeasurementService : Service() {
         if (tracking) return trackSessionId
         val stored = graph.settings.activeTrackSessionId.first() ?: return null
         val session = graph.trackRepository.session(stored)
-        // Запись уже закрыта (остановили в прошлом запуске) — возобновлять
-        // нечего, и метку надо убрать, чтобы она не воскрешала её потом.
+        // Запись уже закрыта — возобновлять нечего, метка снимается.
         if (session == null || session.endedAt != null) {
             graph.settings.setActiveTrackSessionId(null)
             return null
@@ -954,8 +918,7 @@ class MeasurementService : Service() {
         graph.serviceStatus.onTrackRecording(null)
         scope.launch { graph.settings.setActiveTrackSessionId(null) }
         if (sessionId != null) {
-            // Маршрут без единой точки не попадает в журнал: показывать
-            // «прогулку», которой не было, хуже, чем не показывать ничего.
+            // Маршрут без единой точки в журнал не попадает.
             scope.launch { graph.trackRepository.finishSession(sessionId) }
             startForegroundWithCurrentTypes()
         }
@@ -964,21 +927,14 @@ class MeasurementService : Service() {
     /**
      * Подписка на координаты для записи следа.
      *
-     * ## Что было сломано
+     * Спрашиваются ТРИ источника, как и подписка синей точки на карте
+     * (`ui/map/MapLocation`): GPS, сетевой и `PASSIVE_PROVIDER`. Последний
+     * ничего не включает сам и отдаёт фиксы, запрошенные другими, — на
+     * устройстве без сервисов Google в помещении это иногда единственный
+     * источник.
      *
-     * Запрашивался ОДИН источник — GPS. В помещении, в машине с плёнкой на
-     * стёклах, на телефоне без свежего альманаха фикса нет минутами, и след
-     * не получал ни одной точки: «Жду первые точки» висело вечно. При этом
-     * синяя точка на карте появлялась — её подписка (`ui/map/MapLocation`)
-     * с самого начала слушала и сетевого провайдера. Теперь оба места
-     * спрашивают одно и то же.
-     *
-     * `PASSIVE_PROVIDER` добавлен третьим: он ничего не включает сам и отдаёт
-     * фиксы, которые в этот момент запросил кто-то другой, — на устройстве без
-     * сервисов Google это иногда единственный источник в помещении.
-     *
-     * Причина отсутствия точек уходит в статус: ждать спутников и ждать
-     * разрешения, которого нет, — разные вещи, и экран обязан их различать.
+     * Причина отсутствия точек уходит в статус: ожидание спутников и
+     * отсутствие разрешения — разные состояния.
      */
     // Разрешение проверяется первой же строкой тела: подписка без него не
     // доходит до `requestLocationUpdates`, а экран получает NO_PERMISSION.
@@ -994,11 +950,10 @@ class MeasurementService : Service() {
         }
         var lastAcceptedAt = 0L
         var lastAccuracy = Float.MAX_VALUE
-        // SAM-интерфейс здесь не годится: у него только `onLocationChanged`,
-        // а нам нужны ещё два обратных вызова — про выключение и включение
-        // источника. Без них выключенный на ходу GPS выглядит как «ждём
-        // спутников» бесконечно: система просто перестаёт присылать фиксы и
-        // ничего об этом не говорит.
+        // SAM-интерфейс не годится: нужны ещё `onProviderDisabled` и
+        // `onProviderEnabled`. Без них выключенный на ходу GPS выглядит как
+        // бесконечное ожидание спутников — система просто перестаёт присылать
+        // фиксы.
         val listener = object : LocationListener {
             override fun onProviderDisabled(provider: String) {
                 // Выключили один источник — проверяем, остался ли хоть один.
@@ -1015,23 +970,21 @@ class MeasurementService : Service() {
             }
 
             override fun onProviderEnabled(provider: String) {
-                // Источник вернулся: подписка на него уже есть (её ставили при
-                // старте), поэтому достаточно снова назвать состояние
-                // ожиданием — первый же фикс переведёт его в «идут точки».
+                // Источник вернулся: подписка на него уже стоит, достаточно
+                // снова назвать состояние ожиданием.
                 graph.serviceStatus.onTrackLocation(ServiceStatus.TrackLocation.WAITING)
             }
 
             override fun onLocationChanged(location: Location) {
-            // Источников несколько, и они присылают одно и то же место с
-            // разной точностью. Точка принимается, если прошла секунда — или
-            // если она ТОЧНЕЕ предыдущей: иначе сетевой фикс с точностью в
-            // километр вытеснял бы спутниковый.
+            // Источников несколько, и они присылают одно место с разной
+            // точностью. Точка принимается, если прошла секунда или если она
+            // точнее предыдущей: иначе сетевой фикс с точностью в километр
+            // вытеснял бы спутниковый.
             val fresh = location.time - lastAcceptedAt >= LOCATION_INTERVAL_MILLIS
             val better = location.accuracy < lastAccuracy
             if (!fresh && !better) {
-                // Дубль от второго провайдера тоже считается: без этого
-                // «фиксов 0» в отчёте означало бы и «система молчит», и «всё
-                // приходит, но отбрасывается».
+                // Дубль от второго провайдера тоже считается: иначе «фиксов 0»
+                // означало бы и «система молчит», и «всё отбрасывается».
                 graph.serviceStatus.onTrackFix(
                     provider = location.provider,
                     accuracyMeters = location.accuracy,
@@ -1091,9 +1044,8 @@ class MeasurementService : Service() {
             return
         }
         graph.serviceStatus.onTrackLocation(ServiceStatus.TrackLocation.WAITING)
-        // Последний известный фикс — первая точка следа сразу, а не через
-        // минуту ожидания спутников. Он несёт СВОЁ время, поэтому старый
-        // виден как старый, а не выдаётся за текущий.
+        // Последний известный фикс даёт первую точку следа сразу. Он несёт
+        // своё время, поэтому старый виден как старый.
         runCatching {
             LOCATION_PROVIDERS
                 .mapNotNull { locationManager.getLastKnownLocation(it) }
@@ -1138,13 +1090,9 @@ class MeasurementService : Service() {
      * Объявление типов службы.
      *
      * Тип `location` включается по ФЛАГУ ЗАПИСИ, а не по наличию строки
-     * маршрута в журнале. Это тот самый дефект «маршрут пишется, пока открыт
-     * экран, и обрывается, когда свернул»: строка появляется с первой
-     * координатой, а служба объявляется работающей ДО подписки — то есть
-     * ровно тогда, когда `trackSessionId` ещё пуст. Служба уходила в фон без
-     * типа `location`, и система переставала слать ей фиксы; пока приложение
-     * было на переднем плане, координаты шли по общему правилу, поэтому на
-     * открытом экране всё выглядело исправным.
+     * маршрута: строка появляется с первой координатой, а служба объявляется
+     * работающей до подписки. Служба без типа `location` перестаёт получать
+     * фиксы в фоне.
      */
     private fun startForegroundWithCurrentTypes() {
         var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
@@ -1231,8 +1179,7 @@ class MeasurementService : Service() {
         /**
          * Как часто прорежается старая история спектрограммы (ADR 007). Раз в
          * час: работа идёт часовыми кусками и трогает только то, что старше
-         * недели, поэтому чаще нечего делать, а реже — история неделями лежала
-         * бы в самом дорогом виде.
+         * недели.
          */
         private const val SPECTROGRAM_COMPACT_INTERVAL_MILLIS = 3_600_000L
 

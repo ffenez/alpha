@@ -62,12 +62,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     val lastDeviceAddress: Flow<String?> = dataStore.data.map { it[LAST_DEVICE_ADDRESS] }
 
     /**
-     * Продолжать ли измерение после перезагрузки телефона.
-     *
-     * **По умолчанию выключено.** Приложение, которое само поднимает службу и
-     * включает Bluetooth-обмен после каждой перезагрузки, делает это без
-     * спроса и не в тот момент, когда человек об этом думает. Кому нужен
-     * непрерывный мониторинг — включает сам и знает, что включил.
+     * Продолжать ли измерение после перезагрузки телефона. По умолчанию
+     * выключено: служба и обмен по Bluetooth не поднимаются без явного выбора.
      */
     val startOnBoot: Flow<Boolean> = dataStore.data.map { it[START_ON_BOOT] ?: false }
 
@@ -84,11 +80,9 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
      * (decoded by `ui/logic/BackgroundRecord`, which owns the format — this
      * layer stores bytes and never interprets them).
      *
-     * The pre-metadata key held a bare mean CPS and is deliberately **not**
-     * read any more: a rate without its exposure, instant, place and quality
-     * cannot be weighed by the statistical test and cannot be called stale
-     * (redesign §6). The cost of that decision is one 45 s measurement after
-     * the update, which the screen offers by itself.
+     * Прежний ключ с одной средней CPS больше не читается: скорость без
+     * выдержки, момента, места и качества нельзя ни взвесить статистическим
+     * тестом, ни назвать устаревшей (redesign §6).
      */
     val searchBackgroundRaw: Flow<String?> = dataStore.data.map { it[SEARCH_BACKGROUND] }
 
@@ -116,9 +110,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Какой именно звук включает кнопка «звук» на экране Поиска — клики или
-     * тон. Выбирается в Настройках; экран Поиска только включает и выключает
-     * канал, поэтому у него две маленькие кнопки, а не выбор из четырёх.
+     * Какой звук включает кнопка «звук» на экране Поиска — клики или тон.
+     * Экран Поиска только включает и выключает канал.
      */
     val searchSoundFlavour: Flow<String> = dataStore.data.map {
         it[SEARCH_SOUND_FLAVOUR] ?: "clicks"
@@ -131,17 +124,15 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             // dropping them keeps one source of truth on disk.
             it.remove(SEARCH_SOUND)
             it.remove(SEARCH_VIBRATION)
-            // Выбор звукового канала запоминается отдельно: кнопка «звук» на
-            // Поиске должна вернуть именно то, что человек выбрал раньше.
+            // Выбор звукового канала запоминается отдельно: кнопка «звук»
+            // возвращает то, что выбрано в настройках.
             if (id == "clicks" || id == "tone") it[SEARCH_SOUND_FLAVOUR] = id
         }
     }
 
     /**
-     * Какой вопрос экран Поиска задаёт (`ui/logic/SearchMode`): «Наведение» или
-     * «Проверка». Запоминается, потому что режим выбирают под задачу дня, а не
-     * под сеанс: человек, который ходит с прибором, не должен переключать
-     * экран каждый раз заново. Пустое значение = «Проверка», прежнее поведение.
+     * Вопрос экрана Поиска (`ui/logic/SearchMode`): «Наведение» или
+     * «Проверка». Пустое значение = «Проверка».
      */
     val searchMode: Flow<String?> = dataStore.data.map { it[SEARCH_MODE] }
 
@@ -182,9 +173,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Блок «Спектральные диапазоны» на Спектре остаётся там, где его оставили.
-     * Свёрнут по умолчанию: границы — параметр анализа, и разворачивает их
-     * тот, кому они нужны, а не каждый, кто открыл спектр.
+     * Блок «Спектральные диапазоны» на Спектре остаётся там, где его оставили;
+     * свёрнут по умолчанию.
      */
     val spectralRangesExpanded: Flow<Boolean> =
         dataStore.data.map { it[SPECTRAL_RANGES_EXPANDED] ?: false }
@@ -194,9 +184,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Последнее выбранное окно графика, по величине: `dose=6ч` и т.п.
-     * Экран открывается там, где его закрыли, — окно это то, ЧТО человек
-     * смотрит, и переспрашивать об этом каждый раз незачем.
+     * Последнее выбранное окно графика, по величине: `dose=6ч` и т. п. Экран
+     * открывается там, где его закрыли.
      */
     val chartSpans: Flow<Map<String, Long>> = dataStore.data.map { prefs ->
         prefs[CHART_SPANS]?.let(::parseSpans) ?: emptyMap()
@@ -210,8 +199,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Отладочный отчёт: выключен по умолчанию. Инструмент разбора полевых
-     * наблюдений, а не повседневная функция, поэтому его надо включить.
+     * Отладочный отчёт: выключен по умолчанию, включается вручную.
      */
     val debugReportEnabled: Flow<Boolean> = dataStore.data.map { it[DEBUG_REPORT] ?: false }
 
@@ -221,8 +209,6 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
 
     /**
      * Тема оформления: системная (по умолчанию), тёмная или светлая.
-     * Дизайн-язык тёмный по природе, но выбор — за человеком, который держит
-     * прибор на солнце.
      */
     /**
      * Принятая измеренная модель разрешения
@@ -253,18 +239,11 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
 
     /**
      * Показывать ли пояснения — серые строки, объясняющие происходящее.
-     *
-     * По умолчанию ВЫКЛЮЧЕНЫ: экран прибора показывает результат, числа и
-     * действия, а не рассказывает о себе. Кому нужно, чем измерено и почему
-     * такой вывод, — включает и получает то же самое с объяснениями.
+     * По умолчанию выключены.
      */
     /**
-     * Красить ли главное число по отношению к обычному фону места.
-     *
-     * Настройка, а не умолчание навсегда: цвет читается быстрее слов, но
-     * человеку, который смотрит на число весь день, постоянно меняющийся
-     * оттенок может мешать. По умолчанию включено — иначе о нём никто не
-     * узнает.
+     * Красить ли главное число по отношению к обычному фону места. Включено по
+     * умолчанию.
      */
     val doseTint: Flow<Boolean> =
         dataStore.data.map { it[DOSE_TINT] ?: true }
@@ -274,11 +253,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Во сколько раз выше обычного цвет числа насыщается.
-     *
-     * Множитель обычного, а не абсолютное значение: у каждого места свой
-     * уровень, и «багровое от 0,30» означало бы в одном месте вдвое выше
-     * обычного, а в другом — вдесятеро.
+     * Во сколько раз выше обычного цвет числа насыщается. Множитель обычного,
+     * а не абсолютное значение: у каждого места свой уровень.
      */
     val doseTintFactor: Flow<Float> =
         dataStore.data.map { (it[DOSE_TINT_FACTOR] ?: DoseTint.DEFAULT_FACTOR) }
@@ -290,13 +266,10 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Чем заданы границы цвета следа на карте.
-     *
-     * По умолчанию — обычным фоном места: тогда одно значение всегда одного
-     * цвета, и два маршрута можно сравнить глазами. Растяжение по самому
-     * маршруту находит малые различия, но красит прогулку 0,14–0,16 во всю
-     * шкалу до багрового, поэтому это осознанный аналитический режим, а не
-     * умолчание.
+     * Чем заданы границы цвета следа на карте. По умолчанию — обычным фоном
+     * места: одно значение всегда одного цвета, и два маршрута сравнимы.
+     * Растяжение по маршруту находит малые различия, но красит прогулку
+     * 0,14–0,16 во всю шкалу — осознанный аналитический режим.
      */
     val mapColorScale: Flow<MapColorScale> = dataStore.data.map { preferences ->
         preferences[MAP_COLOR_SCALE]
@@ -325,11 +298,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Ручные границы шкалы следа — отдельно для дозы и для счёта.
-     *
-     * Отдельно, потому что величины физически разные: одни и те же числа
-     * означали бы для них совершенно разное, и общая шкала врала бы при каждом
-     * переключении «Доза | CPS».
+     * Ручные границы шкалы следа — отдельно для дозы и для счёта: величины
+     * физически разные, общая шкала означала бы для них разное.
      */
     val manualDoseAnchors: Flow<List<Float>> = dataStore.data.map {
         it[MANUAL_DOSE]?.let(MapAnchors::parse)?.takeIf { anchors -> anchors.size >= 2 }
@@ -350,12 +320,9 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Метка эпохи накопления спектра (ADR 008), закодированная строкой
-     * `epochId|serial|duration|counts`.
-     *
-     * Переживает перезапуск процесса: без неё сброс спектра, случившийся пока
-     * приложение было выключено, остался бы незамеченным — и снимки двух
-     * разных накоплений считались бы одной эпохой.
+     * Метка эпохи накопления спектра (ADR 008), строкой
+     * `epochId|serial|duration|counts`. Переживает перезапуск процесса: иначе
+     * сброс спектра при выключенном приложении остался бы незамеченным.
      */
     val spectrumEpochMark: Flow<String?> = dataStore.data.map { it[SPECTRUM_EPOCH] }
 
@@ -364,13 +331,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Идущее измерение продукта — чтобы пережить уход с экрана.
-     *
-     * Прогон живёт в графе приложения и не прерывается, а вот ЭКРАН помнил,
-     * какой опыт он ведёт, только пока был на виду: свернул приложение или
-     * ушёл на другую вкладку — и вернуться к тому же измерению было нельзя.
-     * Само измерение при этом продолжалось, что хуже: оно шло, а человек его
-     * не видел.
+     * Идущее измерение продукта: прогон живёт в графе приложения, а экрану
+     * нужно знать, какой опыт он ведёт, после ухода с вкладки.
      */
     val activeFoodExperimentId: Flow<Long?> = dataStore.data.map { it[ACTIVE_FOOD] }
 
@@ -388,10 +350,9 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Как рисуется живой график: подробно или сглаженно.
-     *
-     * Настройка ОДНА на карточку Главной и на полноэкранный график: это два
-     * размера одной картинки, и разойтись они не имеют права.
+     * Как рисуется живой график: подробно или сглаженно. Настройка одна на
+     * карточку Главной и на полноэкранный график — это два размера одной
+     * картинки.
      */
     val chartDetailModeId: Flow<String> =
         dataStore.data.map { it[CHART_DETAIL] ?: ChartDetailMode.DEFAULT.id }
@@ -416,10 +377,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Ось энергии спектрограммы: «log» (по умолчанию) или «linear».
-     *
-     * Хранится строкой, как и масштаб спектра: это ВЫБОР ПРЕДСТАВЛЕНИЯ, он
-     * переживает уход с экрана и уезжает в копию настроек вместе с остальными.
+     * Ось энергии спектрограммы: «log» (по умолчанию) или «linear». Хранится
+     * строкой, как и масштаб спектра, и уезжает в копию настроек.
      */
     val spectrogramEnergyScale: Flow<String> =
         dataStore.data.map { it[SPECTROGRAM_ENERGY_SCALE] ?: "log" }
@@ -581,8 +540,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
 
     /**
      * Как часто служба спрашивает у прибора спектр, когда экран закрыт
-     * (ADR 007). Открытый Спектр или Спектрограмма всегда дают 5 с — там виден
-     * эффект, и правило одно, а не «если экран давно не открывали».
+     * (ADR 007). Открытый Спектр или Спектрограмма всегда дают 5 с.
      */
     /** Срез сырых измерений по возрасту, дней; 0 = хранить всё (умолчание). */
     val rawRetentionDays: Flow<Int> =
@@ -635,16 +593,13 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     /**
      * Настройки для резервной копии: «ключ → значение с пометкой типа».
      *
-     * Читается всё хранилище целиком, а не список известных ключей: настройка,
-     * добавленная завтра, попадёт в копию сама, и её не забудут внести в
-     * перечень. Тип пишется в значении, потому что при чтении его иначе не
-     * восстановить: «true» и «"true"» в хранилище — разные вещи.
+     * Читается всё хранилище целиком, а не список известных ключей: новая
+     * настройка попадает в копию сама. Тип пишется в значении, иначе при
+     * чтении его не восстановить («true» и «"true"» — разные вещи).
      *
-     * Из копии исключено то, что принадлежит ЭТОМУ телефону и этой базе:
-     * адрес прибора (пара Bluetooth не переносится), идентификаторы активной
-     * записи и профиля (в другой базе это номера чужих строк), оценка
-     * разрешения детектора (она про конкретный прибор). Переносить их значило
-     * бы восстановить настройку, которая указывает в пустоту.
+     * Из копии исключено то, что принадлежит этому телефону и этой базе:
+     * адрес прибора, идентификаторы активной записи и профиля, оценка
+     * разрешения детектора ([NOT_PORTABLE]).
      */
     suspend fun exportSettings(): List<Pair<String, String>> {
         val preferences = dataStore.data.first()
