@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0120Title: String
+    val v0120Summary: String
+
     val v0110Title: String
     val v0110Summary: String
 
@@ -258,6 +261,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0120Title = "Масштаб спектра — одним касанием"
+    override val v0120Summary =
+        "Чип масштаба над спектром называет текущий вид, а по нажатию рядом выезжают два " +
+        "остальных — диалог для этого больше не открывается. И сглаживание перестало " +
+        "поднимать кривую у правого края: крайний канал шкалы в усреднение не попадает."
 
     override val v0110Title = "Проверка перед релизом"
     override val v0110Summary =
@@ -804,6 +813,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0120Title = "The spectrum scale is one tap away"
+    override val v0120Summary =
+        "The scale chip above the spectrum names the current view and slides the other two " +
+        "out beside it on a tap — no dialog any more. Smoothing also stopped lifting the " +
+        "curve at the right edge: the edge channel of the scale no longer enters the average."
 
     override val v0110Title = "The pre-release audit"
     override val v0110Summary =

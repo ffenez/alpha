@@ -2,6 +2,8 @@ package app.alpha.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -186,7 +188,6 @@ fun SpectrumScreen(
     // Действия живого спектра открываются из «⋮» шапки.
     var exportingLive by remember { mutableStateOf(false) }
     var importingLive by remember { mutableStateOf(false) }
-    var scaleMenuOpen by remember { mutableStateOf(false) }
     var technicalOpen by remember { mutableStateOf(false) }
     var helpOpen by remember { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
@@ -438,9 +439,6 @@ fun SpectrumScreen(
             onDismiss = { exportingLive = false },
         )
     }
-    if (scaleMenuOpen) {
-        SpectrumScaleDialog(graph = graph, onDismiss = { scaleMenuOpen = false })
-    }
     if (confirmReset) {
         ConfirmDialog(
             title = t.resetConfirmTitle,
@@ -522,7 +520,6 @@ fun SpectrumScreen(
                     onBackground = { hub.request(SpectrumHub.Command.RECORD_BACKGROUND) },
                     onExport = { exportingLive = true },
                     onImport = { importingLive = true },
-                    onScale = { scaleMenuOpen = true },
                     onTechnical = { technicalOpen = true },
                     onHelp = { helpOpen = true },
                     onReset = { confirmReset = true },
@@ -841,7 +838,6 @@ private fun SpectrumContent(
         )
     }
     var smoothing by rememberSaveable { mutableStateOf(false) }
-    var scalePicker by remember { mutableStateOf(false) }
     var window by remember { mutableStateOf<EnergyWindow?>(null) }
 
     val backgroundEntity by graph.measurementRepository.backgroundReference()
@@ -871,14 +867,12 @@ private fun SpectrumContent(
         horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Chip(
-            text = when (scale) {
-                SpectrumScale.Linear -> strings.scaleLinear
-                is SpectrumScale.Power -> strings.scalePower
-                SpectrumScale.Log -> strings.scaleLog
+        ScaleChips(
+            scale = scale,
+            scaleRoot = scaleRoot,
+            onSelect = { picked ->
+                settingsScope.launch { graph.settings.setSpectrumScale(picked.id) }
             },
-            color = colors.ink2,
-            onClick = { scalePicker = true },
         )
         Chip(
             text = strings.spectrumModeMinusBackground,
@@ -892,9 +886,6 @@ private fun SpectrumContent(
                 }
             },
         )
-    }
-    if (scalePicker) {
-        SpectrumScaleDialog(graph = graph, onDismiss = { scalePicker = false })
     }
     // Ползунок степени: 1/1 совпадает с линейным, 1/2 — корень, дальше вид
     // приближается к логарифму, не становясь им. Только в своём режиме.
@@ -1322,71 +1313,59 @@ private fun SpectrumContent(
 
 
 /**
- * Выбор масштаба оси значений: линейный показывает, где счёт велик, степенной
- * вытягивает середину, логарифм уравнивает декады. Выбор делают под задачу,
- * поэтому он живёт в «⋮», а не полосой сегментов над графиком.
+ * Выбор масштаба оси значений прямо над графиком.
+ *
+ * Чип называет ТЕКУЩИЙ вид; по нажатию рядом с ним выезжают два остальных, и
+ * выбор их закрывает. Ряд из трёх сегментов стоял бы над графиком постоянно и
+ * отнимал у него высоту ради выбора, который делают под задачу: линейный
+ * показывает, где счёт велик, степенной вытягивает середину, логарифм
+ * уравнивает декады.
  */
 @Composable
-internal fun SpectrumScaleDialog(graph: AppGraph, onDismiss: () -> Unit) {
+private fun ScaleChips(
+    scale: SpectrumScale,
+    scaleRoot: Int,
+    onSelect: (SpectrumScale) -> Unit,
+) {
     val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
     val strings = LocalStrings.current
-    val t = SpectrumCatalogue.of(strings.language)
-    val scope = rememberCoroutineScope()
-    val scaleId by graph.settings.spectrumScaleId.collectAsState(initial = SpectrumScale.Log.id)
-    val scaleRoot by graph.settings.spectrumScaleRoot.collectAsState(initial = 2)
-    val scale = remember(scaleId, scaleRoot) { SpectrumScale.of(scaleId, scaleRoot) }
+    var open by rememberSaveable { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = t.scaleMenuTitle, style = type.title, color = colors.ink)
-                Segmented(
-                    options = listOf(strings.scaleLinear, strings.scalePower, strings.scaleLog),
-                    selectedIndex = when (scale) {
-                        SpectrumScale.Linear -> 0
-                        is SpectrumScale.Power -> 1
-                        SpectrumScale.Log -> 2
-                    },
-                    onSelect = { index ->
-                        scope.launch {
-                            graph.settings.setSpectrumScale(
-                                when (index) {
-                                    0 -> SpectrumScale.Linear.id
-                                    1 -> SpectrumScale.Power(scaleRoot).id
-                                    else -> SpectrumScale.Log.id
-                                },
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                // Степень — параметр выбранного вида, поэтому ползунок стоит
-                // рядом с ним и только в этом режиме.
-                if (scale is SpectrumScale.Power) {
-                    Text(
-                        text = strings.powerDegree(scaleRoot),
-                        style = type.footnote,
+    fun label(value: SpectrumScale): String = when (value) {
+        SpectrumScale.Linear -> strings.scaleLinear
+        is SpectrumScale.Power -> strings.scalePower
+        SpectrumScale.Log -> strings.scaleLog
+    }
+
+    val others = listOf(SpectrumScale.Linear, SpectrumScale.Power(scaleRoot), SpectrumScale.Log)
+        .filter { it.id != scale.id }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+    ) {
+        Chip(
+            text = label(scale),
+            color = if (open) colors.dataText else colors.ink2,
+            selected = open,
+            onClick = { open = !open },
+        )
+        AnimatedVisibility(
+            visible = open,
+            enter = fadeIn(Motion.fast()) + expandHorizontally(Motion.springy()),
+            exit = fadeOut(Motion.fast()) + shrinkHorizontally(Motion.fast()),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                for (option in others) {
+                    Chip(
+                        text = label(option),
                         color = colors.ink2,
-                    )
-                    Slider(
-                        value = scaleRoot.toFloat(),
-                        onValueChange = { value ->
-                            scope.launch {
-                                graph.settings.setSpectrumScaleRoot(value.roundToInt())
-                            }
+                        onClick = {
+                            open = false
+                            onSelect(option)
                         },
-                        valueRange = SpectrumScale.MIN_ROOT.toFloat()..
-                            SpectrumScale.MAX_ROOT.toFloat(),
-                        steps = SpectrumScale.MAX_ROOT - SpectrumScale.MIN_ROOT - 1,
-                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                AppButton(
-                    text = strings.close,
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         }
     }
@@ -1406,7 +1385,6 @@ internal fun liveSpectrumMenu(
     onBackground: () -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
-    onScale: () -> Unit,
     onTechnical: () -> Unit,
     onHelp: () -> Unit,
     onReset: () -> Unit,
@@ -1415,7 +1393,6 @@ internal fun liveSpectrumMenu(
     EntityMenuItem(t.setAsBackground, enabled = hasSpectrum && connected, onClick = onBackground),
     EntityMenuItem(export.export, enabled = hasSpectrum, onClick = onExport),
     EntityMenuItem(strings.importAction, onClick = onImport),
-    EntityMenuItem(t.scaleMenuTitle, onClick = onScale),
     EntityMenuItem(t.technicalTitle, enabled = hasSpectrum, onClick = onTechnical),
     EntityMenuItem(t.infoTitle, onClick = onHelp),
     EntityMenuItem(t.resetAccumulation, enabled = connected, onClick = onReset),

@@ -271,8 +271,6 @@ interface SpectrumStrings {
     /** Снимок объявлен обычной обстановкой места. */
     val backgroundTag: String
 
-    /** Масштаб оси значений — выбор из трёх видов. */
-    val scaleMenuTitle: String
 
     /** Раздел «Анализ» — одна строка вместо карточки со списком. */
     val analysisRow: String
@@ -591,7 +589,6 @@ object SpectrumRu : SpectrumStrings {
     override val unitMillions = "млн"
     override val unitThousands = "тыс"
     override val backgroundTag = "фоновый"
-    override val scaleMenuTitle = "Масштаб Y"
     override val analysisRow = "Анализ"
     override val technicalTitle = "Технические данные"
     override val makeSnapshot = "Создать снимок"
@@ -960,7 +957,6 @@ object SpectrumEn : SpectrumStrings {
     override val unitMillions = "M"
     override val unitThousands = "k"
     override val backgroundTag = "background"
-    override val scaleMenuTitle = "Y scale"
     override val analysisRow = "Analysis"
     override val technicalTitle = "Technical data"
     override val makeSnapshot = "Take a snapshot"
@@ -1099,7 +1095,7 @@ val SpectrumCatalogue = AreaCatalogue(ru = SpectrumRu, en = SpectrumEn)
  */
 fun SpectrumStrings.allTexts(): List<String> = listOf(
     spectrumSummary("Дом", "191 ч", "17,0 млн имп"), noProfileShort, backgroundTag,
-    unitMillions, unitThousands, scaleMenuTitle, analysisRow, technicalTitle, makeSnapshot,
+    unitMillions, unitThousands, analysisRow, technicalTitle, makeSnapshot,
     resetConfirmTitle, resetConfirmBody,
     toolLineTitle, toolLineSubtitle, infoActionsTitle, showBackgroundCurve,
     backgroundRecordedAt("14:32"), needBackgroundTitle, needBackgroundSubtract, needBackgroundCurve, needBackgroundHow,

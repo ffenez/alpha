@@ -160,13 +160,28 @@ object SpectrumDisplay {
      * Display-only smoothing: centered moving average over 2·[radius]+1
      * channels; edges average over the available neighbors. The input list is
      * untouched.
+     *
+     * Усредняется ТОЛЬКО [range] — по умолчанию весь список, а на спектре
+     * прибора каналы без крайнего ([SpectrumEdge.analysable]). В крайнем канале
+     * лежит всё, что вышло за верхнюю границу шкалы, и его счёт на порядки
+     * больше соседних: попав в окно усреднения, он поднимал последние
+     * нарисованные каналы, и кривая на правом краю уходила вверх ровно при
+     * включённом сглаживании. Значения вне [range] возвращаются как есть — они
+     * и не рисуются.
      */
-    fun movingAverage(values: List<Float>, radius: Int = SMOOTH_RADIUS): List<Float> {
+    fun movingAverage(
+        values: List<Float>,
+        radius: Int = SMOOTH_RADIUS,
+        range: IntRange = values.indices,
+    ): List<Float> {
         if (radius <= 0 || values.isEmpty()) return values
-        val result = FloatArray(values.size)
-        for (i in values.indices) {
-            val from = max(0, i - radius)
-            val to = kotlin.math.min(values.size - 1, i + radius)
+        val first = max(0, range.first)
+        val last = kotlin.math.min(values.size - 1, range.last)
+        if (first > last) return values
+        val result = values.toFloatArray()
+        for (i in first..last) {
+            val from = max(first, i - radius)
+            val to = kotlin.math.min(last, i + radius)
             var sum = 0f
             for (j in from..to) sum += values[j]
             result[i] = sum / (to - from + 1)

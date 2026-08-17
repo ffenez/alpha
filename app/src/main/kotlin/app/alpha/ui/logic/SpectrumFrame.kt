@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.EnergyWindow
 import app.alpha.analysis.SpectrumDisplay
+import app.alpha.analysis.SpectrumEdge
 import kotlin.math.max
 
 /**
@@ -104,7 +105,14 @@ object SpectrumFrames {
         } else {
             counts.map { it.toFloat() }
         }
-        val series = if (smoothing) SpectrumDisplay.movingAverage(base) else base
+        // Сглаживание идёт по каналам спектра, БЕЗ крайнего: там лежит всё,
+        // что вышло за верхнюю границу шкалы, и усреднение затянуло бы его
+        // счёт в последние нарисованные каналы.
+        val series = if (smoothing) {
+            SpectrumDisplay.movingAverage(base, range = SpectrumEdge.analysable(counts.size))
+        } else {
+            base
+        }
         val columns = SpectrumDisplay.aggregateMax(series, channels, effectiveColumns)
 
         // Фон показывается наложением только в обычном режиме: вычитать его и
