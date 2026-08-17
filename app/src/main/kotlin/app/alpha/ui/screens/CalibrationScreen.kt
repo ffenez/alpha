@@ -86,7 +86,7 @@ private const val WINDOW_DAYS = 30
 
 /**
  * Читает уже накопленные снимки, складывает из них два накопления и отдаёт
- * разбор. Ничего не пишет и ничего не просит у человека.
+ * разбор. Ничего не пишет.
  */
 suspend fun loadCalibration(graph: AppGraph): CalibrationModel {
     val now = System.currentTimeMillis()
@@ -155,11 +155,10 @@ fun CalibrationScreen(graph: AppGraph, onBack: () -> Unit) {
     val acceptedRaw by graph.settings.measuredResolutionRaw.collectAsState(initial = null)
     val accepted = remember(acceptedRaw) { AcceptedResolution.decode(acceptedRaw) }
 
-    // БЕЗ собственной прокрутки: экран живёт ВНУТРИ прокручиваемой колонки
+    // Без собственной прокрутки: экран живёт внутри прокручиваемой колонки
     // Настроек, и вложенный verticalScroll получает бесконечную высоту —
-    // Compose роняет на этом процесс (полевой краш, пойманный crashes.txt:
-    // «Vertically scrollable component was measured with an infinity maximum
-    // height constraints»). Прокручивает родитель.
+    // Compose падает с «Vertically scrollable component was measured with an
+    // infinity maximum height constraints». Прокручивает родитель.
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -298,11 +297,10 @@ private fun ResolutionSection(
         for (row in CalibrationView.resolution(model.report, s)) {
             Text(text = row, style = type.valueSmall, color = colors.ink)
         }
-        // Модель может НЕ построиться из уже сохранённого результата подгонки
-        // (не-числа или отрицательный свободный член — конструктор
-        // MeasuredResolution их отвергает броском). Экран обязан пережить это
-        // отказом от кривой, а не падением композиции: тот же полевой класс
-        // дефектов, что NaN в канве (смоук CalibrationNanRegressionTest).
+        // Модель может не построиться из сохранённого результата подгонки
+        // (не-числа или отрицательный свободный член отвергаются
+        // конструктором MeasuredResolution). Экран отказывается от кривой, а
+        // не роняет композицию (смоук CalibrationNanRegressionTest).
         val fittedModel = fit?.let { runCatching { it.model() }.getOrNull() }
         if (fit != null && fittedModel != null) {
             ResolutionChart(

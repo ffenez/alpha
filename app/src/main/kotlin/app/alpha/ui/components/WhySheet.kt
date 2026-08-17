@@ -59,8 +59,7 @@ import app.alpha.ui.theme.LocalAppTypography
  * уровням (14.md): первый экран отвечает «что это значит», «Показать методику
  * и расчёты» открывает статистику профиля и критерии, а внутри неё «Показать
  * технические параметры» — MAD, число корзин, формулы, χ² и z. Выбор второго
- * уровня запоминается, так что человек, который всегда его открывает,
- * перестаёт это делать.
+ * уровня запоминается.
  *
  * The sheet renders a [WhyReport]; it holds no wording of its own, because
  * every phrase here is pinned by `WhyReportTest`.
@@ -116,8 +115,6 @@ fun WhySheet(
                     HelpBlock(strings.nowSection, report.nowValue ?: "—")
 
                     // Фон места: сколько собрано из нужного и полоса под этим.
-                    // «Изучаю обычный фон» звучало голосом алгоритма; человек
-                    // спрашивает про фон ЭТОГО МЕСТА.
                     report.learning?.let { learning ->
                         HelpBlock(
                             title = t.placeBackgroundTitle,
@@ -256,9 +253,8 @@ private fun BandScale(scale: WhyScale, tone: Color) {
             drawCircle(color = colors.surface, radius = radius + 2f, center = Offset(x, trackY))
             drawCircle(color = tone, radius = radius, center = Offset(x, trackY))
         }
-        // Засечки шкалы — P10 · медиана · P90: через них человек постепенно
-        // и понимает статистику. Само текущее значение подписано парой
-        // «Сейчас ↔ Обычный диапазон здесь» над шкалой и не дублируется.
+        // Засечки шкалы — P10 · медиана · P90. Текущее значение подписано
+        // парой «Сейчас ↔ Обычный диапазон здесь» над шкалой и не дублируется.
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(text = "P10 ${scale.lowLabel}", style = type.axis, color = colors.muted)
             Spacer(Modifier.weight(1f))
@@ -363,14 +359,9 @@ internal fun WhyRow(line: WhyLine) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        // Значение НЕ отдаётся на растерзание длинному названию.
-        //
-        // Полевой дефект: «2 × P90 профиля» рассыпалось по одному-двум
-        // символам в столбик, потому что подпись слева забирала всю ширину, а
-        // значению оставалось несколько знаков. Теперь ширину делит подпись
-        // (она переносится словами), а у значения есть неприкосновенный
-        // минимум; не поместилось вместе — значение уходит целой строкой ниже,
-        // но никогда не рвётся посимвольно.
+        // Ширину делит подпись (она переносится словами), у значения есть
+        // неприкосновенный минимум; не поместилось вместе — значение уходит
+        // целой строкой ниже и никогда не рвётся посимвольно.
         BoxWithConstraints {
             val narrow = maxWidth < NARROW_ROW_WIDTH
             if (narrow) {
