@@ -233,6 +233,8 @@ interface Strings {
     val exportFailedTitle: String
     val exportFailedBody: String
     val importAction: String
+    val exportHtml: String
+    val exportCsv: String
     val exportXml: String
     val exportN42: String
     val exportFormatsNote: String

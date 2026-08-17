@@ -209,6 +209,8 @@ object RuStrings : Strings {
     override val exportFailedTitle = "Экспорт не удался"
     override val exportFailedBody = "Файл не записался — попробуйте другую папку."
     override val importAction = "Импорт"
+    override val exportHtml = "HTML-отчёт"
+    override val exportCsv = "CSV — каналы и энергии"
     override val exportXml = "Экспорт XML"
     override val exportN42 = "Экспорт N42"
     override val exportFormatsNote =

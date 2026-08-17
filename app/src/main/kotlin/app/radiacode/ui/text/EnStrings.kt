@@ -211,6 +211,8 @@ object EnStrings : Strings {
     override val exportFailedTitle = "Export failed"
     override val exportFailedBody = "The file was not written — try another folder."
     override val importAction = "Import"
+    override val exportHtml = "HTML report"
+    override val exportCsv = "CSV — channels and energies"
     override val exportXml = "Export XML"
     override val exportN42 = "Export N42"
     override val exportFormatsNote =

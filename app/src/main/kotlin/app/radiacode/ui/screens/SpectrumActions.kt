@@ -53,6 +53,8 @@ import app.radiacode.analysis.SpectrumMerge
 import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.data.export.N42
 import app.radiacode.data.export.RcXml
+import app.radiacode.data.export.SpectrumReportFactory
+import app.radiacode.data.export.html.SpectrumReportHtml
 import app.radiacode.data.export.SpectrumExport
 import app.radiacode.data.toEntity
 import app.radiacode.data.toSpectrum
@@ -198,6 +200,24 @@ internal fun SpectrumActionsBar(
             scope.launch { onWritten(writeTextToUri(context, uri, content)) }
         }
     }
+    val exportHtmlLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/html"),
+    ) { uri ->
+        val content = pendingExport
+        pendingExport = null
+        if (uri != null && content != null) {
+            scope.launch { onWritten(writeTextToUri(context, uri, content)) }
+        }
+    }
+    val exportCsvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        val content = pendingExport
+        pendingExport = null
+        if (uri != null && content != null) {
+            scope.launch { onWritten(writeTextToUri(context, uri, content)) }
+        }
+    }
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -242,6 +262,33 @@ internal fun SpectrumActionsBar(
                 remarks = SpectrumExport.metadataLines(entity, appVersionName(context)),
             )
             exportN42Launcher.launch(SpectrumExport.fileName(now, "n42"))
+        }
+    }
+
+    // Отчёт — для человека, N42 и XML — для программ, CSV — для таблицы.
+    // Одно другого не заменяет, поэтому все четыре стоят рядом (§14 ТЗ).
+    val language = LocalStrings.current.language
+    val onExportHtml: () -> Unit = {
+        if (spectrum != null) {
+            val now = snapshotEntity?.timestamp ?: System.currentTimeMillis()
+            val entity = snapshotEntity ?: spectrum.toEntity(timestamp = now, accumulated = false)
+            pendingExport = SpectrumReportHtml.render(
+                SpectrumReportFactory.build(
+                    entity = entity,
+                    appName = REPORT_APP_NAME,
+                    appVersion = appVersionName(context) ?: "",
+                    language = language,
+                ),
+            )
+            exportHtmlLauncher.launch(SpectrumExport.fileName(now, "html"))
+        }
+    }
+    val onExportCsv: () -> Unit = {
+        if (spectrum != null) {
+            val now = snapshotEntity?.timestamp ?: System.currentTimeMillis()
+            val entity = snapshotEntity ?: spectrum.toEntity(timestamp = now, accumulated = false)
+            pendingExport = SpectrumReportFactory.toCsv(entity)
+            exportCsvLauncher.launch(SpectrumExport.fileName(now, "csv"))
         }
     }
 
@@ -346,8 +393,10 @@ internal fun SpectrumActionsBar(
             onCompare = { moreOpen = false; comparePickerOpen = true },
             onReset = { moreOpen = false; confirmReset = true },
             onImport = { moreOpen = false; importLauncher.launch(arrayOf("*/*")) },
+            onExportHtml = { moreOpen = false; onExportHtml() },
             onExportXml = { moreOpen = false; onExportXml() },
             onExportN42 = { moreOpen = false; onExportN42() },
+            onExportCsv = { moreOpen = false; onExportCsv() },
             onDismiss = { moreOpen = false },
         )
     }
@@ -441,6 +490,9 @@ internal fun SnapshotPickerDialog(
  * с кнопками экспорта, а не полосой мелкого текста под всем экраном — его
  * читают один раз, ровно в момент выбора формата.
  */
+/** Имя приложения в подписи отчёта: его читают там, где приложения нет. */
+private const val REPORT_APP_NAME = "RadiaCode Companion"
+
 @Composable
 internal fun SpectrumMoreDialog(
     t: SpectrumStrings,
@@ -451,8 +503,10 @@ internal fun SpectrumMoreDialog(
     onCompare: () -> Unit = {},
     onReset: () -> Unit,
     onImport: () -> Unit,
+    onExportHtml: () -> Unit,
     onExportXml: () -> Unit,
     onExportN42: () -> Unit,
+    onExportCsv: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colors = LocalAppColors.current
@@ -482,6 +536,13 @@ internal fun SpectrumMoreDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                // Отчёт первым: обычному человеку нужен именно он (§49 ТЗ).
+                AppButton(
+                    text = strings.exportHtml,
+                    onClick = onExportHtml,
+                    enabled = hasSpectrum,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 AppButton(
                     text = strings.exportXml,
                     onClick = onExportXml,
@@ -491,6 +552,12 @@ internal fun SpectrumMoreDialog(
                 AppButton(
                     text = strings.exportN42,
                     onClick = onExportN42,
+                    enabled = hasSpectrum,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                AppButton(
+                    text = strings.exportCsv,
+                    onClick = onExportCsv,
                     enabled = hasSpectrum,
                     modifier = Modifier.fillMaxWidth(),
                 )
