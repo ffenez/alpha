@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0181Title: String
+    val v0181Summary: String
+
     val v0180Title: String
     val v0180Summary: String
 
@@ -282,6 +285,11 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0181Title = "Подпись рентгена помещается в колонку"
+    override val v0181Summary =
+        "В таблице пиков «характеристический рентген» обрезался на середине слова. Теперь " +
+        "в колонке стоит «рентген K-серии», а элементы и их энергии — в пометке под строкой."
 
     override val v0180Title = "Главная занимает весь экран"
     override val v0180Summary =
@@ -880,6 +888,11 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0181Title = "The X-ray label fits its column"
+    override val v0181Summary =
+        "In the peak table «characteristic X-rays» was cut mid-word. The column now says " +
+        "«K-series X-rays», and the elements with their energies stay in the note below the row."
 
     override val v0180Title = "The main screen fills the phone"
     override val v0180Summary =

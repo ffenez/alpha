@@ -73,6 +73,17 @@ class PeakFluorescenceTest {
     }
 
     @Test
+    fun `the cell of the artifact fits its column`() {
+        // Колонка кандидата — 1,5 доли из 3,4 ширины таблицы, одна строка с
+        // многоточием. Мерка — «обратное рассеяние», самая длинная подпись,
+        // которая в неё помещается; «характеристический рентген» обрезался.
+        val limit = SpectrumRu.artifactBackscatter.length
+        for (s in listOf(SpectrumRu, SpectrumEn)) {
+            assertTrue(s.artifactXray.length <= limit, s.artifactXray)
+        }
+    }
+
+    @Test
     fun `a dash says what it is a dash about`() {
         val match = matchAt(2000f)
         assertEquals(PeakMatch.None, match)

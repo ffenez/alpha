@@ -721,7 +721,7 @@ object SpectrumRu : SpectrumStrings {
     override val artifactBackscatterNote =
         "область обратного рассеяния 200–255 кэВ: фотоны, рассеянные окружением " +
             "назад в детектор"
-    override val artifactXray = "характеристический рентген"
+    override val artifactXray = "рентген K-серии"
     override fun artifactXrayNote(lines: String) =
         "K-серия тяжёлых элементов ($lines): гамма-излучение выбивает электрон K-оболочки " +
             "в свинце окружения или в ядрах самих рядов"
@@ -1126,7 +1126,7 @@ object SpectrumEn : SpectrumStrings {
     override val artifactBackscatterNote =
         "the 200–255 keV backscatter region: photons scattered by the surroundings " +
             "back into the detector"
-    override val artifactXray = "characteristic X-rays"
+    override val artifactXray = "K-series X-rays"
     override fun artifactXrayNote(lines: String) =
         "the K series of heavy elements ($lines): gamma radiation knocks a K-shell electron " +
             "out of lead in the surroundings or of the nuclei of the chains themselves"
