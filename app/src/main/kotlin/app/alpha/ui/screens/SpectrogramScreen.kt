@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.style.TextOverflow
+import app.alpha.ui.components.EntityMenuButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -95,6 +99,23 @@ private fun Window.label(t: SpectrogramStrings): String =
     if (hours) t.windowHours(amount) else t.windowMinutes(amount)
 
 /**
+ * Вид картинки, который переживает переход в полный экран и обратно.
+ *
+ * Человек тапнул по тому, что видел, и увидеть обязан то же самое, только
+ * крупнее: окно времени, режим и верх шкалы принадлежат ВИДУ, а не месту, где
+ * он нарисован. Примитивы, а не объекты, потому что состояние живёт в
+ * `rememberSaveable` выше по дереву; ноль означает «не выбрано».
+ */
+data class SpectrogramViewOptions(
+    /** 0 = окно подбирается по длине записи. */
+    val windowMillis: Long = 0L,
+    val shapeMode: Boolean = false,
+    /** 0 = верх шкалы считается по видимому окну («Авто»). */
+    val fixedTop: Float = 0f,
+    val paused: Boolean = false,
+)
+
+/**
  * Спектрограмма (SPEC «Spectrogram», Advanced): Energy × Time × Intensity —
  * когда во время прогулки или измерения появился спектральный компонент.
  * Столбец = сумма опросов, попавших в ячейку сетки времени; строки — энергия
@@ -102,7 +123,18 @@ private fun Window.label(t: SpectrogramStrings): String =
  * своя полоса мощности дозы на той же оси времени; курсор один на обе.
  */
 @Composable
-fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
+fun SpectrogramScreen(
+    graph: AppGraph,
+    onBack: () -> Unit,
+    options: SpectrogramViewOptions = SpectrogramViewOptions(),
+    onOptionsChange: (SpectrogramViewOptions) -> Unit = {},
+    /**
+     * Полноэкранный режим: поле владеет дисплеем, всё остальное — узкие полосы
+     * управления и карточка поверх поля.
+     */
+    fullscreen: Boolean = false,
+    onOpenFullscreen: () -> Unit = {},
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val strings = LocalStrings.current
@@ -150,9 +182,15 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
         graph.spectrogramStore.restore(System.currentTimeMillis())
         storedSlices = graph.spectrogramRepository.count()
     }
-    var paused by rememberSaveable { mutableStateOf(false) }
+    val paused = options.paused
     // While paused the displayed history freezes; recording continues.
     var frozen by remember { mutableStateOf<List<SpectrogramSlice>?>(null) }
+    // Пауза приехала вместе с видом (переход в полный экран) — картинка
+    // замирает здесь и сейчас: замороженного списка у нового поля ещё нет.
+    LaunchedEffect(paused, liveSlices.isNotEmpty()) {
+        if (paused && frozen == null) frozen = liveSlices
+        if (!paused) frozen = null
+    }
     val slices = if (paused) frozen ?: liveSlices else liveSlices
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
@@ -164,11 +202,11 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
 
     // Режим «форма» — нормировка внутри колонки. По умолчанию выключен: он
     // показывает состав, но уравнивает слабый спектр с сильным.
-    var shapeMode by rememberSaveable { mutableStateOf(false) }
+    val shapeMode = options.shapeMode
     // Верх цветовой шкалы, зафиксированный человеком: пока он задан, одинаковая
-    // интенсивность красится одинаково при любом окне. null = «Авто», верх
+    // интенсивность красится одинаково при любом окне. Ноль = «Авто», верх
     // считается по видимым данным и меняется вместе с ними.
-    var fixedTop by rememberSaveable { mutableStateOf<Float?>(null) }
+    val fixedTop = options.fixedTop.takeIf { it > 0f }
 
     // Колонки строятся по СЕТКЕ ВРЕМЕНИ с шагом, который выбирается по
     // статистике: при фоне пятисекундная колонка это ≈1 импульс на полосу, то
@@ -183,7 +221,7 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     // null = окно подбирается само: самая узкая ступень, которая покрывает
     // запись, но не уже пяти минут — двадцать секунд, растянутые на экран,
     // читаются как длинная история.
-    var windowChoice by rememberSaveable { mutableStateOf<Long?>(null) }
+    val windowChoice = options.windowMillis.takeIf { it > 0L }
     val autoWindow = if (dataFromMillis != null && toMillis != null) {
         val span = (toMillis - dataFromMillis).coerceAtLeast(MIN_WINDOW_MILLIS)
         WINDOWS.firstOrNull { it.millis >= span }?.millis ?: WINDOWS.last().millis
@@ -224,67 +262,215 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     LaunchedEffect(windowMillis) { selectedIndex = null }
     val selected = selectedIndex?.let { columnsData.getOrNull(it) }
 
-    // Экран существует ради одной картинки, поэтому он НЕ прокручивается:
-    // высоту забирает поле, а всё остальное — тонкие полосы над и под ним.
-    // Прокрутка возвращала бы картинке фиксированную высоту и оставляла под
-    // ней пустое место.
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(Dimens.space3),
-        verticalArrangement = Arrangement.spacedBy(Dimens.space2),
-    ) {
-        // Шапка записи — как у остальных записей: имя, «⋮» с редкими
-        // действиями. Состояние связи остаётся чипом рядом: это статус
-        // экрана, и он не должен отнимать высоту у поля.
-        EntityHeader(
-            title = t.title,
-            onBack = onBack,
-            trailing = {
-                if (!connected && slices.isNotEmpty()) {
-                    Chip(text = t.offlineTag, color = colors.ink2)
+    // Меню «⋮» одно на оба режима: набор редких действий не зависит от того,
+    // во весь экран смотрят на картинку или в обзоре.
+    val menu = listOf(
+        EntityMenuItem(t.helpTitle, onClick = { infoOpen = true }),
+        EntityMenuItem(
+            title = if (energyScale == Spectrogram.EnergyScale.LOG) {
+                t.energyScaleToLinear
+            } else {
+                t.energyScaleToLog
+            },
+            onClick = {
+                scope.launch {
+                    graph.settings.setSpectrogramEnergyScale(
+                        if (energyScale == Spectrogram.EnergyScale.LOG) "linear" else "log",
+                    )
                 }
             },
-            menu = listOf(
-                EntityMenuItem(t.helpTitle, onClick = { infoOpen = true }),
-                EntityMenuItem(
-                    title = if (energyScale == Spectrogram.EnergyScale.LOG) {
-                        t.energyScaleToLinear
-                    } else {
-                        t.energyScaleToLog
-                    },
-                    onClick = {
-                        scope.launch {
-                            graph.settings.setSpectrogramEnergyScale(
-                                if (energyScale == Spectrogram.EnergyScale.LOG) {
-                                    "linear"
-                                } else {
-                                    "log"
-                                },
-                            )
-                        }
-                    },
-                ),
-                EntityMenuItem(
-                    title = t.clearHistory,
-                    enabled = slices.isNotEmpty(),
-                    onClick = { confirmClear = true },
-                ),
-            ),
-        )
+        ),
+        EntityMenuItem(
+            title = t.clearHistory,
+            enabled = slices.isNotEmpty(),
+            onClick = { confirmClear = true },
+        ),
+    )
 
-        when {
-            // Пустые состояния — одна строка о том, что происходит сейчас.
-            // Как устроена запись и где выбирается её частота, рассказывает
-            // справка: объяснение не становится содержимым экрана.
-            slices.isEmpty() && !connected -> Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = t.noLink, style = type.bodySmall, color = colors.ink2)
+    val stripMax = columnsData.mapNotNull { it?.doseMicroSvH }.maxOrNull()
+    val spec = WaterfallSpec(
+        columns = columnsData,
+        scaleTop = scaleTop,
+        shapeMode = shapeMode,
+        bandGroups = bandGroups,
+        energyScale = energyScale,
+        selectedIndex = selectedIndex,
+        timeLabels = TimeAxis.labels(fromMillis ?: 0L, toMillis ?: 0L),
+        stripValues = columnsData.map { it?.doseMicroSvH },
+        stripTitle = t.doseStripLabel(DoseFormat.rateUnitLabel(unit, s = strings)),
+        // Справа в шапке полосы — то, что под курсором; без курсора последнее,
+        // что измерено: у линии всегда есть число.
+        stripValue = (
+            selected?.doseMicroSvH
+                ?: columnsData.lastOrNull { it?.doseMicroSvH != null }?.doseMicroSvH
+            )?.let { DoseFormat.rate(it, unit) },
+        stripMaxLabel = stripMax?.let { DoseFormat.rate(it, unit) },
+        energyUnit = if (energyScale == Spectrogram.EnergyScale.LOG) {
+            t.energyAxisLog
+        } else {
+            t.energyAxisLinear
+        },
+        probe = probeFraction?.let { fraction ->
+            WaterfallProbe(
+                energyFraction = fraction,
+                lines = probeLines(
+                    column = selected,
+                    fraction = fraction,
+                    scale = energyScale,
+                    bandGroups = bandGroups,
+                    t = t,
+                ),
+            )
+        },
+    )
+    val onCursor: (Int, Float?) -> Unit = { index, fraction ->
+        // Нажатие в ту же колонку снимает курсор; ведение пальцем — всегда
+        // выбор.
+        selectedIndex = if (fraction == null && selectedIndex == index) null else index
+        probeFraction = fraction
+    }
+    val windowChips: @Composable () -> Unit = {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+        ) {
+            for (window in WINDOWS) {
+                val span = window.millis
+                Chip(
+                    text = window.label(t),
+                    color = if (span == windowMillis) colors.dataText else colors.ink2,
+                    selected = span == windowMillis,
+                    onClick = { onOptionsChange(options.copy(windowMillis = span)) },
+                )
             }
-            slices.isEmpty() -> Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = t.warmingUp, style = type.bodySmall, color = colors.muted)
+            Spacer(Modifier.weight(1f))
+            // Пауза называет себя сама: на паузе чип подписан словом, потому
+            // что «показ остановлен, а запись идёт» — факт, который нельзя
+            // оставить значку.
+            Chip(
+                text = if (paused) "▶ ${t.pausedTag}" else "Ⅱ",
+                color = if (paused) colors.dataText else colors.ink2,
+                selected = paused,
+                onClick = { onOptionsChange(options.copy(paused = !paused)) },
+            )
+        }
+    }
+
+    if (fullscreen) {
+        // Поле владеет экраном: картинка от края до края, узкие полосы
+        // управления сверху и снизу, а всё, что говорит о выбранном моменте, —
+        // карточкой ПОВЕРХ поля. Постоянных полос текста под полем нет.
+        val view = LocalView.current
+        DisposableEffect(Unit) {
+            view.keepScreenOn = true
+            onDispose { view.keepScreenOn = false }
+        }
+        Box(Modifier.fillMaxSize().background(colors.bg).systemBarsPadding()) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Dimens.space2, vertical = Dimens.space1),
+                ) {
+                    Chip(text = "✕", color = colors.ink2, onClick = onBack)
+                    if (!connected && slices.isNotEmpty()) {
+                        Chip(text = t.offlineTag, color = colors.ink2)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    EntityMenuButton(menu = menu)
+                }
+                Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = Dimens.space2)) {
+                    WaterfallChart(
+                        spec = spec,
+                        onCursor = onCursor,
+                        onCursorEnd = { probeFraction = null },
+                    )
+                    // Карточка момента лежит поверх поля у верхнего края: под
+                    // полем она забирала бы высоту всегда, а нужна только
+                    // тогда, когда курсор поставлен.
+                    if (selected != null) {
+                        MomentOverlay(
+                            selected = selected,
+                            unit = unit,
+                            t = t,
+                            onDetails = { detailsOpen = true },
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Dimens.space2, vertical = Dimens.space1),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+                ) {
+                    windowChips()
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                    ) {
+                        Segmented(
+                            options = listOf(t.modeIntensity, t.modeShape),
+                            selectedIndex = if (shapeMode) 1 else 0,
+                            onSelect = { onOptionsChange(options.copy(shapeMode = it == 1)) },
+                            scrollable = true,
+                        )
+                        LegendRamp(
+                            shapeMode = shapeMode,
+                            scaleTop = scaleTop,
+                            fixed = fixedTop != null,
+                            onToggleFixed = {
+                                onOptionsChange(
+                                    options.copy(fixedTop = if (fixedTop == null) autoTop else 0f),
+                                )
+                            },
+                            t = t,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
             }
-            else -> {
-                Card(
+        }
+    } else {
+        // Обзор: картинка и то, без чего её не прочесть, — период и цвет.
+        // Разбор момента, режимы и подробности живут в полном экране, потому
+        // что там для них есть высота; здесь они были бы полосами текста над
+        // маленькой картинкой.
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(Dimens.space3),
+            verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+        ) {
+            // Шапка записи — как у остальных записей: имя, «⋮» с редкими
+            // действиями. Состояние связи остаётся чипом рядом: это статус
+            // экрана, и он не должен отнимать высоту у поля.
+            EntityHeader(
+                title = t.title,
+                onBack = onBack,
+                trailing = {
+                    if (!connected && slices.isNotEmpty()) {
+                        Chip(text = t.offlineTag, color = colors.ink2)
+                    }
+                    if (slices.isNotEmpty()) {
+                        Chip(text = "⤢", color = colors.ink2, onClick = onOpenFullscreen)
+                    }
+                },
+                menu = menu,
+            )
+
+            when {
+                // Пустые состояния — одна строка о том, что происходит сейчас.
+                // Как устроена запись и где выбирается её частота, рассказывает
+                // справка: объяснение не становится содержимым экрана.
+                slices.isEmpty() && !connected -> Card(modifier = Modifier.fillMaxWidth()) {
+                    Text(text = t.noLink, style = type.bodySmall, color = colors.ink2)
+                }
+                slices.isEmpty() -> Card(modifier = Modifier.fillMaxWidth()) {
+                    Text(text = t.warmingUp, style = type.bodySmall, color = colors.muted)
+                }
+                else -> Card(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     contentPadding = Dimens.space2,
                 ) {
@@ -292,141 +478,31 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(Dimens.space2),
                     ) {
-                        // Управление живёт над самой картинкой: окно времени и
-                        // пауза — это про неё, а не про экран.
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+                        windowChips()
+                        // Касание по картинке открывает её во весь экран —
+                        // там же и разбирают момент. Курсор в обзоре не
+                        // ставится: на этой высоте карточка момента съела бы
+                        // саму картинку.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .clickable(onClick = onOpenFullscreen),
                         ) {
-                            for (window in WINDOWS) {
-                                val span = window.millis
-                                Chip(
-                                    text = window.label(t),
-                                    color = if (span == windowMillis) {
-                                        colors.dataText
-                                    } else {
-                                        colors.ink2
-                                    },
-                                    selected = span == windowMillis,
-                                    onClick = { windowChoice = span },
-                                )
-                            }
-                            Spacer(Modifier.weight(1f))
-                            // Пауза называет себя сама: на паузе чип подписан
-                            // словом, потому что «показ остановлен, а запись
-                            // идёт» — факт, который нельзя оставить значку.
-                            Chip(
-                                text = if (paused) "▶ ${t.pausedTag}" else "Ⅱ",
-                                color = if (paused) colors.dataText else colors.ink2,
-                                selected = paused,
-                                onClick = {
-                                    if (!paused) frozen = liveSlices
-                                    paused = !paused
-                                    if (!paused) frozen = null
-                                },
-                            )
+                            WaterfallChart(spec = spec.copy(selectedIndex = null, probe = null))
                         }
-                        // Поле забирает всю высоту, которая осталась от полос
-                        // управления: точную величину знает только раскладка,
-                        // поэтому она измеряется, а не назначается долей экрана.
-                        BoxWithConstraints(
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                        ) {
-                            val stripMax = columnsData.mapNotNull { it?.doseMicroSvH }.maxOrNull()
-                            WaterfallChart(
-                                spec = WaterfallSpec(
-                                    columns = columnsData,
-                                    scaleTop = scaleTop,
-                                    shapeMode = shapeMode,
-                                    bandGroups = bandGroups,
-                                    energyScale = energyScale,
-                                    selectedIndex = selectedIndex,
-                                    timeLabels = TimeAxis.labels(
-                                        fromMillis ?: 0L,
-                                        toMillis ?: 0L,
-                                    ),
-                                    stripValues = columnsData.map { it?.doseMicroSvH },
-                                    stripTitle = t.doseStripLabel(
-                                        DoseFormat.rateUnitLabel(unit, s = strings),
-                                    ),
-                                    // Справа в шапке полосы — то, что под
-                                    // курсором; без курсора последнее, что
-                                    // измерено: у линии всегда есть число.
-                                    stripValue = (
-                                        selected?.doseMicroSvH
-                                            ?: columnsData.lastOrNull { it?.doseMicroSvH != null }
-                                                ?.doseMicroSvH
-                                        )?.let { DoseFormat.rate(it, unit) },
-                                    stripMaxLabel = stripMax?.let { DoseFormat.rate(it, unit) },
-                                    energyUnit = if (energyScale == Spectrogram.EnergyScale.LOG) {
-                                        t.energyAxisLog
-                                    } else {
-                                        t.energyAxisLinear
-                                    },
-                                    probe = probeFraction?.let { fraction ->
-                                        WaterfallProbe(
-                                            energyFraction = fraction,
-                                            lines = probeLines(
-                                                column = selected,
-                                                fraction = fraction,
-                                                scale = energyScale,
-                                                bandGroups = bandGroups,
-                                                t = t,
-                                            ),
-                                        )
-                                    },
-                                ),
-                                height = maxHeight,
-                                onCursor = { index, fraction ->
-                                    // Нажатие в ту же колонку снимает курсор;
-                                    // ведение пальцем — всегда выбор.
-                                    selectedIndex = if (fraction == null && selectedIndex == index) {
-                                        null
-                                    } else {
-                                        index
-                                    }
-                                    probeFraction = fraction
-                                },
-                                onCursorEnd = { probeFraction = null },
-                            )
-                        }
-                        // Режим — это РЕЖИМ, а не действие: два физически
-                        // разных вопроса к одним данным, «сколько» и «какого
-                        // состава». Переключатель компактный: он не имеет
-                        // права спорить с картинкой по весу.
-                        Segmented(
-                            options = listOf(t.modeIntensity, t.modeShape),
-                            selectedIndex = if (shapeMode) 1 else 0,
-                            onSelect = { shapeMode = it == 1 },
-                            scrollable = true,
-                        )
-                        // Шкала количественная: подписанные концы — это и есть
-                        // объяснение цвета, отдельная фраза под ней была бы
-                        // третьим повторением одного и того же.
-                        LegendRamp(
-                            shapeMode = shapeMode,
-                            scaleTop = scaleTop,
-                            fixed = fixedTop != null,
-                            onToggleFixed = {
-                                fixedTop = if (fixedTop == null) autoTop else null
-                            },
-                            t = t,
-                        )
+                        // Одна строка о цвете: величина, единица и концы шкалы.
+                        // Переключатель режима и фиксация верха — в полном
+                        // экране, вместе с остальным разбором.
+                        LegendLine(shapeMode = shapeMode, scaleTop = scaleTop, t = t)
                     }
                 }
-
-                SelectedMomentCard(
-                    selected = selected,
-                    unit = unit,
-                    t = t,
-                    onDetails = { detailsOpen = true },
-                )
             }
-        }
 
-        // Частота записи живёт в Настройках → Прибор: это параметр опроса
-        // прибора, а не способ смотреть картинку, и на экране он занимал место
-        // постоянно ради выбора, который делают один раз.
+            // Частота записи живёт в Настройках → Прибор: это параметр опроса
+            // прибора, а не способ смотреть картинку, и на экране он занимал
+            // место постоянно ради выбора, который делают один раз.
+        }
     }
 
     // Справка лежит ПОВЕРХ экрана и доступна в любом состоянии: диалог не
@@ -506,16 +582,16 @@ private fun stepReason(
 }
 
 /**
- * Карточка выбранного момента: время, реально измеренное окно и физические
- * величины с подписями.
+ * Карточка выбранного момента ПОВЕРХ поля: время, реально измеренное окно и
+ * физические величины с подписями.
  *
- * «Импульсов в колонке» здесь нет: это техническая величина отображения, и на
- * основном уровне она конкурировала с мощностью дозы, которую человек как раз
- * и ищет. Она осталась в подробностях — карточка нажимается.
+ * Поверх, а не под полем: она нужна только когда курсор поставлен, а под полем
+ * забирала бы высоту всегда. «Импульсов в колонке» здесь нет — это техническая
+ * величина отображения, и она осталась в подробностях: карточка нажимается.
  */
 @Composable
-private fun SelectedMomentCard(
-    selected: SpectrogramColumn?,
+private fun BoxScope.MomentOverlay(
+    selected: SpectrogramColumn,
     unit: DoseUnitSetting,
     t: SpectrogramStrings,
     onDetails: () -> Unit,
@@ -523,11 +599,12 @@ private fun SelectedMomentCard(
     val strings = LocalStrings.current
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
-    // Курсора нет — карточки нет: пустая карточка с инструкцией занимала место
-    // постоянно ради подсказки, которую читают один раз.
-    if (selected == null) return
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onDetails),
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .padding(Dimens.space2)
+            .clickable(onClick = onDetails),
+        contentPadding = Dimens.space2,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -757,6 +834,51 @@ private fun HelpDialog(
     }
 }
 
+/**
+ * Одна строка о цвете для обзора: величина, единица и концы шкалы.
+ *
+ * Обзор объясняет картинку, а не управляет ею: режим и фиксация верха живут в
+ * полном экране, где для них есть место.
+ */
+@Composable
+private fun LegendLine(shapeMode: Boolean, scaleTop: Float, t: SpectrogramStrings) {
+    val type = LocalAppTypography.current
+    val colors = LocalAppColors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(
+            text = if (shapeMode) t.legendShapeTitle else t.legendIntensityTitle,
+            style = type.axis,
+            color = colors.muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(text = t.legendZero, style = type.axis, color = colors.muted)
+        ColorRamp()
+        Text(
+            text = if (shapeMode) t.legendColumnMax else t.legendRate(Uncertainty.num1(scaleTop)),
+            style = type.axis,
+            color = colors.muted,
+        )
+    }
+}
+
+/** Непрерывная полоса цвета: шкала интенсивности непрерывна, ступеней нет. */
+@Composable
+private fun ColorRamp() {
+    Box(
+        Modifier
+            .size(width = 56.dp, height = 8.dp)
+            .background(
+                Brush.horizontalGradient(waterfallLegendColors()),
+                RoundedCornerShape(2.dp),
+            ),
+    )
+}
+
 @Composable
 private fun LegendRamp(
     shapeMode: Boolean,
@@ -764,10 +886,11 @@ private fun LegendRamp(
     fixed: Boolean,
     onToggleFixed: () -> Unit,
     t: SpectrogramStrings,
+    modifier: Modifier = Modifier,
 ) {
     val type = LocalAppTypography.current
     val colors = LocalAppColors.current
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // Шкала называет ВЕЛИЧИНУ и единицу; в режиме формы величины нет,
             // и подпись говорит именно это, а не «имп/с».
@@ -794,17 +917,7 @@ private fun LegendRamp(
             horizontalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             Text(text = t.legendZero, style = type.axis, color = colors.muted)
-            // Непрерывная полоса вместо отдельных квадратиков: шкала
-            // интенсивности непрерывна, и разрывы в легенде подсказывали бы
-            // ступени, которых нет.
-            Box(
-                Modifier
-                    .size(width = 72.dp, height = 8.dp)
-                    .background(
-                        Brush.horizontalGradient(waterfallLegendColors()),
-                        RoundedCornerShape(2.dp),
-                    ),
-            )
+            ColorRamp()
             Text(
                 text = if (shapeMode) {
                     t.legendColumnMax

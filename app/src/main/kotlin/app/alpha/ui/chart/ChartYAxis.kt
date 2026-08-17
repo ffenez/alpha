@@ -94,28 +94,6 @@ object ChartYAxis {
         return clamp(ValueWindow(at - span * focus, at + span * (1f - focus)), minSpan)
     }
 
-    /**
-     * Кадр, в который помещаются и данные, и названные уровни, — ответ на
-     * вопрос «где мои пороги относительно того, что сейчас».
-     *
-     * Ось при этом НЕ становится нормативной шкалой: она по-прежнему описывает
-     * измерения, просто её попросили показать заодно и уровни.
-     */
-    fun fit(data: ValueWindow, levels: List<Float>, minSpan: Float): ValueWindow {
-        val values = levels.filter { it.isFinite() && it > 0f }
-        val low = minOf(data.min, values.minOrNull() ?: data.min)
-        val high = maxOf(data.max, values.maxOrNull() ?: data.max)
-        val pad = (high - low) * FIT_PAD_FRACTION
-        return clamp(ValueWindow(low - pad, high + pad), minSpan)
-    }
-
-    /**
-     * Воздух над и под тем, что просили вместить.
-     * **Инженерный параметр**: 8 % размаха — порог у самой кромки читается как
-     * «выше кадра ничего нет», хотя кадр на нём и кончается.
-     */
-    const val FIT_PAD_FRACTION = 0.08f
-
     /** Ниже нуля мощность дозы и счёт не бывают; размах не меньше значимого. */
     fun clamp(window: ValueWindow, minSpan: Float): ValueWindow {
         val floor = minSpan.coerceAtLeast(1e-6f)

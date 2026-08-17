@@ -51,6 +51,7 @@ import app.alpha.ui.screens.SessionDetailScreen
 import app.alpha.ui.screens.SessionTrackMapScreen
 import app.alpha.ui.screens.SettingsScreen
 import app.alpha.ui.screens.SpectrogramScreen
+import app.alpha.ui.screens.SpectrogramViewOptions
 import app.alpha.ui.screens.SpectrumScreen
 import app.alpha.ui.theme.LocalAppColors
 
@@ -169,6 +170,27 @@ private fun MainScaffoldContent(graph: AppGraph) {
         fullSpectrum = true
     }
     var showSpectrogram by rememberSaveable { mutableStateOf(false) }
+    // Полный экран спектрограммы — тот же приём, что у спектра: поле владеет
+    // дисплеем, поэтому режим живёт здесь, выше таб-бара. Вид (окно, режим,
+    // верх шкалы, пауза) хранится рядом: человек тапнул по тому, что видел, и
+    // увидеть обязан то же самое, только крупнее.
+    var spectrogramFull by rememberSaveable { mutableStateOf(false) }
+    var spectrogramWindow by rememberSaveable { mutableStateOf(0L) }
+    var spectrogramShape by rememberSaveable { mutableStateOf(false) }
+    var spectrogramFixedTop by rememberSaveable { mutableStateOf(0f) }
+    var spectrogramPaused by rememberSaveable { mutableStateOf(false) }
+    val spectrogramOptions = SpectrogramViewOptions(
+        windowMillis = spectrogramWindow,
+        shapeMode = spectrogramShape,
+        fixedTop = spectrogramFixedTop,
+        paused = spectrogramPaused,
+    )
+    val onSpectrogramOptions: (SpectrogramViewOptions) -> Unit = { next ->
+        spectrogramWindow = next.windowMillis
+        spectrogramShape = next.shapeMode
+        spectrogramFixedTop = next.fixedTop
+        spectrogramPaused = next.paused
+    }
     var showExperiments by rememberSaveable { mutableStateOf(false) }
     var showRadon by rememberSaveable { mutableStateOf(false) }
     var showLineTrend by rememberSaveable { mutableStateOf(false) }
@@ -190,6 +212,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
         when {
             showSettings -> showSettings = false
             fullSpectrum -> fullSpectrum = false
+            spectrogramFull -> spectrogramFull = false
             showFood -> showFood = false
             showFingerprint -> showFingerprint = false
             showDose -> showDose = false
@@ -224,6 +247,19 @@ private fun MainScaffoldContent(graph: AppGraph) {
                 highlightKeV = fullSpectrumHighlightKeV,
             ),
             onCloseFullscreen = { fullSpectrum = false },
+        )
+        return
+    }
+
+    // Спектрограмма во весь экран: как и полноэкранный спектр, она рисуется
+    // поверх таб-бара — иначе «во весь экран» означало бы полосу посередине.
+    if (showSpectrogram && spectrogramFull) {
+        SpectrogramScreen(
+            graph = graph,
+            onBack = { spectrogramFull = false },
+            options = spectrogramOptions,
+            onOptionsChange = onSpectrogramOptions,
+            fullscreen = true,
         )
         return
     }
@@ -306,7 +342,13 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     graph = graph,
                     onBack = { showFingerprint = false },
                 )
-                key.spectrogram -> SpectrogramScreen(graph, onBack = { showSpectrogram = false })
+                key.spectrogram -> SpectrogramScreen(
+                    graph = graph,
+                    onBack = { showSpectrogram = false },
+                    options = spectrogramOptions,
+                    onOptionsChange = onSpectrogramOptions,
+                    onOpenFullscreen = { spectrogramFull = true },
+                )
                 key.radon -> RadonScreen(graph, onBack = { showRadon = false })
                 key.lineTrend -> NuclideTrendScreen(graph, onBack = { showLineTrend = false })
                 key.food -> FoodScreen(graph, onBack = { showFood = false })
@@ -434,6 +476,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                 showLiveChart = false
                 showFood = false
                 showSpectrogram = false
+                spectrogramFull = false
                 showRadon = false
                 showLineTrend = false
                 showExperiments = false

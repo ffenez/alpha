@@ -54,26 +54,6 @@ class ChartValueAxisTest {
     }
 
     @Test
-    fun `вместить пороги показывает и фон, и уровни`() {
-        val fitted = ChartYAxis.fit(
-            data = background,
-            levels = listOf(0.30f, 1.00f),
-            minSpan = minSpan,
-        )
-        assertTrue(fitted.min <= background.min, "фон обязан остаться в кадре")
-        assertTrue(fitted.max >= 1.00f, "верхний порог обязан попасть в кадр")
-        // Над порогом остаётся воздух: порог у самой кромки читается как
-        // «выше ничего нет».
-        assertTrue(fitted.max > 1.00f)
-    }
-
-    @Test
-    fun `порогов нет — кадр остаётся данными`() {
-        val fitted = ChartYAxis.fit(background, levels = emptyList(), minSpan = minSpan)
-        assertTrue(fitted.min <= background.min && fitted.max >= background.max)
-    }
-
-    @Test
     fun `ручной кадр становится шкалой один в один`() {
         val window = ValueWindow(0.05f, 1.20f)
         val scale = ChartYAxis.scaleOf(window, logarithmic = false)

@@ -151,6 +151,15 @@ class ScreenSmokeTest(variantId: String) {
         compose.showScreen(variant) { SpectrogramScreen(graph, onBack = {}) }
     }
 
+    /** Полный экран — своя раскладка: поле на весь дисплей, карточка поверх. */
+    @Test
+    fun spectrogram_fullscreen() {
+        val (graph, _) = seededGraph()
+        compose.showScreen(variant) {
+            SpectrogramScreen(graph, onBack = {}, fullscreen = true)
+        }
+    }
+
     // --- История и деталка сессии ---
 
     @Test

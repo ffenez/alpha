@@ -442,37 +442,6 @@ fun LiveChartScreen(
         cursorFraction.value = null
     }
 
-    /** Вернуть автоподбор оси значений. */
-    fun autoAxis() {
-        gesture = gesture.copy(
-            frame = gesture.frame.copy(values = null),
-            visible = gesture.visible.copy(values = null),
-        )
-    }
-
-    /**
-     * Вместить пороги: кадр оси растягивается так, чтобы в него попали и
-     * измерения, и названные уровни. Ответ на вопрос «где проходят L1 и L2
-     * относительно того, что сейчас» — одним нажатием, без вождения пальцем.
-     */
-    fun fitThresholds() {
-        val scale = frame?.spec?.scale ?: return
-        val levels = listOfNotNull(
-            thresholds.l1MicroSvH.takeIf { it > 0f },
-            thresholds.l2MicroSvH.takeIf { it > 0f },
-        )
-        if (levels.isEmpty()) return
-        val fitted = ChartYAxis.fit(
-            data = ChartYAxis.windowOf(scale),
-            levels = levels,
-            minSpan = ChartMetrics.minAxisSpan(metric),
-        )
-        gesture = gesture.copy(
-            frame = gesture.frame.copy(values = fitted),
-            visible = gesture.visible.copy(values = fitted),
-        )
-    }
-
     fun selectPeriod(index: Int) {
         val span = ChartWindows.PERIODS[index].second
         setViewport(Viewports.withSpan(gesture.visible, span, bounds()).copy(values = null))
@@ -757,10 +726,6 @@ fun LiveChartScreen(
                     currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000, s = h),
                     onSelectAllHistory = ::selectAllHistory,
                     onResetScale = { selectPeriod(periodIndex) },
-                    manualAxis = gesture.visible.values != null,
-                    onAutoAxis = ::autoAxis,
-                    onFitThresholds = ::fitThresholds
-                        .takeIf { ChartMetrics.showsAlarmLevel(metric) && thresholds.l1MicroSvH > 0f },
                 )
             }
             ChartDetailsSheet(
@@ -847,10 +812,6 @@ fun LiveChartScreen(
                 currentSpanLabel = HistoryFormat.duration(window.spanMillis / 1000, s = h),
                 onSelectAllHistory = ::selectAllHistory,
                 onResetScale = { selectPeriod(periodIndex) },
-                manualAxis = gesture.visible.values != null,
-                onAutoAxis = ::autoAxis,
-                onFitThresholds = ::fitThresholds
-                    .takeIf { ChartMetrics.showsAlarmLevel(metric) && thresholds.l1MicroSvH > 0f },
             )
         }
         }
@@ -1218,13 +1179,14 @@ private fun RowScope.ControlChips(
     currentSpanLabel: String = "",
     /** «Вся история»: окно от первого измерения до края; null — история неизвестна. */
     onSelectAllHistory: (() -> Unit)? = null,
-    /** Сбросить масштаб — окно у края и автоматическая ось. */
+    /**
+     * Сбросить масштаб — окно у края и автоматическая ось.
+     *
+     * Единственный способ вернуть автоподбор после жеста по оси: отдельного
+     * чипа «ось вручную» больше нет, потому что он горел рядом со шкалой
+     * постоянно, а нажимали его редко.
+     */
     onResetScale: () -> Unit = {},
-    /** Ось задана рукой: показать состояние и дать вернуть автоподбор. */
-    manualAxis: Boolean = false,
-    onAutoAxis: () -> Unit = {},
-    /** «Вместить пороги»; null — у величины порогов нет. */
-    onFitThresholds: (() -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val texts = ChartTextCatalogue.of(LocalStrings.current.language)
@@ -1297,19 +1259,6 @@ private fun RowScope.ControlChips(
         selected = logScale,
         onClick = onToggleScale,
     )
-    // Ручная ось — состояние, а не режим где-то в настройках: пока она
-    // включена, чип стоит рядом со шкалой и одним нажатием возвращает
-    // автоподбор. Без него «шкала перестала подстраиваться» читалось бы как
-    // поломка.
-    if (manualAxis) {
-        Spacer(Modifier.width(Dimens.space1))
-        Chip(
-            text = texts.axisManual,
-            color = colors.dataText,
-            selected = true,
-            onClick = onAutoAxis,
-        )
-    }
     Spacer(Modifier.width(Dimens.space1))
     // Остальное — под «⋯».
     //
@@ -1345,15 +1294,6 @@ private fun RowScope.ControlChips(
                     onToggleEvents()
                 },
             )
-            if (onFitThresholds != null) {
-                AppMenuItem(
-                    text = texts.fitThresholds,
-                    onClick = {
-                        menuOpen = false
-                        onFitThresholds()
-                    },
-                )
-            }
             AppMenuDivider()
             AppMenuItem(
                 text = texts.moreDetails,

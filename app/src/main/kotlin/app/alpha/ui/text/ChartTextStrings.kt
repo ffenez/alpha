@@ -140,11 +140,7 @@ interface ChartTextStrings {
     /** Пункт «⋯»: вернуть выбранное окно у края и автоматическую ось. */
     val resetScale: String
 
-    /** Пункт «⋯»: подобрать ось так, чтобы в кадр попали и пороги. */
-    val fitThresholds: String
 
-    /** Чип состояния: ось задана рукой; нажатие возвращает автоподбор. */
-    val axisManual: String
 
     val median: String
     val min: String
@@ -260,9 +256,8 @@ object ChartTextRu : ChartTextStrings {
 
     override val gestureZoomPan = "Щипок — масштаб времени, перетаскивание — сдвиг окна."
     override val gestureValueAxis = "Движение вверх-вниз ведёт ось значений — так видно, где " +
-        "проходят пороги; жест по шкале справа сжимает и растягивает её. Пока ось задана " +
-        "рукой, на панели горит «ось вручную», а двойное нажатие возвращает автоподбор. " +
-        "«Вместить пороги» в «⋯» делает это одним нажатием."
+        "проходят пороги; жест по шкале справа сжимает и растягивает её. Двойное нажатие " +
+        "возвращает автоподбор оси."
     override val gestureCursor = "Долгое нажатие ставит курсор: он показывает интервал, его " +
         "медиану, разброс, мин/макс со временем и сравнение с профилем."
     override val gestureMarkerTap = "Нажатие на треугольник над полем открывает ту же карточку " +
@@ -309,8 +304,6 @@ object ChartTextRu : ChartTextStrings {
     override val allHistory = "вся история"
     override val windowPicker = "окно"
     override val resetScale = "сбросить масштаб"
-    override val fitThresholds = "вместить пороги"
-    override val axisManual = "ось вручную"
 
     override val median = "медиана"
     override val min = "мин"
@@ -443,8 +436,7 @@ object ChartTextEn : ChartTextStrings {
     override val gestureZoomPan = "Pinch changes the time scale, dragging moves the window."
     override val gestureValueAxis = "Moving up and down leads the value axis — that is how the " +
         "thresholds come into view; a drag on the scale at the right compresses and stretches " +
-        "it. While the axis is set by hand the panel says «axis by hand», and a double tap " +
-        "brings the automatic fit back. «Fit the thresholds» in «⋯» does it in one tap."
+        "it. A double tap brings the automatic fit back."
     override val gestureCursor = "A long press places the cursor: it shows the interval, its " +
         "median, the spread, min/max with their times and the comparison with the profile."
     override val gestureMarkerTap = "Tapping a triangle above the field opens the same card " +
@@ -488,8 +480,6 @@ object ChartTextEn : ChartTextStrings {
     override val allHistory = "all history"
     override val windowPicker = "window"
     override val resetScale = "reset the scale"
-    override val fitThresholds = "fit the thresholds"
-    override val axisManual = "axis by hand"
 
     override val median = "median"
     override val min = "min"
@@ -550,7 +540,7 @@ fun ChartTextStrings.allTexts(): List<String> = listOf(
     cursorEvents(1), cursorEvents(3), cursorEvents(11),
     cursorEventsNote, distribution, windowStatistics,
     nowChip, pausedChip, logChip, linearChip, allHistory, windowPicker,
-    resetScale, fitThresholds, axisManual,
+    resetScale,
     median, min, max, samplesLabel, spreadDefinitions,
     quantileMethodLine("KLL k=128"), preAggregationProgress(40, 12, 30),
     computing, compareWithRaw,

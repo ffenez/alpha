@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0101Title: String
+    val v0101Summary: String
+
     val v0100Title: String
     val v0100Summary: String
 
@@ -243,6 +246,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0101Title = "Спектрограмма открывается во весь экран"
+    override val v0101Summary =
+        "Касание по картинке разворачивает её на весь дисплей — там курсор, прицел по " +
+        "энергии, режимы и разбор момента, а в обзоре остались картинка, период и шкала " +
+        "цвета. С панели графика убраны «вместить пороги» и чип «ось вручную»: автоподбор " +
+        "возвращает двойное нажатие или «сбросить масштаб»."
 
     override val v0100Title = "Спектрограмма: общий курсор и понятные величины"
     override val v0100Summary =
@@ -758,6 +768,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0101Title = "The spectrogram opens full screen"
+    override val v0101Summary =
+        "Tapping the image expands it to the whole display — cursor, energy crosshair, modes " +
+        "and the breakdown of a moment live there, while the overview keeps the image, the " +
+        "period and the colour scale. «Fit the thresholds» and the «axis by hand» chip are " +
+        "gone from the chart panel: a double tap or «reset the scale» brings the automatic " +
+        "axis back."
 
     override val v0100Title = "Spectrogram: one cursor and readable quantities"
     override val v0100Summary =

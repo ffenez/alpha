@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -136,7 +137,8 @@ private const val RENDER_ROWS = 192
 fun WaterfallChart(
     spec: WaterfallSpec,
     modifier: Modifier = Modifier,
-    height: Dp = 300.dp,
+    /** null — высоту задаёт родитель: в полноэкранном режиме поле и есть экран. */
+    height: Dp? = null,
     /**
      * Курсор времени: индекс колонки и доля высоты, если палец ведут по полю.
      * `null` во втором параметре — прицела нет (нажатие, а не ведение).
@@ -243,7 +245,7 @@ fun WaterfallChart(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(height)
+            .then(if (height != null) Modifier.height(height) else Modifier.fillMaxSize())
             .then(
                 if (onCursor == null || spec.columns.isEmpty()) {
                     Modifier
