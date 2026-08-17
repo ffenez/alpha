@@ -23,6 +23,19 @@ object MigrationSql {
      *
      * Только добавление: у прежних опытов фото нет и быть не может.
      */
+    /**
+     * v16 → v17: профиль снимка спектра.
+     *
+     * Только добавление и только NULL для старых строк: в каком профиле снят
+     * снимок прошлого года, неизвестно, и подставить туда сегодняшний профиль
+     * значило бы придумать наблюдение. Такие снимки честно говорят «без
+     * профиля».
+     */
+    val FROM_16_TO_17: List<String> = listOf(
+        "ALTER TABLE `spectra` ADD COLUMN `profileId` INTEGER DEFAULT NULL",
+        "ALTER TABLE `spectra` ADD COLUMN `profileName` TEXT DEFAULT NULL",
+    )
+
     val FROM_15_TO_16: List<String> = listOf(
         "ALTER TABLE `experiments` ADD COLUMN `photoUri` TEXT",
     )

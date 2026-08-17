@@ -276,6 +276,10 @@ object EnStrings : Strings {
 
     override val readingJournal = "reading the journal…"
     override val noSessionsYet = "no sessions yet"
+    override val noSpectraYet = "no spectrum snapshots yet"
+    override val backgroundSpectrum = "background"
+    override val spectrumExplained =
+        "A snapshot keeps the whole spectrum: it later shows what the count was made of."
     override val sessionExplained =
         "A session is an uninterrupted period of measurement: it opens when the " +
             "instrument connects and closes when it disconnects."

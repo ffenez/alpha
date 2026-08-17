@@ -154,6 +154,24 @@ interface HistoryStrings {
     fun sessions(n: Int): String
     fun spectra(n: Int): String
     fun events(n: Int): String
+
+    /**
+     * Счётчик той вкладки, которая открыта.
+     *
+     * «37 сессий» на вкладке «Все» считало не то, что лежало на экране: там
+     * же стояли маршруты, снимки и исследования. Счётчик обязан говорить о
+     * видимом.
+     */
+    /** Запись без единого измерения — коротко, в рабочем списке. */
+    val noMeasurements: String
+
+    /** Удаление исследования: названо по имени и по последствию. */
+    fun studyDeleteTitle(name: String): String
+    val studyDeleteBody: String
+
+    fun records(n: Int): String
+    fun routes(n: Int): String
+    fun studies(n: Int): String
 }
 
 object HistoryRu : HistoryStrings {
@@ -306,6 +324,19 @@ object HistoryRu : HistoryStrings {
     override fun spectra(n: Int) = "$n ${plural(n, "спектр", "спектра", "спектров")}"
 
     override fun events(n: Int) = "$n ${plural(n, "событие", "события", "событий")}"
+
+    override val noMeasurements = "нет измерений"
+
+    override fun studyDeleteTitle(name: String) = "Удалить «$name»?"
+    override val studyDeleteBody =
+        "Уйдут прогоны и результат этого исследования. Измерения журнала останутся."
+
+    override fun records(n: Int) = "$n ${plural(n, "запись", "записи", "записей")}"
+
+    override fun routes(n: Int) = "$n ${plural(n, "маршрут", "маршрута", "маршрутов")}"
+
+    override fun studies(n: Int) =
+        "$n ${plural(n, "исследование", "исследования", "исследований")}"
 
     /** Русские числительные: 1 сессия · 2 сессии · 11 сессий. */
     private fun plural(n: Int, one: String, few: String, many: String): String {
@@ -469,6 +500,18 @@ object HistoryEn : HistoryStrings {
     override fun spectra(n: Int) = if (n == 1) "$n spectrum" else "$n spectra"
 
     override fun events(n: Int) = if (n == 1) "$n deviation event" else "$n deviation events"
+
+    override val noMeasurements = "no measurements"
+
+    override fun studyDeleteTitle(name: String) = "Delete «$name»?"
+    override val studyDeleteBody =
+        "The runs and the result of this study will go. The journal measurements stay."
+
+    override fun records(n: Int) = if (n == 1) "$n record" else "$n records"
+
+    override fun routes(n: Int) = if (n == 1) "$n route" else "$n routes"
+
+    override fun studies(n: Int) = if (n == 1) "$n study" else "$n studies"
 }
 
 val HistoryCatalogue = AreaCatalogue(ru = HistoryRu, en = HistoryEn)
@@ -483,6 +526,8 @@ fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
     routeCompare, routeCompareCount(2), routeCompareTitle, routeCompareNeedTwo,
     routeCompareCaveat, routeOpen, statDistance, statDose,
     routeInterrupted, routeExport, routeUndo, routesDeleted(1), routesDeleted(3),
+    noMeasurements, studyDeleteTitle("Калий"), studyDeleteBody,
+    records(1), records(3), records(11), routes(1), routes(2), studies(1), studies(5),
     routeDeleteTitle(1), routeDeleteTitle(3), routeDeleteBody,
     routeDiff, routeDiffSummary(12, 3, 1), routeDiffMethod("30 м", 5),
     seconds(45), minutes(12), hours(8), hoursMinutes(8, 12),

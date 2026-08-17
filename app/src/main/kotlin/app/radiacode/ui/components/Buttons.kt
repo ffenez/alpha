@@ -1,6 +1,8 @@
 package app.radiacode.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -99,6 +101,14 @@ fun Segmented(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     enabled: (Int) -> Boolean = { true },
+    /**
+     * Прокручиваемый ряд вместо равных долей.
+     *
+     * Пять подписей, поделивших узкий экран поровну, превращаются в огрызки в
+     * два этажа. Прокрутка честнее: подпись остаётся подписью, а часть ряда
+     * уезжает за край — и это видно.
+     */
+    scrollable: Boolean = false,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -106,6 +116,7 @@ fun Segmented(
         modifier = modifier
             .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
             .background(colors.surface2)
+            .then(if (scrollable) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
             .padding(3.dp),
     ) {
         options.forEachIndexed { index, option ->
@@ -114,7 +125,7 @@ fun Segmented(
             val shape = RoundedCornerShape(LocalAppMetrics.current.radiusSegment)
             Box(
                 modifier = Modifier
-                    .weight(1f)
+                    .then(if (scrollable) Modifier else Modifier.weight(1f))
                     .clip(shape)
                     .then(
                         if (selected) {
@@ -126,7 +137,7 @@ fun Segmented(
                         },
                     )
                     .clickable(enabled = isEnabled) { onSelect(index) }
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = 6.dp, horizontal = if (scrollable) 12.dp else 0.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

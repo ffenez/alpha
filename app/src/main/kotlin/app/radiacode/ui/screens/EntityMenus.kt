@@ -38,12 +38,16 @@ internal object EntityMenus {
         onCompare: () -> Unit,
         onContinue: () -> Unit,
         onRename: () -> Unit,
+        onProfile: () -> Unit,
         onDelete: () -> Unit,
     ): List<EntityMenuItem> = listOf(
         EntityMenuItem(export.export, onClick = onExport),
         EntityMenuItem(strings.compareWithAnother, enabled = canCompare, onClick = onCompare),
         EntityMenuItem(strings.continueAccumulation, onClick = onContinue),
         EntityMenuItem(history.routeRename, onClick = onRename),
+        // Профиль снимка правится задним числом: прибор снимал там, где стоял,
+        // а человек может знать это лучше автоматики.
+        EntityMenuItem(strings.profile, onClick = onProfile),
         EntityMenuItem(strings.delete, onClick = onDelete),
     )
 
@@ -72,6 +76,26 @@ internal object EntityMenus {
     ): List<EntityMenuItem> = listOf(
         EntityMenuItem(export.export, onClick = onExport),
         EntityMenuItem(history.routeCompare, enabled = canCompare, onClick = onCompare),
+        EntityMenuItem(history.routeRename, onClick = onRename),
+        EntityMenuItem(strings.delete, onClick = onDelete),
+    )
+
+    /**
+     * Исследование продукта.
+     *
+     * Переименование меняет только НАЗВАНИЕ: геометрия, время и измеренные
+     * числа после старта не правятся — иначе результат перестал бы относиться
+     * к тому, что измеряли.
+     */
+    fun study(
+        strings: Strings,
+        export: ExportStrings,
+        history: HistoryStrings,
+        onExport: () -> Unit,
+        onRename: () -> Unit,
+        onDelete: () -> Unit,
+    ): List<EntityMenuItem> = listOf(
+        EntityMenuItem(export.export, onClick = onExport),
         EntityMenuItem(history.routeRename, onClick = onRename),
         EntityMenuItem(strings.delete, onClick = onDelete),
     )

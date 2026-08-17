@@ -276,6 +276,13 @@ interface Strings {
     fun selectedCount(count: Int): String
     val readingJournal: String
     val noSessionsYet: String
+
+    /** Пустая вкладка снимков: чем она наполнится и зачем. */
+    val noSpectraYet: String
+    val spectrumExplained: String
+
+    /** Снимок, объявленный обычной обстановкой места. */
+    val backgroundSpectrum: String
     val sessionExplained: String
     val showMore: String
     val accumulatedDose: String
@@ -702,7 +709,7 @@ fun Strings.allTexts(): List<String> = listOf(
     runningCannotDelete, running, avg, max, dose, track, spectrum, flight,
     noSamplesInSession, profileEllipsis, sessionProfileTitle, sessionProfileBody("12:00"),
     deviation, excursionPoint, usually, fileSaved, spectraTitle, compare,
-    snapshotOpensActions,
+    snapshotOpensActions, noSpectraYet, spectrumExplained, backgroundSpectrum,
     openSnapshot, chooseSnapshotToCompare,
     mergeAction(2), mergedSaved("x"), mergeImpossible, compareWithAnother,
     continueAccumulation, continueAccumulationNote, importedTag, backgroundTag, delete,

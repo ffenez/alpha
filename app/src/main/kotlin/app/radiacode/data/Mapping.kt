@@ -57,6 +57,9 @@ fun Spectrum.toEntity(
     firmware: String? = null,
     epochId: Long? = null,
     trigger: String? = null,
+    /** Профиль на момент съёмки: ссылка и имя, каким оно было тогда. */
+    profileId: Long? = null,
+    profileName: String? = null,
 ): SpectrumSnapshotEntity =
     SpectrumSnapshotEntity(
         timestamp = timestamp,
@@ -75,6 +78,8 @@ fun Spectrum.toEntity(
         firmware = firmware,
         epochId = epochId,
         trigger = trigger,
+        profileId = profileId,
+        profileName = profileName,
     )
 
 fun SpectrumSnapshotEntity.toSpectrum(): Spectrum = Spectrum(

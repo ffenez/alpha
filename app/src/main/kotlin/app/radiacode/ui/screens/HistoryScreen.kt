@@ -67,6 +67,7 @@ import app.radiacode.device.DoseUnits
 import app.radiacode.ui.components.DisclosureArrow
 import app.radiacode.ui.components.NavArrow
 import app.radiacode.ui.components.Hint
+import app.radiacode.ui.components.LocalHintsVisible
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.BarChart
@@ -81,6 +82,8 @@ import app.radiacode.ui.components.EntityMenuItem
 import app.radiacode.ui.components.RenameDialog
 import app.radiacode.ui.components.AppMenuItem
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.HistoryRow
+import app.radiacode.ui.components.PREVIEW_SIZE
 import app.radiacode.ui.components.CheckMark
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.RadioMark
@@ -98,6 +101,10 @@ import app.radiacode.ui.logic.HistorySelection
 import app.radiacode.ui.logic.ProfileTree
 import app.radiacode.ui.logic.SpectrumFormat
 import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.FoodStrings
+import app.radiacode.ui.text.Strings
+import app.radiacode.ui.text.MapStrings
+import app.radiacode.ui.text.HistoryStrings
 import app.radiacode.ui.text.AppLanguage
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.SessionRadonCatalogue
@@ -110,6 +117,7 @@ import java.time.ZoneId
 import kotlinx.coroutines.delay
 import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.RouteThumbnail
+import app.radiacode.ui.logic.HistoryFeed
 import app.radiacode.ui.logic.HistoryFilter
 import app.radiacode.ui.logic.RouteFormat
 import app.radiacode.ui.logic.RouteShape
@@ -126,6 +134,7 @@ import app.radiacode.data.export.GeoJson
 import app.radiacode.data.export.ReportFactories
 import app.radiacode.data.export.SeriesExport
 import app.radiacode.data.export.html.ComparisonReportHtml
+import app.radiacode.data.export.html.ExperimentReportHtml
 import app.radiacode.data.export.html.ReportEvent
 import app.radiacode.data.export.html.RoutePrivacy
 import app.radiacode.data.export.html.RouteReportHtml
@@ -316,6 +325,15 @@ fun HistoryScreen(
     var exportNote by remember { mutableStateOf<String?>(null) }
     var exportingSelection by remember { mutableStateOf(false) }
     var exportingSession by remember { mutableStateOf<Long?>(null) }
+    var exportingSpectrum by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
+    var renamingSpectrum by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
+    var deletingSpectrum by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
+    var profileForSpectrum by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
+    var exportingStudy by remember { mutableStateOf<ExperimentEntity?>(null) }
+    var renamingStudy by remember { mutableStateOf<ExperimentEntity?>(null) }
+    var deletingStudy by remember { mutableStateOf<ExperimentEntity?>(null) }
+    val f = FoodCatalogue.of(strings.language)
+    val mapStrings = MapCatalogue.of(strings.language)
     var profileForSession by remember { mutableStateOf<Long?>(null) }
     val e = ExportCatalogue.of(strings.language)
     val fileSaver = rememberFileSaver { ok -> exportNote = if (ok) e.saved else e.failed }
@@ -349,6 +367,172 @@ fun HistoryScreen(
                 else -> fileSaver.save(format, name, SeriesExport.trackCsv(kept))
             }
         }
+    }
+
+    // Снимок спектра: форматы, имя и удаление — из «⋮» его строки.
+    exportingSpectrum?.let { entity ->
+        EntityExportSheet(
+            title = e.export,
+            groups = spectrumExportGroups(
+                entity = entity,
+                e = e,
+                appVersion = appVersionName(context),
+                language = strings.language,
+                saver = fileSaver,
+                onPicked = { exportingSpectrum = null },
+            ),
+            onDismiss = { exportingSpectrum = null },
+        )
+    }
+    renamingSpectrum?.let { entity ->
+        RenameDialog(
+            title = h.routeRename,
+            initial = entity.label.orEmpty(),
+            placeholder = h.routeNameHint,
+            onSave = { name ->
+                renamingSpectrum = null
+                scope.launch {
+                    graph.measurementRepository.renameSpectrum(entity.id, name)
+                    reload += 1
+                }
+            },
+            onDismiss = { renamingSpectrum = null },
+        )
+    }
+    // Профиль снимка правится задним числом: меняется только запись о том, где
+    // снимали, — отсчёты, время и калибровка остаются прежними.
+    profileForSpectrum?.let { entity ->
+        val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
+        SessionProfileDialog(
+            startedAt = entity.timestamp,
+            profileId = entity.profileId,
+            profiles = profiles,
+            onPick = { profileId ->
+                profileForSpectrum = null
+                scope.launch {
+                    graph.measurementRepository.setSpectrumProfile(
+                        id = entity.id,
+                        profileId = profileId,
+                        profileName = profiles.firstOrNull { it.id == profileId }?.name,
+                    )
+                    reload += 1
+                }
+            },
+            onDismiss = { profileForSpectrum = null },
+        )
+    }
+
+    deletingSpectrum?.let { entity ->
+        ConfirmDialog(
+            title = h.routeDeleteTitle(1),
+            body = h.routeDeleteBody,
+            confirmText = strings.delete,
+            onConfirm = {
+                deletingSpectrum = null
+                scope.launch { graph.sessionRepository.delete(emptySet(), setOf(entity.id)) }
+            },
+            onDismiss = { deletingSpectrum = null },
+        )
+    }
+
+    // Исследование продукта: то же обращение, что и с остальными записями.
+    // Раньше его нельзя было ни переименовать, ни удалить — случайная проба
+    // оставалась в журнале навсегда.
+    exportingStudy?.let { study ->
+        EntityExportSheet(
+            title = e.export,
+            groups = listOf(
+                ExportGroup(
+                    title = e.groupReport,
+                    options = listOf(
+                        ExportOptions.report(e) {
+                            val target = study
+                            exportingStudy = null
+                            scope.launch {
+                                val runs = graph.experimentRepository.runData(
+                                    graph.experimentRepository.runs(target.id),
+                                )
+                                fileSaver.save(
+                                    ExportFile.HTML,
+                                    SeriesExport.fileName(target.createdAt, "html"),
+                                    ExperimentReportHtml.render(
+                                        ReportFactories.experiment(
+                                            entity = target,
+                                            profileName = null,
+                                            runs = runs,
+                                            comparison = null,
+                                            verdictText = studyStatus(
+                                                foodResults[target.id],
+                                                f,
+                                            ),
+                                            appName = REPORT_APP,
+                                            appVersion = appVersionName(context) ?: "",
+                                            language = strings.language,
+                                        ),
+                                    ),
+                                )
+                            }
+                        },
+                    ),
+                ),
+                ExportGroup(
+                    title = e.groupTable,
+                    options = listOf(
+                        ExportOptions.table(e) {
+                            val target = study
+                            exportingStudy = null
+                            scope.launch {
+                                val runs = graph.experimentRepository.runData(
+                                    graph.experimentRepository.runs(target.id),
+                                )
+                                fileSaver.save(
+                                    ExportFile.CSV,
+                                    SeriesExport.fileName(target.createdAt, "csv"),
+                                    ReportFactories.experimentCsv(runs),
+                                )
+                            }
+                        },
+                    ),
+                ),
+            ),
+            onDismiss = { exportingStudy = null },
+        )
+    }
+    renamingStudy?.let { study ->
+        RenameDialog(
+            title = h.routeRename,
+            initial = study.note,
+            placeholder = f.sampleName,
+            onSave = { name ->
+                renamingStudy = null
+                scope.launch {
+                    graph.experimentRepository.setNote(study.id, name.trim())
+                    reload += 1
+                }
+            },
+            onDismiss = { renamingStudy = null },
+        )
+    }
+    deletingStudy?.let { study ->
+        ConfirmDialog(
+            title = h.studyDeleteTitle(study.note.ifBlank { f.title }),
+            body = h.studyDeleteBody,
+            confirmText = strings.delete,
+            onConfirm = {
+                deletingStudy = null
+                scope.launch {
+                    // Идущий прогон останавливается первым: иначе он допишет
+                    // результат в уже удалённое исследование.
+                    graph.abRun.stop()
+                    if (graph.settings.activeFoodExperimentId.first() == study.id) {
+                        graph.settings.setActiveFoodExperimentId(null)
+                    }
+                    graph.experimentRepository.delete(study.id)
+                    reload += 1
+                }
+            },
+            onDismiss = { deletingStudy = null },
+        )
     }
 
     // Сессия из списка уносится теми же тремя форматами, что и с её экрана.
@@ -573,11 +757,12 @@ fun HistoryScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(Dimens.space3),
-        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+            // Сверху — половина шага: пустая полоса над вкладками съедала
+            // первую запись, а название экрана и так подписано во вкладке снизу.
+            .padding(start = Dimens.space3, end = Dimens.space3, bottom = Dimens.space3)
+            .padding(top = Dimens.space2),
+        verticalArrangement = Arrangement.spacedBy(Dimens.space2),
     ) {
-        // Название экрана в шапке не повторяется: оно и так подписано во
-        // вкладке снизу.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
             if (selection.active) {
@@ -589,14 +774,22 @@ fun HistoryScreen(
             } else {
                 // The counter is the way in: tapping «12 сессий» is asking to
                 // do something with them.
-                model?.takeIf {
-                    // «26 сессий» на вкладке «Маршруты» — счёт не того, что
-                    // на экране.
-                    filter == HistoryFilter.ALL || filter == HistoryFilter.SESSIONS
-                }?.let {
-                    // Счётчик — число, а не кнопка: в режим выбора везде в
-                    // журнале входят одинаково, долгим нажатием на запись.
-                    Chip(text = strings.sessionsCount(it.totalSessions), color = colors.ink2)
+                // Счётчик считает ТО, ЧТО НА ЭКРАНЕ: «37 сессий» на вкладке
+                // «Все», где рядом лежат маршруты, снимки и исследования, —
+                // счёт не того, что видно. Число, а не кнопка: в режим выбора
+                // везде в журнале входят долгим нажатием на запись.
+                model?.let { m ->
+                    val total = when (filter) {
+                        HistoryFilter.ALL -> h.records(
+                            m.totalSessions.toInt() + routes.size + savedSpectra.size +
+                                foodExperiments.size,
+                        )
+                        HistoryFilter.SESSIONS -> h.sessions(m.totalSessions.toInt())
+                        HistoryFilter.ROUTES -> h.routes(routes.size)
+                        HistoryFilter.SPECTRA -> h.spectra(savedSpectra.size)
+                        HistoryFilter.FOOD -> h.studies(foodExperiments.size)
+                    }
+                    Chip(text = total, color = colors.ink2)
                 }
             }
         }
@@ -633,10 +826,21 @@ fun HistoryScreen(
             }
         }
 
+        // Пять вкладок вместо четырёх: «Продукты» существовали в фильтре, но
+        // нажать на них было негде — исследования показывались только внутри
+        // «Все». Ряд прокручивается: пять равных долей на узком экране
+        // превращают подписи в огрызки.
         Segmented(
-            options = listOf(h.filterAll, h.filterSessions, h.filterRoutes, h.filterSpectra),
+            options = listOf(
+                h.filterAll,
+                h.filterSessions,
+                h.filterRoutes,
+                h.filterSpectra,
+                h.filterFood,
+            ),
             selectedIndex = HistoryFilter.entries.indexOf(filter),
             onSelect = { filter = HistoryFilter.entries[it] },
+            scrollable = true,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -646,180 +850,297 @@ fun HistoryScreen(
                 Text(text = strings.readingJournal, style = type.bodySmall, color = colors.muted)
             }
         } else {
-            if (filter == HistoryFilter.ALL || filter == HistoryFilter.FOOD) {
-                FoodList(
-                    measurements = foodExperiments,
-                    results = foodResults,
-                    onOpen = { openFood = it },
-                )
-            }
-
-            if (filter == HistoryFilter.ALL || filter == HistoryFilter.ROUTES) {
-                val visibleRoutes = routes.filter { it.id !in deletingRoutes }
-                RoutesList(
-                    routes = visibleRoutes,
-                    unit = unit,
-                    graph = graph,
-                    scale = routeScale,
-                    picked = pickedRoutes,
-                    onOpen = { openRoute = it },
-                    onPick = { id ->
-                        pickedRoutes = if (id in pickedRoutes) {
-                            pickedRoutes - id
-                        } else {
-                            pickedRoutes + id
-                        }
-                    },
-                    onRename = { renaming = it },
-                    onExport = { route -> exportingRoute = route },
-                    onDelete = { confirmingDelete = listOf(it) },
-                    onCompare = { ids -> comparing = ids },
-                )
-                // Выбор и отмена удаления — строки действий внизу списка, а не
-                // кнопки в каждой карточке.
-                if (pickedRoutes.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                        AppButton(
-                            text = h.routeCompareCount(pickedRoutes.size),
-                            onClick = { comparing = pickedRoutes.toList() },
-                            primary = pickedRoutes.size >= 2,
-                            enabled = pickedRoutes.size >= 2,
-                            modifier = Modifier.weight(1f),
-                        )
-                        AppButton(
-                            text = strings.delete,
-                            onClick = {
-                                confirmingDelete = routes.filter { it.id in pickedRoutes }
-                            },
-                            modifier = Modifier.weight(1f),
-                        )
-                        AppButton(
-                            text = strings.cancel,
-                            onClick = { pickedRoutes = emptySet() },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-                if (deletingRoutes.isNotEmpty()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                    ) {
-                        Text(
-                            text = h.routesDeleted(deletingRoutes.size),
-                            style = type.footnote,
-                            color = colors.muted,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Chip(
-                            text = h.routeUndo,
-                            color = colors.dataText,
-                            onClick = { deletingRoutes = emptySet() },
-                        )
-                    }
-                }
-            }
-
-            if (filter == HistoryFilter.ALL || filter == HistoryFilter.SPECTRA) SavedSpectraCard(
-                graph = graph,
-                spectra = savedSpectra,
-                onContinue = onContinueSpectrum,
-                onOpen = onOpenSpectrum,
-                selectionActive = selection.active,
-                selected = selection.spectra,
-                onToggle = { id ->
-                    selection = selection.activate().toggleSpectrum(id)
-                },
-                mergeNote = mergeNote,
-            )
-
+            val now = System.currentTimeMillis()
+            val visibleRoutes = routes.filter { it.id !in deletingRoutes }
             val showSessions = filter == HistoryFilter.ALL || filter == HistoryFilter.SESSIONS
-            if (!showSessions) {
-                Unit
-            } else if (m.items.isEmpty()) {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                        Text(
-                            text = strings.noSessionsYet,
-                            style = type.bodySmall,
-                            color = colors.ink2,
-                        )
-                        Hint(
-                            text = strings.sessionExplained,
-                            style = type.bodySmall,
-                            color = colors.muted,
-                        )
+            // Одна лента вместо четырёх разделов: сессии, маршруты, снимки и
+            // исследования стоят в том порядке, в каком произошли, и
+            // различаются содержанием строки, а не устройством списка.
+            val entries = buildList {
+                if (showSessions) {
+                    m.items.forEach { item ->
+                        when (item) {
+                            is HistoryItem.Session -> add(FeedEntry.Session(item.group))
+                            is HistoryItem.Deviation -> add(FeedEntry.Deviation(item.event))
+                        }
                     }
                 }
+                if (filter == HistoryFilter.ALL || filter == HistoryFilter.ROUTES) {
+                    visibleRoutes.forEach { add(FeedEntry.Route(it)) }
+                }
+                if (filter == HistoryFilter.ALL || filter == HistoryFilter.SPECTRA) {
+                    savedSpectra.forEach { add(FeedEntry.Spectrum(it)) }
+                }
+                if (filter == HistoryFilter.ALL || filter == HistoryFilter.FOOD) {
+                    foodExperiments.forEach { add(FeedEntry.Study(it, foodResults[it.id])) }
+                }
+            }
+
+            if (entries.isEmpty()) {
+                EmptyFeedCard(filter)
             } else {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column {
-                        m.items.forEachIndexed { index, item ->
-                            if (index > 0) AppDivider()
-                            when (item) {
-                                is HistoryItem.Session -> SessionRow(
-                                    group = item.group,
-                                    unit = unit,
-                                    selectionActive = selection.active,
-                                    // Склейка выбирается целиком: строка на
-                                    // экране одна, и «выбрано наполовину» о
-                                    // ней сказать нечего.
-                                    selected = item.group.ids.all { it in selection.sessions },
-                                    onClick = {
-                                        if (selection.active) {
-                                            // A session still being written to
-                                            // cannot be deleted: the data is
-                                            // arriving as we speak.
-                                            if (!item.group.running) {
-                                                selection = item.group.ids.fold(selection) {
-                                                    acc, id ->
-                                                    acc.toggleSession(id)
-                                                }
-                                            }
-                                        } else {
-                                            onOpenSession(item.group.ids.last())
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (!item.group.running) {
-                                            selection = item.group.ids.fold(selection.activate()) {
-                                                acc, id ->
-                                                acc.toggleSession(id)
-                                            }
-                                        }
-                                    },
-                                    // «⋮» у сессии — те же действия, что и на
-                                    // её экране: один набор на список и на
-                                    // запись.
-                                    menu = if (selection.active) {
-                                        emptyList()
-                                    } else {
-                                        EntityMenus.session(
-                                            strings = strings,
-                                            export = e,
-                                            onExport = {
-                                                exportingSession = item.group.ids.last()
+                for (day in HistoryFeed.group(entries, timestamp = { it.timestamp })) {
+                    Text(
+                        text = HistoryFormat.dayHeader(day.startOfDayMillis, now, s = h),
+                        style = type.labelSmall,
+                        color = colors.ink2,
+                    )
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            day.entries.forEachIndexed { index, entry ->
+                                if (index > 0) AppDivider()
+                                when (entry) {
+                                    is FeedEntry.Session -> {
+                                        val group = entry.group
+                                        val ids = group.ids
+                                        HistoryRow(
+                                            title = group.profileName ?: strings.noProfile,
+                                            status = when {
+                                                group.running && selection.active ->
+                                                    strings.runningCannotDelete
+                                                group.running -> strings.running
+                                                else -> null
                                             },
-                                            onProfile = {
-                                                profileForSession = item.group.ids.last()
+                                            statusColor = if (selection.active) {
+                                                colors.muted
+                                            } else {
+                                                colors.ok
                                             },
-                                            onDelete = {
-                                                scope.launch {
-                                                    confirming = graph.sessionRepository
-                                                        .deletionPlan(
-                                                            sessionIds = item.group.ids.toSet(),
-                                                            spectrumIds = emptySet(),
-                                                        )
+                                            subtitle = sessionSubtitle(group, now, h),
+                                            detail = sessionDetail(
+                                                group = group,
+                                                unit = unit,
+                                                strings = strings,
+                                                h = h,
+                                                // Качество записи — пояснение, а
+                                                // не результат: строка о
+                                                // пропусках появляется, когда
+                                                // человек попросил пояснения, и
+                                                // только если пропуски заметны.
+                                                withGaps = LocalHintsVisible.current,
+                                            ),
+                                            check = if (selection.active && !group.running) {
+                                                ids.all { it in selection.sessions }
+                                            } else {
+                                                null
+                                            },
+                                            onClick = {
+                                                if (selection.active) {
+                                                    if (!group.running) {
+                                                        selection = ids.fold(selection) { acc, id ->
+                                                            acc.toggleSession(id)
+                                                        }
+                                                    }
+                                                } else {
+                                                    onOpenSession(ids.last())
                                                 }
+                                            },
+                                            onLongClick = {
+                                                if (!group.running) {
+                                                    selection = ids.fold(selection.activate()) {
+                                                        acc, id ->
+                                                        acc.toggleSession(id)
+                                                    }
+                                                }
+                                            },
+                                            menu = if (selection.active) {
+                                                emptyList()
+                                            } else {
+                                                EntityMenus.session(
+                                                    strings = strings,
+                                                    export = e,
+                                                    onExport = { exportingSession = ids.last() },
+                                                    onProfile = { profileForSession = ids.last() },
+                                                    onDelete = {
+                                                        scope.launch {
+                                                            confirming = graph.sessionRepository
+                                                                .deletionPlan(
+                                                                    sessionIds = ids.toSet(),
+                                                                    spectrumIds = emptySet(),
+                                                                )
+                                                        }
+                                                    },
+                                                )
                                             },
                                         )
-                                    },
-                                )
-                                is HistoryItem.Deviation -> DeviationRow(item.event, unit)
+                                    }
+
+                                    is FeedEntry.Route -> {
+                                        val route = entry.route
+                                        HistoryRow(
+                                            title = RouteFormat.title(route, now, h),
+                                            status = when {
+                                                route.running -> h.routeRecording
+                                                route.interrupted -> h.routeInterrupted
+                                                else -> null
+                                            },
+                                            statusColor = if (route.running) {
+                                                colors.ok
+                                            } else {
+                                                colors.warn
+                                            },
+                                            subtitle = routeSubtitle(route, now, h, mapStrings),
+                                            detail = routeDetail(route, unit, strings),
+                                            preview = {
+                                                RoutePreview(
+                                                    graph = graph,
+                                                    route = route,
+                                                    scale = routeScale,
+                                                )
+                                            },
+                                            check = if (pickedRoutes.isNotEmpty()) {
+                                                route.id in pickedRoutes
+                                            } else {
+                                                null
+                                            },
+                                            onClick = {
+                                                if (pickedRoutes.isNotEmpty()) {
+                                                    pickedRoutes = if (route.id in pickedRoutes) {
+                                                        pickedRoutes - route.id
+                                                    } else {
+                                                        pickedRoutes + route.id
+                                                    }
+                                                } else {
+                                                    openRoute = route.id
+                                                }
+                                            },
+                                            onLongClick = { pickedRoutes = pickedRoutes + route.id },
+                                            menu = EntityMenus.route(
+                                                strings = strings,
+                                                export = e,
+                                                history = h,
+                                                canCompare = routes.size >= 2,
+                                                onExport = { exportingRoute = route },
+                                                onCompare = {
+                                                    pickedRoutes = pickedRoutes + route.id
+                                                },
+                                                onRename = { renaming = route },
+                                                onDelete = { confirmingDelete = listOf(route) },
+                                            ),
+                                        )
+                                    }
+
+                                    is FeedEntry.Spectrum -> {
+                                        val entity = entry.entity
+                                        HistoryRow(
+                                            // Дата стоит в заголовке дня, время
+                                            // — во второй строке: повторять их
+                                            // в названии незачем.
+                                            title = entity.label ?: strings.spectrum,
+                                            subtitle = HistoryFormat.dayTime(
+                                                entity.timestamp,
+                                                now,
+                                                s = h,
+                                            ) + " · " + SpectrumFormat.accumulationClock(
+                                                entity.durationSeconds,
+                                            ),
+                                            detail = spectrumProvenance(entity, strings),
+                                            check = if (selection.active) {
+                                                entity.id in selection.spectra
+                                            } else {
+                                                null
+                                            },
+                                            onClick = {
+                                                if (selection.active) {
+                                                    selection = selection.toggleSpectrum(entity.id)
+                                                } else {
+                                                    onOpenSpectrum(entity.id)
+                                                }
+                                            },
+                                            onLongClick = {
+                                                selection = selection.activate()
+                                                    .toggleSpectrum(entity.id)
+                                            },
+                                            menu = if (selection.active) {
+                                                emptyList()
+                                            } else {
+                                                EntityMenus.spectrum(
+                                                    strings = strings,
+                                                    export = e,
+                                                    history = h,
+                                                    canCompare = savedSpectra.size >= 2,
+                                                    onExport = { exportingSpectrum = entity },
+                                                    onCompare = {
+                                                        selection = selection.activate()
+                                                            .toggleSpectrum(entity.id)
+                                                    },
+                                                    onContinue = { onContinueSpectrum(entity.id) },
+                                                    onRename = { renamingSpectrum = entity },
+                                                    onProfile = { profileForSpectrum = entity },
+                                                    onDelete = { deletingSpectrum = entity },
+                                                )
+                                            },
+                                        )
+                                    }
+
+                                    is FeedEntry.Study -> {
+                                        val study = entry.experiment
+                                        HistoryRow(
+                                            title = study.note.ifBlank { f.title },
+                                            subtitle = studySubtitle(study, now, h),
+                                            detail = studyStatus(entry.result, f),
+                                            onClick = { openFood = study.id },
+                                            menu = EntityMenus.study(
+                                                strings = strings,
+                                                export = e,
+                                                history = h,
+                                                onExport = { exportingStudy = study },
+                                                onRename = { renamingStudy = study },
+                                                onDelete = { deletingStudy = study },
+                                            ),
+                                        )
+                                    }
+
+                                    is FeedEntry.Deviation -> DeviationRow(entry.event, unit)
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            // Выбор и отмена удаления маршрутов — строки действий под лентой.
+            if (pickedRoutes.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    AppButton(
+                        text = h.routeCompareCount(pickedRoutes.size),
+                        onClick = { comparing = pickedRoutes.toList() },
+                        primary = pickedRoutes.size >= 2,
+                        enabled = pickedRoutes.size >= 2,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AppButton(
+                        text = strings.delete,
+                        onClick = { confirmingDelete = routes.filter { it.id in pickedRoutes } },
+                        modifier = Modifier.weight(1f),
+                    )
+                    AppButton(
+                        text = strings.cancel,
+                        onClick = { pickedRoutes = emptySet() },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            if (deletingRoutes.isNotEmpty()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                ) {
+                    Text(
+                        text = h.routesDeleted(deletingRoutes.size),
+                        style = type.footnote,
+                        color = colors.muted,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Chip(
+                        text = h.routeUndo,
+                        color = colors.dataText,
+                        onClick = { deletingRoutes = emptySet() },
+                    )
+                }
+            }
+            mergeNote?.let {
+                Text(text = it, style = type.footnote, color = colors.muted)
             }
 
             if (showSessions && m.loadedSessions < m.totalSessions) {
@@ -986,314 +1307,6 @@ fun HistoryScreen(
  * первыми.
  */
 @Composable
-private fun FoodList(
-    measurements: List<ExperimentEntity>,
-    results: Map<Long, FoodScreening.Result?>,
-    onOpen: (Long) -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val h = HistoryCatalogue.of(strings.language)
-    val f = FoodCatalogue.of(strings.language)
-    val type = LocalAppTypography.current
-    val now = System.currentTimeMillis()
-
-    if (measurements.isEmpty()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = h.noFoodYet, style = type.bodySmall, color = colors.ink2)
-                Hint(text = h.foodExplained, style = type.bodySmall, color = colors.muted)
-            }
-        }
-        return
-    }
-
-    for (measurement in measurements) {
-        val result = results[measurement.id]
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { onOpen(measurement.id) },
-                ),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = measurement.note.ifBlank { f.title },
-                    style = type.label,
-                    color = colors.ink,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = listOfNotNull(
-                        HistoryFormat.dayTime(measurement.createdAt, now, s = h),
-                        measurement.geometry.ifBlank { null },
-                    ).joinToString(" · "),
-                    style = type.footnote,
-                    color = colors.ink2,
-                )
-                Text(
-                    text = when (result?.verdict) {
-                        FoodScreening.Verdict.NO_DIFFERENCE -> f.verdictNoDifference
-                        FoodScreening.Verdict.EXCESS_WITHOUT_LINE -> f.verdictExcess
-                        FoodScreening.Verdict.SPECTRAL_FEATURE -> f.verdictLine
-                        else -> f.verdictNotEnough
-                    },
-                    style = type.footnote,
-                    color = if (result?.verdict == FoodScreening.Verdict.NO_DIFFERENCE) {
-                        colors.ink
-                    } else {
-                        colors.warn
-                    },
-                )
-                result?.comparison?.let { comparison ->
-                    Text(
-                        text = f.stepBackground + " " +
-                            Uncertainty.num1(comparison.rateB.toFloat()) + " · " +
-                            f.stepSample + " " +
-                            Uncertainty.num1(comparison.rateA.toFloat()),
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Маршруты журнала.
- *
- * Список без заголовка раздела и без внешней карточки: вкладка уже названа
- * фильтром, и второй раз повторять слово «Маршруты» незачем. Дата тоже ушла из
- * строк в заголовки дней — в списке за месяц она стояла бы у каждой записи,
- * ничего не различая.
- *
- * Различают запись три вещи: её форма (миниатюра, окрашенная той же шкалой,
- * что след на карте), время начала и то, чем прогулка была — путь и
- * длительность. Всё остальное живёт внутри маршрута.
- */
-@Composable
-private fun RoutesList(
-    routes: List<RouteSummary>,
-    unit: DoseUnitSetting,
-    graph: AppGraph,
-    scale: TrackMap.RampScale?,
-    picked: Set<Long>,
-    onOpen: (Long) -> Unit,
-    onPick: (Long) -> Unit,
-    onRename: (RouteSummary) -> Unit,
-    onExport: (RouteSummary) -> Unit,
-    onDelete: (RouteSummary) -> Unit,
-    onCompare: (List<Long>) -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val h = HistoryCatalogue.of(strings.language)
-    val type = LocalAppTypography.current
-    val now = System.currentTimeMillis()
-
-    if (routes.isEmpty()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = h.noRoutesYet, style = type.bodySmall, color = colors.ink2)
-                Hint(text = h.routesExplained, style = type.bodySmall, color = colors.muted)
-            }
-        }
-        return
-    }
-
-    var lastHeader: String? = null
-    for (route in routes) {
-        val header = HistoryFormat.dayHeader(route.startedAt, now, s = h)
-        if (header != lastHeader) {
-            lastHeader = header
-            Text(
-                text = header,
-                style = type.labelSmall,
-                color = colors.ink2,
-                modifier = Modifier.padding(top = Dimens.space1),
-            )
-        }
-        RouteCard(
-            route = route,
-            unit = unit,
-            graph = graph,
-            scale = scale,
-            picked = route.id in picked,
-            selecting = picked.isNotEmpty(),
-            onOpen = { onOpen(route.id) },
-            onPick = { onPick(route.id) },
-            onRename = { onRename(route) },
-            onExport = { onExport(route) },
-            onDelete = { onDelete(route) },
-            onCompare = { onCompare(picked.toList()) },
-        )
-    }
-}
-
-/**
- * Одна прогулка.
- *
- * Тап открывает маршрут, долгое нажатие включает выбор, `⋮` даёт редкие
- * действия. Стрелки «›» нет: карточка целиком и есть кнопка, а стрелка
- * повторяла бы это ещё раз.
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun RouteCard(
-    route: RouteSummary,
-    unit: DoseUnitSetting,
-    graph: AppGraph,
-    scale: TrackMap.RampScale?,
-    picked: Boolean,
-    selecting: Boolean,
-    onOpen: () -> Unit,
-    onPick: () -> Unit,
-    onRename: () -> Unit,
-    onExport: () -> Unit,
-    onDelete: () -> Unit,
-    onCompare: () -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val h = HistoryCatalogue.of(strings.language)
-    val type = LocalAppTypography.current
-    val mapStrings = MapCatalogue.of(strings.language)
-    val now = System.currentTimeMillis()
-    var menuOpen by remember { mutableStateOf(false) }
-
-    // Форма читается прореженной и один раз на карточку: по ногтю маршрут
-    // узнают, а не измеряют.
-    var shape by remember(route.id, route.measurementCount) {
-        mutableStateOf<List<ThumbnailPoint>>(emptyList())
-    }
-    LaunchedEffect(route.id, route.measurementCount) {
-        shape = withContext(Dispatchers.IO) {
-            RouteShape.normalize(graph.trackRepository.routeShape(route.id, route.measurementCount))
-        }
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = { if (selecting) onPick() else onOpen() },
-                onLongClick = onPick,
-            )
-            .then(
-                if (picked) {
-                    Modifier.border(
-                        width = LocalAppMetrics.current.border,
-                        color = colors.dataText,
-                        shape = RoundedCornerShape(LocalAppMetrics.current.radiusCard),
-                    )
-                } else {
-                    Modifier
-                },
-            ),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            RouteThumbnail(shape = shape, scale = scale)
-            Column(
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-                modifier = Modifier.weight(1f),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = RouteFormat.title(route, now, h),
-                        style = type.label,
-                        color = colors.ink,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    Spacer(Modifier.weight(1f))
-                    // Идущая запись — зелёная точка и одно слово: красить ради
-                    // этого название значило бы сказать то же самое дважды.
-                    if (route.running) {
-                        StatusRow(text = h.routeRecording, color = colors.ok)
-                    } else if (route.interrupted) {
-                        StatusRow(text = h.routeInterrupted, color = colors.warn)
-                    }
-                    // Меню строки — в языке терминала: материаловская карточка
-                    // с тенью рядом с чипами читалась как чужое приложение.
-                    var menuHeight by remember { mutableIntStateOf(0) }
-                    val menuGap = with(LocalDensity.current) { Dimens.space1.roundToPx() }
-                    Box(modifier = Modifier.onSizeChanged { menuHeight = it.height }) {
-                        Chip(text = MENU_GLYPH, color = colors.ink2, onClick = { menuOpen = true })
-                        AppMenu(
-                            expanded = menuOpen,
-                            onDismiss = { menuOpen = false },
-                            alignment = Alignment.TopEnd,
-                            offset = IntOffset(0, menuHeight + menuGap),
-                        ) {
-                            AppMenuItem(
-                                text = h.routeRename,
-                                onClick = { menuOpen = false; onRename() },
-                            )
-                            AppMenuItem(
-                                text = h.routeCompare,
-                                onClick = { menuOpen = false; if (picked) onCompare() else onPick() },
-                            )
-                            AppMenuItem(
-                                text = h.routeExport,
-                                onClick = { menuOpen = false; onExport() },
-                            )
-                            AppMenuItem(
-                                text = strings.delete,
-                                onClick = { menuOpen = false; onDelete() },
-                            )
-                        }
-                    }
-                }
-                // Чем была прогулка: путь и время. Число измерений вторично и
-                // живёт внутри маршрута — кроме идущей записи, где оно
-                // единственный признак, что след действительно пишется.
-                Text(
-                    text = listOfNotNull(
-                        route.distanceMeters?.let { TrackMap.formatDistance(it, mapStrings) },
-                        HistoryFormat.duration(route.durationSeconds, s = h),
-                    ).joinToString(" · "),
-                    style = type.footnote,
-                    color = colors.ink2,
-                )
-                if (route.running) {
-                    Text(
-                        text = h.routeMeasurements(HistoryFormat.count(route.measurementCount)),
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
-                // Показатели отделены от описания: это уже не про прогулку, а
-                // про то, что намерено. Единица названа один раз на величину.
-                Text(
-                    text = listOfNotNull(
-                        route.avgDoseMicroSvH?.let { "${mapStrings.statAvg} ${DoseFormat.rate(it, unit)}" },
-                        route.maxDoseMicroSvH?.let {
-                            "${mapStrings.statMax} ${DoseFormat.rateWithUnit(it, unit, s = strings)}"
-                        },
-                        route.doseMicroSv?.let {
-                            "${h.statDose} ${DoseFormat.doseWithUnit(it, unit, s = strings)}"
-                        },
-                    ).joinToString(" · "),
-                    style = type.footnote,
-                    color = colors.ink,
-                )
-            }
-        }
-    }
-}
-
-/**
- * Удаление маршрута спрашивают один раз и говорят, что именно исчезнет:
- * точки прогулки уходят и из накопленной карты тоже, а измерения прибора за
- * это время остаются — это разные данные, и путать их нельзя.
- */
-@Composable
 private fun RouteDeleteDialog(
     routes: List<RouteSummary>,
     onDismiss: () -> Unit,
@@ -1374,135 +1387,6 @@ private fun RouteRenameDialog(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
-@Composable
-private fun SessionRow(
-    group: SessionGroup,
-    unit: DoseUnitSetting,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    selectionActive: Boolean = false,
-    selected: Boolean = false,
-    /** Редкие действия строки; пусто — в режиме выбора их не показывают. */
-    menu: List<EntityMenuItem> = emptyList(),
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val h = HistoryCatalogue.of(strings.language)
-    val type = LocalAppTypography.current
-    val now = System.currentTimeMillis()
-    val endedAt = group.endedAt
-    val durationSeconds = ((endedAt ?: now) - group.startedAt) / 1000L
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-                // Зажать = выбрать: тот же жест, что у маршрутов, — режим
-                // выбора включается там, где на него смотрят.
-                onLongClick = onLongClick,
-            )
-            .padding(vertical = 9.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (selectionActive) {
-                if (group.running) {
-                    // Nothing to tick: a running session is still being written.
-                    Spacer(Modifier.size(18.dp))
-                } else {
-                    CheckMark(selected = selected)
-                }
-                Spacer(Modifier.size(Dimens.space2))
-            }
-            Text(
-                text = group.profileName ?: strings.noProfile,
-                style = type.label,
-                color = if (selectionActive && group.running) colors.muted else colors.ink,
-            )
-            if (group.running) {
-                Text(
-                    text = if (selectionActive) strings.runningCannotDelete else strings.running,
-                    style = type.label,
-                    color = if (selectionActive) colors.muted else colors.ok,
-                    modifier = Modifier.padding(start = 6.dp),
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            if (menu.isNotEmpty()) {
-                EntityMenuButton(menu = menu, modifier = Modifier.padding(end = Dimens.space1))
-            }
-            if (!selectionActive) NavArrow()
-        }
-
-        // Момент и длительность. У идущей записи сказано «начата»: без этого
-        // время читалось как момент окончания того, что ещё идёт.
-        Text(
-            text = (
-                if (group.running) {
-                    h.startedAt(HistoryFormat.dayTime(group.startedAt, now, s = h))
-                } else {
-                    HistoryFormat.dayTime(group.startedAt, now, s = h)
-                }
-                ) + " · " + HistoryFormat.duration(durationSeconds, h),
-            style = type.footnote,
-            color = colors.ink2,
-        )
-
-        // Две величины: сколько было в среднем и сколько накопилось. Максимум,
-        // число измерений и пометки о треке со спектром отвечают на вопросы,
-        // которые задают уже ВНУТРИ записи.
-        val stats = group.stats
-        val avgMicroSvH = stats.avgDoseRateMicroSvH
-        if (stats.sampleCount > 0 && avgMicroSvH != null) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space3),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                DataItem(strings.avg, DoseFormat.rateWithUnit(avgMicroSvH, unit, s = strings))
-                DataItem(
-                    strings.dose,
-                    DoseFormat.doseWithUnit(group.doseMicroSv, unit, s = strings),
-                )
-            }
-            // Сколько времени прибор действительно писал и сколько его в
-            // записи нет. Строка появляется, только когда пропуски есть:
-            // «пропуски 0 мин» сообщало бы о том, чего не было.
-            // Прибор пишет раз в секунду, поэтому число измерений и есть
-            // измеренные секунды.
-            val dataSeconds = stats.sampleCount.toLong()
-            val gapSeconds = (durationSeconds - dataSeconds).coerceAtLeast(0L)
-            Text(
-                text = h.dataFor(HistoryFormat.duration(dataSeconds, h)) +
-                    if (gapSeconds >= GAP_VISIBLE_SECONDS) {
-                        " · " + h.gapsFor(HistoryFormat.duration(gapSeconds, h))
-                    } else {
-                        ""
-                    },
-                style = type.footnote,
-                color = colors.ink2,
-            )
-        } else {
-            Text(
-                text = strings.noSamplesInSession,
-                style = type.valueSmall,
-                color = colors.muted,
-            )
-        }
-
-        // Спец §20: журнал обязан говорить, учила ли запись обычный фон, —
-        // но это ПОЯСНЕНИЕ, и оно уходит вместе с остальными.
-        Hint(
-            text = HistoryFormat.admissionLine(group.admission, h),
-            color = if (group.admission.included) colors.muted else colors.ink2,
-        )
-    }
-}
-
-
 @Composable
 private fun DataItem(label: String, value: String, valueColor: Color? = null) {
     val colors = LocalAppColors.current
@@ -1567,239 +1451,9 @@ private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
 
 // --- saved spectra: export + comparator entry ---
 
+/** Сколько снимков спектра держит лента: список — не архив прибора. */
 private const val SPECTRA_LIMIT = 30
 
-/**
- * Сохранённые и импортированные спектры: экспорт в файл, вход в сравнение
- * («Сравнить» → выбрать два снимка → экран сравнения), объединение 2+
- * снимков в один (каналы складываются, Δt суммируется; расходящиеся
- * калибровки честно отклоняются) и «продолжить накопление» на Спектре.
- * Автоснимки раз в минуту сюда не попадают — только явные сохранения,
- * фоны и импорт.
- */
-@Composable
-private fun SavedSpectraCard(
-    graph: AppGraph,
-    spectra: List<SpectrumSnapshotEntity>,
-    onContinue: (Long) -> Unit,
-    /** Открыть снимок полноценным экраном Спектра. */
-    onOpen: (Long) -> Unit,
-    selectionActive: Boolean = false,
-    selected: Set<Long> = emptySet(),
-    onToggle: (Long) -> Unit = {},
-    /** Результат объединения показывается там же, где список снимков. */
-    mergeNote: String? = null,
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val h = HistoryCatalogue.of(strings.language)
-    val type = LocalAppTypography.current
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    if (spectra.isEmpty()) return
-
-    var notice by remember { mutableStateOf<SpectrumFileNotice?>(null) }
-    var exportedNote by remember { mutableStateOf<String?>(null) }
-    var exporting by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
-    var renaming by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
-    var deleting by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
-    val e = ExportCatalogue.of(strings.language)
-    val saver = rememberFileSaver { ok ->
-        if (ok) {
-            exportedNote = e.saved
-        } else {
-            notice = SpectrumFileNotice(
-                title = strings.exportFailedTitle,
-                lines = listOf(strings.exportFailedBody),
-                isError = true,
-            )
-        }
-    }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            Text(
-                text = strings.spectraTitle.uppercase(),
-                style = type.labelSmall,
-                color = colors.ink2,
-            )
-            // Что делать со снимками, спрашивают не заранее: сначала выбирают
-            // (долгим нажатием), потом внизу появляются действия — сравнить,
-            // объединить, удалить. Прежние режимы «сравнение» и «объединение»
-            // были третьим и четвёртым состоянием одного списка, и в каждом
-            // строка значила своё.
-            Hint(
-                text = strings.snapshotOpensActions,
-                style = type.footnote,
-                color = colors.muted,
-                modifier = Modifier.padding(top = 3.dp, bottom = 5.dp),
-            )
-            spectra.forEachIndexed { index, entity ->
-                if (index > 0) AppDivider()
-                SavedSpectrumRow(
-                    entity = entity,
-                    marker = null,
-                    check = if (selectionActive) entity.id in selected else null,
-                    // Обычное нажатие открывает сам снимок — как у сессии и
-                    // маршрута. Промежуточный список действий, который стоял
-                    // здесь раньше, смешивал навигацию, экспорт и действия
-                    // над записью в одном окне.
-                    onClick = {
-                        if (selectionActive) onToggle(entity.id) else onOpen(entity.id)
-                    },
-                    onLongClick = { onToggle(entity.id) },
-                    menu = if (selectionActive) {
-                        emptyList()
-                    } else {
-                        EntityMenus.spectrum(
-                            strings = strings,
-                            export = e,
-                            history = h,
-                            canCompare = spectra.size >= 2,
-                            onExport = { exporting = entity },
-                            onCompare = { onToggle(entity.id) },
-                            onContinue = { onContinue(entity.id) },
-                            onRename = { renaming = entity },
-                            onDelete = { deleting = entity },
-                        )
-                    },
-                )
-            }
-            (exportedNote ?: mergeNote)?.let {
-                Text(text = it, style = type.footnote, color = colors.muted)
-            }
-        }
-    }
-
-    exporting?.let { entity ->
-        EntityExportSheet(
-            title = e.export,
-            groups = spectrumExportGroups(
-                entity = entity,
-                e = e,
-                appVersion = appVersionName(context),
-                language = strings.language,
-                saver = saver,
-                onPicked = { exporting = null },
-            ),
-            onDismiss = { exporting = null },
-        )
-    }
-
-    renaming?.let { entity ->
-        RenameDialog(
-            title = h.routeRename,
-            initial = entity.label.orEmpty(),
-            placeholder = h.routeNameHint,
-            onSave = { name ->
-                renaming = null
-                scope.launch { graph.measurementRepository.renameSpectrum(entity.id, name) }
-            },
-            onDismiss = { renaming = null },
-        )
-    }
-
-    deleting?.let { entity ->
-        ConfirmDialog(
-            title = h.routeDeleteTitle(1),
-            body = h.routeDeleteBody,
-            confirmText = strings.delete,
-            onConfirm = {
-                deleting = null
-                scope.launch {
-                    graph.sessionRepository.delete(emptySet(), setOf(entity.id))
-                }
-            },
-            onDismiss = { deleting = null },
-        )
-    }
-
-    notice?.let { current ->
-        SpectrumFileNoticeDialog(notice = current, onDismiss = { notice = null })
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun SavedSpectrumRow(
-    entity: SpectrumSnapshotEntity,
-    marker: String?,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit = {},
-    /** Non-null while the list is in selection mode: the tick of this row. */
-    check: Boolean? = null,
-    /** Редкие действия строки; пусто — в режиме выбора их не показывают. */
-    menu: List<EntityMenuItem> = emptyList(),
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val h = HistoryCatalogue.of(strings.language)
-    val type = LocalAppTypography.current
-    val now = System.currentTimeMillis()
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-                onLongClick = onLongClick,
-            )
-            .padding(vertical = 9.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (check != null) {
-                CheckMark(selected = check, modifier = Modifier.padding(end = Dimens.space2))
-            }
-            if (marker != null) {
-                Text(
-                    text = "$marker ▸",
-                    style = type.label,
-                    color = colors.dataText,
-                    modifier = Modifier.padding(end = 6.dp),
-                )
-            }
-            Text(
-                // Название снимка без даты: она стоит справа в этой же
-                // строке, и повторять её в имени незачем.
-                text = entity.label ?: strings.spectrum,
-                style = type.label,
-                color = colors.ink,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = HistoryFormat.dayTime(entity.timestamp, now, s = h),
-                style = type.footnote,
-                color = colors.ink2,
-            )
-            // Редкие действия — там же, где у маршрута: «⋮» справа в строке.
-            if (menu.isNotEmpty()) {
-                EntityMenuButton(menu = menu, modifier = Modifier.padding(start = Dimens.space2))
-            }
-        }
-        // Δt — это время НАКОПЛЕНИЯ снимка (`durationSeconds` прибора), а не
-        // момент и не интервал между снимками. Поэтому оно и пишется
-        // длительностью: «121:10:00» читалось как время суток.
-        Text(
-            text = listOfNotNull(
-                HistoryFormat.duration(entity.durationSeconds, h),
-                strings.importedTag.takeIf {
-                    entity.origin == SpectrumSnapshotEntity.ORIGIN_IMPORT
-                },
-                strings.backgroundTag.takeIf { entity.isBackgroundReference },
-            ).joinToString(" · "),
-            style = type.footnote,
-            color = colors.ink2,
-        )
-    }
-}
-
-/** Outcome of the История merge action. */
 private sealed interface MergeResult {
     data class Saved(val label: String) : MergeResult
     data class Refused(val reason: String) : MergeResult
@@ -1888,12 +1542,6 @@ private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryMode
     )
 }
 
-
-/**
- * Deleting measurements is the one place in the app where data really goes
- * away, so the dialog reads like an account, not like a warning: what exactly
- * disappears, what stays, and the fact that it cannot be undone.
- */
 @Composable
 private fun DeleteConfirmDialog(
     plan: DeletionPlan,
@@ -2100,3 +1748,174 @@ internal fun spectrumExportGroups(
         ),
     ),
 )
+
+
+/**
+ * Запись ленты журнала.
+ *
+ * Виды перечислены здесь, а не выводятся из типов данных, потому что лента —
+ * это решение о показе: сессия попадает в неё строкой, а её события —
+ * отдельными пометками времени.
+ */
+private sealed interface FeedEntry {
+    val timestamp: Long
+
+    data class Session(val group: SessionGroup) : FeedEntry {
+        override val timestamp: Long get() = group.startedAt
+    }
+
+    data class Deviation(val event: EventEntity) : FeedEntry {
+        override val timestamp: Long get() = event.timestamp
+    }
+
+    data class Route(val route: RouteSummary) : FeedEntry {
+        override val timestamp: Long get() = route.startedAt
+    }
+
+    data class Spectrum(val entity: SpectrumSnapshotEntity) : FeedEntry {
+        override val timestamp: Long get() = entity.timestamp
+    }
+
+    data class Study(
+        val experiment: ExperimentEntity,
+        val result: FoodScreening.Result?,
+    ) : FeedEntry {
+        override val timestamp: Long get() = experiment.createdAt
+    }
+}
+
+/** «16 авг 19:37 · 15 ч 49 мин» — когда началось и сколько длилось. */
+private fun sessionSubtitle(group: SessionGroup, now: Long, h: HistoryStrings): String {
+    val seconds = ((group.endedAt ?: now) - group.startedAt) / 1000L
+    val start = if (group.running) {
+        h.startedAt(HistoryFormat.dayTime(group.startedAt, now, s = h))
+    } else {
+        HistoryFormat.dayTime(group.startedAt, now, s = h)
+    }
+    return "$start · ${HistoryFormat.duration(seconds, h)}"
+}
+
+/**
+ * Третья строка сессии: средняя мощность и накопленная доза.
+ *
+ * Пустая запись говорит об этом прямо и коротко: рабочий список отвечает, чем
+ * запись была, а разбор пропусков и участия в обычном фоне живёт внутри неё.
+ */
+private fun sessionDetail(
+    group: SessionGroup,
+    unit: DoseUnitSetting,
+    strings: Strings,
+    h: HistoryStrings,
+    withGaps: Boolean = false,
+): String {
+    val stats = group.stats
+    val avg = stats.avgDoseRateMicroSvH
+    if (stats.sampleCount == 0 || avg == null) return h.noMeasurements
+    val values = DoseFormat.rateWithUnit(avg, unit, s = strings) + " · " +
+        DoseFormat.doseWithUnit(group.doseMicroSv, unit, s = strings)
+    if (!withGaps) return values
+    // Прибор пишет раз в секунду, поэтому число измерений и есть измеренные
+    // секунды; пропуск — то, чего в записи нет.
+    val measuredSeconds = stats.sampleCount.toLong()
+    val durationSeconds = ((group.endedAt ?: System.currentTimeMillis()) - group.startedAt) / 1000L
+    val gapSeconds = (durationSeconds - measuredSeconds).coerceAtLeast(0L)
+    if (gapSeconds < GAP_VISIBLE_SECONDS) return values
+    return values + "\n" + h.dataFor(HistoryFormat.duration(measuredSeconds, h)) +
+        " · " + h.gapsFor(HistoryFormat.duration(gapSeconds, h))
+}
+
+/** «15 авг 13:52 · 2 ч 37 мин · 15 км». */
+private fun routeSubtitle(
+    route: RouteSummary,
+    now: Long,
+    h: HistoryStrings,
+    map: MapStrings,
+): String = listOfNotNull(
+    HistoryFormat.dayTime(route.startedAt, now, s = h),
+    HistoryFormat.duration(route.durationSeconds, s = h),
+    route.distanceMeters?.let { TrackMap.formatDistance(it, map) },
+).joinToString(" · ")
+
+/** «ср 0,08 · макс 0,16 мкЗв/ч» — то, ради чего маршрут писали. */
+private fun routeDetail(
+    route: RouteSummary,
+    unit: DoseUnitSetting,
+    strings: Strings,
+): String? {
+    val avg = route.avgDoseMicroSvH ?: return null
+    val max = route.maxDoseMicroSvH
+    return listOfNotNull(
+        "${strings.avg} ${DoseFormat.rate(avg, unit)}",
+        max?.let { "${strings.max} ${DoseFormat.rateWithUnit(it, unit, s = strings)}" },
+    ).joinToString(" · ")
+}
+
+/** «16 авг 21:39 · банка 1 л» — когда исследование начато и в чём образец. */
+private fun studySubtitle(study: ExperimentEntity, now: Long, h: HistoryStrings): String =
+    listOfNotNull(
+        HistoryFormat.dayTime(study.createdAt, now, s = h),
+        study.geometry.ifBlank { null },
+    ).joinToString(" · ")
+
+/** Итог исследования одной строкой — тот же, что на его экране. */
+private fun studyStatus(result: FoodScreening.Result?, f: FoodStrings): String =
+    when (result?.verdict) {
+        FoodScreening.Verdict.NO_DIFFERENCE -> f.verdictNoDifference
+        FoodScreening.Verdict.EXCESS_WITHOUT_LINE -> f.verdictExcess
+        FoodScreening.Verdict.SPECTRAL_FEATURE -> f.verdictLine
+        else -> f.verdictNotEnough
+    }
+
+/** Превью маршрута в строке: форма следа читается, но не спорит с именем. */
+@Composable
+private fun RoutePreview(graph: AppGraph, route: RouteSummary, scale: TrackMap.RampScale?) {
+    var shape by remember(route.id, route.measurementCount) {
+        mutableStateOf<List<ThumbnailPoint>>(emptyList())
+    }
+    LaunchedEffect(route.id, route.measurementCount) {
+        shape = withContext(Dispatchers.IO) {
+            RouteShape.normalize(graph.trackRepository.routeShape(route.id, route.measurementCount))
+        }
+    }
+    RouteThumbnail(shape = shape, scale = scale, size = PREVIEW_SIZE)
+}
+
+/** Пустая вкладка объясняет, чем она наполняется, а не молчит. */
+@Composable
+private fun EmptyFeedCard(filter: HistoryFilter) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    val (title, explanation) = when (filter) {
+        HistoryFilter.ROUTES -> h.noRoutesYet to h.routesExplained
+        HistoryFilter.FOOD -> h.noFoodYet to h.foodExplained
+        HistoryFilter.SPECTRA -> strings.noSpectraYet to strings.spectrumExplained
+        else -> strings.noSessionsYet to strings.sessionExplained
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Text(text = title, style = type.bodySmall, color = colors.ink2)
+            Hint(text = explanation, style = type.bodySmall, color = colors.muted)
+        }
+    }
+}
+
+/**
+ * Третья строка снимка: чей это спектр и что он собой представляет.
+ *
+ * «фон» без ответа на вопрос «фон чего» ничего не объяснял: у снимка теперь
+ * стоит профиль, при котором он снят, а у безымянного — прямое «без профиля».
+ * Молчание здесь хуже любой из двух подписей.
+ */
+private fun spectrumProvenance(
+    entity: SpectrumSnapshotEntity,
+    strings: Strings,
+): String {
+    val profile = entity.profileName?.takeIf { it.isNotBlank() } ?: strings.noProfile
+    return if (entity.isBackgroundReference) {
+        "$profile · ${strings.backgroundSpectrum}"
+    } else {
+        profile
+    }
+}

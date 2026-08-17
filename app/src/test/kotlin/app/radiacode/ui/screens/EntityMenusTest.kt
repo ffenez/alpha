@@ -32,6 +32,7 @@ class EntityMenusTest {
                 onCompare = {},
                 onContinue = {},
                 onRename = {},
+                onProfile = {},
                 onDelete = {},
             ),
             EntityMenus.session(
@@ -48,6 +49,14 @@ class EntityMenusTest {
                 canCompare = true,
                 onExport = {},
                 onCompare = {},
+                onRename = {},
+                onDelete = {},
+            ),
+            EntityMenus.study(
+                strings = strings,
+                export = export,
+                history = history,
+                onExport = {},
                 onRename = {},
                 onDelete = {},
             ),
@@ -96,6 +105,7 @@ class EntityMenusTest {
             onCompare = {},
             onContinue = {},
             onRename = {},
+            onProfile = {},
             onDelete = {},
         )
         val paired = EntityMenus.spectrum(
@@ -107,6 +117,7 @@ class EntityMenusTest {
             onCompare = {},
             onContinue = {},
             onRename = {},
+            onProfile = {},
             onDelete = {},
         )
         // Пропавший пункт заставляет искать, куда он делся; погасший объясняет

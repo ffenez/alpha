@@ -170,6 +170,8 @@ internal class FakeSpectrumDao : SpectrumDao {
 
     override suspend fun rename(id: Long, label: String?) = Unit
 
+    override suspend fun setProfile(id: Long, profileId: Long?, profileName: String?) = Unit
+
     override suspend fun pageSince(
         afterId: Long,
         from: Long,

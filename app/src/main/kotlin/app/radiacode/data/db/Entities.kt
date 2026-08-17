@@ -309,6 +309,22 @@ data class SpectrumSnapshotEntity(
     /** Display name: RC-XML sample name for imports, user label otherwise. */
     val label: String? = null,
     /**
+     * Профиль, при котором снят снимок, и его имя НА МОМЕНТ СЪЁМКИ.
+     *
+     * Имя хранится рядом со ссылкой не из лени: профиль «Дом» человек может
+     * переименовать в «Квартира», и тогда снимок годичной давности молча
+     * сменил бы контекст — а он снимался в том месте, которое тогда звалось
+     * «Дом». Экран показывает нынешнее имя, но восстановить, как оно звалось,
+     * можно всегда.
+     *
+     * NULL у снимков, записанных до появления колонок, и у импортированных
+     * файлов: чужой файл ни в каком профиле не снимался.
+     */
+    @ColumnInfo(defaultValue = "NULL")
+    val profileId: Long? = null,
+    @ColumnInfo(defaultValue = "NULL")
+    val profileName: String? = null,
+    /**
      * Reproducibility stamp of a *derived* snapshot (spec §22): flat JSON
      * ([app.radiacode.data.JsonMap]) naming the method that produced these
      * counts and its parameters — e.g. `method=interval_subtraction`,

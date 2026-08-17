@@ -275,6 +275,10 @@ object RuStrings : Strings {
 
     override val readingJournal = "читаю журнал…"
     override val noSessionsYet = "сессий пока нет"
+    override val noSpectraYet = "снимков спектра пока нет"
+    override val backgroundSpectrum = "фоновый"
+    override val spectrumExplained =
+        "Снимок сохраняет спектр целиком: по нему потом видно, из чего складывался счёт."
     override val sessionExplained =
         "Сессия — непрерывный период измерения: она начинается при подключении прибора " +
             "и закрывается при отключении."

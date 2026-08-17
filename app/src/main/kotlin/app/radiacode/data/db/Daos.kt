@@ -1088,6 +1088,15 @@ interface SpectrumDao {
     @Query("UPDATE spectra SET label = :label WHERE id = :id")
     suspend fun rename(id: Long, label: String?)
 
+    /**
+     * Поправить профиль снимка.
+     *
+     * Меняется только привязка: сами отсчёты, время и калибровка остаются
+     * теми же — исправляется запись о том, ГДЕ снимали, а не то, что сняли.
+     */
+    @Query("UPDATE spectra SET profileId = :profileId, profileName = :profileName WHERE id = :id")
+    suspend fun setProfile(id: Long, profileId: Long?, profileName: String?)
+
     @Query(
         "SELECT * FROM spectra WHERE id > :afterId AND timestamp >= :from " +
             "ORDER BY id LIMIT :limit",

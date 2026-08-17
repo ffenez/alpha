@@ -191,6 +191,7 @@ fun SpectrumScreen(
     var exportingSnapshot by remember { mutableStateOf(false) }
     var renamingSnapshot by remember { mutableStateOf(false) }
     var deletingSnapshot by remember { mutableStateOf(false) }
+    var profileForSnapshot by remember { mutableStateOf(false) }
     var comparePicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var exportNote by remember { mutableStateOf<String?>(null) }
@@ -369,6 +370,26 @@ fun SpectrumScreen(
                 onDismiss = { deletingSnapshot = false },
             )
         }
+        if (profileForSnapshot) {
+            val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
+            SessionProfileDialog(
+                startedAt = openEntity.timestamp,
+                profileId = openEntity.profileId,
+                profiles = profiles,
+                onPick = { profileId ->
+                    profileForSnapshot = false
+                    scope.launch {
+                        graph.measurementRepository.setSpectrumProfile(
+                            id = openEntity.id,
+                            profileId = profileId,
+                            profileName = profiles.firstOrNull { it.id == profileId }?.name,
+                        )
+                        snapshotEntity = graph.measurementRepository.spectrumById(openEntity.id)
+                    }
+                },
+                onDismiss = { profileForSnapshot = false },
+            )
+        }
         if (comparePicker) {
             val others by graph.measurementRepository.savedSpectra()
                 .collectAsState(initial = emptyList())
@@ -415,6 +436,7 @@ fun SpectrumScreen(
                     onCompare = { comparePicker = true },
                     onContinue = { onContinueSnapshot?.invoke(entity.id) },
                     onRename = { renamingSnapshot = true },
+                    onProfile = { profileForSnapshot = true },
                     onDelete = { deletingSnapshot = true },
                 ),
             )

@@ -184,6 +184,9 @@ class MeasurementRepository(
         deviceSerial: String? = null,
         firmware: String? = null,
         epochId: Long? = null,
+        /** Профиль на момент съёмки: ссылка и имя, каким оно было тогда. */
+        profileId: Long? = null,
+        profileName: String? = null,
     ): SpectrumSnapshotEntity {
         val entity = spectrum.toEntity(
             timestamp = clock(),
@@ -196,6 +199,8 @@ class MeasurementRepository(
             deviceSerial = deviceSerial,
             firmware = firmware,
             epochId = epochId,
+            profileId = profileId,
+            profileName = profileName,
         )
         val id = spectrumDao.insert(entity)
         return entity.copy(id = id)
@@ -329,6 +334,16 @@ class MeasurementRepository(
      */
     suspend fun renameSpectrum(id: Long, label: String) =
         spectrumDao.rename(id, label.trim().ifEmpty { null })
+
+    /**
+     * Поправить профиль снимка вручную.
+     *
+     * Имя запоминается рядом со ссылкой — то, каким оно было в момент
+     * исправления: профиль потом могут переименовать, а запись о снимке
+     * должна остаться восстановимой.
+     */
+    suspend fun setSpectrumProfile(id: Long, profileId: Long?, profileName: String?) =
+        spectrumDao.setProfile(id, profileId, profileName?.trim()?.ifEmpty { null })
 
     /** Device snapshot metadata (no blobs) for the radon hourly thinning. */
     suspend fun deviceSnapshotMeta(from: Long, to: Long): List<SpectrumMetaRow> =

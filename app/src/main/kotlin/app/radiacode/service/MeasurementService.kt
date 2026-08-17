@@ -115,6 +115,13 @@ class MeasurementService : Service() {
     @Volatile
     private var activeProfileId: Long? = null
 
+    /**
+     * Имя профиля НА МОМЕНТ СЪЁМКИ: снимок подписывается тем именем, под
+     * которым место звалось тогда. Позже человек может переименовать место, и
+     * старый снимок не должен молча сменить контекст.
+     */
+    private var activeProfileName: String? = null
+
     /** Condition 1 of the admission pipeline: profile-level learning switch. */
     @Volatile
     private var profileLearningEnabled: Boolean = true
@@ -239,6 +246,7 @@ class MeasurementService : Service() {
                     profile?.baselineEpochMillis != activeBaselineEpoch
                 val previousSession = sessionId
                 activeProfileId = profile?.id
+                activeProfileName = profile?.name
                 activeBaselineEpoch = profile?.baselineEpochMillis
                 profileLearningEnabled = profile?.baselineLearning ?: false
                 if (changed) {
@@ -776,6 +784,8 @@ class MeasurementService : Service() {
                 deviceSerial = serial,
                 firmware = firmware,
                 epochId = epochId,
+                profileId = activeProfileId,
+                profileName = activeProfileName,
             )
         }
     }
@@ -808,6 +818,8 @@ class MeasurementService : Service() {
                     deviceSerial = serial,
                     firmware = firmware,
                     epochId = epochId,
+                    profileId = activeProfileId,
+                    profileName = activeProfileName,
                 )
                 graph.measurementRepository.recordSpectrumSaved(now, spectrum.durationSeconds)
                 graph.spectrumHub.onSaved(now)
@@ -824,6 +836,8 @@ class MeasurementService : Service() {
                     deviceSerial = serial,
                     firmware = firmware,
                     epochId = epochId,
+                    profileId = activeProfileId,
+                    profileName = activeProfileName,
                 )
                 // Подтверждение — ПОСЛЕ записи: нажатие без ответа неотличимо
                 // от нажатия, которое ничего не сделало.

@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v083Title: String
+    val v083Summary: String
+
     val v082Title: String
     val v082Summary: String
 
@@ -207,6 +210,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v083Title = "Журнал стал одной лентой по дням"
+    override val v083Summary =
+        "Сессии, маршруты, снимки и исследования лежат в одном списке по дням и выглядят " +
+        "одинаково: имя, время, величины и «⋮». У снимка теперь виден профиль, при котором " +
+        "он снят, исследование можно переименовать и удалить, а счётчик наверху считает то, " +
+        "что на экране."
 
     override val v082Title = "Одинаковые записи открываются одинаково"
     override val v082Summary =
@@ -643,6 +653,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v083Title = "The journal became one feed by day"
+    override val v083Summary =
+        "Sessions, routes, snapshots and studies now sit in one list grouped by day and look " +
+        "the same: name, time, values and «⋮». A snapshot shows the profile it was taken in, " +
+        "a study can be renamed and deleted, and the counter at the top counts what is on " +
+        "the screen."
 
     override val v082Title = "Records that are alike now open alike"
     override val v082Summary =

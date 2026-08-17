@@ -28,6 +28,9 @@ interface FoodStrings {
     val sampleHint: String
 
     // --- сведения об образце ---
+    /** Живая скорость счёта во время прогона: «сейчас 25,1 имп/с». */
+    fun countRateNow(value: String): String
+
     val sampleName: String
     val sampleMass: String
     val container: String
@@ -88,6 +91,8 @@ object FoodRu : FoodStrings {
     override val sampleHint =
         "Поставьте образец в то же положение и не двигайте прибор до конца " +
             "измерения."
+
+    override fun countRateNow(value: String) = "сейчас $value имп/с"
 
     override val sampleName = "Что измеряем"
     override val sampleMass = "Масса, г"
@@ -224,6 +229,8 @@ object FoodEn : FoodStrings {
         "Put the sample in the same position and do not move the instrument " +
             "until the run is over."
 
+    override fun countRateNow(value: String) = "now $value cps"
+
     override val sampleName = "What is measured"
     override val sampleMass = "Mass, g"
     override val container = "Container"
@@ -343,6 +350,7 @@ val FoodCatalogue = AreaCatalogue(ru = FoodRu, en = FoodEn)
 fun FoodStrings.allTexts(): List<String> = listOf(
     title, subtitle,
     stepBackground, stepSample, stepResult, start, backgroundHint, sampleHint,
+    countRateNow("25,1"),
     sampleName, sampleMass, container, note, addPhoto, changePhoto, photoAttached,
     geometryJarHalf, geometryJarLitre, geometryCup, geometryBag, geometryPlate,
     geometryCustom, geometryJarHint, geometryCupHint, geometryBagHint,

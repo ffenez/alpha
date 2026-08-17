@@ -47,6 +47,9 @@ import app.radiacode.ui.logic.FoodGeometry
 import app.radiacode.ui.logic.HistoryFormat
 import app.radiacode.ui.logic.Uncertainty
 import app.radiacode.ui.text.FoodCatalogue
+import androidx.compose.ui.unit.dp
+import app.radiacode.ui.text.HistoryStrings
+import app.radiacode.ui.text.FoodStrings
 import app.radiacode.ui.text.ExperimentCatalogue
 import app.radiacode.ui.text.HistoryCatalogue
 import app.radiacode.ui.text.LocalStrings
@@ -95,11 +98,19 @@ fun FoodScreen(
     val connected = connection is ConnectionState.Connected
     val hubState by graph.spectrumHub.state.collectAsState()
     val run by graph.abRun.state.collectAsState()
-
+    // Живая скорость счёта: во время прогона она — единственный признак, что
+    // измерение действительно идёт, а не замерло.
+    val live by graph.serviceStatus.lastSample.collectAsState()
     var step by rememberSaveable {
         mutableStateOf(if (openMeasurementId != null) FoodStep.RESULT else FoodStep.SETUP)
     }
     var experimentId by rememberSaveable { mutableLongStateOf(openMeasurementId ?: 0L) }
+    // Что именно измеряется: имя и условия видны на каждом шаге, а не только
+    // в форме создания — иначе через полчаса непонятно, чей это прогон.
+    var study by remember { mutableStateOf<ExperimentEntity?>(null) }
+    LaunchedEffect(experimentId, step) {
+        study = experimentId.takeIf { it != 0L }?.let { graph.experimentRepository.byId(it) }
+    }
     var name by rememberSaveable { mutableStateOf("") }
     var mass by rememberSaveable { mutableStateOf("") }
     var geometry by rememberSaveable { mutableStateOf(FoodGeometry.JAR_LITRE) }
@@ -357,6 +368,7 @@ fun FoodScreen(
 
                     FoodStep.BACKGROUND, FoodStep.SAMPLE -> {
                         val isBackground = step == FoodStep.BACKGROUND
+                        StudyHeadline(study, t, h)
                         StatusRow(
                             text = if (isBackground) t.stepBackground else t.stepSample,
                             color = colors.ink,
@@ -368,6 +380,16 @@ fun FoodScreen(
                         )
                         val active = run
                         if (active == null) {
+                            // Причина, по которой кнопка не нажимается, стоит
+                            // рядом с кнопкой: «недоступно» без причины хуже
+                            // отсутствия.
+                            if (!connected) {
+                                Text(
+                                    text = ExperimentCatalogue.of(strings.language).notConnected,
+                                    style = type.footnote,
+                                    color = colors.warn,
+                                )
+                            }
                             AppButton(
                                 text = t.start,
                                 primary = true,
@@ -390,6 +412,13 @@ fun FoodScreen(
                                 style = type.valueLarge,
                                 color = colors.ink,
                             )
+                            live?.let { sample ->
+                                Text(
+                                    text = t.countRateNow(Uncertainty.num1(sample.countRate)),
+                                    style = type.valueSmall,
+                                    color = colors.ink2,
+                                )
+                            }
                             AppButton(
                                 text = ExperimentCatalogue.of(strings.language).stopRun,
                                 onClick = {
@@ -411,12 +440,15 @@ fun FoodScreen(
                         }
                     }
 
-                    FoodStep.RESULT -> FoodResult(
+                    FoodStep.RESULT -> {
+                        StudyHeadline(study, t, h)
+                        FoodResult(
                         result = result,
                         onContinue = { step = FoodStep.SAMPLE },
                         onRecompute = { scope.launch { computeResult() } },
                         onExport = { scope.launch { exportMeasurement() } },
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -469,3 +501,29 @@ private fun FoodResult(
     AppButton(text = t.exportMeasurement, onClick = onExport, modifier = Modifier.fillMaxWidth())
 }
 
+/**
+ * Что именно измеряется — одной строкой над ходом измерения.
+ *
+ * Прогон идёт десятки минут, и всё это время экран показывал только таймер:
+ * чей это прогон и в чём образец, вспоминал сам человек.
+ */
+@Composable
+private fun StudyHeadline(study: ExperimentEntity?, t: FoodStrings, h: HistoryStrings) {
+    if (study == null) return
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = study.note.ifBlank { t.title },
+            style = type.label,
+            color = colors.ink,
+        )
+        val details = listOfNotNull(
+            HistoryFormat.dayTime(study.createdAt, System.currentTimeMillis(), s = h),
+            study.geometry.ifBlank { null },
+        ).joinToString(" · ")
+        if (details.isNotBlank()) {
+            Text(text = details, style = type.footnote, color = colors.ink2)
+        }
+    }
+}
