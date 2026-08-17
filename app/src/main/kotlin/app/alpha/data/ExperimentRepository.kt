@@ -166,9 +166,16 @@ class ExperimentRepository(
             val net = sample.counts.mapIndexed { index, value ->
                 (value - background.counts[index] * ratio).toInt().coerceAtLeast(0)
             }
+            // Разность — уже не пуассоновский отсчёт: Var = образец + r²·фон.
+            // Без этого знаменатель значимости занижен, и линия разности
+            // выглядела бы весомее, чем её сделали измерения.
+            val variance = sample.counts.mapIndexed { index, value ->
+                (value + ratio * ratio * background.counts[index]).toFloat()
+            }
             PeakDetection.detect(
                 counts = net,
                 calibration = EnergyCalibration(sample.a0, sample.a1, sample.a2),
+                variance = variance,
             ).map { FoodScreening.Line(it.energyKeV, it.significance.toDouble()) }
         } else {
             emptyList()

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0190Title: String
+    val v0190Summary: String
+
     val v0181Title: String
     val v0181Summary: String
 
@@ -285,6 +288,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0190Title = "Слабые линии на высоких энергиях больше не теряются"
+    override val v0190Summary =
+        "Проверка формы пика мерила ширину по одному каналу и на нескольких импульсах " +
+        "принимала настоящую линию за выброс — так пропадала линия тория 2615 кэВ. Теперь " +
+        "форма проверяется только там, где высоту вообще можно измерить, а энергия пика " +
+        "считается по наклонному фону под ним и потому не сползает вниз по шкале."
 
     override val v0181Title = "Подпись рентгена помещается в колонку"
     override val v0181Summary =
@@ -888,6 +898,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0190Title = "Weak lines at high energies are no longer lost"
+    override val v0190Summary =
+        "The peak-shape check measured the width from a single channel and, on a few counts, " +
+        "took a real line for a spike — that is how the 2615 keV thorium line disappeared. The " +
+        "shape is now checked only where the height can be measured at all, and the energy of " +
+        "a peak is computed against the sloping background under it, so it no longer drifts down " +
+        "the scale."
 
     override val v0181Title = "The X-ray label fits its column"
     override val v0181Summary =

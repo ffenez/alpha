@@ -13,11 +13,11 @@ android {
         applicationId = "app.alpha"
         minSdk = 26
         targetSdk = 35
-        versionCode = 43
+        versionCode = 44
         // Стадия разработки — в ИМЕНИ приложения («Alpha»), поэтому в номере
         // версии её нет: один факт живёт в одном месте, иначе подпись под
         // иконкой читалась бы как «Alpha 0.1.0-alpha».
-        versionName = "0.18.1"
+        versionName = "0.19.0"
 
         // Под иконкой — только имя: версия там ничего не решает, а место на
         // домашнем экране узкое, и длинная подпись обрезается. Номер версии
@@ -109,10 +109,19 @@ dependencies {
 val smokeRequested = gradle.startParameter.taskNames.any {
     it.substringAfterLast(":") == "smokeTest"
 }
+// `./gradlew :app:spectrumValidation` — научная валидация спектра на реальном
+// файле: прогоняет цепочку XML → пики → значимость и пишет
+// `app/build/reports/spectrum_validation.json` (SPECTRUM_VALIDATION.md §16).
+val validationRequested = gradle.startParameter.taskNames.any {
+    it.substringAfterLast(":") == "spectrumValidation"
+}
 tasks.withType<Test>().configureEach {
     filter {
         isFailOnNoMatchingTests = false
-        if (smokeRequested) {
+        if (validationRequested) {
+            includeTestsMatching("app.alpha.analysis.SpectrumValidationTest")
+            includeTestsMatching("app.alpha.analysis.PeakScienceTest")
+        } else if (smokeRequested) {
             includeTestsMatching("app.alpha.smoke.*")
         } else {
             excludeTestsMatching("app.alpha.smoke.*")
@@ -120,6 +129,16 @@ tasks.withType<Test>().configureEach {
     }
     // Robolectric + Compose + native graphics не живут в дефолтных 512 МБ.
     if (smokeRequested) maxHeapSize = "4g"
+}
+
+tasks.register("spectrumValidation") {
+    group = "verification"
+    description = "Scientific validation of the spectrum pipeline on the real XML fixture."
+    dependsOn("testDebugUnitTest")
+    doLast {
+        val report = layout.buildDirectory.file("reports/spectrum_validation.json").get().asFile
+        logger.lifecycle("отчёт: ${report.absolutePath}")
+    }
 }
 
 tasks.register("smokeTest") {
