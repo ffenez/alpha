@@ -26,6 +26,20 @@ abstract class SpectrogramDao {
     )
     abstract suspend fun page(afterStart: Long, limit: Int): List<SpectrogramSliceEntity>
 
+    /** Та же страница, но не старее указанного момента — копия за период. */
+    @Query(
+        "SELECT * FROM spectrogram_slices WHERE startMillis > :afterStart " +
+            "AND startMillis >= :from ORDER BY startMillis LIMIT :limit",
+    )
+    abstract suspend fun pageSince(
+        afterStart: Long,
+        from: Long,
+        limit: Int,
+    ): List<SpectrogramSliceEntity>
+
+    @Query("SELECT COUNT(*) FROM spectrogram_slices WHERE startMillis >= :from")
+    abstract suspend fun countSince(from: Long): Int
+
     /** Какие срезы уже есть: начало среза — первичный ключ таблицы. */
     @Query("SELECT startMillis FROM spectrogram_slices WHERE startMillis IN (:starts)")
     abstract suspend fun existingStarts(starts: List<Long>): List<Long>

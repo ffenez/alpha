@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v080Title: String
+    val v080Summary: String
+
     val v079Title: String
     val v079Summary: String
 
@@ -198,6 +201,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v080Title = "График во весь экран и копия по частям"
+    override val v080Summary =
+        "Любой график и карта в отчёте разворачиваются во весь экран одной кнопкой. " +
+        "Резервная копия перестала быть «всё или ничего»: перед сохранением видно, какие " +
+        "части в неё войдут и за какой срок — от недели до всей истории."
 
     override val v079Title = "Отчёт о записи одним файлом"
     override val v079Summary =
@@ -615,6 +624,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v080Title = "Charts at full screen, and a backup made of parts"
+    override val v080Summary =
+        "Any chart and the route map in a report open at full screen from one button. " +
+        "The backup stopped being all-or-nothing: before saving it shows which parts go " +
+        "in and over what period — from a week to the whole history."
 
     override val v079Title = "A record as one report file"
     override val v079Summary =

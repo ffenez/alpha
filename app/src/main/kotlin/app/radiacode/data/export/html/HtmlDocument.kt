@@ -141,6 +141,14 @@ object HtmlDocument {
      * Светлая тема по умолчанию — печатается она, а не экранная; тёмная
      * приходит от `prefers-color-scheme` и переключателем. Печать своя:
      * белый фон, без плавающих кнопок, разрывы страниц между разделами.
+     *
+     * `figure:fullscreen` и запасной `figure.rc-full` — график во весь экран:
+     * шириной в ладонь он читается плохо, а поворот сам по себе его не
+     * увеличивает. Настоящий полноэкранный режим браузера используется, когда
+     * он есть; когда его нет, та же раскладка рисуется слоем поверх страницы.
+     *
+     * Пояснений ВНУТРИ стиля нет намеренно: комментарий уехал бы в отчёт на
+     * любом языке — стиль один на русский и английский.
      */
     private val CSS = """
         :root {
@@ -219,6 +227,14 @@ object HtmlDocument {
           border-radius: 8px; padding: 4px 10px; font-size: 13px; cursor: pointer;
         }
         .controls button[aria-pressed="true"] { color: var(--data); border-color: var(--data); }
+        figure:fullscreen, figure.rc-full {
+          background: var(--bg); margin: 0; padding: 16px;
+          display: flex; flex-direction: column; justify-content: center;
+        }
+        figure.rc-full {
+          position: fixed; inset: 0; z-index: 20; overflow: auto;
+        }
+        figure:fullscreen svg, figure.rc-full svg { max-height: 80vh; }
         .legend {
           display: flex; gap: 16px; flex-wrap: wrap;
           font-size: 13px; margin: 0 0 4px;
@@ -325,6 +341,31 @@ object HtmlDocument {
             });
           });
         }
+        function rcExpand(id) {
+          var figure = document.getElementById(id);
+          if (!figure) return;
+          if (document.fullscreenElement === figure) {
+            document.exitFullscreen();
+            return;
+          }
+          if (figure.classList.contains('rc-full')) {
+            figure.classList.remove('rc-full');
+            return;
+          }
+          if (figure.requestFullscreen) {
+            figure.requestFullscreen().catch(function () {
+              figure.classList.add('rc-full');
+            });
+          } else {
+            figure.classList.add('rc-full');
+          }
+        }
+        document.addEventListener('keydown', function (e) {
+          if (e.key !== 'Escape') return;
+          document.querySelectorAll('figure.rc-full').forEach(function (figure) {
+            figure.classList.remove('rc-full');
+          });
+        });
         document.querySelectorAll('figure[data-points]').forEach(rcCursor);
         document.querySelectorAll('figure[data-peaks="1"]').forEach(function (figure) {
           rcPeaks(figure.id);

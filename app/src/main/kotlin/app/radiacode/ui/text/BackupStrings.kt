@@ -52,6 +52,23 @@ interface BackupStrings {
     val replaceNote: String
     val restoreAction: String
 
+    // --- что и за какое время сохранять ---
+    val whatToSave: String
+    val periodTitle: String
+    val periodAll: String
+    val periodYear: String
+    val periodMonth: String
+    val periodWeek: String
+
+    /** Что попадёт в копию при выбранном периоде — одной строкой. */
+    fun periodSince(date: String): String
+
+    /** У прочитанной копии период уже в прошлом: «в копии записи с …». */
+    fun savedPeriod(date: String): String
+    val periodEverything: String
+    val saveAction: String
+    val nothingChosen: String
+
     val partSettings: String
     val partProfiles: String
     val partMeasurements: String
@@ -96,6 +113,19 @@ object BackupRu : BackupStrings {
     override val replace = "Заменить"
     override val replaceNote = "Текущие данные будут заменены содержимым копии"
     override val restoreAction = "Восстановить"
+
+    override val whatToSave = "Что включить в копию?"
+    override val periodTitle = "За какое время?"
+    override val periodAll = "Всё время"
+    override val periodYear = "Год"
+    override val periodMonth = "Месяц"
+    override val periodWeek = "Неделя"
+    override fun periodSince(date: String) =
+        "В копию попадут записи с $date; настройки и профили — целиком."
+    override fun savedPeriod(date: String) = "в копии записи с $date"
+    override val periodEverything = "В копию попадёт вся история."
+    override val saveAction = "Выбрать файл"
+    override val nothingChosen = "Отметьте хотя бы одну часть"
 
     override val partSettings = "Настройки"
     override val partProfiles = "Профили"
@@ -182,6 +212,19 @@ object BackupEn : BackupStrings {
     override val replaceNote = "Current data will be replaced by the backup"
     override val restoreAction = "Restore"
 
+    override val whatToSave = "What goes into the copy?"
+    override val periodTitle = "Which period?"
+    override val periodAll = "All time"
+    override val periodYear = "A year"
+    override val periodMonth = "A month"
+    override val periodWeek = "A week"
+    override fun periodSince(date: String) =
+        "The copy will hold records since $date; settings and profiles in full."
+    override fun savedPeriod(date: String) = "the copy holds records since $date"
+    override val periodEverything = "The copy will hold the whole history."
+    override val saveAction = "Choose a file"
+    override val nothingChosen = "Tick at least one part"
+
     override val partSettings = "Settings"
     override val partProfiles = "Profiles"
     override val partMeasurements = "Measurement history"
@@ -253,6 +296,9 @@ fun BackupStrings.allTexts(): List<String> = listOf(
     restoreBackup, restoreBackupNote, dataSize,
     saving, checking, restoring, saved, restored, failed, close, cancel,
     backupFound, contains, howToRestore, merge, mergeNote, replace, replaceNote,
+    whatToSave, periodTitle, periodAll, periodYear, periodMonth, periodWeek,
+    periodSince("17 июля 2026"), savedPeriod("17 июля 2026"), periodEverything,
+    saveAction, nothingChosen,
     restoreAction, partSettings, partProfiles, partMeasurements, partRoutes,
     partSpectra, partExperiments, settingsRestored,
 ) + BackupStage.entries.map { stageName(it) } + listOf(

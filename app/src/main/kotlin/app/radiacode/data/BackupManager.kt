@@ -87,8 +87,18 @@ class BackupManager(
             else -> false
         }
 
-    /** Создать копию в выбранный человеком файл. */
-    fun save(target: Uri, content: BackupContent = BackupContent(), deviceModel: String? = null) {
+    /**
+     * Создать копию в выбранный человеком файл.
+     *
+     * @param content что человек согласился включить.
+     * @param fromMillis начало периода; null — вся история.
+     */
+    fun save(
+        target: Uri,
+        content: BackupContent = BackupContent(),
+        fromMillis: Long? = null,
+        deviceModel: String? = null,
+    ) {
         if (busy) return
         running = scope.launch {
             _state.value = BackupJob.Saving(
@@ -104,10 +114,12 @@ class BackupManager(
                         appVersion = appVersion,
                         databaseSchemaVersion = databaseSchemaVersion,
                         deviceModel = deviceModel,
+                        fromMillis = fromMillis,
                         content = content,
                     )
                     contentResolver.openOutputStream(target, "wt")?.use { out ->
-                        BackupWriter(out).write(repository, manifest, content) { progress ->
+                        val source = repository.scopedTo(fromMillis)
+                        BackupWriter(out).write(source, manifest, content) { progress ->
                             _state.value = BackupJob.Saving(progress)
                         }
                     } ?: error("нет доступа к выбранному файлу")

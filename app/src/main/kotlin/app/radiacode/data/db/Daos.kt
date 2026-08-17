@@ -122,6 +122,22 @@ interface SampleDao {
     @Query("SELECT * FROM samples WHERE id > :afterId ORDER BY id LIMIT :limit")
     suspend fun page(afterId: Long, limit: Int): List<SampleEntity>
 
+    /**
+     * То же, но только с указанного момента — копия за период.
+     *
+     * Отбор идёт по времени измерения, а не по идентификатору: строки с
+     * меньшим id могут быть свежее, если история переносилась с другого
+     * телефона.
+     */
+    @Query(
+        "SELECT * FROM samples WHERE id > :afterId AND timestamp >= :from " +
+            "ORDER BY id LIMIT :limit",
+    )
+    suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<SampleEntity>
+
+    @Query("SELECT COUNT(*) FROM samples WHERE timestamp >= :from")
+    suspend fun countSince(from: Long): Long
+
     /** Полная очистка — только при восстановлении «заменить данные». */
     @Query("DELETE FROM samples")
     suspend fun clear()
@@ -519,6 +535,15 @@ interface SessionDao {
     @Query("SELECT * FROM measurement_sessions WHERE id > :afterId ORDER BY id LIMIT :limit")
     suspend fun page(afterId: Long, limit: Int): List<MeasurementSessionEntity>
 
+    @Query(
+        "SELECT * FROM measurement_sessions WHERE id > :afterId AND startedAt >= :from " +
+            "ORDER BY id LIMIT :limit",
+    )
+    suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<MeasurementSessionEntity>
+
+    @Query("SELECT COUNT(*) FROM measurement_sessions WHERE startedAt >= :from")
+    suspend fun countSince(from: Long): Long
+
     /**
      * Какие из этих сессий уже есть. Сессия — это ОТРЕЗОК ВРЕМЕНИ, и две
      * разные не могут начаться в одну миллисекунду: начало и есть её ключ.
@@ -571,6 +596,15 @@ interface RareDataDao {
     @Query("SELECT * FROM rare_data WHERE id > :afterId ORDER BY id LIMIT :limit")
     suspend fun page(afterId: Long, limit: Int): List<RareDataEntity>
 
+    @Query(
+        "SELECT * FROM rare_data WHERE id > :afterId AND timestamp >= :from " +
+            "ORDER BY id LIMIT :limit",
+    )
+    suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<RareDataEntity>
+
+    @Query("SELECT COUNT(*) FROM rare_data WHERE timestamp >= :from")
+    suspend fun countSince(from: Long): Long
+
     @Query("SELECT COUNT(*) FROM rare_data")
     suspend fun count(): Long
 
@@ -596,6 +630,15 @@ interface EventDao {
 
     @Query("SELECT * FROM events WHERE id > :afterId ORDER BY id LIMIT :limit")
     suspend fun page(afterId: Long, limit: Int): List<EventEntity>
+
+    @Query(
+        "SELECT * FROM events WHERE id > :afterId AND timestamp >= :from " +
+            "ORDER BY id LIMIT :limit",
+    )
+    suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<EventEntity>
+
+    @Query("SELECT COUNT(*) FROM events WHERE timestamp >= :from")
+    suspend fun countSince(from: Long): Long
 
     @Query("SELECT COUNT(*) FROM events")
     suspend fun count(): Long
@@ -672,12 +715,30 @@ interface TrackDao {
     @Query("SELECT * FROM track_sessions WHERE id > :afterId ORDER BY id LIMIT :limit")
     suspend fun sessionPage(afterId: Long, limit: Int): List<TrackSessionEntity>
 
+    @Query(
+        "SELECT * FROM track_sessions WHERE id > :afterId AND startedAt >= :from " +
+            "ORDER BY id LIMIT :limit",
+    )
+    suspend fun sessionPageSince(afterId: Long, from: Long, limit: Int): List<TrackSessionEntity>
+
+    @Query("SELECT COUNT(*) FROM track_sessions WHERE startedAt >= :from")
+    suspend fun sessionCountSince(from: Long): Long
+
     /** Все маршруты разом — их немного, а точкам нужен их ключ. */
     @Query("SELECT * FROM track_sessions ORDER BY startedAt")
     suspend fun sessionsOnce(): List<TrackSessionEntity>
 
     @Query("SELECT * FROM track_points WHERE id > :afterId ORDER BY id LIMIT :limit")
     suspend fun pointPage(afterId: Long, limit: Int): List<TrackPointEntity>
+
+    @Query(
+        "SELECT * FROM track_points WHERE id > :afterId AND timestamp >= :from " +
+            "ORDER BY id LIMIT :limit",
+    )
+    suspend fun pointPageSince(afterId: Long, from: Long, limit: Int): List<TrackPointEntity>
+
+    @Query("SELECT COUNT(*) FROM track_points WHERE timestamp >= :from")
+    suspend fun pointCountSince(from: Long): Long
 
     @Query("SELECT COUNT(*) FROM track_sessions")
     suspend fun sessionCount(): Long
@@ -952,6 +1013,15 @@ interface ExperimentDao {
     @Query("SELECT * FROM experiments WHERE id > :afterId ORDER BY id LIMIT :limit")
     suspend fun page(afterId: Long, limit: Int): List<ExperimentEntity>
 
+    @Query(
+        "SELECT * FROM experiments WHERE id > :afterId AND createdAt >= :from " +
+            "ORDER BY id LIMIT :limit",
+    )
+    suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<ExperimentEntity>
+
+    @Query("SELECT COUNT(*) FROM experiments WHERE createdAt >= :from")
+    suspend fun countSince(from: Long): Long
+
     /** Опыт по естественному ключу: момент создания и вид. */
     @Query("SELECT id FROM experiments WHERE createdAt = :createdAt AND kind = :kind LIMIT 1")
     suspend fun byKey(createdAt: Long, kind: String): Long?
@@ -1013,6 +1083,15 @@ interface SpectrumDao {
      */
     @Query("SELECT * FROM spectra WHERE id > :afterId ORDER BY id LIMIT :limit")
     suspend fun page(afterId: Long, limit: Int): List<SpectrumSnapshotEntity>
+
+    @Query(
+        "SELECT * FROM spectra WHERE id > :afterId AND timestamp >= :from " +
+            "ORDER BY id LIMIT :limit",
+    )
+    suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<SpectrumSnapshotEntity>
+
+    @Query("SELECT COUNT(*) FROM spectra WHERE timestamp >= :from")
+    suspend fun countSince(from: Long): Long
 
     /** Какие из этих спектров уже есть: момент съёмки — их естественный ключ. */
     @Query("SELECT timestamp FROM spectra WHERE timestamp IN (:timestamps)")

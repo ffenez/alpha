@@ -73,6 +73,7 @@ object ComparisonReportHtml {
                             axisLabels = elapsedAxis(drawn, report.elapsedLabel),
                             valueUnit = report.unit,
                             title = report.title,
+                            labels = s.chartLabels,
                         ),
                     )
                     note(s.elapsedAxisNote)

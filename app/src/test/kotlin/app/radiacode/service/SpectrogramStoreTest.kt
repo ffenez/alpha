@@ -23,6 +23,14 @@ class SpectrogramStoreTest {
         override suspend fun page(afterStart: Long, limit: Int): List<SpectrogramSliceEntity> =
             emptyList()
 
+        override suspend fun pageSince(
+            afterStart: Long,
+            from: Long,
+            limit: Int,
+        ): List<SpectrogramSliceEntity> = emptyList()
+
+        override suspend fun countSince(from: Long): Int = 0
+
         override suspend fun existingStarts(starts: List<Long>): List<Long> = emptyList()
 
         override suspend fun clear() = Unit

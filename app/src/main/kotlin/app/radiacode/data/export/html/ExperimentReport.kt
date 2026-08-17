@@ -113,6 +113,7 @@ object ExperimentReportHtml {
                                 valueUnit = s.countsUnit,
                                 title = run.label,
                                 logarithmic = true,
+                                labels = s.chartLabels,
                             ),
                         )
                     }

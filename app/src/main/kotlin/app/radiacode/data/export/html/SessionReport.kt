@@ -70,6 +70,7 @@ object SessionReportHtml {
                             axisLabels = timeAxis(series.points.map { it.first }, report.timeLabel),
                             valueUnit = series.unit,
                             title = series.title,
+                            labels = s.chartLabels,
                         ),
                     )
                 }

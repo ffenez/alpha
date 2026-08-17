@@ -38,6 +38,19 @@ object HtmlChart {
     private const val PAD_TOP = 12
     private const val PAD_BOTTOM = 28
 
+    /**
+     * Подписи кнопок графика.
+     *
+     * Приходят из каталога отчёта: раньше «Лин» и «Лог» были вписаны в код и
+     * оставались русскими в английском отчёте — кнопка на чужом языке хуже
+     * отсутствующей кнопки.
+     */
+    data class Labels(
+        val linear: String = "Лин",
+        val logarithmic: String = "Лог",
+        val fullScreen: String = "Во весь экран",
+    )
+
     /** Одна точка ряда: положение по оси и значение. */
     data class Point(val x: Double, val value: Double, val label: String)
 
@@ -85,6 +98,7 @@ object HtmlChart {
         logarithmic: Boolean = false,
         marks: List<Mark> = emptyList(),
         peaksInteractive: Boolean = false,
+        labels: Labels = Labels(),
     ): String {
         if (points.isEmpty()) return ""
         val out = StringBuilder(8 * 1024)
@@ -124,18 +138,21 @@ object HtmlChart {
         if (peaksInteractive) out.append(" data-peaks=\"1\"")
         out.append(">\n")
 
+        out.append("<div class=\"controls\">")
         if (logarithmic) {
-            out.append("<div class=\"controls\">")
             out.append(
                 "<button type=\"button\" data-set-mode=\"lin\" aria-pressed=\"true\" " +
-                    "onclick=\"rcSetMode('${escapeJs(id)}','lin')\">Лин</button>",
+                    "onclick=\"rcSetMode('${escapeJs(id)}','lin')\">" +
+                    HtmlDocument.escape(labels.linear) + "</button>",
             )
             out.append(
                 "<button type=\"button\" data-set-mode=\"log\" aria-pressed=\"false\" " +
-                    "onclick=\"rcSetMode('${escapeJs(id)}','log')\">Лог</button>",
+                    "onclick=\"rcSetMode('${escapeJs(id)}','log')\">" +
+                    HtmlDocument.escape(labels.logarithmic) + "</button>",
             )
-            out.append("</div>\n")
         }
+        out.append(expandButton(id, labels))
+        out.append("</div>\n")
 
         out.append("<svg viewBox=\"0 0 $WIDTH $HEIGHT\" role=\"img\" aria-label=\"")
             .append(HtmlDocument.escape(title)).append("\">\n")
@@ -201,6 +218,7 @@ object HtmlChart {
         axisLabels: List<Pair<Double, String>>,
         valueUnit: String,
         title: String,
+        labels: Labels = Labels(),
     ): String {
         val drawn = series.map { it.copy(points = downsample(it.points)) }
             .filter { it.points.isNotEmpty() }
@@ -220,6 +238,7 @@ object HtmlChart {
 
         val out = StringBuilder(16 * 1024)
         out.append("<figure id=\"").append(HtmlDocument.escape(id)).append("\">\n")
+        out.append("<div class=\"controls\">").append(expandButton(id, labels)).append("</div>\n")
         out.append("<p class=\"legend\">")
         for ((index, s) in drawn.withIndex()) {
             out.append("<span style=\"color:").append(seriesColor(index)).append("\">\u25A0 ")
@@ -252,6 +271,11 @@ object HtmlChart {
         out.append("</svg>\n</figure>\n")
         return out.toString()
     }
+
+    /** Кнопка «во весь экран» — одна на все графики отчёта, включая карту. */
+    fun expandButton(id: String, labels: Labels = Labels()): String =
+        "<button type=\"button\" class=\"expand\" onclick=\"rcExpand('" + escapeJs(id) + "')\">" +
+            HtmlDocument.escape(labels.fullScreen) + "</button>"
 
     /** Цвета кривых: те же переменные темы, что и на остальной странице. */
     private fun seriesColor(index: Int): String {

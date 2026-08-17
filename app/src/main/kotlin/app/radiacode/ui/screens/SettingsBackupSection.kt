@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import app.radiacode.AppGraph
 import app.radiacode.data.BackupJob
+import app.radiacode.data.export.backup.BackupContent
 import app.radiacode.data.export.backup.BackupFormat
 import app.radiacode.data.export.backup.BackupInfo
 import app.radiacode.data.export.backup.BackupProblem
@@ -73,11 +74,16 @@ internal fun BackupSection(graph: AppGraph) {
     var pendingSource by remember { mutableStateOf<android.net.Uri?>(null) }
     var mode by remember { mutableStateOf(RestoreMode.MERGE) }
     var selection by remember { mutableStateOf(RestoreSelection()) }
+    // Что и за какое время сохранять — решается ДО системного диалога: имя
+    // файла человек придумывает уже зная, что в нём будет.
+    var planning by remember { mutableStateOf(false) }
+    var content by remember { mutableStateOf(BackupContent()) }
+    var period by remember { mutableStateOf(BackupPeriod.ALL) }
 
     val createLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(BackupFormat.MIME),
     ) { uri ->
-        if (uri != null) manager.save(uri)
+        if (uri != null) manager.save(uri, content, period.fromMillis())
     }
     val openLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -94,13 +100,24 @@ internal fun BackupSection(graph: AppGraph) {
                 title = t.createBackup,
                 subtitle = t.createBackupNote,
                 enabled = !manager.busy,
-                onClick = {
-                    val today = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-                        .withZone(ZoneId.systemDefault())
-                        .format(Instant.now())
-                    createLauncher.launch(BackupFormat.fileName(today))
-                },
+                onClick = { planning = !planning },
             )
+            AnimatedVisibility(visible = planning) {
+                SavePlan(
+                    t = t,
+                    content = content,
+                    onContent = { content = it },
+                    period = period,
+                    onPeriod = { period = it },
+                    onSave = {
+                        planning = false
+                        val today = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                            .withZone(ZoneId.systemDefault())
+                            .format(Instant.now())
+                        createLauncher.launch(BackupFormat.fileName(today))
+                    },
+                )
+            }
             SettingsDivider()
             SettingRow(
                 title = t.restoreBackup,
@@ -213,6 +230,122 @@ private fun JobCard(
 }
 
 /** Что в копии и как её восстанавливать. Ничего ещё не изменено. */
+/** Период копии. Границы — «сейчас минус столько-то», не календарные месяцы. */
+internal enum class BackupPeriod(val days: Long?) {
+    ALL(null),
+    YEAR(365),
+    MONTH(30),
+    WEEK(7),
+    ;
+
+    fun fromMillis(now: Long = System.currentTimeMillis()): Long? =
+        days?.let { now - it * MILLIS_PER_DAY }
+
+    private companion object {
+        const val MILLIS_PER_DAY = 24L * 60 * 60 * 1000
+    }
+}
+
+/**
+ * Что и за какое время сохранять.
+ *
+ * ## Почему выбор, а не «всё всегда»
+ *
+ * История за год — это гигабайты, и переносят её не всегда целиком: на новый
+ * телефон нужны настройки и профили, товарищу — маршруты, а в архив — месяц
+ * измерений. Раньше копия была одна на все случаи, и человеку оставалось
+ * ждать её целиком.
+ *
+ * ## Период не трогает настройки и профили
+ *
+ * У профиля нет «времени», он либо есть, либо нет; копия за неделю без
+ * профилей восстановилась бы историей, привязанной в никуда. Об этом сказано
+ * строкой под выбором, а не выяснением задним числом.
+ */
+@Composable
+private fun SavePlan(
+    t: BackupStrings,
+    content: BackupContent,
+    onContent: (BackupContent) -> Unit,
+    period: BackupPeriod,
+    onPeriod: (BackupPeriod) -> Unit,
+    onSave: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val periods = listOf(
+        BackupPeriod.ALL to t.periodAll,
+        BackupPeriod.YEAR to t.periodYear,
+        BackupPeriod.MONTH to t.periodMonth,
+        BackupPeriod.WEEK to t.periodWeek,
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+        Text(text = t.whatToSave, style = type.label, color = colors.ink)
+        SwitchSettingRow(
+            title = t.partSettings,
+            checked = content.settings,
+            onChange = { onContent(content.copy(settings = it)) },
+        )
+        SwitchSettingRow(
+            title = t.partProfiles,
+            checked = content.profiles,
+            onChange = { onContent(content.copy(profiles = it)) },
+        )
+        // Сессии идут с измерениями: сессия без измерений — пустой отрезок
+        // времени, а измерения без сессий теряют, чем они были.
+        SwitchSettingRow(
+            title = t.partMeasurements,
+            checked = content.measurements,
+            onChange = { onContent(content.copy(measurements = it, sessions = it)) },
+        )
+        SwitchSettingRow(
+            title = t.partRoutes,
+            checked = content.routes,
+            onChange = { onContent(content.copy(routes = it)) },
+        )
+        // Спектрограмма едет со спектрами — так же, как их восстанавливают.
+        SwitchSettingRow(
+            title = t.partSpectra,
+            checked = content.spectra,
+            onChange = { onContent(content.copy(spectra = it, spectrogram = it)) },
+        )
+        SwitchSettingRow(
+            title = t.partExperiments,
+            checked = content.experiments,
+            onChange = { onContent(content.copy(experiments = it)) },
+        )
+
+        Text(text = t.periodTitle, style = type.label, color = colors.ink)
+        Segmented(
+            options = periods.map { it.second },
+            selectedIndex = periods.indexOfFirst { it.first == period }.coerceAtLeast(0),
+            onSelect = { onPeriod(periods[it].first) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        val from = period.fromMillis()
+        Text(
+            text = if (from == null) {
+                t.periodEverything
+            } else {
+                t.periodSince(
+                    DateTimeFormatter.ofPattern("d MMMM yyyy")
+                        .withZone(ZoneId.systemDefault())
+                        .format(Instant.ofEpochMilli(from)),
+                )
+            },
+            style = type.footnote,
+            color = colors.muted,
+        )
+
+        val anything = content.settings || content.profiles || content.measurements ||
+            content.routes || content.spectra || content.experiments
+        AppButton(text = t.saveAction, onClick = onSave, enabled = anything)
+        if (!anything) {
+            Text(text = t.nothingChosen, style = type.footnote, color = colors.warn)
+        }
+    }
+}
+
 @Composable
 private fun RestorePlan(
     info: BackupInfo,
@@ -233,6 +366,9 @@ private fun RestorePlan(
                 readableDate(info.manifest.createdAt),
                 info.manifest.deviceModel,
                 info.manifest.appVersion,
+                // Копия за период говорит об этом сама: иначе «мало записей»
+                // читается как потеря данных, а не как выбор человека.
+                info.manifest.fromMillis?.let { t.savedPeriod(dayText(it)) },
             ).joinToString(" · "),
             style = type.footnote,
             color = colors.ink2,
@@ -328,6 +464,12 @@ private fun SummaryLines(summary: RestoreSummary, t: BackupStrings) {
         }
     }
 }
+
+/** День человеческим видом — для периода копии. */
+private fun dayText(millis: Long): String =
+    DateTimeFormatter.ofPattern("d MMMM yyyy")
+        .withZone(ZoneId.systemDefault())
+        .format(Instant.ofEpochMilli(millis))
 
 /** Дата создания копии человеческим видом; если не разобралась — как есть. */
 private fun readableDate(iso: String): String = runCatching {

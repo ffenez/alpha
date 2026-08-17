@@ -95,6 +95,7 @@ object SpectrumReportHtml {
                             )
                         },
                         peaksInteractive = report.peaks.isNotEmpty(),
+                        labels = s.chartLabels,
                     ),
                 )
             }

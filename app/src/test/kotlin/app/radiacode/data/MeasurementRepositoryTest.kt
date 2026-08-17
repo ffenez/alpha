@@ -34,6 +34,11 @@ internal class FakeSampleDao : SampleDao {
     // «больше ничего нет» — её проверяют другие тесты.
     override suspend fun page(afterId: Long, limit: Int): List<SampleEntity> = emptyList()
 
+    override suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<SampleEntity> =
+        emptyList()
+
+    override suspend fun countSince(from: Long): Long = 0
+
     override suspend fun clear() = Unit
 
     val inserted = mutableListOf<SampleEntity>()
@@ -93,6 +98,11 @@ private class FakeRareDataDao : RareDataDao {
 
     override suspend fun page(afterId: Long, limit: Int): List<RareDataEntity> = emptyList()
 
+    override suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<RareDataEntity> =
+        emptyList()
+
+    override suspend fun countSince(from: Long): Long = 0
+
     override suspend fun count(): Long = 0
 
     override suspend fun clear() = Unit
@@ -109,6 +119,11 @@ private class FakeRareDataDao : RareDataDao {
 private class FakeEventDao : EventDao {
 
     override suspend fun page(afterId: Long, limit: Int): List<EventEntity> = emptyList()
+
+    override suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<EventEntity> =
+        emptyList()
+
+    override suspend fun countSince(from: Long): Long = 0
 
     override suspend fun count(): Long = 0
 
@@ -152,6 +167,14 @@ private class FakeEventDao : EventDao {
 internal class FakeSpectrumDao : SpectrumDao {
 
     override suspend fun page(afterId: Long, limit: Int): List<SpectrumSnapshotEntity> = emptyList()
+
+    override suspend fun pageSince(
+        afterId: Long,
+        from: Long,
+        limit: Int,
+    ): List<SpectrumSnapshotEntity> = emptyList()
+
+    override suspend fun countSince(from: Long): Long = 0
 
     override suspend fun existingTimestamps(timestamps: List<Long>): List<Long> = emptyList()
 

@@ -404,6 +404,31 @@ class BackupRoundTripTest {
     }
 
     @Test
+    fun `копия за период говорит о себе, что она за период`() {
+        // Копия за месяц и копия за всё время выглядят одинаково; отличить их
+        // через полгода будет неоткуда, если период не записан в самой копии.
+        val bytes = ByteArrayOutputStream().also { out ->
+            runBlocking {
+                BackupWriter(out).write(
+                    fullSource(measurements = 10),
+                    manifest().copy(fromMillis = now - 30L * 24 * 60 * 60 * 1000),
+                )
+            }
+        }.toByteArray()
+
+        val info = BackupReader.inspect(open(bytes)).getOrThrow()
+        assertEquals(now - 30L * 24 * 60 * 60 * 1000, info.manifest.fromMillis)
+    }
+
+    @Test
+    fun `копия прежней версии читается как копия за всё время`() {
+        // У старых копий поля периода нет — и это не «период с нуля», а «всё».
+        val bytes = writeBackup(fullSource(measurements = 10))
+        val info = BackupReader.inspect(open(bytes)).getOrThrow()
+        assertEquals(null, info.manifest.fromMillis)
+    }
+
+    @Test
     fun `кириллица и разметка в заметках переживают копию`() {
         val bytes = writeBackup(fullSource(measurements = 1))
         val info = BackupReader.inspect(open(bytes)).getOrThrow()

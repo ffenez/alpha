@@ -21,6 +21,11 @@ private class FakeExperimentDao : ExperimentDao {
 
     override suspend fun page(afterId: Long, limit: Int): List<ExperimentEntity> = emptyList()
 
+    override suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<ExperimentEntity> =
+        emptyList()
+
+    override suspend fun countSince(from: Long): Long = 0
+
     override suspend fun byKey(createdAt: Long, kind: String): Long? = null
 
     override suspend fun clear() = Unit

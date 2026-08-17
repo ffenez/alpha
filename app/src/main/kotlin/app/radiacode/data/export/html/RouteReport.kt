@@ -118,6 +118,7 @@ object RouteReportHtml {
                             ),
                             valueUnit = report.valueUnit,
                             title = s.doseSection,
+                            labels = s.chartLabels,
                         ),
                     )
                 }
@@ -175,6 +176,11 @@ object RouteReportHtml {
         }
         writer.endArray()
         out.append(HtmlDocument.escape(json.toString())).append("\">\n")
+        // Карта разворачивается так же, как график: след во всю ширину ладони
+        // читается не лучше графика.
+        out.append("<div class=\"controls\">")
+            .append(HtmlChart.expandButton("route-map", report.strings.chartLabels))
+            .append("</div>\n")
         out.append("<svg viewBox=\"0 0 $MAP_WIDTH $MAP_HEIGHT\" role=\"img\" aria-label=\"")
             .append(HtmlDocument.escape(report.strings.routeSection)).append("\">\n")
 

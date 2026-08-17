@@ -82,17 +82,43 @@ class BackupRepository(
 
     // --- источник ---------------------------------------------------------
 
-    override suspend fun counts() = BackupCounts(
-        measurements = sampleDao.count(),
-        events = eventDao.count(),
-        rare = rareDao.count(),
-        sessions = sessionDao.count().toLong(),
-        routes = trackDao.sessionCount(),
-        points = trackDao.totalPointCount(),
-        spectra = spectrumDao.count(),
-        slices = spectrogramDao.count().toLong(),
-        experiments = experimentDao.count().toLong(),
-    )
+    /**
+     * Момент, с которого берутся записи; null — вся история.
+     *
+     * Поле, а не параметр каждого потока: `BackupSource` описывает источник, а
+     * не запрос, и добавлять «с какого момента» в девять сигнатур значило бы
+     * рассказать формату о том, что его не касается. Одновременных копий не
+     * бывает — `BackupManager` не начинает вторую, пока идёт первая.
+     */
+    private var fromMillis: Long? = null
+
+    /** Источник за период. Возвращает себя же: смысл вызова — задать границу. */
+    fun scopedTo(fromMillis: Long?): BackupSource = apply { this.fromMillis = fromMillis }
+
+    override suspend fun counts(): BackupCounts {
+        val from = fromMillis ?: return BackupCounts(
+            measurements = sampleDao.count(),
+            events = eventDao.count(),
+            rare = rareDao.count(),
+            sessions = sessionDao.count().toLong(),
+            routes = trackDao.sessionCount(),
+            points = trackDao.totalPointCount(),
+            spectra = spectrumDao.count(),
+            slices = spectrogramDao.count().toLong(),
+            experiments = experimentDao.count().toLong(),
+        )
+        return BackupCounts(
+            measurements = sampleDao.countSince(from),
+            events = eventDao.countSince(from),
+            rare = rareDao.countSince(from),
+            sessions = sessionDao.countSince(from),
+            routes = trackDao.sessionCountSince(from),
+            points = trackDao.pointCountSince(from),
+            spectra = spectrumDao.countSince(from),
+            slices = spectrogramDao.countSince(from).toLong(),
+            experiments = experimentDao.countSince(from),
+        )
+    }
 
     override suspend fun profiles(): BackupProfiles {
         val profiles = profileDao.all()
@@ -161,7 +187,8 @@ class BackupRepository(
     override suspend fun settings(): List<Pair<String, String>> = settings.exportSettings()
 
     override fun sessions() = BackupStream { cursor, limit ->
-        val rows = sessionDao.page(cursor, limit)
+        val rows = fromMillis?.let { sessionDao.pageSince(cursor, it, limit) }
+            ?: sessionDao.page(cursor, limit)
         val names = profileNames()
         BackupPage(
             items = rows.map {
@@ -172,7 +199,8 @@ class BackupRepository(
     }
 
     override fun measurements() = BackupStream { cursor, limit ->
-        val rows = sampleDao.page(cursor, limit)
+        val rows = fromMillis?.let { sampleDao.pageSince(cursor, it, limit) }
+            ?: sampleDao.page(cursor, limit)
         val names = profileNames()
         BackupPage(
             items = rows.map { row ->
@@ -193,7 +221,8 @@ class BackupRepository(
     }
 
     override fun events() = BackupStream { cursor, limit ->
-        val rows = eventDao.page(cursor, limit)
+        val rows = fromMillis?.let { eventDao.pageSince(cursor, it, limit) }
+            ?: eventDao.page(cursor, limit)
         BackupPage(
             items = rows.map { row ->
                 BackupEvent(
@@ -213,7 +242,8 @@ class BackupRepository(
     }
 
     override fun rare() = BackupStream { cursor, limit ->
-        val rows = rareDao.page(cursor, limit)
+        val rows = fromMillis?.let { rareDao.pageSince(cursor, it, limit) }
+            ?: rareDao.page(cursor, limit)
         BackupPage(
             items = rows.map {
                 BackupRare(
@@ -230,7 +260,8 @@ class BackupRepository(
     }
 
     override fun routes() = BackupStream { cursor, limit ->
-        val rows = trackDao.sessionPage(cursor, limit)
+        val rows = fromMillis?.let { trackDao.sessionPageSince(cursor, it, limit) }
+            ?: trackDao.sessionPage(cursor, limit)
         BackupPage(
             items = rows.map {
                 BackupRoute(it.name, it.startedAt, it.endedAt, it.distanceMeters, it.interrupted)
@@ -240,7 +271,8 @@ class BackupRepository(
     }
 
     override fun points() = BackupStream { cursor, limit ->
-        val rows = trackDao.pointPage(cursor, limit)
+        val rows = fromMillis?.let { trackDao.pointPageSince(cursor, it, limit) }
+            ?: trackDao.pointPage(cursor, limit)
         val routes = routeKeys()
         BackupPage(
             items = rows.mapNotNull { row ->
@@ -263,7 +295,9 @@ class BackupRepository(
 
     override fun spectra() = BackupStream { cursor, limit ->
         // Спектры тяжёлые: страница мельче, чем у измерений.
-        val rows = spectrumDao.page(cursor, minOf(limit, SPECTRA_PAGE))
+        val page = minOf(limit, SPECTRA_PAGE)
+        val rows = fromMillis?.let { spectrumDao.pageSince(cursor, it, page) }
+            ?: spectrumDao.page(cursor, page)
         BackupPage(
             items = rows.map { it.toBackup() },
             nextCursor = rows.lastOrNull()?.id,
@@ -271,7 +305,9 @@ class BackupRepository(
     }
 
     override fun slices() = BackupStream { cursor, limit ->
-        val rows = spectrogramDao.page(cursor, minOf(limit, SPECTRA_PAGE))
+        val page = minOf(limit, SPECTRA_PAGE)
+        val rows = fromMillis?.let { spectrogramDao.pageSince(cursor, it, page) }
+            ?: spectrogramDao.page(cursor, page)
         BackupPage(
             items = rows.map {
                 BackupSlice(
@@ -291,7 +327,8 @@ class BackupRepository(
     }
 
     override fun experiments() = BackupStream { cursor, limit ->
-        val rows = experimentDao.page(cursor, limit)
+        val rows = fromMillis?.let { experimentDao.pageSince(cursor, it, limit) }
+            ?: experimentDao.page(cursor, limit)
         val names = profileNames()
         val items = rows.map { experiment ->
             val runs = experimentDao.runs(experiment.id).map { run ->

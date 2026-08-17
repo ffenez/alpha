@@ -97,6 +97,14 @@ data class BackupManifest(
     val databaseSchemaVersion: Int,
     /** Модель прибора, если она известна приложению. */
     val deviceModel: String? = null,
+    /**
+     * Начало периода копии (мс), если человек выбрал не всю историю.
+     *
+     * Стоит в манифесте, а не только в голове того, кто копию делал: копия за
+     * месяц и копия за всё время выглядят одинаково, и через полгода разницу
+     * восстановить будет неоткуда. Читатель показывает это до восстановления.
+     */
+    val fromMillis: Long? = null,
     val content: BackupContent,
 ) {
 
@@ -110,6 +118,7 @@ data class BackupManifest(
             .field("appVersion", appVersion)
             .field("databaseSchemaVersion", databaseSchemaVersion.toLong())
             .field("deviceModel", deviceModel)
+            .field("fromMillis", fromMillis)
             .name("content")
         w.beginObject()
             .field("measurements", content.measurements)
@@ -137,6 +146,8 @@ data class BackupManifest(
                 appVersion = root.str("appVersion") ?: "",
                 databaseSchemaVersion = root.int("databaseSchemaVersion") ?: 0,
                 deviceModel = root.str("deviceModel"),
+                // Копии прежних версий поля не имеют — и это «вся история».
+                fromMillis = root.long("fromMillis"),
                 content = BackupContent(
                     measurements = content?.bool("measurements") ?: false,
                     sessions = content?.bool("sessions") ?: false,

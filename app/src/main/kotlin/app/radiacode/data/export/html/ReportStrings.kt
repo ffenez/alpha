@@ -17,6 +17,9 @@ interface ReportStrings {
     val spectrumSection: String
     val peaksSection: String
     val peaksNote: String
+    /** Подписи кнопок под графиком: масштаб и «во весь экран». */
+    val chartLabels: HtmlChart.Labels
+
     val recordsSection: String
     val elapsedAxisNote: String
     val comparisonDisclaimer: String
@@ -73,6 +76,12 @@ object ReportRu : ReportStrings {
     override val peaksNote =
         "Совпадение по энергии — гипотеза, а не вывод о веществе: одну и ту же энергию " +
             "дают разные источники, и заключение делается по совокупности линий."
+    override val chartLabels = HtmlChart.Labels(
+        linear = "Лин",
+        logarithmic = "Лог",
+        fullScreen = "Во весь экран",
+    )
+
     override val recordsSection = "Записи"
     override val elapsedAxisNote = "По горизонтали — время от начала каждой записи, " +
         "а не календарное: записи сделаны в разное время."
@@ -129,6 +138,12 @@ object ReportEn : ReportStrings {
     override val peaksNote =
         "A match in energy is a hypothesis, not a detection: different sources share " +
             "energies, and a conclusion follows from the set of lines, not from one."
+    override val chartLabels = HtmlChart.Labels(
+        linear = "Lin",
+        logarithmic = "Log",
+        fullScreen = "Full screen",
+    )
+
     override val recordsSection = "Records"
     override val elapsedAxisNote = "The horizontal axis is time from the start of each " +
         "record, not calendar time: the records were made at different times."

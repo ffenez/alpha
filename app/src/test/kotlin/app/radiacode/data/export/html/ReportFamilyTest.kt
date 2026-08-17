@@ -228,6 +228,37 @@ class ReportFamilyTest {
         assertTrue(ys[0] != ys[1], "кривые совпали — значит масштабы разные")
     }
 
+
+    // ------------------------------------------------- график во весь экран
+
+    @Test
+    fun `каждый график разворачивается во весь экран`() {
+        // График шириной в ладонь читается плохо, и поворот его не увеличивает.
+        val pages = listOf(
+            SessionReportHtml.render(sessionReport()),
+            RouteReportHtml.render(routeReport(RoutePrivacy.FULL)),
+            ExperimentReportHtml.render(experimentReport()),
+            ComparisonReportHtml.render(comparisonReport()),
+        )
+        for (page in pages) {
+            assertTrue(page.contains("rcExpand("), "нет кнопки разворота")
+            assertTrue(page.contains("figure:fullscreen"), "нет полноэкранной раскладки")
+            assertTrue(page.contains("figure.rc-full"), "нет запасной раскладки")
+        }
+        // И у карты маршрута тоже: след во всю ширину ладони читается не лучше.
+        val route = RouteReportHtml.render(routeReport(RoutePrivacy.FULL))
+        assertTrue(route.contains("rcExpand('route-map')"))
+    }
+
+    @Test
+    fun `кнопки графика говорят на языке отчёта`() {
+        val en = SessionReportHtml.render(sessionReport().copy(strings = ReportEn))
+        assertTrue(en.contains("Full screen"), "русская кнопка в английском отчёте")
+        assertFalse(en.contains("Во весь экран"))
+        val ru = SessionReportHtml.render(sessionReport())
+        assertTrue(ru.contains("Во весь экран"))
+    }
+
     // ------------------------------------------------------------- общее
 
     private fun assertNoNetwork(page: String) {
