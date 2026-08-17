@@ -72,7 +72,10 @@ object EnStrings : Strings {
     override val searchWordsDevice =
         listOf("instrument", "device", "battery", "firmware", "serial", "bluetooth", "calibration")
     override val searchWordsData =
-        listOf("storage", "history", "report", "diagnostics", "memory", "recording")
+        listOf(
+            "storage", "history", "report", "diagnostics", "memory", "recording",
+            "spectrogram", "clear",
+        )
     override val searchWordsAbout = listOf("version", "licences", "licenses", "updates")
     override val settingsAbout = "About"
     override val settingsAboutSub = "version, updates, licences, diagnostics"

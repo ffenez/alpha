@@ -12,7 +12,12 @@ import androidx.compose.ui.Modifier
 import app.alpha.AppGraph
 import app.alpha.analysis.SpectrogramHistory
 import app.alpha.data.SpectrumPollPolicy
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.Card
+import app.alpha.ui.components.ConfirmDialog
 import app.alpha.ui.components.Segmented
 import app.alpha.ui.logic.Uncertainty
 import app.alpha.ui.text.LocalStrings
@@ -23,7 +28,7 @@ import app.alpha.ui.theme.LocalAppTypography
 import kotlinx.coroutines.launch
 
 /**
- * Частота записи спектрограммы — Настройки → Прибор.
+ * Спектрограмма в фоне — Настройки → Данные: частота записи и уборка записанного.
  *
  * Стояла на самом экране Спектрограммы, где виден её эффект, но занимала там
  * место постоянно ради выбора, который делают один раз: это параметр ОПРОСА
@@ -33,6 +38,10 @@ import kotlinx.coroutines.launch
  * Ступень названа своим числом, а не прилагательным. Про батарею не сказано
  * ничего: она не измерена, а счётчики запросов и байт лежат в отладочном
  * отчёте — предупреждение появится после измерения, а не раньше.
+ *
+ * Здесь же живёт «очистить спектрограмму»: это решение про ХРАНЕНИЕ, и стоять
+ * оно должно рядом с частотой записи и объёмом истории, а не кнопкой на экране
+ * картинки, где его нажимают случайно.
  */
 @Composable
 fun SpectrumRateSection(graph: AppGraph) {
@@ -43,6 +52,20 @@ fun SpectrumRateSection(graph: AppGraph) {
 
     val policy by graph.settings.spectrumPollPolicy
         .collectAsState(initial = SpectrumPollPolicy.DEFAULT)
+    val strings = LocalStrings.current
+    var confirmClear by remember { mutableStateOf(false) }
+    if (confirmClear) {
+        ConfirmDialog(
+            title = t.clearConfirmTitle,
+            body = t.clearConfirmBody,
+            confirmText = strings.delete,
+            onConfirm = {
+                confirmClear = false
+                scope.launch { graph.spectrogramStore.clearHistory() }
+            },
+            onDismiss = { confirmClear = false },
+        )
+    }
 
     val options = listOf(
         SpectrumPollPolicy.EVERY_5_S to t.rateDetailed,
@@ -76,6 +99,7 @@ fun SpectrumRateSection(graph: AppGraph) {
                 style = type.footnote,
                 color = colors.muted,
             )
+            AppButton(text = t.clearHistory, onClick = { confirmClear = true })
         }
     }
 }

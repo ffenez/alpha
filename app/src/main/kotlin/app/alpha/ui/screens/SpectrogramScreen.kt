@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
-import app.alpha.ui.components.EntityMenuButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -46,10 +45,8 @@ import app.alpha.device.ConnectionState
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.Chip
-import app.alpha.ui.components.ConfirmDialog
 import app.alpha.ui.components.DisclosureRow
 import app.alpha.ui.components.EntityHeader
-import app.alpha.ui.components.EntityMenuItem
 import app.alpha.ui.components.StatCell
 import app.alpha.ui.components.Segmented
 import app.alpha.ui.components.StatGrid
@@ -142,20 +139,7 @@ fun SpectrogramScreen(
     val hub = graph.spectrumHub
 
     BackHandler { onBack() }
-    var confirmClear by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    if (confirmClear) {
-        ConfirmDialog(
-            title = t.clearConfirmTitle,
-            body = t.clearConfirmBody,
-            confirmText = strings.delete,
-            onConfirm = {
-                confirmClear = false
-                scope.launch { graph.spectrogramStore.clearHistory() }
-            },
-            onDismiss = { confirmClear = false },
-        )
-    }
 
     // The waterfall needs the 5 s spectrum poll: attach as a hub watcher.
     DisposableEffect(hub) {
@@ -262,16 +246,19 @@ fun SpectrogramScreen(
     LaunchedEffect(windowMillis) { selectedIndex = null }
     val selected = selectedIndex?.let { columnsData.getOrNull(it) }
 
-    // Меню «⋮» одно на оба режима: набор редких действий не зависит от того,
-    // во весь экран смотрят на картинку или в обзоре.
-    val menu = listOf(
-        EntityMenuItem(t.helpTitle, onClick = { infoOpen = true }),
-        EntityMenuItem(
-            title = if (energyScale == Spectrogram.EnergyScale.LOG) {
-                t.energyScaleToLinear
-            } else {
-                t.energyScaleToLog
-            },
+    // Вместо меню редких действий — знак справки: единственное, что тут нужно
+    // редко, это «как читать спектрограмму». Ось энергии переключается чипом
+    // рядом со шкалой (состояние, а не команда в меню), а очистка записи
+    // переехала в Настройки → Данные, к остальным решениям про хранение.
+    val helpChip: @Composable () -> Unit = {
+        Chip(text = "i", color = colors.ink2, onClick = { infoOpen = true })
+    }
+    // Чип называет ТЕКУЩУЮ шкалу, а не то, чем она станет: то же правило, что
+    // у «лог/лин» на графике дозы.
+    val scaleChip: @Composable () -> Unit = {
+        Chip(
+            text = if (energyScale == Spectrogram.EnergyScale.LOG) t.axisLog else t.axisLinear,
+            color = colors.ink2,
             onClick = {
                 scope.launch {
                     graph.settings.setSpectrogramEnergyScale(
@@ -279,15 +266,9 @@ fun SpectrogramScreen(
                     )
                 }
             },
-        ),
-        EntityMenuItem(
-            title = t.clearHistory,
-            enabled = slices.isNotEmpty(),
-            onClick = { confirmClear = true },
-        ),
-    )
+        )
+    }
 
-    val stripMax = columnsData.mapNotNull { it?.doseMicroSvH }.maxOrNull()
     val spec = WaterfallSpec(
         columns = columnsData,
         scaleTop = scaleTop,
@@ -296,15 +277,6 @@ fun SpectrogramScreen(
         energyScale = energyScale,
         selectedIndex = selectedIndex,
         timeLabels = TimeAxis.labels(fromMillis ?: 0L, toMillis ?: 0L),
-        stripValues = columnsData.map { it?.doseMicroSvH },
-        stripTitle = t.doseStripLabel(DoseFormat.rateUnitLabel(unit, s = strings)),
-        // Справа в шапке полосы — то, что под курсором; без курсора последнее,
-        // что измерено: у линии всегда есть число.
-        stripValue = (
-            selected?.doseMicroSvH
-                ?: columnsData.lastOrNull { it?.doseMicroSvH != null }?.doseMicroSvH
-            )?.let { DoseFormat.rate(it, unit) },
-        stripMaxLabel = stripMax?.let { DoseFormat.rate(it, unit) },
         energyUnit = t.energyUnit,
         probe = probeFraction?.let { fraction ->
             WaterfallProbe(
@@ -375,7 +347,7 @@ fun SpectrogramScreen(
                         Chip(text = t.offlineTag, color = colors.ink2)
                     }
                     Spacer(Modifier.weight(1f))
-                    EntityMenuButton(menu = menu)
+                    helpChip()
                 }
                 Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = Dimens.space2)) {
                     WaterfallChart(
@@ -412,6 +384,7 @@ fun SpectrogramScreen(
                             onSelect = { onOptionsChange(options.copy(shapeMode = it == 1)) },
                             scrollable = true,
                         )
+                        scaleChip()
                         LegendRamp(
                             shapeMode = shapeMode,
                             scaleTop = scaleTop,
@@ -449,11 +422,8 @@ fun SpectrogramScreen(
                     if (!connected && slices.isNotEmpty()) {
                         Chip(text = t.offlineTag, color = colors.ink2)
                     }
-                    if (slices.isNotEmpty()) {
-                        Chip(text = "⤢", color = colors.ink2, onClick = onOpenFullscreen)
-                    }
+                    helpChip()
                 },
-                menu = menu,
             )
 
             when {

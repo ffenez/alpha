@@ -94,9 +94,6 @@ interface SpectrogramStrings {
     val modeIntensity: String
     val modeShape: String
 
-    /** Подпись полосы под картинкой: величина и её единица. */
-    fun doseStripLabel(unit: String): String
-
     /**
      * Единица оси энергии внутри поля — только единица.
      *
@@ -106,9 +103,12 @@ interface SpectrogramStrings {
      */
     val energyUnit: String
 
-    /** Пункты «⋮»: действие названо тем, что получится после нажатия. */
-    val energyScaleToLinear: String
-    val energyScaleToLog: String
+    /**
+     * Чип шкалы энергии называет ТЕКУЩУЮ шкалу, а не то, чем она станет:
+     * то же правило, что у «лог/лин» на графике дозы. Нажатие переключает.
+     */
+    val axisLog: String
+    val axisLinear: String
 
     /** Чем одна ось отличается от другой — в технических подробностях. */
     val energyScaleLogNote: String
@@ -244,10 +244,9 @@ object SpectrogramRu : SpectrogramStrings {
     override val modeIntensity = "Интенсивность"
     override val modeShape = "Форма"
 
-    override fun doseStripLabel(unit: String) = "Мощность дозы · $unit"
     override val energyUnit = "кэВ"
-    override val energyScaleToLinear = "Показать энергию линейно"
-    override val energyScaleToLog = "Показать энергию логарифмически"
+    override val axisLog = "лог"
+    override val axisLinear = "лин"
     override val energyScaleLogNote =
         "Ось энергии геометрическая: равная высота — равное отношение энергий, и низ " +
             "спектра получает свою долю строк. Расстояние по вертикали не равно разнице в кэВ."
@@ -298,8 +297,8 @@ object SpectrogramRu : SpectrogramStrings {
         "По горизонтали — время, слева старое.",
         "По вертикали — энергия зарегистрированных импульсов.",
         "Насыщенный цвет — выше интенсивность; пустая колонка означает, что измерений не было.",
-        "Нижний график — мощность дозы на той же оси времени.",
-        "Проведите пальцем по картинке, чтобы разобрать конкретный момент.",
+        "Касание по картинке разворачивает её во весь экран.",
+        "Там ведите пальцем: курсор покажет момент, а маркер — энергию под пальцем.",
     )
 
     override val technicalTitle = "Технические подробности →"
@@ -397,10 +396,9 @@ object SpectrogramEn : SpectrogramStrings {
     override val modeIntensity = "Intensity"
     override val modeShape = "Shape"
 
-    override fun doseStripLabel(unit: String) = "Dose rate · $unit"
     override val energyUnit = "keV"
-    override val energyScaleToLinear = "Show energy linearly"
-    override val energyScaleToLog = "Show energy logarithmically"
+    override val axisLog = "log"
+    override val axisLinear = "lin"
     override val energyScaleLogNote =
         "The energy axis is geometric: equal heights are equal energy ratios, so the low end " +
             "of the spectrum gets its share of rows. Vertical distance is not a difference in keV."
@@ -454,8 +452,8 @@ object SpectrogramEn : SpectrogramStrings {
         "Horizontally — time, oldest on the left.",
         "Vertically — the energy of the registered counts.",
         "Deeper colour means higher intensity; an empty column means there were no measurements.",
-        "The plot below is the dose rate on the very same time axis.",
-        "Drag a finger across the image to examine a particular moment.",
+        "A tap on the image expands it to the whole screen.",
+        "There, drag a finger: the cursor gives the moment and the marker the energy under it.",
     )
 
     override val technicalTitle = "Technical details →"
@@ -521,8 +519,8 @@ fun SpectrogramStrings.allTexts(): List<String> = listOf(
     recordNote, clearHistory, clearConfirmTitle, clearConfirmBody,
     title, paused, pausedTag, noLink, warmingUp, offlineHistory, offlineTag, backgroundNote,
     windowMinutes(15), windowHours(2),
-    modeIntensity, modeShape, doseStripLabel("µSv/h"),
-    energyUnit, energyScaleToLinear, energyScaleToLog,
+    modeIntensity, modeShape,
+    energyUnit, axisLog, axisLinear,
     energyScaleLogNote, energyScaleLinearNote, energyValue(146),
     legendZero, legendColumnMax, legendRate("1,2"),
     legendIntensityTitle, legendShapeTitle, scaleAuto, scaleFixed, scaleModeNote,

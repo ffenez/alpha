@@ -64,7 +64,10 @@ object RuStrings : Strings {
     override val searchWordsDevice =
         listOf("прибор", "батарея", "прошивка", "серийный", "bluetooth", "калибровка", "спектр")
     override val searchWordsData =
-        listOf("хранилище", "история", "отчёт", "диагностика", "память", "запись")
+        listOf(
+            "хранилище", "история", "отчёт", "диагностика", "память", "запись",
+            "спектрограмма", "очистить",
+        )
     override val searchWordsAbout = listOf("версия", "лицензии", "обновления")
     override val settingsAbout = "О приложении"
     override val settingsAboutSub = "версия, обновления, лицензии, диагностика"

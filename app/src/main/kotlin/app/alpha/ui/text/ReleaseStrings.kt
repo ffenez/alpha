@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0103Title: String
+    val v0103Summary: String
+
     val v0102Title: String
     val v0102Summary: String
 
@@ -249,6 +252,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0103Title = "Спектрограмма — только картинка"
+    override val v0103Summary =
+        "Полоса мощности дозы под спектрограммой убрана, высоту забрала сама картинка, а в " +
+        "полном экране шкала энергии переключается чипом «лог / лин». В шапке вместо «⋮» " +
+        "стоит знак справки, а «очистить спектрограмму» переехало в Настройки → " +
+        "Диагностика, к частоте записи и объёму истории."
 
     override val v0102Title = "В углу спектрограммы осталась только единица"
     override val v0102Summary =
@@ -776,6 +786,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0103Title = "The spectrogram is the picture alone"
+    override val v0103Summary =
+        "The dose-rate strip under the spectrogram is gone and the picture took its height, " +
+        "while the full screen switches the energy axis with a «log / lin» chip. The header " +
+        "carries a help sign instead of «⋮», and «clear the spectrogram» moved to Settings → " +
+        "Diagnostics, next to the recording rate and the size of the history."
 
     override val v0102Title = "Only the unit is left in the spectrogram corner"
     override val v0102Summary =

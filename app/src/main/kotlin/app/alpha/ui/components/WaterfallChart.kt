@@ -17,7 +17,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -41,13 +40,12 @@ import app.alpha.ui.theme.LocalAppTypography
  * Спектрограмма-водопад («Научный терминал»): X = время, Y = энергия,
  * яркость ячейки = интенсивность ([Spectrogram.intensity]).
  *
- * ## Две картинки на одной оси времени
+ * ## Только картинка
  *
- * Под водопадом — отдельная полоса мощности дозы. Она не «ещё один
- * энергетический ряд», поэтому у неё своя высота, своя подпись и своя единица,
- * а не тонкая линия поверх подписей. Ось времени у обеих одна и та же, и
- * курсор времени проходит через обе: сравнивать «когда появилась линия» и
- * «когда выросла мощность дозы» можно только так.
+ * Полосы мощности дозы под водопадом больше нет: мощность дозы живёт на своём
+ * графике и на Главной, а здесь она отнимала у картинки высоту и вторую
+ * величину на одну ось времени. Спектрограмма отвечает на вопрос «когда
+ * появилась линия», и весь экран принадлежит этому вопросу.
  *
  * ## Ось энергии объявлена
  *
@@ -85,14 +83,6 @@ data class WaterfallSpec(
     val selectedIndex: Int? = null,
     /** Fraction of plot width → time label. */
     val timeLabels: List<Pair<Float, String>> = emptyList(),
-    /** Dose rate per column for the synced strip, µSv/h; null = unknown. */
-    val stripValues: List<Float?> = emptyList(),
-    /** Подпись полосы: величина и её единица. */
-    val stripTitle: String = "",
-    /** Значение под курсором (или последнее) — справа в шапке полосы. */
-    val stripValue: String? = null,
-    /** Верх шкалы полосы: у линии обязан быть масштаб. */
-    val stripMaxLabel: String? = null,
     /** Единица оси энергии: подпись приходит с экрана вместе с его языком. */
     val energyUnit: String = "кэВ",
     /**
@@ -116,15 +106,6 @@ data class WaterfallProbe(
     /** Одна-две короткие строки: «14:54 · 146 кэВ», «0,37 имп/с». */
     val lines: List<String>,
 )
-
-private const val STRIP_GAP_DP = 6
-
-/**
- * Полоса мощности дозы под картой — отдельный мини-график, а не часть heatmap.
- * Своя высота под саму линию: подпись живёт НАД ней и добавляет свою высоту,
- * иначе линия проходила бы сквозь буквы.
- */
-private const val STRIP_PLOT_HEIGHT_DP = 54
 
 /**
  * Строк растра. Сетка растра не совпадает с сеткой полос намеренно: строки
@@ -255,9 +236,6 @@ fun WaterfallChart(
                     // одних и тех же величин.
                     val padR = with(density) { 4.dp.toPx() }
                     val padT = with(density) { 2.dp.toPx() }
-                    val stripBlock = with(density) {
-                        (STRIP_PLOT_HEIGHT_DP + STRIP_GAP_DP).dp.toPx()
-                    } + labelHeightPx
                     val padB = labelHeightPx + with(density) { 3.dp.toPx() }
                     fun columnAt(x: Float, width: Int): Int {
                         val plotW = (width - padLpx - padR).coerceAtLeast(1f)
@@ -266,7 +244,7 @@ fun WaterfallChart(
                             .coerceIn(0, spec.columns.size - 1)
                     }
                     fun energyAt(y: Float, heightPx: Int): Float {
-                        val plotH = (heightPx - padT - padB - stripBlock).coerceAtLeast(1f)
+                        val plotH = (heightPx - padT - padB).coerceAtLeast(1f)
                         return ((padT + plotH - y) / plotH).coerceIn(0f, 1f)
                     }
                     Modifier
@@ -301,18 +279,10 @@ fun WaterfallChart(
         val padR = 4.dp.toPx()
         val padT = 2.dp.toPx()
         val padB = labelHeight + 3.dp.toPx()
-        val stripPlotH = STRIP_PLOT_HEIGHT_DP.dp.toPx()
-        val stripGap = STRIP_GAP_DP.dp.toPx()
-        // Полоса дозы = подпись + собственное поле: подпись занимает свою
-        // высоту, а не место линии.
-        val stripBlock = stripGap + labelHeight + stripPlotH
         val plotW = size.width - padL - padR
-        val plotH = size.height - padT - padB - stripBlock
+        val plotH = size.height - padT - padB
         if (plotW <= 0 || plotH <= 0) return@Canvas
         val plotBottom = padT + plotH
-        val stripHeaderTop = plotBottom + stripGap
-        val stripTop = stripHeaderTop + labelHeight
-        val stripBottom = stripTop + stripPlotH
 
         // 1. Waterfall bitmap, nearest-neighbor so cells stay crisp.
         if (bitmap != null) {
@@ -350,66 +320,7 @@ fun WaterfallChart(
             )
         }
 
-        // 3. Полоса мощности дозы: та же ось времени, своя подпись, свой верх.
-        val strip = spec.stripValues
-        val stripMax = strip.filterNotNull().maxOrNull()?.coerceAtLeast(1e-6f)
-        if (spec.stripTitle.isNotEmpty()) {
-            val title = textMeasurer.measure(spec.stripTitle, axisStyle)
-            drawText(
-                textLayoutResult = title,
-                color = colors.muted,
-                topLeft = Offset(padL, stripHeaderTop),
-            )
-            // Значение под курсором — справа в той же строке: число читается
-            // там же, где названа величина.
-            spec.stripValue?.let { value ->
-                val measured = textMeasurer.measure(value, axisStyle)
-                drawText(
-                    textLayoutResult = measured,
-                    color = colors.ink2,
-                    topLeft = Offset(
-                        size.width - padR - measured.size.width,
-                        stripHeaderTop,
-                    ),
-                )
-            }
-        }
-        if (stripMax != null) {
-            drawLine(
-                color = colors.line,
-                start = Offset(padL, stripBottom),
-                end = Offset(size.width - padR, stripBottom),
-                strokeWidth = 1f,
-            )
-            val n = strip.size
-            val topInset = 2.dp.toPx()
-            fun x(i: Int): Float = padL + (i + 0.5f) * plotW / n
-            fun y(v: Float): Float =
-                stripBottom - (v / stripMax).coerceIn(0f, 1f) * (stripPlotH - topInset)
-            val path = Path()
-            var penDown = false
-            strip.forEachIndexed { i, v ->
-                if (v == null) {
-                    penDown = false
-                } else {
-                    if (penDown) path.lineTo(x(i), y(v)) else path.moveTo(x(i), y(v))
-                    penDown = true
-                }
-            }
-            drawPath(path, colors.data, style = Stroke(width = 1.6.dp.toPx()))
-            // Верх шкалы подписан у самой линии: без него подъём и спад
-            // читались бы, а величина подъёма — нет.
-            spec.stripMaxLabel?.let { label ->
-                val measured = textMeasurer.measure(label, axisStyle)
-                drawText(
-                    textLayoutResult = measured,
-                    color = colors.muted,
-                    topLeft = Offset(padL + 2.dp.toPx(), stripTop),
-                )
-            }
-        }
-
-        // 4. Time labels along the shared axis.
+        // 3. Time labels along the axis.
         for ((fraction, label) in spec.timeLabels) {
             val measured = textMeasurer.measure(label, axisStyle)
             val xx = (padL + fraction * plotW - measured.size.width / 2f)
@@ -421,7 +332,7 @@ fun WaterfallChart(
             )
         }
 
-        // 5. Общий курсор времени: одна вертикаль через обе картинки.
+        // 4. Курсор времени.
         val selected = spec.selectedIndex
         val cursorX = if (selected != null && selected in spec.columns.indices) {
             padL + (selected + 0.5f) * plotW / spec.columns.size
@@ -432,12 +343,12 @@ fun WaterfallChart(
             drawLine(
                 color = colors.ink,
                 start = Offset(cursorX, padT),
-                end = Offset(cursorX, stripBottom),
+                end = Offset(cursorX, plotBottom),
                 strokeWidth = 1.dp.toPx(),
             )
         }
 
-        // 6. Прицел по энергии — только пока палец на поле.
+        // 5. Прицел по энергии — только пока палец на поле.
         val probe = spec.probe
         if (probe != null) {
             val yy = plotBottom - probe.energyFraction.coerceIn(0f, 1f) * plotH
