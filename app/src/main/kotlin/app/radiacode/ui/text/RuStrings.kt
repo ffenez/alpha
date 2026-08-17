@@ -44,8 +44,11 @@ object RuStrings : Strings {
     override val settingsViewSub = "язык, оформление, тема, единицы, блоки Главной"
     override val settingsDevice = "Прибор"
     override val settingsDeviceSub = "модель, прошивка, звук и вибрация прибора"
-    override val settingsData = "Данные и диагностика"
-    override val settingsDataSub = "хранилище, фоновая запись, отчёты"
+    override val settingsBackup = "Данные и резервные копии"
+    override val searchWordsBackup =
+        listOf("копия", "резервная", "backup", "восстановить", "перенос", "экспорт", "импорт")
+    override val settingsData = "Диагностика"
+    override val settingsDataSub = "фоновая запись, отчёты о состоянии"
     override val settingsProfilesNone = "не выбран"
     override val settingsSearchPlaceholder = "Поиск по настройкам"
     override val settingsSearchEmpty = "Ничего не нашлось"

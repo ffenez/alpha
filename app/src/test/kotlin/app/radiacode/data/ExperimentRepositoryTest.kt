@@ -18,6 +18,13 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 private class FakeExperimentDao : ExperimentDao {
+
+    override suspend fun page(afterId: Long, limit: Int): List<ExperimentEntity> = emptyList()
+
+    override suspend fun byKey(createdAt: Long, kind: String): Long? = null
+
+    override suspend fun clear() = Unit
+
     val experiments = mutableListOf<ExperimentEntity>()
     val runs = mutableListOf<ExperimentRunEntity>()
 

@@ -145,6 +145,29 @@ object HistoryFormat {
     ): String = s.doseProjectionUnavailable(duration(measuredSeconds, s))
 
     /** Thousands grouped with a space: 29520 -> «29 520». */
+    /**
+     * Размер в человеческих единицах: «284 МБ».
+     *
+     * Десятичные приставки, а не двоичные: столько же показывает система в
+     * «Хранилище», и два разных числа за одно и то же место — это вопрос, а
+     * не информация.
+     */
+    fun bytes(value: Long): String {
+        val units = listOf("Б", "КБ", "МБ", "ГБ")
+        var size = value.toDouble()
+        var unit = 0
+        while (size >= 1000 && unit < units.lastIndex) {
+            size /= 1000
+            unit++
+        }
+        val text = if (unit == 0 || size >= 100) {
+            size.toLong().toString()
+        } else {
+            String.format(java.util.Locale.US, "%.1f", size).replace('.', ',')
+        }
+        return "$text ${units[unit]}"
+    }
+
     fun count(value: Int): String {
         val digits = value.toString()
         val sb = StringBuilder()

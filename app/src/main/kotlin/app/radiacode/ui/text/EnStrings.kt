@@ -52,8 +52,11 @@ object EnStrings : Strings {
     override val settingsViewSub = "language, skin, theme, units, Monitor blocks"
     override val settingsDevice = "Instrument"
     override val settingsDeviceSub = "model, firmware, instrument sound and vibration"
-    override val settingsData = "Data and diagnostics"
-    override val settingsDataSub = "storage, background recording, reports"
+    override val settingsBackup = "Data and backups"
+    override val searchWordsBackup =
+        listOf("backup", "restore", "copy", "transfer", "export", "import")
+    override val settingsData = "Diagnostics"
+    override val settingsDataSub = "background recording, state reports"
     override val settingsProfilesNone = "none"
     override val settingsSearchPlaceholder = "Search settings"
     override val settingsSearchEmpty = "Nothing found"

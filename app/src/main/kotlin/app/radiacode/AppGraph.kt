@@ -32,6 +32,8 @@ import app.radiacode.data.db.SpectrumSnapshotEntity
 import app.radiacode.service.FastPollHub
 import app.radiacode.service.SearchPresenceHub
 import app.radiacode.service.StreamTrace
+import app.radiacode.data.BackupManager
+import app.radiacode.data.BackupRepository
 import app.radiacode.ui.logic.ChartCache
 import app.radiacode.ui.logic.NavigateSession
 import app.radiacode.ui.logic.ChartTrace
@@ -203,6 +205,26 @@ class AppGraph private constructor(
      * из композиции, и всё, что она помнила, умирало вместе с ней.
      */
     val chartCache: ChartCache = ChartCache()
+
+    /** База ⇄ резервная копия: превращение строк таблиц в записи копии. */
+    val backupRepository: BackupRepository by lazy {
+        BackupRepository(database = database, settings = settings)
+    }
+
+    /**
+     * Создание и восстановление копий. Живёт в области приложения, а не
+     * экрана: копия большой истории идёт минутами, и уход с экрана не повод
+     * её обрывать.
+     */
+    val backupManager: BackupManager by lazy {
+        BackupManager(
+            contentResolver = context.contentResolver,
+            repository = backupRepository,
+            appVersion = BuildConfig.VERSION_NAME,
+            databaseSchemaVersion = AppDatabase.VERSION,
+            scope = appScope,
+        )
+    }
 
     /**
      * «Наведение»: точка отсчёта и максимум переживают уход с вкладки. То, что

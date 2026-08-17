@@ -187,6 +187,7 @@ private enum class SettingsCategory(val group: SettingsGroup) {
     SOUND(SettingsGroup.APP),
     VIEW(SettingsGroup.APP),
     DEVICE(SettingsGroup.DEVICE),
+    BACKUP(SettingsGroup.SYSTEM),
     DATA(SettingsGroup.SYSTEM),
     ABOUT(SettingsGroup.SYSTEM),
     ;
@@ -197,6 +198,7 @@ private enum class SettingsCategory(val group: SettingsGroup) {
         SOUND -> s.settingsNotifications
         VIEW -> s.settingsView
         DEVICE -> s.settingsDevice
+        BACKUP -> s.settingsBackup
         DATA -> s.settingsData
         ABOUT -> s.settingsAbout
     }
@@ -368,12 +370,14 @@ private fun SettingsDetail(
                 DeviceScreen(graph, onOpenCalibration)
             }
         }
-        // Всё, что не ежедневная настройка: хранилище, темп фоновой записи и
-        // отчёты для разбора. Раньше отчёт жил в «О приложении» — рядом с
-        // версией и лицензиями, где его никто не ищет, зато он выдавал сборку
-        // разработчика каждому, кто зашёл посмотреть версию.
+        // Перенос данных: копия целиком, восстановление и то, сколько места
+        // всё это занимает.
+        SettingsCategory.BACKUP -> BackupSection(graph)
+        // Диагностика: то, что нужно для разбора жалобы, и ничего больше.
+        // Раньше отчёт жил в «О приложении» — рядом с версией и лицензиями,
+        // где его никто не ищет, зато он выдавал сборку разработчика каждому,
+        // кто зашёл посмотреть версию.
         SettingsCategory.DATA -> {
-            RetentionSection(graph)
             SpectrumRateSection(graph)
             DebugSection(graph)
         }
@@ -496,6 +500,12 @@ private fun settingsSearchIndex(strings: Strings): List<SettingsSearch.Entry> = 
         keywords = strings.searchWordsDevice,
     ),
     SettingsSearch.Entry(
+        categoryId = SettingsCategory.BACKUP.name,
+        title = strings.settingsBackup,
+        section = strings.groupSystem,
+        keywords = strings.searchWordsBackup,
+    ),
+    SettingsSearch.Entry(
         categoryId = SettingsCategory.DATA.name,
         title = strings.settingsData,
         section = strings.groupSystem,
@@ -562,6 +572,7 @@ private class SettingsSummaries(
         SettingsCategory.SOUND -> sound
         SettingsCategory.VIEW -> view
         SettingsCategory.DEVICE -> device
+        SettingsCategory.BACKUP -> null
         SettingsCategory.DATA -> null
         SettingsCategory.ABOUT -> about
     }

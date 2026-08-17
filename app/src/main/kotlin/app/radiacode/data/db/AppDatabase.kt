@@ -47,6 +47,17 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun spectrogramDao(): SpectrogramDao
 
     companion object {
+
+        /**
+         * Версия схемы одним числом. Резервная копия записывает её в манифест
+         * — не для миграций (у копии своя версия формата), а чтобы при разборе
+         * жалобы было видно, из какой базы копия снята.
+         */
+        const val VERSION = 16
+
+        /** Имя файла базы: его же спрашивает экран «сколько занято». */
+        const val NAME = "radiacode.db"
+
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MigrationSql.FROM_1_TO_2.forEach(db::execSQL)
@@ -138,7 +149,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun build(context: Context): AppDatabase =
-            Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "radiacode.db")
+            Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
                 .addMigrations(
                     MIGRATION_1_2,
                     MIGRATION_2_3,

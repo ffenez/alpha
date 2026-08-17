@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v078Title: String
+    val v078Summary: String
+
     val v077Title: String
     val v077Summary: String
 
@@ -192,6 +195,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v078Title = "Резервная копия всей истории одним файлом"
+    override val v078Summary =
+        "«Настройки → Данные и резервные копии» сохраняют историю, профили, спектры, " +
+        "маршруты и настройки в один файл, который можно положить куда угодно. При " +
+        "восстановлении копия сначала проверяется целиком и рассказывает, что в ней, " +
+        "а объединение с текущими данными не удаляет ничего и не создаёт дублей."
 
     override val v077Title = "Поиск по настройкам и перетаскивание вкладок"
     override val v077Summary =
@@ -595,6 +605,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v078Title = "A backup of the whole history in one file"
+    override val v078Summary =
+        "«Settings → Data and backups» saves the history, profiles, spectra, routes and " +
+        "settings into a single file that can be put anywhere. On restore the copy is " +
+        "checked in full first and says what it holds, and merging with current data " +
+        "deletes nothing and creates no duplicates."
 
     override val v077Title = "Settings search, and tabs that are dragged"
     override val v077Summary =

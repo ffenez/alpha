@@ -1,0 +1,738 @@
+package app.radiacode.data
+
+import app.radiacode.data.db.AppDatabase
+import app.radiacode.data.db.BaselineEpochEntity
+import app.radiacode.data.db.EventEntity
+import app.radiacode.data.db.ExperimentEntity
+import app.radiacode.data.db.ExperimentRunEntity
+import app.radiacode.data.db.MeasurementSessionEntity
+import app.radiacode.data.db.ProfileEntity
+import app.radiacode.data.db.ProfileFingerprintEntity
+import app.radiacode.data.db.ProfileNetworkEntity
+import app.radiacode.data.db.RareDataEntity
+import app.radiacode.data.db.SampleEntity
+import app.radiacode.data.db.SpectrogramSliceEntity
+import app.radiacode.data.db.SpectrumSnapshotEntity
+import app.radiacode.data.db.TrackPointEntity
+import app.radiacode.data.db.TrackSessionEntity
+import app.radiacode.data.export.backup.BackupBinary
+import app.radiacode.data.export.backup.BackupCounts
+import app.radiacode.data.export.backup.BackupEpoch
+import app.radiacode.data.export.backup.BackupEvent
+import app.radiacode.data.export.backup.BackupExperiment
+import app.radiacode.data.export.backup.BackupFingerprint
+import app.radiacode.data.export.backup.BackupMeasurement
+import app.radiacode.data.export.backup.BackupNetwork
+import app.radiacode.data.export.backup.BackupPage
+import app.radiacode.data.export.backup.BackupPoint
+import app.radiacode.data.export.backup.BackupProfile
+import app.radiacode.data.export.backup.BackupProfiles
+import app.radiacode.data.export.backup.BackupRare
+import app.radiacode.data.export.backup.BackupRoute
+import app.radiacode.data.export.backup.BackupRun
+import app.radiacode.data.export.backup.BackupSession
+import app.radiacode.data.export.backup.BackupSink
+import app.radiacode.data.export.backup.BackupSlice
+import app.radiacode.data.export.backup.BackupSource
+import app.radiacode.data.export.backup.BackupSpectrum
+import app.radiacode.data.export.backup.BackupStream
+import app.radiacode.data.export.backup.RestoreCount
+import app.radiacode.data.export.backup.RestoreMode
+import app.radiacode.data.export.backup.RestoreSelection
+
+/**
+ * База ⇄ резервная копия.
+ *
+ * ## Что здесь есть и чего здесь нет
+ *
+ * Здесь живёт превращение «строка таблицы ↔ запись копии» и ничего больше:
+ * сам формат — в `data/export/backup`, и он не знает ни одной сущности Room.
+ * Благодаря этому копия переживает перестройку таблиц, а формат проверяется
+ * обычными JVM-тестами без базы и прибора.
+ *
+ * ## Как связываются записи между собой
+ *
+ * В копии нет идентификаторов строк: у двух телефонов они свои. Связи
+ * восстанавливаются по ЕСТЕСТВЕННЫМ ключам — профиль по имени, маршрут по
+ * началу записи и названию, спектр по моменту съёмки. Поэтому при
+ * восстановлении сначала создаются профили и маршруты, а потом всё, что на
+ * них ссылается.
+ *
+ * ## Производное не хранится
+ *
+ * Минутные скаляры и почасовые скетчи (ADR 004) в копию не попадают: они
+ * ПЕРЕСЧИТЫВАЮТСЯ из измерений. Класть их в копию значило бы удвоить её ради
+ * того, что приложение построит само, — и рискнуть тем, что в копии окажутся
+ * скетчи одной версии алгоритма, а в приложении другой.
+ */
+class BackupRepository(
+    private val database: AppDatabase,
+    private val settings: AppSettings,
+) : BackupSource, BackupSink {
+
+    private val sampleDao = database.sampleDao()
+    private val rareDao = database.rareDataDao()
+    private val eventDao = database.eventDao()
+    private val profileDao = database.profileDao()
+    private val sessionDao = database.sessionDao()
+    private val trackDao = database.trackDao()
+    private val spectrumDao = database.spectrumDao()
+    private val spectrogramDao = database.spectrogramDao()
+    private val experimentDao = database.experimentDao()
+
+    // --- источник ---------------------------------------------------------
+
+    override suspend fun counts() = BackupCounts(
+        measurements = sampleDao.count(),
+        events = eventDao.count(),
+        rare = rareDao.count(),
+        sessions = sessionDao.count().toLong(),
+        routes = trackDao.sessionCount(),
+        points = trackDao.totalPointCount(),
+        spectra = spectrumDao.count(),
+        slices = spectrogramDao.count().toLong(),
+        experiments = experimentDao.count().toLong(),
+    )
+
+    override suspend fun profiles(): BackupProfiles {
+        val profiles = profileDao.all()
+        val byId = profiles.associateBy { it.id }
+        return BackupProfiles(
+            profiles = profiles.map { profile ->
+                BackupProfile(
+                    name = profile.name,
+                    icon = profile.icon,
+                    parentName = profile.parentId?.let { byId[it]?.name },
+                    archived = profile.archived,
+                    autoActivate = profile.autoActivate,
+                    baselineLearning = profile.baselineLearning,
+                    role = profile.role,
+                    baselineEpochMillis = profile.baselineEpochMillis,
+                    createdAt = profile.createdAt,
+                )
+            },
+            networks = profileDao.allNetworks().mapNotNull { network ->
+                byId[network.profileId]?.let {
+                    BackupNetwork(it.name, network.networkHash, network.label, network.createdAt)
+                }
+            },
+            epochs = profileDao.allEpochs().mapNotNull { epoch ->
+                byId[epoch.profileId]?.let {
+                    BackupEpoch(
+                        profileName = it.name,
+                        startedAtMillis = epoch.startedAtMillis,
+                        endedAtMillis = epoch.endedAtMillis,
+                        stats = epoch.stats,
+                        reason = epoch.reason,
+                        createdAt = epoch.createdAt,
+                    )
+                }
+            },
+            fingerprints = profileDao.allFingerprints().mapNotNull { print ->
+                byId[print.profileId]?.let {
+                    BackupFingerprint(
+                        profileName = it.name,
+                        createdAt = print.createdAt,
+                        accumulatedSeconds = print.accumulatedSeconds,
+                        sampleCount = print.sampleCount,
+                        doseLow = print.doseLowMicroSvH,
+                        doseMedian = print.doseMedianMicroSvH,
+                        doseHigh = print.doseHighMicroSvH,
+                        doseP25 = print.doseP25MicroSvH,
+                        doseP75 = print.doseP75MicroSvH,
+                        doseMad = print.doseMadMicroSvH,
+                        cpsLow = print.cpsLow,
+                        cpsMedian = print.cpsMedian,
+                        cpsHigh = print.cpsHigh,
+                        spectrumSeconds = print.spectrumSeconds,
+                        a0 = print.a0,
+                        a1 = print.a1,
+                        a2 = print.a2,
+                        channelCount = print.channelCount,
+                        spectrumBase64 = BackupBinary.encode(print.spectrum),
+                        origin = print.origin,
+                        algorithmVersion = print.algorithmVersion,
+                    )
+                }
+            },
+        )
+    }
+
+    override suspend fun settings(): List<Pair<String, String>> = settings.exportSettings()
+
+    override fun sessions() = BackupStream { cursor, limit ->
+        val rows = sessionDao.page(cursor, limit)
+        val names = profileNames()
+        BackupPage(
+            items = rows.map {
+                BackupSession(it.startedAt, it.endedAt, it.profileId?.let(names::get))
+            },
+            nextCursor = rows.lastOrNull()?.id,
+        )
+    }
+
+    override fun measurements() = BackupStream { cursor, limit ->
+        val rows = sampleDao.page(cursor, limit)
+        val names = profileNames()
+        BackupPage(
+            items = rows.map { row ->
+                BackupMeasurement(
+                    timestamp = row.timestamp,
+                    doseRate = row.doseRate,
+                    doseRateErr = row.doseRateErr,
+                    countRate = row.countRate,
+                    countRateErr = row.countRateErr,
+                    flags = row.flags,
+                    realTimeFlags = row.realTimeFlags,
+                    profileName = row.profileId?.let(names::get),
+                    baselineExcluded = row.baselineExcluded,
+                )
+            },
+            nextCursor = rows.lastOrNull()?.id,
+        )
+    }
+
+    override fun events() = BackupStream { cursor, limit ->
+        val rows = eventDao.page(cursor, limit)
+        BackupPage(
+            items = rows.map { row ->
+                BackupEvent(
+                    timestamp = row.timestamp,
+                    source = row.source,
+                    code = row.code,
+                    name = row.name,
+                    param1 = row.param1,
+                    flags = row.flags,
+                    doseRate = row.doseRate,
+                    latitude = row.latitude,
+                    longitude = row.longitude,
+                )
+            },
+            nextCursor = rows.lastOrNull()?.id,
+        )
+    }
+
+    override fun rare() = BackupStream { cursor, limit ->
+        val rows = rareDao.page(cursor, limit)
+        BackupPage(
+            items = rows.map {
+                BackupRare(
+                    timestamp = it.timestamp,
+                    dose = it.dose,
+                    temperature = it.temperature,
+                    batteryPercent = it.batteryPercent,
+                    durationSeconds = it.durationSeconds,
+                    flags = it.flags,
+                )
+            },
+            nextCursor = rows.lastOrNull()?.id,
+        )
+    }
+
+    override fun routes() = BackupStream { cursor, limit ->
+        val rows = trackDao.sessionPage(cursor, limit)
+        BackupPage(
+            items = rows.map {
+                BackupRoute(it.name, it.startedAt, it.endedAt, it.distanceMeters, it.interrupted)
+            },
+            nextCursor = rows.lastOrNull()?.id,
+        )
+    }
+
+    override fun points() = BackupStream { cursor, limit ->
+        val rows = trackDao.pointPage(cursor, limit)
+        val routes = routeKeys()
+        BackupPage(
+            items = rows.mapNotNull { row ->
+                routes[row.sessionId]?.let { key ->
+                    BackupPoint(
+                        routeKey = key,
+                        timestamp = row.timestamp,
+                        latitude = row.latitude,
+                        longitude = row.longitude,
+                        accuracyMeters = row.accuracyMeters,
+                        doseRate = row.doseRate,
+                        countRate = row.countRate,
+                        altitudeMeters = row.altitudeMeters,
+                    )
+                }
+            },
+            nextCursor = rows.lastOrNull()?.id,
+        )
+    }
+
+    override fun spectra() = BackupStream { cursor, limit ->
+        // Спектры тяжёлые: страница мельче, чем у измерений.
+        val rows = spectrumDao.page(cursor, minOf(limit, SPECTRA_PAGE))
+        BackupPage(
+            items = rows.map { it.toBackup() },
+            nextCursor = rows.lastOrNull()?.id,
+        )
+    }
+
+    override fun slices() = BackupStream { cursor, limit ->
+        val rows = spectrogramDao.page(cursor, minOf(limit, SPECTRA_PAGE))
+        BackupPage(
+            items = rows.map {
+                BackupSlice(
+                    startMillis = it.startMillis,
+                    endMillis = it.endMillis,
+                    durationMillis = it.durationMillis,
+                    schemeId = it.schemeId,
+                    bandCount = it.bandCount,
+                    countsBase64 = BackupBinary.encode(it.counts),
+                    cps = it.cps,
+                    doseMicroSvH = it.doseMicroSvH,
+                    sliceCount = it.sliceCount,
+                )
+            },
+            nextCursor = rows.lastOrNull()?.startMillis,
+        )
+    }
+
+    override fun experiments() = BackupStream { cursor, limit ->
+        val rows = experimentDao.page(cursor, limit)
+        val names = profileNames()
+        val items = rows.map { experiment ->
+            val runs = experimentDao.runs(experiment.id).map { run ->
+                BackupRun(
+                    label = run.label,
+                    startedAt = run.startedAt,
+                    endedAt = run.endedAt,
+                    spectrumKey = run.spectrumId?.let { spectrumDao.byId(it)?.toBackup()?.key },
+                    doseStats = run.doseStats,
+                    distanceCm = run.distanceCm,
+                    shieldingNote = run.shieldingNote,
+                )
+            }
+            BackupExperiment(
+                kind = experiment.kind,
+                profileName = experiment.profileId?.let(names::get),
+                createdAt = experiment.createdAt,
+                note = experiment.note,
+                geometry = experiment.geometry,
+                distanceCm = experiment.distanceCm,
+                placement = experiment.placement,
+                orientation = experiment.orientation,
+                plannedSeconds = experiment.plannedSeconds,
+                algorithmVersion = experiment.algorithmVersion,
+                params = experiment.params,
+                runs = runs,
+            )
+        }
+        BackupPage(items = items, nextCursor = rows.lastOrNull()?.id)
+    }
+
+    // --- приёмник ---------------------------------------------------------
+
+    private var restoreMode: RestoreMode = RestoreMode.MERGE
+    private var profileIdsByName: MutableMap<String, Long> = mutableMapOf()
+    private var routeIdsByKey: MutableMap<String, Long> = mutableMapOf()
+    private var spectrumIdsByKey: MutableMap<String, Long> = mutableMapOf()
+
+    override suspend fun begin(mode: RestoreMode, selection: RestoreSelection) {
+        restoreMode = mode
+        profileIdsByName = mutableMapOf()
+        routeIdsByKey = mutableMapOf()
+        spectrumIdsByKey = mutableMapOf()
+        if (mode == RestoreMode.REPLACE) {
+            // Копия к этому моменту УЖЕ проверена целиком (манифест, версия,
+            // контрольные суммы) — иначе сюда не попадают. Удаление идёт
+            // только после проверки: спецификация §45.
+            if (selection.measurements) {
+                sampleDao.clear()
+                eventDao.clear()
+                rareDao.clear()
+                sessionDao.clear()
+            }
+            if (selection.routes) trackDao.clearSessions()
+            if (selection.spectra) {
+                spectrumDao.clear()
+                spectrogramDao.clear()
+            }
+            if (selection.experiments) experimentDao.clear()
+            if (selection.profiles) {
+                profileDao.clearEpochs()
+                profileDao.clearFingerprints()
+                profileDao.clearProfiles()
+            }
+        }
+        // Имена уже существующих профилей нужны в обоих режимах: к ним
+        // привязываются измерения и маршруты.
+        for (profile in profileDao.all()) profileIdsByName[profile.name] = profile.id
+    }
+
+    override suspend fun settings(entries: List<Pair<String, String>>) {
+        settings.importSettings(entries)
+    }
+
+    override suspend fun profiles(bundle: BackupProfiles): RestoreCount {
+        var added = 0L
+        var skipped = 0L
+        // Сначала сами профили: сети, эпохи и отпечатки ссылаются на них.
+        for (profile in bundle.profiles) {
+            val existing = profileIdsByName[profile.name]
+            if (existing != null) {
+                skipped++
+                continue
+            }
+            val id = profileDao.insert(
+                ProfileEntity(
+                    name = profile.name,
+                    icon = profile.icon,
+                    parentId = null,
+                    archived = profile.archived,
+                    autoActivate = profile.autoActivate,
+                    baselineLearning = profile.baselineLearning,
+                    role = profile.role,
+                    baselineEpochMillis = profile.baselineEpochMillis,
+                    createdAt = profile.createdAt,
+                ),
+            )
+            profileIdsByName[profile.name] = id
+            added++
+        }
+        // Вложенность — вторым проходом: родитель мог быть создан только что.
+        for (profile in bundle.profiles) {
+            val parent = profile.parentName?.let { profileIdsByName[it] } ?: continue
+            val id = profileIdsByName[profile.name] ?: continue
+            profileDao.byId(id)?.let { profileDao.update(it.copy(parentId = parent)) }
+        }
+        for (network in bundle.networks) {
+            val profileId = profileIdsByName[network.profileName] ?: continue
+            if (profileDao.networkByHash(network.networkHash) != null) continue
+            profileDao.insertNetwork(
+                ProfileNetworkEntity(
+                    profileId = profileId,
+                    networkHash = network.networkHash,
+                    label = network.label,
+                    createdAt = network.createdAt,
+                ),
+            )
+        }
+        for (epoch in bundle.epochs) {
+            val profileId = profileIdsByName[epoch.profileName] ?: continue
+            val known = profileDao.epochs(profileId)
+                .any { it.startedAtMillis == epoch.startedAtMillis }
+            if (known) continue
+            profileDao.insertEpoch(
+                BaselineEpochEntity(
+                    profileId = profileId,
+                    startedAtMillis = epoch.startedAtMillis,
+                    endedAtMillis = epoch.endedAtMillis,
+                    stats = epoch.stats,
+                    reason = epoch.reason,
+                    createdAt = epoch.createdAt,
+                ),
+            )
+        }
+        for (print in bundle.fingerprints) {
+            val profileId = profileIdsByName[print.profileName] ?: continue
+            val newest = profileDao.newestFingerprint(profileId)
+            if (newest != null && newest.createdAt == print.createdAt) continue
+            profileDao.insertFingerprint(
+                ProfileFingerprintEntity(
+                    profileId = profileId,
+                    createdAt = print.createdAt,
+                    accumulatedSeconds = print.accumulatedSeconds,
+                    sampleCount = print.sampleCount,
+                    doseLowMicroSvH = print.doseLow,
+                    doseMedianMicroSvH = print.doseMedian,
+                    doseHighMicroSvH = print.doseHigh,
+                    doseP25MicroSvH = print.doseP25,
+                    doseP75MicroSvH = print.doseP75,
+                    doseMadMicroSvH = print.doseMad,
+                    cpsLow = print.cpsLow,
+                    cpsMedian = print.cpsMedian,
+                    cpsHigh = print.cpsHigh,
+                    spectrumSeconds = print.spectrumSeconds,
+                    a0 = print.a0,
+                    a1 = print.a1,
+                    a2 = print.a2,
+                    channelCount = print.channelCount,
+                    spectrum = BackupBinary.decode(print.spectrumBase64),
+                    origin = print.origin,
+                    algorithmVersion = print.algorithmVersion,
+                ),
+            )
+        }
+        return RestoreCount(added, skipped)
+    }
+
+    override suspend fun sessions(batch: List<BackupSession>): RestoreCount {
+        val existing = sessionDao.existingStarts(batch.map { it.startedAt }).toSet()
+        var added = 0L
+        for (session in batch) {
+            if (session.startedAt in existing) continue
+            sessionDao.insert(
+                MeasurementSessionEntity(
+                    profileId = session.profileName?.let { profileIdsByName[it] },
+                    startedAt = session.startedAt,
+                    endedAt = session.endedAt,
+                ),
+            )
+            added++
+        }
+        return RestoreCount(added, batch.size - added)
+    }
+
+    override suspend fun measurements(batch: List<BackupMeasurement>): RestoreCount {
+        // Уникальный индекс по времени сам отбрасывает уже записанное, а
+        // возвращённые rowid говорят, что именно было отброшено.
+        val rows = batch.map { item ->
+            SampleEntity(
+                timestamp = item.timestamp,
+                doseRate = item.doseRate,
+                doseRateErr = item.doseRateErr,
+                countRate = item.countRate,
+                countRateErr = item.countRateErr,
+                flags = item.flags,
+                realTimeFlags = item.realTimeFlags,
+                profileId = item.profileName?.let { profileIdsByName[it] },
+                baselineExcluded = item.baselineExcluded,
+            )
+        }
+        val ids = sampleDao.insertAll(rows)
+        val added = ids.count { it != -1L }.toLong()
+        return RestoreCount(added, rows.size - added)
+    }
+
+    override suspend fun events(batch: List<BackupEvent>): RestoreCount {
+        var added = 0L
+        for ((source, group) in batch.groupBy { it.source }) {
+            val existing = eventDao
+                .existingTimestamps(group.map { it.timestamp }, source)
+                .toSet()
+            val fresh = group.filter { it.timestamp !in existing }
+            if (fresh.isEmpty()) continue
+            eventDao.insertAll(
+                fresh.map {
+                    EventEntity(
+                        timestamp = it.timestamp,
+                        source = it.source,
+                        code = it.code,
+                        name = it.name,
+                        param1 = it.param1,
+                        flags = it.flags,
+                        doseRate = it.doseRate,
+                        latitude = it.latitude,
+                        longitude = it.longitude,
+                    )
+                },
+            )
+            added += fresh.size
+        }
+        return RestoreCount(added, batch.size - added)
+    }
+
+    override suspend fun rare(batch: List<BackupRare>): RestoreCount {
+        val ids = rareDao.insertAll(
+            batch.map {
+                RareDataEntity(
+                    timestamp = it.timestamp,
+                    dose = it.dose,
+                    temperature = it.temperature,
+                    batteryPercent = it.batteryPercent,
+                    durationSeconds = it.durationSeconds,
+                    flags = it.flags,
+                )
+            },
+        )
+        val added = ids.count { it != -1L }.toLong()
+        return RestoreCount(added, batch.size - added)
+    }
+
+    override suspend fun routes(batch: List<BackupRoute>): RestoreCount {
+        var added = 0L
+        for (route in batch) {
+            val existing = trackDao.sessionByKey(route.startedAt, route.name)
+            if (existing != null) {
+                routeIdsByKey[route.key] = existing
+                continue
+            }
+            val id = trackDao.insertSession(
+                TrackSessionEntity(
+                    name = route.name,
+                    startedAt = route.startedAt,
+                    endedAt = route.endedAt,
+                    distanceMeters = route.distanceMeters,
+                    interrupted = route.interrupted,
+                ),
+            )
+            routeIdsByKey[route.key] = id
+            added++
+        }
+        return RestoreCount(added, batch.size - added)
+    }
+
+    override suspend fun points(batch: List<BackupPoint>): RestoreCount {
+        var added = 0L
+        for ((routeKey, group) in batch.groupBy { it.routeKey }) {
+            val sessionId = routeIdsByKey[routeKey] ?: continue
+            val existing = trackDao
+                .existingPointTimes(sessionId, group.map { it.timestamp })
+                .toSet()
+            val fresh = group.filter { it.timestamp !in existing }
+            if (fresh.isEmpty()) continue
+            trackDao.insertPoints(
+                fresh.map {
+                    TrackPointEntity(
+                        sessionId = sessionId,
+                        timestamp = it.timestamp,
+                        latitude = it.latitude,
+                        longitude = it.longitude,
+                        accuracyMeters = it.accuracyMeters,
+                        doseRate = it.doseRate,
+                        countRate = it.countRate,
+                        altitudeMeters = it.altitudeMeters,
+                    )
+                },
+            )
+            added += fresh.size
+        }
+        return RestoreCount(added, batch.size - added)
+    }
+
+    override suspend fun spectra(batch: List<BackupSpectrum>): RestoreCount {
+        val existing = spectrumDao.existingTimestamps(batch.map { it.timestamp }).toSet()
+        var added = 0L
+        for (spectrum in batch) {
+            if (spectrum.timestamp in existing) continue
+            val id = spectrumDao.insert(
+                SpectrumSnapshotEntity(
+                    timestamp = spectrum.timestamp,
+                    accumulated = spectrum.accumulated,
+                    isBackgroundReference = spectrum.isBackgroundReference,
+                    origin = spectrum.origin,
+                    label = spectrum.label,
+                    analysisMeta = spectrum.analysisMeta,
+                    durationSeconds = spectrum.durationSeconds,
+                    a0 = spectrum.a0,
+                    a1 = spectrum.a1,
+                    a2 = spectrum.a2,
+                    channelCount = spectrum.channelCount,
+                    counts = BackupBinary.decode(spectrum.countsBase64),
+                    deviceSerial = spectrum.deviceSerial,
+                    firmware = spectrum.firmware,
+                    epochId = spectrum.epochId,
+                    trigger = spectrum.trigger,
+                ),
+            )
+            spectrumIdsByKey[spectrum.key] = id
+            added++
+        }
+        return RestoreCount(added, batch.size - added)
+    }
+
+    override suspend fun slices(batch: List<BackupSlice>): RestoreCount {
+        val existing = spectrogramDao.existingStarts(batch.map { it.startMillis }).toSet()
+        val fresh = batch.filter { it.startMillis !in existing }
+        if (fresh.isNotEmpty()) {
+            spectrogramDao.upsert(
+                fresh.map {
+                    SpectrogramSliceEntity(
+                        startMillis = it.startMillis,
+                        endMillis = it.endMillis,
+                        durationMillis = it.durationMillis,
+                        schemeId = it.schemeId,
+                        bandCount = it.bandCount,
+                        counts = BackupBinary.decode(it.countsBase64),
+                        cps = it.cps,
+                        doseMicroSvH = it.doseMicroSvH,
+                        sliceCount = it.sliceCount,
+                    )
+                },
+            )
+        }
+        return RestoreCount(fresh.size.toLong(), (batch.size - fresh.size).toLong())
+    }
+
+    override suspend fun experiments(batch: List<BackupExperiment>): RestoreCount {
+        var added = 0L
+        for (experiment in batch) {
+            if (experimentDao.byKey(experiment.createdAt, experiment.kind) != null) continue
+            val id = experimentDao.insert(
+                ExperimentEntity(
+                    kind = experiment.kind,
+                    profileId = experiment.profileName?.let { profileIdsByName[it] },
+                    createdAt = experiment.createdAt,
+                    note = experiment.note,
+                    geometry = experiment.geometry,
+                    distanceCm = experiment.distanceCm,
+                    placement = experiment.placement,
+                    orientation = experiment.orientation,
+                    plannedSeconds = experiment.plannedSeconds,
+                    algorithmVersion = experiment.algorithmVersion,
+                    params = experiment.params,
+                    photoUri = null,
+                ),
+            )
+            for (run in experiment.runs) {
+                experimentDao.insertRun(
+                    ExperimentRunEntity(
+                        experimentId = id,
+                        label = run.label,
+                        startedAt = run.startedAt,
+                        endedAt = run.endedAt,
+                        spectrumId = run.spectrumKey?.let { spectrumIdsByKey[it] },
+                        doseStats = run.doseStats,
+                        distanceCm = run.distanceCm,
+                        shieldingNote = run.shieldingNote,
+                    ),
+                )
+            }
+            added++
+        }
+        return RestoreCount(added, batch.size - added)
+    }
+
+    override suspend fun finish() {
+        // Производные ряды (ADR 004) в копии не лежат — они пересобираются из
+        // восстановленных измерений тем же путём, что и всегда.
+    }
+
+    // --- вспомогательное --------------------------------------------------
+
+    private suspend fun profileNames(): Map<Long, String> =
+        profileDao.all().associate { it.id to it.name }
+
+    private suspend fun routeKeys(): Map<Long, String> =
+        trackDao.sessionsOnce().associate { session ->
+            session.id to BackupRoute(
+                name = session.name,
+                startedAt = session.startedAt,
+                endedAt = session.endedAt,
+                distanceMeters = session.distanceMeters,
+                interrupted = session.interrupted,
+            ).key
+        }
+
+    private fun SpectrumSnapshotEntity.toBackup() = BackupSpectrum(
+        timestamp = timestamp,
+        accumulated = accumulated,
+        isBackgroundReference = isBackgroundReference,
+        origin = origin,
+        label = label,
+        analysisMeta = analysisMeta,
+        durationSeconds = durationSeconds,
+        a0 = a0,
+        a1 = a1,
+        a2 = a2,
+        channelCount = channelCount,
+        countsBase64 = BackupBinary.encode(counts),
+        deviceSerial = deviceSerial,
+        firmware = firmware,
+        epochId = epochId,
+        trigger = trigger,
+    )
+
+    private companion object {
+
+        /**
+         * Спектров и срезов за одно чтение.
+         * **Инженерный параметр**: полсотни — у каждой строки внутри тысячи
+         * каналов, и страница в две тысячи была бы десятками мегабайт.
+         */
+        const val SPECTRA_PAGE = 50
+    }
+}

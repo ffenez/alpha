@@ -26,6 +26,20 @@ import kotlinx.coroutines.test.runTest
 class ProfileRepositoryTest {
 
     private class FakeProfileDao(initial: List<ProfileEntity>) : ProfileDao {
+
+        // Резервная копия читает профили целиком; подделке отвечать нечем.
+        override suspend fun allNetworks(): List<ProfileNetworkEntity> = emptyList()
+
+        override suspend fun allEpochs(): List<BaselineEpochEntity> = emptyList()
+
+        override suspend fun allFingerprints(): List<ProfileFingerprintEntity> = emptyList()
+
+        override suspend fun clearProfiles() = Unit
+
+        override suspend fun clearEpochs() = Unit
+
+        override suspend fun clearFingerprints() = Unit
+
         val profiles = initial.toMutableList()
         val networks = mutableListOf<ProfileNetworkEntity>()
         private var nextId = (initial.maxOfOrNull { it.id } ?: 0L) + 1

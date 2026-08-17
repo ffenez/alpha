@@ -47,6 +47,20 @@ class BaselineRepositoryTest {
     }
 
     private class FakeProfileDao(profile: ProfileEntity) : ProfileDao {
+
+        // Резервная копия читает профили целиком; подделке отвечать нечем.
+        override suspend fun allNetworks(): List<ProfileNetworkEntity> = emptyList()
+
+        override suspend fun allEpochs(): List<BaselineEpochEntity> = emptyList()
+
+        override suspend fun allFingerprints(): List<ProfileFingerprintEntity> = emptyList()
+
+        override suspend fun clearProfiles() = Unit
+
+        override suspend fun clearEpochs() = Unit
+
+        override suspend fun clearFingerprints() = Unit
+
         var profile: ProfileEntity = profile
         val epochs = mutableListOf<BaselineEpochEntity>()
 

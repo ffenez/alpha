@@ -109,6 +109,8 @@ interface Strings {
     val settingsViewSub: String
     val settingsDevice: String
     val settingsDeviceSub: String
+    val settingsBackup: String
+    val searchWordsBackup: List<String>
     val settingsData: String
     val settingsDataSub: String
     val settingsProfilesNone: String
@@ -649,7 +651,7 @@ fun Strings.allTexts(): List<String> = listOf(
     connected, connecting, reconnecting, serviceOff, noLink, noData,
     doseRate, countRate, hardness, trendPerHour, doseToday, placeFingerprint,
     groupMeasurement, groupApp, groupOther, groupDevice, groupSystem,
-    settingsData, settingsDataSub, settingsProfilesNone,
+    settingsData, settingsDataSub, settingsBackup, settingsProfilesNone,
     settingsSearchPlaceholder, settingsSearchEmpty, settingsPickSection,
     settingsAlarms, settingsAlarmsSub, settingsProfiles, settingsProfilesSub,
     settingsNotifications, settingsNotificationsSub, settingsView, settingsViewSub,

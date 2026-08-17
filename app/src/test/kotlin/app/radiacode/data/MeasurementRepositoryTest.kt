@@ -29,6 +29,13 @@ import kotlin.test.assertTrue
 
 /** Shared by [ExperimentRepositoryTest] — same package, same fakes. */
 internal class FakeSampleDao : SampleDao {
+
+    // Резервная копия читает базу постранично; подделке достаточно ответить
+    // «больше ничего нет» — её проверяют другие тесты.
+    override suspend fun page(afterId: Long, limit: Int): List<SampleEntity> = emptyList()
+
+    override suspend fun clear() = Unit
+
     val inserted = mutableListOf<SampleEntity>()
 
     /** Метки, которые «уже заняты»: фейк повторяет уникальный индекс базы. */
@@ -83,13 +90,33 @@ internal class FakeSampleDao : SampleDao {
 }
 
 private class FakeRareDataDao : RareDataDao {
+
+    override suspend fun page(afterId: Long, limit: Int): List<RareDataEntity> = emptyList()
+
+    override suspend fun count(): Long = 0
+
+    override suspend fun clear() = Unit
+
     val inserted = mutableListOf<RareDataEntity>()
-    override suspend fun insertAll(entries: List<RareDataEntity>) { inserted += entries }
+    override suspend fun insertAll(entries: List<RareDataEntity>): List<Long> {
+        inserted += entries
+        return entries.map { 1L }
+    }
     override fun observeLatest(): Flow<RareDataEntity?> = flowOf(inserted.lastOrNull())
     override fun observeRange(from: Long, to: Long): Flow<List<RareDataEntity>> = flowOf(emptyList())
 }
 
 private class FakeEventDao : EventDao {
+
+    override suspend fun page(afterId: Long, limit: Int): List<EventEntity> = emptyList()
+
+    override suspend fun count(): Long = 0
+
+    override suspend fun existingTimestamps(timestamps: List<Long>, source: String): List<Long> =
+        emptyList()
+
+    override suspend fun clear() = Unit
+
     val inserted = mutableListOf<EventEntity>()
     override suspend fun countInRange(from: Long, to: Long): Int =
         inserted.count { it.timestamp in from..to }
@@ -123,6 +150,13 @@ private class FakeEventDao : EventDao {
 }
 
 internal class FakeSpectrumDao : SpectrumDao {
+
+    override suspend fun page(afterId: Long, limit: Int): List<SpectrumSnapshotEntity> = emptyList()
+
+    override suspend fun existingTimestamps(timestamps: List<Long>): List<Long> = emptyList()
+
+    override suspend fun clear() = Unit
+
     override fun observeLatestDeviceSnapshotAt(): Flow<Long?> = flowOf(null)
 
     val inserted = mutableListOf<SpectrumSnapshotEntity>()

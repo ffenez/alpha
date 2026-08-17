@@ -113,6 +113,20 @@ interface SampleDao {
     suspend fun insertAll(samples: List<SampleEntity>): List<Long>
 
     /**
+     * Страница измерений по идентификатору — для потоковой резервной копии.
+     *
+     * Ключевая пагинация, а не OFFSET: у миллиона строк смещение заставляет
+     * базу пересчитывать пропущенное на каждой странице, и копия замедляется
+     * тем сильнее, чем дальше зашла.
+     */
+    @Query("SELECT * FROM samples WHERE id > :afterId ORDER BY id LIMIT :limit")
+    suspend fun page(afterId: Long, limit: Int): List<SampleEntity>
+
+    /** Полная очистка — только при восстановлении «заменить данные». */
+    @Query("DELETE FROM samples")
+    suspend fun clear()
+
+    /**
      * Последнее ЗАПИСАННОЕ показание — по порядку вставки, а не по метке времени.
      *
      * Разница не косметическая. Метки записей стоят на базе времени прибора, а
@@ -449,6 +463,25 @@ interface ProfileDao {
     @Query("SELECT * FROM profiles ORDER BY createdAt")
     suspend fun all(): List<ProfileEntity>
 
+    /** Всё, что привязано к профилям, — для резервной копии одним чтением. */
+    @Query("SELECT * FROM profile_networks ORDER BY createdAt")
+    suspend fun allNetworks(): List<ProfileNetworkEntity>
+
+    @Query("SELECT * FROM baseline_epochs ORDER BY endedAtMillis")
+    suspend fun allEpochs(): List<BaselineEpochEntity>
+
+    @Query("SELECT * FROM profile_fingerprints ORDER BY createdAt")
+    suspend fun allFingerprints(): List<ProfileFingerprintEntity>
+
+    @Query("DELETE FROM profiles")
+    suspend fun clearProfiles()
+
+    @Query("DELETE FROM baseline_epochs")
+    suspend fun clearEpochs()
+
+    @Query("DELETE FROM profile_fingerprints")
+    suspend fun clearFingerprints()
+
     @Query("SELECT * FROM profiles WHERE id = :profileId")
     suspend fun byId(profileId: Long): ProfileEntity?
 
@@ -481,6 +514,20 @@ interface SessionDao {
 
     @Insert
     suspend fun insert(session: MeasurementSessionEntity): Long
+
+    /** Страница сессий для резервной копии. */
+    @Query("SELECT * FROM measurement_sessions WHERE id > :afterId ORDER BY id LIMIT :limit")
+    suspend fun page(afterId: Long, limit: Int): List<MeasurementSessionEntity>
+
+    /**
+     * Какие из этих сессий уже есть. Сессия — это ОТРЕЗОК ВРЕМЕНИ, и две
+     * разные не могут начаться в одну миллисекунду: начало и есть её ключ.
+     */
+    @Query("SELECT startedAt FROM measurement_sessions WHERE startedAt IN (:startedAt)")
+    suspend fun existingStarts(startedAt: List<Long>): List<Long>
+
+    @Query("DELETE FROM measurement_sessions")
+    suspend fun clear()
 
     @Query("UPDATE measurement_sessions SET endedAt = :endedAt WHERE id = :sessionId")
     suspend fun close(sessionId: Long, endedAt: Long)
@@ -519,7 +566,16 @@ interface SessionDao {
 interface RareDataDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertAll(entries: List<RareDataEntity>)
+    suspend fun insertAll(entries: List<RareDataEntity>): List<Long>
+
+    @Query("SELECT * FROM rare_data WHERE id > :afterId ORDER BY id LIMIT :limit")
+    suspend fun page(afterId: Long, limit: Int): List<RareDataEntity>
+
+    @Query("SELECT COUNT(*) FROM rare_data")
+    suspend fun count(): Long
+
+    @Query("DELETE FROM rare_data")
+    suspend fun clear()
 
     /** По порядку вставки — по той же причине, что у `SampleDao.observeLatest`. */
     @Query("SELECT * FROM rare_data ORDER BY id DESC LIMIT 1")
@@ -537,6 +593,21 @@ interface EventDao {
 
     @Insert
     suspend fun insertAll(events: List<EventEntity>)
+
+    @Query("SELECT * FROM events WHERE id > :afterId ORDER BY id LIMIT :limit")
+    suspend fun page(afterId: Long, limit: Int): List<EventEntity>
+
+    @Query("SELECT COUNT(*) FROM events")
+    suspend fun count(): Long
+
+    /** Есть ли уже такое событие — у событий нет уникального ключа в схеме. */
+    @Query(
+        "SELECT timestamp FROM events WHERE timestamp IN (:timestamps) AND source = :source",
+    )
+    suspend fun existingTimestamps(timestamps: List<Long>, source: String): List<Long>
+
+    @Query("DELETE FROM events")
+    suspend fun clear()
 
     @Query("SELECT * FROM events ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<EventEntity>>
@@ -596,6 +667,39 @@ interface TrackDao {
 
     @Insert
     suspend fun insertSession(session: TrackSessionEntity): Long
+
+    /** Страницы маршрутов и точек для резервной копии. */
+    @Query("SELECT * FROM track_sessions WHERE id > :afterId ORDER BY id LIMIT :limit")
+    suspend fun sessionPage(afterId: Long, limit: Int): List<TrackSessionEntity>
+
+    /** Все маршруты разом — их немного, а точкам нужен их ключ. */
+    @Query("SELECT * FROM track_sessions ORDER BY startedAt")
+    suspend fun sessionsOnce(): List<TrackSessionEntity>
+
+    @Query("SELECT * FROM track_points WHERE id > :afterId ORDER BY id LIMIT :limit")
+    suspend fun pointPage(afterId: Long, limit: Int): List<TrackPointEntity>
+
+    @Query("SELECT COUNT(*) FROM track_sessions")
+    suspend fun sessionCount(): Long
+
+    @Query("SELECT COUNT(*) FROM track_points")
+    suspend fun totalPointCount(): Long
+
+    /** Маршрут по его естественному ключу: начало записи и название. */
+    @Query("SELECT id FROM track_sessions WHERE startedAt = :startedAt AND name = :name LIMIT 1")
+    suspend fun sessionByKey(startedAt: Long, name: String): Long?
+
+    @Query(
+        "SELECT timestamp FROM track_points WHERE sessionId = :sessionId " +
+            "AND timestamp IN (:timestamps)",
+    )
+    suspend fun existingPointTimes(sessionId: Long, timestamps: List<Long>): List<Long>
+
+    @Insert
+    suspend fun insertPoints(points: List<TrackPointEntity>)
+
+    @Query("DELETE FROM track_sessions")
+    suspend fun clearSessions()
 
     @Query("UPDATE track_sessions SET endedAt = :endedAt WHERE id = :sessionId")
     suspend fun endSession(sessionId: Long, endedAt: Long)
@@ -844,6 +948,17 @@ interface ExperimentDao {
     @Insert
     suspend fun insert(experiment: ExperimentEntity): Long
 
+    /** Страница опытов для резервной копии. */
+    @Query("SELECT * FROM experiments WHERE id > :afterId ORDER BY id LIMIT :limit")
+    suspend fun page(afterId: Long, limit: Int): List<ExperimentEntity>
+
+    /** Опыт по естественному ключу: момент создания и вид. */
+    @Query("SELECT id FROM experiments WHERE createdAt = :createdAt AND kind = :kind LIMIT 1")
+    suspend fun byKey(createdAt: Long, kind: String): Long?
+
+    @Query("DELETE FROM experiments")
+    suspend fun clear()
+
     @Query("UPDATE experiments SET note = :note WHERE id = :experimentId")
     suspend fun setNote(experimentId: Long, note: String)
 
@@ -891,6 +1006,20 @@ interface SpectrumDao {
 
     @Insert
     suspend fun insert(snapshot: SpectrumSnapshotEntity): Long
+
+    /**
+     * Страница спектров для резервной копии. Порция мелкая: у каждой строки
+     * внутри тысячи каналов, и сотня спектров разом — это уже мегабайты.
+     */
+    @Query("SELECT * FROM spectra WHERE id > :afterId ORDER BY id LIMIT :limit")
+    suspend fun page(afterId: Long, limit: Int): List<SpectrumSnapshotEntity>
+
+    /** Какие из этих спектров уже есть: момент съёмки — их естественный ключ. */
+    @Query("SELECT timestamp FROM spectra WHERE timestamp IN (:timestamps)")
+    suspend fun existingTimestamps(timestamps: List<Long>): List<Long>
+
+    @Query("DELETE FROM spectra")
+    suspend fun clear()
 
     /** Latest device-measured spectrum; imported files never count as one. */
     @Query(

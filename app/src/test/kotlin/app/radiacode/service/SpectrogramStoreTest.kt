@@ -19,6 +19,14 @@ class SpectrogramStoreTest {
 
     /** Хранилище в памяти с ровно той же семантикой, что у SQL DAO. */
     private class FakeDao : SpectrogramDao() {
+
+        override suspend fun page(afterStart: Long, limit: Int): List<SpectrogramSliceEntity> =
+            emptyList()
+
+        override suspend fun existingStarts(starts: List<Long>): List<Long> = emptyList()
+
+        override suspend fun clear() = Unit
+
         val rows = LinkedHashMap<Long, SpectrogramSliceEntity>()
 
         override suspend fun upsert(slices: List<SpectrogramSliceEntity>) {

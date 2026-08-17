@@ -19,6 +19,20 @@ abstract class SpectrogramDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsert(slices: List<SpectrogramSliceEntity>)
 
+    /** Страница срезов для резервной копии: ключ — момент начала среза. */
+    @Query(
+        "SELECT * FROM spectrogram_slices WHERE startMillis > :afterStart " +
+            "ORDER BY startMillis LIMIT :limit",
+    )
+    abstract suspend fun page(afterStart: Long, limit: Int): List<SpectrogramSliceEntity>
+
+    /** Какие срезы уже есть: начало среза — первичный ключ таблицы. */
+    @Query("SELECT startMillis FROM spectrogram_slices WHERE startMillis IN (:starts)")
+    abstract suspend fun existingStarts(starts: List<Long>): List<Long>
+
+    @Query("DELETE FROM spectrogram_slices")
+    abstract suspend fun clear()
+
     /**
      * Срезы, ПЕРЕСЕКАЮЩИЕ окно, новейшие первыми и не больше [limit] строк:
      * окно рисуется от «сейчас» назад, поэтому обрезать надо старый край.

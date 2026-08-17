@@ -14,6 +14,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -26,6 +28,7 @@ import app.radiacode.context.ContextConfig
 import app.radiacode.ui.text.AppLanguage
 import app.radiacode.ui.theme.AppSkin
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -614,7 +617,95 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         }
     }
 
+    // --- резервная копия настроек ----------------------------------------
+
+    /**
+     * Настройки для резервной копии: «ключ → значение с пометкой типа».
+     *
+     * Читается всё хранилище целиком, а не список известных ключей: настройка,
+     * добавленная завтра, попадёт в копию сама, и её не забудут внести в
+     * перечень. Тип пишется в значении, потому что при чтении его иначе не
+     * восстановить: «true» и «"true"» в хранилище — разные вещи.
+     *
+     * Из копии исключено то, что принадлежит ЭТОМУ телефону и этой базе:
+     * адрес прибора (пара Bluetooth не переносится), идентификаторы активной
+     * записи и профиля (в другой базе это номера чужих строк), оценка
+     * разрешения детектора (она про конкретный прибор). Переносить их значило
+     * бы восстановить настройку, которая указывает в пустоту.
+     */
+    suspend fun exportSettings(): List<Pair<String, String>> {
+        val preferences = dataStore.data.first()
+        return preferences.asMap()
+            .filterKeys { it.name !in NOT_PORTABLE }
+            .mapNotNull { (key, value) -> encodeSetting(value)?.let { key.name to it } }
+            .sortedBy { it.first }
+    }
+
+    /**
+     * Возвращает настройки из копии. Неизвестные ключи и значения с
+     * непонятной пометкой типа пропускаются молча: копия, снятая более новой
+     * версией, не должна ломать восстановление всего остального.
+     *
+     * @return сколько настроек не удалось применить.
+     */
+    suspend fun importSettings(entries: List<Pair<String, String>>): Int {
+        var skipped = 0
+        dataStore.edit { prefs ->
+            for ((name, encoded) in entries) {
+                if (name in NOT_PORTABLE) {
+                    skipped++
+                    continue
+                }
+                val applied = applySetting(prefs, name, encoded)
+                if (!applied) skipped++
+            }
+        }
+        return skipped
+    }
+
+    private fun encodeSetting(value: Any?): String? = when (value) {
+        is String -> "s:$value"
+        is Boolean -> "b:$value"
+        is Int -> "i:$value"
+        is Long -> "l:$value"
+        is Float -> "f:$value"
+        is Double -> "d:$value"
+        else -> null
+    }
+
+    private fun applySetting(prefs: MutablePreferences, name: String, encoded: String): Boolean {
+        val type = encoded.substringBefore(':', "")
+        val raw = encoded.substringAfter(':', "")
+        return when (type) {
+            "s" -> { prefs[stringPreferencesKey(name)] = raw; true }
+            "b" -> raw.toBooleanStrictOrNull()?.let { prefs[booleanPreferencesKey(name)] = it } != null
+            "i" -> raw.toIntOrNull()?.let { prefs[intPreferencesKey(name)] = it } != null
+            "l" -> raw.toLongOrNull()?.let { prefs[longPreferencesKey(name)] = it } != null
+            "f" -> raw.toFloatOrNull()?.let { prefs[floatPreferencesKey(name)] = it } != null
+            "d" -> raw.toDoubleOrNull()?.let { prefs[doublePreferencesKey(name)] = it } != null
+            else -> false
+        }
+    }
+
     companion object {
+
+        /**
+         * Настройки, которые нельзя переносить между телефонами и базами.
+         *
+         * Адрес прибора — это пара Bluetooth конкретного телефона; остальные
+         * четыре — номера строк В ЭТОЙ базе, а в другой они указывают на чужие
+         * записи или в пустоту. Оценка разрешения относится к конкретному
+         * экземпляру прибора и на другом была бы неправдой.
+         */
+        val NOT_PORTABLE = setOf(
+            "last_device_address",
+            "active_track_session",
+            "active_food_experiment",
+            "active_profile_id",
+            "active_place_id",
+            "measured_resolution",
+        )
+
         const val DEFAULT_CUSTOM_L1_MICRO_SV_H = 0.30f
         const val DEFAULT_CUSTOM_L2_MICRO_SV_H = 1.00f
         private val LAST_DEVICE_ADDRESS = stringPreferencesKey("last_device_address")
