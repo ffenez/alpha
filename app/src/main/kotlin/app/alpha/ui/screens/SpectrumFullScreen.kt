@@ -146,6 +146,7 @@ fun SpectrumFullScreen(
             backgroundSeconds = background?.durationSeconds ?: 0L,
             window = window,
             subtract = subtractOn,
+            overlayBackground = options.overlayBackground,
             smoothing = options.smoothing,
             scale = scale,
         )

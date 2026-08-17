@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0121Title: String
+    val v0121Summary: String
+
     val v0120Title: String
     val v0120Summary: String
 
@@ -261,6 +264,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0121Title = "Фон на спектре — один чип"
+    override val v0121Summary =
+        "Наложение фона и «− фон» стали одним чипом на картинке: нажатие ведёт по кругу " +
+        "обычный → фон → −фон. Двух переключателей, которыми можно было попросить рисовать " +
+        "и вычитать один и тот же фон, больше нет."
 
     override val v0120Title = "Масштаб спектра — одним касанием"
     override val v0120Summary =
@@ -813,6 +822,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0121Title = "One chip for the background on the spectrum"
+    override val v0121Summary =
+        "The background overlay and «− background» became a single chip on the image: a tap " +
+        "walks plain → background → minus background. The pair of switches that could ask " +
+        "for the same background to be drawn and subtracted at once is gone."
 
     override val v0120Title = "The spectrum scale is one tap away"
     override val v0120Summary =

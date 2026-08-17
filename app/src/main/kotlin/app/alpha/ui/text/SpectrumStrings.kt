@@ -46,7 +46,10 @@ interface SpectrumStrings {
     fun backgroundRecordedAt(time: String): String
 
     val needBackgroundTitle: String
-    val needBackgroundSubtract: String
+    /**
+     * Один чип работает с фоном тремя состояниями, поэтому и объяснение одно:
+     * оно называет обе вещи, которых без записанного фона не сделать.
+     */
     val needBackgroundCurve: String
     val needBackgroundHow: String
     val needBackgroundNoDevice: String
@@ -371,12 +374,9 @@ object SpectrumRu : SpectrumStrings {
     override fun backgroundRecordedAt(time: String) = "фон записан · $time"
 
     override val needBackgroundTitle = "Фон ещё не записан"
-    override val needBackgroundSubtract =
-        "Режим «− фон» показывает, чем спектр здесь отличается от записанного " +
-            "фона. Пока фона нет, вычитать не из чего."
     override val needBackgroundCurve =
-        "Серая кривая — это записанный фон поверх текущего спектра. Пока фона " +
-            "нет, рисовать нечего."
+        "Чип фона накладывает записанный фон серой кривой, а вторым нажатием " +
+            "вычитает его. Пока фона нет, ни рисовать, ни вычитать нечего."
     override val needBackgroundHow =
         "Наберите спектр там, где обстановка обычная, и нажмите «Сделать фоном». " +
             "Прибор при этом стоит неподвижно."
@@ -729,12 +729,10 @@ object SpectrumEn : SpectrumStrings {
     override fun backgroundRecordedAt(time: String) = "background recorded · $time"
 
     override val needBackgroundTitle = "No background recorded yet"
-    override val needBackgroundSubtract =
-        "Mode «− background» shows how the spectrum here differs from the recorded " +
-            "background. With no background there is nothing to subtract."
     override val needBackgroundCurve =
-        "The grey curve is the recorded background drawn over the current spectrum. " +
-            "With no background there is nothing to draw."
+        "The background chip draws the recorded background as a grey curve and, on a " +
+            "second tap, subtracts it. With no background there is nothing to draw or " +
+            "subtract."
     override val needBackgroundHow =
         "Collect a spectrum where the surroundings are ordinary and press «Set as " +
             "background». Keep the instrument still while it collects."
@@ -1098,7 +1096,7 @@ fun SpectrumStrings.allTexts(): List<String> = listOf(
     unitMillions, unitThousands, analysisRow, technicalTitle, makeSnapshot,
     resetConfirmTitle, resetConfirmBody,
     toolLineTitle, toolLineSubtitle, infoActionsTitle, showBackgroundCurve,
-    backgroundRecordedAt("14:32"), needBackgroundTitle, needBackgroundSubtract, needBackgroundCurve, needBackgroundHow,
+    backgroundRecordedAt("14:32"), needBackgroundTitle, needBackgroundCurve, needBackgroundHow,
     needBackgroundNoDevice,
     decayFamilyRadon("Pb-214, Bi-214"), decayFamilyChain("Pb-212, Tl-208", "Th-232"),
     rangesSettingsNote, boundsNeedSpectrum,

@@ -155,6 +155,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
     // котором по графику тапнули, — иначе полный экран подменил бы картинку.
     var fullSpectrum by rememberSaveable { mutableStateOf(false) }
     var fullSpectrumMinusBackground by rememberSaveable { mutableStateOf(false) }
+    var fullSpectrumOverlayBackground by rememberSaveable { mutableStateOf(false) }
     var fullSpectrumSmoothing by rememberSaveable { mutableStateOf(false) }
     var fullSpectrumFromKeV by rememberSaveable { mutableStateOf(0f) }
     var fullSpectrumToKeV by rememberSaveable { mutableStateOf(0f) }
@@ -163,6 +164,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
     var fullSpectrumHighlightKeV by rememberSaveable { mutableStateOf(0f) }
     val openFullSpectrum: (SpectrumViewOptions) -> Unit = { options ->
         fullSpectrumMinusBackground = options.minusBackground
+        fullSpectrumOverlayBackground = options.overlayBackground
         fullSpectrumSmoothing = options.smoothing
         fullSpectrumFromKeV = options.startKeV
         fullSpectrumToKeV = options.endKeV
@@ -235,6 +237,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
             continueSnapshotId = continueSpectrumId,
             fullscreenOptions = SpectrumViewOptions(
                 minusBackground = fullSpectrumMinusBackground,
+                overlayBackground = fullSpectrumOverlayBackground,
                 smoothing = fullSpectrumSmoothing,
                 startKeV = fullSpectrumFromKeV,
                 endKeV = fullSpectrumToKeV,

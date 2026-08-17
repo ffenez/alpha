@@ -26,7 +26,8 @@ class SpectrumViewOptionsTest {
 
     @Test
     fun `no zoom means the whole scale, not a zero-wide window`() {
-        assertNull(SpectrumViewOptions.of(false, false, null).window())
+        assertNull(SpectrumViewOptions.of(minusBackground = false, smoothing = false, window = null)
+                .window())
         assertNull(SpectrumViewOptions(startKeV = 500f, endKeV = 500f).window())
         assertNull(SpectrumViewOptions().window())
     }

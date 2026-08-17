@@ -15,6 +15,8 @@ import app.alpha.analysis.EnergyWindow
 @Immutable
 data class SpectrumViewOptions(
     val minusBackground: Boolean = false,
+    /** Серая кривая записанного фона поверх спектра. */
+    val overlayBackground: Boolean = false,
     val smoothing: Boolean = false,
     /** Границы зума; startKeV ≥ endKeV означает «вся шкала». */
     val startKeV: Float = 0f,
@@ -29,6 +31,10 @@ data class SpectrumViewOptions(
      */
     val highlightKeV: Float = 0f,
 ) {
+    /** Что делает картинка с записанным фоном — один вопрос вместо двух флагов. */
+    fun backgroundView(): SpectrumBackgroundView =
+        SpectrumBackgroundView.of(subtract = minusBackground, overlay = overlayBackground)
+
     /** Окно зума или null, если рассматривают всю шкалу. */
     fun window(): EnergyWindow? =
         if (endKeV > startKeV) EnergyWindow(startKeV, endKeV) else null
@@ -39,11 +45,13 @@ data class SpectrumViewOptions(
     companion object {
         fun of(
             minusBackground: Boolean,
+            overlayBackground: Boolean = false,
             smoothing: Boolean,
             window: EnergyWindow?,
             highlightKeV: Float? = null,
         ): SpectrumViewOptions = SpectrumViewOptions(
             minusBackground = minusBackground,
+            overlayBackground = overlayBackground,
             smoothing = smoothing,
             startKeV = window?.startKeV ?: 0f,
             endKeV = window?.endKeV ?: 0f,

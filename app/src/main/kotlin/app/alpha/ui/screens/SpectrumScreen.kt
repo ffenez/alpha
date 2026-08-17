@@ -96,6 +96,7 @@ import app.alpha.ui.logic.primaryNuclide
 import app.alpha.ui.logic.SpectrumHighlight
 import app.alpha.ui.logic.Evidence
 import app.alpha.ui.logic.SpectrumFormat
+import app.alpha.ui.logic.SpectrumBackgroundView
 import app.alpha.ui.logic.SpectrumFrames
 import app.alpha.ui.logic.SpectrumPlot
 import app.alpha.ui.logic.SpectrumInfo
@@ -817,11 +818,12 @@ private fun SpectrumContent(
     val scaleRoot by graph.settings.spectrumScaleRoot.collectAsState(initial = 2)
     val scale = remember(scaleId, scaleRoot) { SpectrumScale.of(scaleId, scaleRoot) }
     val settingsScope = rememberCoroutineScope()
-    var minusBackground by rememberSaveable { mutableStateOf(false) }
-
-    // Серая кривая записанного фона показывается по просьбе: наложение —
-    // сравнение, а постоянная вторая кривая читается как часть измерения.
-    var showBackground by rememberSaveable { mutableStateOf(false) }
+    // Один переключатель на три состояния: обычный → фон → −фон → обычный
+    // ([SpectrumBackgroundView]). Наложение и вычитание — ответы на один
+    // вопрос, и вместе они означали бы использование одних импульсов дважды.
+    var backgroundView: SpectrumBackgroundView by rememberSaveable {
+        mutableStateOf(SpectrumBackgroundView.NONE)
+    }
 
     // Что именно нажали без записанного фона; null — ничего не нажимали.
     var needBackground by remember { mutableStateOf<String?>(null) }
@@ -843,7 +845,9 @@ private fun SpectrumContent(
     val backgroundEntity by graph.measurementRepository.backgroundReference()
         .collectAsState(initial = null)
     val background = remember(backgroundEntity) { backgroundEntity?.toSpectrum() }
-    val subtractOn = minusBackground && background != null
+    val hasBackground = background != null
+    val subtractOn = backgroundView.subtract && hasBackground
+    val overlayOn = backgroundView.overlay && hasBackground
 
     val calibration = remember(spectrum.a0, spectrum.a1, spectrum.a2) {
         EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2)
@@ -861,32 +865,15 @@ private fun SpectrumContent(
     )
     val resolution662 = model.peakResolution662
 
-    // Вид оси (лин/степень/лог) выбирают один раз под задачу, поэтому он
-    // уехал в «⋮ → Масштаб Y»; здесь остались чип текущего вида и «− фон».
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ScaleChips(
-            scale = scale,
-            scaleRoot = scaleRoot,
-            onSelect = { picked ->
-                settingsScope.launch { graph.settings.setSpectrumScale(picked.id) }
-            },
-        )
-        Chip(
-            text = strings.spectrumModeMinusBackground,
-            color = if (subtractOn) colors.dataText else colors.ink2,
-            selected = subtractOn,
-            onClick = {
-                when {
-                    subtractOn -> minusBackground = false
-                    background != null -> minusBackground = true
-                    else -> needBackground = t.needBackgroundSubtract
-                }
-            },
-        )
-    }
+    // Над графиком остался только вид оси: работа с фоном — свойство самой
+    // картинки и живёт чипом на ней.
+    ScaleChips(
+        scale = scale,
+        scaleRoot = scaleRoot,
+        onSelect = { picked ->
+            settingsScope.launch { graph.settings.setSpectrumScale(picked.id) }
+        },
+    )
     // Ползунок степени: 1/1 совпадает с линейным, 1/2 — корень, дальше вид
     // приближается к логарифму, не становясь им. Только в своём режиме.
     if (scale is SpectrumScale.Power) {
@@ -950,7 +937,7 @@ private fun SpectrumContent(
     // меняются: «минус фон» с нормировкой по времени и сглаживание —
     // преобразования показа.
     val frame = remember(
-        spectrum, background, subtractOn, smoothing, window, scale, showBackground,
+        spectrum, background, subtractOn, smoothing, window, scale, overlayOn,
     ) {
         SpectrumFrames.build(
             counts = spectrum.counts,
@@ -960,7 +947,7 @@ private fun SpectrumContent(
             backgroundSeconds = background?.durationSeconds ?: 0L,
             window = window,
             subtract = subtractOn,
-            overlayBackground = showBackground,
+            overlayBackground = overlayOn,
             smoothing = smoothing,
             scale = scale,
         )
@@ -1126,6 +1113,7 @@ private fun SpectrumContent(
                         open(
                             SpectrumViewOptions.of(
                                 minusBackground = subtractOn,
+                                overlayBackground = overlayOn,
                                 smoothing = smoothing,
                                 window = visible,
                                 // Энергию вне шкалы прибора нести некуда.
@@ -1140,28 +1128,36 @@ private fun SpectrumContent(
                 // Сглаживание — свойство картинки, поэтому переключатель живёт
                 // на самой картинке, кнопкой в углу поля. Обведён = включено.
                 fieldControls = {
-                    // Оба переключателя — свойства картинки: сглаживание и
-                    // показ записанного фона.
+                    // Оба переключателя — свойства картинки: работа с фоном и
+                    // сглаживание.
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(Dimens.space1),
                     ) {
-                        if (!subtractOn) {
-                            Chip(
-                                text = t.showBackgroundCurve,
-                                color = if (showBackground) colors.dataText else colors.ink2,
-                                selected = showBackground,
-                                onClick = {
-                                    if (background == null) {
-                                        needBackground = t.needBackgroundCurve
-                                    } else {
-                                        showBackground = !showBackground
-                                    }
-                                },
-                            )
-                        }
+                        // Один чип на три состояния: он называет то, что
+                        // сейчас нарисовано, а нажатие ведёт по кругу.
+                        Chip(
+                            text = if (subtractOn) {
+                                strings.spectrumModeMinusBackground
+                            } else {
+                                t.showBackgroundCurve
+                            },
+                            color = if (subtractOn || overlayOn) {
+                                colors.dataText
+                            } else {
+                                colors.ink2
+                            },
+                            selected = subtractOn || overlayOn,
+                            onClick = {
+                                if (!hasBackground) {
+                                    needBackground = t.needBackgroundCurve
+                                } else {
+                                    backgroundView = backgroundView.next()
+                                }
+                            },
+                        )
                         Chip(
                             text = strings.smoothing,
                             color = if (smoothing) colors.dataText else colors.ink2,
