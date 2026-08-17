@@ -74,6 +74,22 @@ object SpectrumInfo {
                 lines = listOf(s.infoCandidate, s.infoCandidateCaution),
             ),
         )
+        // «Сколько копить» — первый уровень: это вопрос о том, что делать
+        // сейчас, а не о том, как посчитана картинка.
+        add(
+            SpectrumInfoSection(
+                level = SpectrumInfoLevel.WHAT,
+                title = s.infoDurationTitle,
+                lines = listOf(
+                    s.infoDurationRule,
+                    s.infoDurationMinute,
+                    s.infoDurationMinutes,
+                    s.infoDurationHalfHour,
+                    s.infoDurationHours,
+                    s.infoDurationCompare,
+                ),
+            ),
+        )
         add(
             SpectrumInfoSection(
                 level = SpectrumInfoLevel.WHY,

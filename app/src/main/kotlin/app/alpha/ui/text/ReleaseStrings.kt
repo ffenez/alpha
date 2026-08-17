@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0130Title: String
+    val v0130Summary: String
+
     val v0121Title: String
     val v0121Summary: String
 
@@ -264,6 +267,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0130Title = "Справка спектра отвечает «сколько копить»"
+    override val v0130Summary =
+        "В справке спектра появились ориентиры по времени накопления — от «до минуты пики " +
+        "не разбираются» до часов на слабые линии — и формула, по которой время считается " +
+        "под свой случай. Переключатели вида уехали на саму картинку: масштаб оси стоит " +
+        "рядом с фоном и сглаживанием."
 
     override val v0121Title = "Фон на спектре — один чип"
     override val v0121Summary =
@@ -822,6 +832,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0130Title = "The spectrum help answers «how long to collect»"
+    override val v0130Summary =
+        "The spectrum help now carries the collection times — from «under a minute peaks are " +
+        "not analysed» to hours for weak lines — and the formula that turns them into your " +
+        "own case. The view switches moved onto the image itself: the axis scale now stands " +
+        "next to the background and the smoothing."
 
     override val v0121Title = "One chip for the background on the spectrum"
     override val v0121Summary =

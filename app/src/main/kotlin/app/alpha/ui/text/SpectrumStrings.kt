@@ -53,6 +53,21 @@ interface SpectrumStrings {
     val needBackgroundCurve: String
     val needBackgroundHow: String
     val needBackgroundNoDevice: String
+    /**
+     * «Сколько копить» — вопрос, который задают на этом экране первым.
+     *
+     * Ответ не может быть одним числом: значимость линии растёт как √t, и
+     * время следует из того, что ищут. Строки называют ориентиры и правило,
+     * по которому их пересчитывают под свой случай.
+     */
+    val infoDurationTitle: String
+    val infoDurationRule: String
+    val infoDurationMinute: String
+    val infoDurationMinutes: String
+    val infoDurationHalfHour: String
+    val infoDurationHours: String
+    val infoDurationCompare: String
+
     val infoActionsTitle: String
     val toolLineTitle: String
     val toolLineSubtitle: String
@@ -381,6 +396,27 @@ object SpectrumRu : SpectrumStrings {
         "Наберите спектр там, где обстановка обычная, и нажмите «Сделать фоном». " +
             "Прибор при этом стоит неподвижно."
     override val needBackgroundNoDevice = "Прибор не подключён — фон записывать нечем."
+    override val infoDurationTitle = "Сколько копить"
+    override val infoDurationRule =
+        "Значимость линии растёт как корень из времени: чтобы удвоить её, копить надо " +
+            "вчетверо дольше. Ниже — ориентиры при обычном фоне; рядом с источником всё " +
+            "то же получается быстрее."
+    override val infoDurationMinute =
+        "До 1 мин — пики не разбираются вовсе: на такой статистике таблица менялась бы " +
+            "от секунды к секунде."
+    override val infoDurationMinutes =
+        "2–5 мин — заметный источник рядом: линия видна формой, кандидат держится."
+    override val infoDurationHalfHour =
+        "15–30 мин — природные линии фона: калий-40 (1460 кэВ), торий-232 через " +
+            "таллий-208 (2614 кэВ), продукты распада радона."
+    override val infoDurationHours =
+        "1–3 ч — слабые линии и отношение двух линий одного нуклида; на диагностику " +
+            "калибровки по фону нужны часы и дольше."
+    override val infoDurationCompare =
+        "Для сравнения с фоном время считается по формуле t = 2σ²/(p²·R): при фоне 25 имп/с " +
+            "добавка 10 % различима за ~1 мин, 5 % — за ~5 мин, 2 % — за полчаса. Прибор при " +
+            "этом стоит неподвижно, а накопление не сбрасывается."
+
     override val infoActionsTitle = "Что делают кнопки"
     override val toolLineTitle = "Линия во времени"
     override val toolLineSubtitle = "как менялся счёт в окне линии выбранного нуклида"
@@ -737,6 +773,28 @@ object SpectrumEn : SpectrumStrings {
         "Collect a spectrum where the surroundings are ordinary and press «Set as " +
             "background». Keep the instrument still while it collects."
     override val needBackgroundNoDevice = "No instrument connected — nothing to record a background with."
+    override val infoDurationTitle = "How long to collect"
+    override val infoDurationRule =
+        "The significance of a line grows as the square root of time: doubling it takes " +
+            "four times longer. The figures below are for an ordinary background; next to a " +
+            "source the same result comes sooner."
+    override val infoDurationMinute =
+        "Under 1 min — peaks are not analysed at all: on that statistic the table would " +
+            "change from second to second."
+    override val infoDurationMinutes =
+        "2–5 min — a noticeable source nearby: the line shows as a shape and the candidate " +
+            "holds."
+    override val infoDurationHalfHour =
+        "15–30 min — the natural lines of the background: potassium-40 (1460 keV), " +
+            "thorium-232 through thallium-208 (2614 keV), the decay products of radon."
+    override val infoDurationHours =
+        "1–3 h — weak lines and the ratio of two lines of one nuclide; diagnosing the " +
+            "calibration from the background takes hours and more."
+    override val infoDurationCompare =
+        "For a comparison with the background the time follows t = 2σ²/(p²·R): at 25 counts/s " +
+            "an addition of 10 % is distinguishable in ~1 min, 5 % in ~5 min, 2 % in half an " +
+            "hour. The instrument stays still and the accumulation is not reset."
+
     override val infoActionsTitle = "What the buttons do"
     override val toolLineTitle = "A line over time"
     override val toolLineSubtitle = "how the count in a chosen nuclide's line window changed"
@@ -1093,6 +1151,8 @@ val SpectrumCatalogue = AreaCatalogue(ru = SpectrumRu, en = SpectrumEn)
  */
 fun SpectrumStrings.allTexts(): List<String> = listOf(
     spectrumSummary("Дом", "191 ч", "17,0 млн имп"), noProfileShort, backgroundTag,
+    infoDurationTitle, infoDurationRule, infoDurationMinute, infoDurationMinutes,
+    infoDurationHalfHour, infoDurationHours, infoDurationCompare,
     unitMillions, unitThousands, analysisRow, technicalTitle, makeSnapshot,
     resetConfirmTitle, resetConfirmBody,
     toolLineTitle, toolLineSubtitle, infoActionsTitle, showBackgroundCurve,

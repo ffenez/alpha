@@ -435,24 +435,6 @@ fun MapScreen(graph: AppGraph) {
             }
         }
 
-        // Тонкая строка над картой: выключенное определение места — причина,
-        // по которой на карте ничего не появится, и она называет действие.
-        if (hasLocation && !gpsEnabled) {
-            Chip(
-                text = t.gpsOffAction,
-                color = colors.warn,
-                dot = colors.warn,
-                onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
-                },
-            )
-        }
-
         val d = data
         TrackMapCard(
             graph = graph,
@@ -489,7 +471,16 @@ fun MapScreen(graph: AppGraph) {
                     )
                 }
             },
-            // Запись начинается и останавливается на самой карте.
+            gpsOff = hasLocation && !gpsEnabled,
+            onFixGps = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            },
+            // Идущая запись останавливается там же, где показана.
             recordingSince = recording?.startedAt,
             onToggleRecording = if (hasLocation) {
                 {
@@ -534,7 +525,16 @@ fun MapScreen(graph: AppGraph) {
             // Идущая запись видна значком на карте; внизу остаётся только
             // причина отсутствия точек.
             active != null -> TrackLocationNotice(state = trackLocation)
-            else -> Unit
+            // Начать маршрут — обычная кнопка под картой: это действие, а не
+            // состояние, и место действия внизу, под большим пальцем. С
+            // началом записи кнопка исчезает, а состояние переезжает значком
+            // в правый верхний угол карты.
+            else -> AppButton(
+                text = t.startRecording,
+                onClick = { startTrackRecording(context) },
+                primary = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -986,6 +986,9 @@ private fun TrackMapCard(
     onViewport: (MapViewport) -> Unit,
     emptyState: @Composable () -> Unit,
     /** Идущая запись следа: с какого момента она идёт; null — записи нет. */
+    /** Определение места выключено в системе — чип об этом стоит на карте. */
+    gpsOff: Boolean = false,
+    onFixGps: (() -> Unit)? = null,
     recordingSince: Long? = null,
     /** Кнопка записи на самой карте; null — экран только смотрит (История). */
     onToggleRecording: (() -> Unit)? = null,
@@ -1108,16 +1111,28 @@ private fun TrackMapCard(
             }
         }
 
-        // Сверху справа — запись: она видна без чтения и останавливается там
-        // же, где показана. Число точек не показывается: важно, идёт запись
-        // или нет.
-        onToggleRecording?.let { toggle ->
-            RecordingBadge(
-                since = recordingSince,
-                nowMillis = nowMillis,
-                onClick = toggle,
-                modifier = Modifier.align(Alignment.TopEnd).padding(Dimens.space2),
-            )
+        // Сверху справа — состояние: идущая запись и выключенное определение
+        // места. Оба видны, не читая экран, и оба нажимаются там, где стоят.
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+            modifier = Modifier.align(Alignment.TopEnd).padding(Dimens.space2),
+        ) {
+            if (recordingSince != null && onToggleRecording != null) {
+                RecordingBadge(
+                    since = recordingSince,
+                    nowMillis = nowMillis,
+                    onClick = onToggleRecording,
+                )
+            }
+            if (gpsOff) {
+                Chip(
+                    text = t.gpsOffAction,
+                    color = colors.warn,
+                    dot = colors.warn,
+                    onClick = onFixGps,
+                )
+            }
         }
 
         // Снизу слева — переключатель величины, под большим пальцем.
@@ -1782,20 +1797,14 @@ private fun EventEntity.toHotspot(from: Long, to: Long?): MapHotspot? {
 }
 
 /**
- * Значок записи следа — на самой карте, сверху справа.
+ * Значок ИДУЩЕЙ записи следа — на самой карте, сверху справа.
  *
- * ## Почему здесь, а не кнопкой внизу
+ * Показывается только пока запись идёт: начинают её кнопкой под картой, а это
+ * состояние, и стоит оно рядом с тем, что рисует. Нажатие останавливает.
  *
- * Запись относится к карте, а не к экрану: она рисует то, на что человек
- * смотрит. Кнопка внизу стояла отдельно от результата, а рядом с ней жило
- * число записанных точек — счёт, который ни на что не влияет: важно, идёт
- * запись или нет, а сколько в ней точек, видно по длине самого следа.
- *
- * ## Пульс — это состояние, а не украшение
- *
- * Точка дышит ровно тогда, когда запись идёт: неподвижная карта в помещении
- * выглядит одинаково и при работающей записи, и при остановленной, и пульс —
- * единственное, что различает их без чтения.
+ * Точка дышит, пока идёт запись: неподвижная карта в помещении выглядит
+ * одинаково и при работающей записи, и при остановленной. Цвет — зелёный
+ * («идёт»), красный в этом приложении принадлежит подтверждённой тревоге.
  */
 @Composable
 private fun RecordingBadge(
@@ -1830,7 +1839,7 @@ private fun RecordingBadge(
             .background(colors.surface.copy(alpha = 0.92f))
             .border(
                 LocalAppMetrics.current.border,
-                if (recording) colors.crit else colors.line,
+                if (recording) colors.ok else colors.line,
                 RoundedCornerShape(LocalAppMetrics.current.radiusChip),
             )
             .clickable(onClick = onClick)
@@ -1841,7 +1850,7 @@ private fun RecordingBadge(
                 .size(RECORD_DOT)
                 .graphicsLayer { this.alpha = if (recording) alpha else 1f }
                 .clip(CircleShape)
-                .background(if (recording) colors.crit else colors.ink2),
+                .background(if (recording) colors.ok else colors.ink2),
         )
         Text(
             text = if (since != null) {

@@ -865,15 +865,6 @@ private fun SpectrumContent(
     )
     val resolution662 = model.peakResolution662
 
-    // Над графиком остался только вид оси: работа с фоном — свойство самой
-    // картинки и живёт чипом на ней.
-    ScaleChips(
-        scale = scale,
-        scaleRoot = scaleRoot,
-        onSelect = { picked ->
-            settingsScope.launch { graph.settings.setSpectrumScale(picked.id) }
-        },
-    )
     // Ползунок степени: 1/1 совпадает с линейным, 1/2 — корень, дальше вид
     // приближается к логарифму, не становясь им. Только в своём режиме.
     if (scale is SpectrumScale.Power) {
@@ -1125,17 +1116,24 @@ private fun SpectrumContent(
                     }
                 },
                 height = fieldHeight,
-                // Сглаживание — свойство картинки, поэтому переключатель живёт
-                // на самой картинке, кнопкой в углу поля. Обведён = включено.
                 fieldControls = {
-                    // Оба переключателя — свойства картинки: работа с фоном и
-                    // сглаживание.
+                    // Все три переключателя — свойства КАРТИНКИ и живут на ней
+                    // одним рядом: вид оси, работа с фоном, сглаживание.
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(Dimens.space1),
                     ) {
+                        ScaleChips(
+                            scale = scale,
+                            scaleRoot = scaleRoot,
+                            onSelect = { picked ->
+                                settingsScope.launch {
+                                    graph.settings.setSpectrumScale(picked.id)
+                                }
+                            },
+                        )
                         // Один чип на три состояния: он называет то, что
                         // сейчас нарисовано, а нажатие ведёт по кругу.
                         Chip(
