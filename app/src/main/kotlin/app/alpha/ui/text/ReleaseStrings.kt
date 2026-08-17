@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v094Title: String
+    val v094Summary: String
+
     val v093Title: String
     val v093Summary: String
 
@@ -222,6 +225,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v094Title = "Строка пика ведёт прямо в справку"
+    override val v094Summary =
+        "Нажатие на пик больше не открывает маленькое окно с площадью — строка сразу ведёт в " +
+        "справку о нуклиде. Объяснение «почему одной линии мало» проверено по всем девяти " +
+        "нуклидам библиотеки: у каждого названа своя причина."
 
     override val v093Title = "Справка о нуклиде открывается по имени, запись удаляется"
     override val v093Summary =
@@ -691,6 +700,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v094Title = "A peak row leads straight to the reference"
+    override val v094Summary =
+        "Tapping a peak no longer opens a small window with its area — the row goes straight " +
+        "to the nuclide card. The «why one line is not enough» wording is checked across all " +
+        "nine nuclides in the library, each naming its own reason."
 
     override val v093Title = "The nuclide card opens from its name, and a record deletes"
     override val v093Summary =

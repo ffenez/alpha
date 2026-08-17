@@ -1112,25 +1112,6 @@ private fun SpectrumContent(
             )
         }
     }
-    // Тап по строке пика открывает его лист: площадь, отклонённые кандидаты и
-    // переходы. В самой таблице их нет — она читается за секунды.
-    var openPeak by remember { mutableStateOf<PeakRow?>(null) }
-    openPeak?.let { row ->
-        PeakDetailsSheet(
-            row = row,
-            t = t,
-            onOpenNuclide = { symbol ->
-                openPeak = null
-                infoIsotope = symbol
-            },
-            onOpenLineTrend = if (!viewingSnapshot) {
-                { openPeak = null; onOpenLineTrend() }
-            } else {
-                null
-            },
-            onDismiss = { openPeak = null },
-        )
-    }
     // Подсвеченный нуклид: выбранный тапом, иначе первый искусственный
     // кандидат, иначе первый кандидат вообще — тот же порядок, что был у
     // подсказок матчера.
@@ -1320,11 +1301,10 @@ private fun SpectrumContent(
                 else -> PeakTable(
                     rows = peakVerdict.rows,
                     highlightedNuclide = highlightedNuclide,
-                    onSelect = { row ->
-                        highlightedIsotope = row.match.primaryNuclide
-                        openPeak = row
-                    },
-                    onNuclide = { symbol ->
+                    // Тап по строке — справка о нуклиде, если он у строки
+                    // есть, и ничего, если нет: маленькое окно с площадью
+                    // открывалось на каждое нажатие и мешало.
+                    onSelect = { symbol ->
                         highlightedIsotope = symbol
                         infoIsotope = symbol
                     },
@@ -1472,97 +1452,6 @@ internal fun SpectrumScaleDialog(graph: AppGraph, onDismiss: () -> Unit) {
                         valueRange = SpectrumScale.MIN_ROOT.toFloat()..
                             SpectrumScale.MAX_ROOT.toFloat(),
                         steps = SpectrumScale.MAX_ROOT - SpectrumScale.MIN_ROOT - 1,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                AppButton(
-                    text = strings.close,
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-    }
-}
-
-/**
- * Лист пика: то, что не поместилось в строку таблицы.
- *
- * Площадь, механизм артефакта и отклонённые кандидаты — ответы на второй
- * вопрос, а не на первый. В таблице они делали каждую строку трёхэтажной, и
- * пять пиков переставали читаться с одного взгляда; здесь они относятся к
- * одному пику, который человек уже выбрал.
- */
-@Composable
-internal fun PeakDetailsSheet(
-    row: PeakRow,
-    t: SpectrumStrings,
-    onOpenNuclide: (String) -> Unit,
-    onOpenLineTrend: (() -> Unit)?,
-    onDismiss: () -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val strings = LocalStrings.current
-    val nuclide = row.match.primaryNuclide
-    Dialog(onDismissRequest = onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(
-                    text = SpectrumFormat.energyCell(row.peak.energyKeV) + " " + t.unitKeV,
-                    style = type.title,
-                    color = colors.ink,
-                )
-                if (nuclide != null) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(text = nuclide, style = type.label, color = colors.ink)
-                        // Слово «возможное» остаётся при имени всегда: имя
-                        // нуклида без него читается как найденный нуклид.
-                        Text(
-                            text = strings.peakTableCandidate.lowercase(),
-                            style = type.footnote,
-                            color = colors.muted,
-                        )
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space3)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = t.peakSheetSignificance,
-                            style = type.overline,
-                            color = colors.muted,
-                        )
-                        Text(
-                            text = SpectrumFormat.significanceCell(row.peak.significance),
-                            style = type.value,
-                            color = colors.ink,
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = t.peakSheetArea, style = type.overline, color = colors.muted)
-                        Text(
-                            text = SpectrumFormat.netCell(row.peak.netCounts),
-                            style = type.value,
-                            color = colors.ink,
-                        )
-                    }
-                }
-                // Отклонённые кандидаты и механизм артефакта — здесь, а не
-                // строкой под каждым пиком в таблице.
-                SpectrumFormat.matchNotes(row.match, t).forEach { note ->
-                    Text(text = note, style = type.footnote, color = colors.muted)
-                }
-                if (onOpenLineTrend != null) {
-                    AppButton(
-                        text = t.peakLineTrend,
-                        onClick = onOpenLineTrend,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (nuclide != null) {
-                    AppButton(
-                        text = t.peakHelp(nuclide),
-                        onClick = { onOpenNuclide(nuclide) },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

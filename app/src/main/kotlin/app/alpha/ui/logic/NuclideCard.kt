@@ -284,16 +284,24 @@ object NuclideCard {
             // удалось одну. Это разные причины, и они названы по отдельности.
             EvidenceClass.WEAK -> possible(
                 counted = counted,
+                // Считаются линии, о которых движок ВЫНЕС суждение: найдена
+                // или обязана была быть видна. Линия вне шкалы, слишком
+                // слабая или без опорного континуума суждения не получила —
+                // и записывать её в «проверенные» значит завышать проверку.
                 tail = when {
                     c.lines.size == 1 -> s.singleLineNuclide(c.nuclide)
-                    c.lines.count { it.observability != LineObservability.OUT_OF_RANGE } <= 1 ->
-                        s.onlyOneLineCheckable(c.nuclide)
+                    c.lines.count(::judged) <= 1 -> s.onlyOneLineCheckable(c.nuclide)
                     else -> s.notEnoughToConfirm
                 },
                 s = s,
             )
         }
     }
+
+    /** О линии вынесено суждение: она найдена либо обязана была быть видна. */
+    private fun judged(line: CheckedLine): Boolean =
+        line.observability == LineObservability.OBSERVED ||
+            line.observability == LineObservability.EXPECTED_OBSERVABLE
 
     private fun possible(counted: String, tail: String, s: NuclideStrings) = NuclideStatusBlock(
         status = NuclideCardStatus.POSSIBLE_MATCH,

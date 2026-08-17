@@ -229,8 +229,8 @@ object NuclideRu : NuclideStrings {
             "у любого совпадения по одной энергии остаётся эта неопределённость."
 
     override fun onlyOneLineCheckable(nuclide: String) =
-        "Проверить удалось только одну линию $nuclide: остальные вне шкалы прибора " +
-            "или слишком слабы, чтобы различить их на этой статистике."
+        "Проверить удалось только одну линию $nuclide: об остальных на этом спектре судить " +
+            "нечем — они вне шкалы прибора или слишком слабы, чтобы их различить."
     override val multiLineStronger =
         "Несколько линий согласуются между собой — это сильнее одной линии, " +
             "но подтверждением не является."
@@ -475,8 +475,9 @@ object NuclideEn : NuclideStrings {
             "against, and that uncertainty stays with any single-energy match."
 
     override fun onlyOneLineCheckable(nuclide: String) =
-        "Only one line of $nuclide could be checked: the others are outside the " +
-            "instrument scale or too weak to tell apart at this statistics."
+        "Only one line of $nuclide could be checked: there is nothing to judge the others " +
+            "by in this spectrum — they are outside the instrument scale or too weak to tell " +
+            "apart."
     override val multiLineStronger =
         "Several lines agree with each other — stronger than one line, but not " +
             "a confirmation."

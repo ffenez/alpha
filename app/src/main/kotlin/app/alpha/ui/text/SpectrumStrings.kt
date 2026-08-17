@@ -284,12 +284,6 @@ interface SpectrumStrings {
     /** Действие снимка названо результатом: появится снимок. */
     val makeSnapshot: String
 
-    /** Заголовок листа пика: энергия крупно, остальное под ней. */
-    val peakSheetSignificance: String
-    val peakSheetArea: String
-    val peakLineTrend: String
-    fun peakHelp(nuclide: String): String
-
     /** Подтверждение сброса — что именно очистится. */
     val resetConfirmTitle: String
     val resetConfirmBody: String
@@ -602,10 +596,6 @@ object SpectrumRu : SpectrumStrings {
     override val analysisRow = "Анализ"
     override val technicalTitle = "Технические данные"
     override val makeSnapshot = "Создать снимок"
-    override val peakSheetSignificance = "значимость"
-    override val peakSheetArea = "площадь"
-    override val peakLineTrend = "Линия во времени"
-    override fun peakHelp(nuclide: String) = "Справка о $nuclide"
     override val resetConfirmTitle = "Сбросить накопленный спектр?"
     override val resetConfirmBody =
         "Прибор начнёт накопление заново. Сохранённые снимки останутся в журнале."
@@ -974,10 +964,6 @@ object SpectrumEn : SpectrumStrings {
     override val analysisRow = "Analysis"
     override val technicalTitle = "Technical data"
     override val makeSnapshot = "Take a snapshot"
-    override val peakSheetSignificance = "significance"
-    override val peakSheetArea = "area"
-    override val peakLineTrend = "Line over time"
-    override fun peakHelp(nuclide: String) = "About $nuclide"
     override val resetConfirmTitle = "Clear the accumulated spectrum?"
     override val resetConfirmBody =
         "The instrument starts accumulating anew. Saved snapshots stay in the journal."
@@ -1112,7 +1098,6 @@ val SpectrumCatalogue = AreaCatalogue(ru = SpectrumRu, en = SpectrumEn)
 fun SpectrumStrings.allTexts(): List<String> = listOf(
     spectrumSummary("Дом", "191 ч", "17,0 млн имп"), noProfileShort, backgroundTag,
     unitMillions, unitThousands, scaleMenuTitle, analysisRow, technicalTitle, makeSnapshot,
-    peakSheetSignificance, peakSheetArea, peakLineTrend, peakHelp("K-40"),
     resetConfirmTitle, resetConfirmBody,
     toolLineTitle, toolLineSubtitle, infoActionsTitle, showBackgroundCurve,
     backgroundRecordedAt("14:32"), needBackgroundTitle, needBackgroundSubtract, needBackgroundCurve, needBackgroundHow,

@@ -125,9 +125,8 @@ import kotlinx.coroutines.launch
 internal fun PeakTable(
     rows: List<PeakRow>,
     highlightedNuclide: String?,
-    onSelect: (PeakRow) -> Unit,
-    /** Тап по самому имени нуклида открывает справку о нём — как и раньше. */
-    onNuclide: (String) -> Unit = {},
+    /** Тап по строке открывает справку о нуклиде; null — строка без кандидата. */
+    onSelect: (String?) -> Unit,
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -152,7 +151,9 @@ internal fun PeakTable(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onSelect(row) }
+                    .clickable(enabled = match.primaryNuclide != null) {
+                        onSelect(match.primaryNuclide)
+                    }
                     .padding(vertical = 7.dp),
             ) {
                 TableCell(SpectrumFormat.energyCell(row.peak.energyKeV), 1f, colors.ink)
@@ -165,10 +166,6 @@ internal fun PeakTable(
                 // весом и цветом внимания; артефакты и прочерки приглушены.
                 val artificial = match is PeakMatch.Candidate && !match.natural ||
                     match is PeakMatch.AmbiguousGroup && !match.natural
-                // Имя нуклида — своя цель нажатия: по нему открывается
-                // справка о нуклиде, как было раньше. Остальная строка ведёт в
-                // лист пика (площадь, отклонённые кандидаты, переходы).
-                val nuclide = match.primaryNuclide
                 Text(
                     text = (if (isHighlighted) "▸ " else "") +
                         SpectrumFormat.matchCell(match, t),
@@ -185,17 +182,7 @@ internal fun PeakTable(
                     },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1.5f)
-                        .then(
-                            if (nuclide != null) {
-                                Modifier
-                                    .clickable { onNuclide(nuclide) }
-                                    .padding(vertical = 4.dp)
-                            } else {
-                                Modifier
-                            },
-                        ),
+                    modifier = Modifier.weight(1.5f),
                 )
             }
             if (index < rows.size - 1) AppDivider()
