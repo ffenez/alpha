@@ -598,7 +598,8 @@ object SpectrumRu : SpectrumStrings {
     override val makeSnapshot = "Создать снимок"
     override val resetConfirmTitle = "Сбросить накопленный спектр?"
     override val resetConfirmBody =
-        "Прибор начнёт накопление заново. Сохранённые снимки останутся в журнале."
+        "Прибор начнёт накопление заново. Сохранённые снимки и спектрограмма останутся: " +
+            "спектрограмма — запись того, что уже измерено, и сброс накопления её не стирает."
     override val resetAccumulation = "Сбросить накопление"
     override val formatsTitle = "О форматах"
 
@@ -966,7 +967,9 @@ object SpectrumEn : SpectrumStrings {
     override val makeSnapshot = "Take a snapshot"
     override val resetConfirmTitle = "Clear the accumulated spectrum?"
     override val resetConfirmBody =
-        "The instrument starts accumulating anew. Saved snapshots stay in the journal."
+        "The instrument starts accumulating anew. Saved snapshots and the spectrogram stay: " +
+            "the spectrogram is a record of what was already measured, and a reset does not " +
+            "erase it."
     override val resetAccumulation = "Reset the accumulation"
     override val formatsTitle = "About the formats"
 

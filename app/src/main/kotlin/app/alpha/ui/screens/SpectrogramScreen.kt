@@ -515,6 +515,9 @@ private fun InfoDialog(
                 style = type.footnote,
                 color = colors.muted,
             )
+            // Почему сброс накопления не стирает эту картинку: спектрограмма
+            // — запись прошедшего, а не сумма, которую держит прибор.
+            Hint(text = t.recordNote)
             Hint(text = t.backgroundNote)
         }
         }

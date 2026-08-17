@@ -51,6 +51,15 @@ interface SpectrogramStrings {
      */
     val backgroundNote: String
 
+    /**
+     * Чем спектрограмма является и почему сброс накопления её не трогает.
+     *
+     * Вопрос из поля: «сбросил накопление в Спектре, а тут по-прежнему два
+     * часа — почему». Потому что это разные вещи: накопление — сумма, которую
+     * держит прибор, а спектрограмма — запись того, что уже прошло через него.
+     */
+    val recordNote: String
+
     // --- частота записи (ADR 007) ---
 
     /**
@@ -137,6 +146,10 @@ object SpectrogramRu : SpectrogramStrings {
     override val warmingUp = "накапливаем первые интервалы… столбцы появятся через ~10 с"
     override val offlineHistory = "нет соединения — показана записанная история"
     override val offlineTag = "нет связи · история"
+    override val recordNote =
+        "Спектрограмма — запись измеренного: каждая полоса это интервал между опросами. " +
+            "Сброс накопления в Спектре обнуляет сумму прибора, а записанное здесь остаётся."
+
     override val backgroundNote =
         "Частоту записи выбираете вы — ниже. Пока открыт экран Спектра или " +
             "Спектрограммы, запись идёт раз в 5 с. История срезов хранится на " +
@@ -228,6 +241,11 @@ object SpectrogramEn : SpectrogramStrings {
     override val offlineTag = "no link · history"
     // «переживает перезапуск» — теперь это обещание можно давать: срезы лежат в
     // базе. «Kept on the device», а не «cached» — кэш можно потерять молча.
+    override val recordNote =
+        "The spectrogram is a record of what was measured: each stripe is one interval " +
+            "between polls. Resetting the accumulation on the Spectrum zeroes the instrument's " +
+            "sum; what is recorded here stays."
+
     override val backgroundNote =
         "You choose the recording rate below. While the Spectrum or Spectrogram screen " +
             "is open, recording runs every 5 s. The slice history is kept on the device " +
@@ -330,6 +348,7 @@ val SpectrogramCatalogue = AreaCatalogue(ru = SpectrogramRu, en = SpectrogramEn)
  * означала бы непроверенный текст.
  */
 fun SpectrogramStrings.allTexts(): List<String> = listOf(
+    recordNote,
     title, paused, pausedTag, noLink, warmingUp, offlineHistory, offlineTag, backgroundNote,
     windowMinutes(15), windowHours(2),
     modeIntensity, modeShape, doseStripLabel("µSv/h"), energyUnit,

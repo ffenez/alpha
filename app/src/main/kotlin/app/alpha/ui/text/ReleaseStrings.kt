@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v098Title: String
+    val v098Summary: String
+
     val v097Title: String
     val v097Summary: String
 
@@ -234,6 +237,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v098Title = "Сброс накопления объясняет, чего он не трогает"
+    override val v098Summary =
+        "Подтверждение сброса теперь говорит прямо: обнуляется сумма прибора, а снимки и " +
+        "спектрограмма остаются. На самой спектрограмме сказано, что это запись измеренного, " +
+        "а не накопление, — поэтому после сброса её история никуда не девается."
 
     override val v097Title = "Разбор спектра подстраивается под вашу модель"
     override val v097Summary =
@@ -729,6 +738,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v098Title = "The reset says what it does not touch"
+    override val v098Summary =
+        "The reset confirmation now says it plainly: the instrument's sum is zeroed while the " +
+        "snapshots and the spectrogram stay. The spectrogram itself says it is a record of what " +
+        "was measured, not an accumulation — which is why its history survives a reset."
 
     override val v097Title = "Spectrum analysis follows your own model"
     override val v097Summary =
