@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v081Title: String
+    val v081Summary: String
+
     val v080Title: String
     val v080Summary: String
 
@@ -201,6 +204,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v081Title = "Копия проверяется сразу после записи"
+    override val v081Summary =
+        "Готовая копия тут же перечитывается: файл, который не читается, теперь называет " +
+        "себя неудачей сразу, а не через полгода при восстановлении. Отказы стали " +
+        "подсказывать следующий шаг, а копия, переупакованная файловым менеджером, читается."
 
     override val v080Title = "График во весь экран и копия по частям"
     override val v080Summary =
@@ -624,6 +633,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v081Title = "A copy is checked the moment it is written"
+    override val v081Summary =
+        "A finished copy is read back at once: a file that cannot be read now says so " +
+        "immediately instead of half a year later during a restore. Refusals name the next " +
+        "step, and a copy repacked by a file manager is read as a copy."
 
     override val v080Title = "Charts at full screen, and a backup made of parts"
     override val v080Summary =

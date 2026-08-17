@@ -19,6 +19,9 @@ sealed interface BackupProblem {
     /** Файл вообще не резервная копия приложения. */
     data object NotABackup : BackupProblem
 
+    /** Файл пуст: так выглядит заглушка облака и оборванная запись. */
+    data object EmptyFile : BackupProblem
+
     /** Копия новее, чем понимает это приложение. */
     data class TooNew(val formatVersion: Int, val supported: Int) : BackupProblem
 
@@ -111,6 +114,16 @@ object BackupReader {
     const val BATCH = 1_000
 
     /**
+     * Имя части внутри архива без пути.
+     *
+     * Копия, прошедшая через распаковку и повторную упаковку (так делают
+     * файловые менеджеры и облака), приезжает с папкой внутри: части те же,
+     * лежат на уровень глубже. Отказывать такому файлу — наказывать человека
+     * за чужой формат упаковки.
+     */
+    private fun shortName(entry: String): String = entry.substringAfterLast('/')
+
+    /**
      * Первый проход: что это за файл и цел ли он.
      *
      * @param open открывает НОВЫЙ поток архива — читатель проходит его дважды.
@@ -127,7 +140,7 @@ object BackupReader {
                 while (true) {
                     val entry = zip.nextEntry ?: break
                     if (entry.isDirectory) continue
-                    val name = entry.name
+                    val name = shortName(entry.name)
                     entries += name
                     val digest = MessageDigest.getInstance("SHA-256")
                     val text = StringBuilder()
@@ -161,6 +174,10 @@ object BackupReader {
             }
         }
 
+        // Пустой файл — отдельный разговор: так выглядит копия, которую
+        // облачное хранилище отдало заглушкой, и «это не копия» тут не
+        // подсказывает, что делать.
+        if (entries.isEmpty()) throw BackupException(BackupProblem.EmptyFile)
         val found = manifest ?: throw BackupException(BackupProblem.NotABackup)
         if (found.format != BackupFormat.FORMAT) throw BackupException(BackupProblem.NotABackup)
         if (found.formatVersion > BackupFormat.VERSION) {
@@ -215,7 +232,7 @@ object BackupReader {
                 while (true) {
                     val entry = zip.nextEntry ?: break
                     if (entry.isDirectory) continue
-                    when (entry.name) {
+                    when (shortName(entry.name)) {
                         BackupFormat.SETTINGS -> if (selection.settings) {
                             val values = parseSettings(readText(zip))
                             sink.settings(values)

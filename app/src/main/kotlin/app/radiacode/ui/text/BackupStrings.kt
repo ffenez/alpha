@@ -1,6 +1,7 @@
 package app.radiacode.ui.text
 
 import app.radiacode.data.export.backup.BackupCounts
+import app.radiacode.data.export.backup.BackupFormat
 import app.radiacode.data.export.backup.BackupProblem
 import app.radiacode.data.export.backup.BackupStage
 import app.radiacode.data.export.backup.RestoreSummary
@@ -79,6 +80,9 @@ interface BackupStrings {
 
     fun stageName(stage: BackupStage): String
     fun problem(problem: BackupProblem): String
+
+    /** Часть копии человеческим именем: в отказе не место именам файлов. */
+    fun partName(entry: String): String
     fun contentLines(counts: BackupCounts): List<String>
     fun summaryAdded(summary: RestoreSummary): List<String>
     fun summarySkipped(summary: RestoreSummary): List<String>
@@ -148,16 +152,39 @@ object BackupRu : BackupStrings {
         BackupStage.SPECTROGRAM -> "спектрограмма"
         BackupStage.EXPERIMENTS -> "эксперименты"
         BackupStage.FINISHING -> "завершение"
+        BackupStage.VERIFYING -> "проверка копии"
+    }
+
+    override fun partName(entry: String): String = when (entry) {
+        BackupFormat.MANIFEST -> "описание копии"
+        BackupFormat.CHECKSUMS -> "проверочный список"
+        BackupFormat.SETTINGS -> partSettings.lowercase()
+        BackupFormat.PROFILES -> partProfiles.lowercase()
+        BackupFormat.SESSIONS -> "сессии"
+        BackupFormat.MEASUREMENTS -> partMeasurements.lowercase()
+        BackupFormat.EVENTS -> "события"
+        BackupFormat.RARE -> "состояние прибора"
+        BackupFormat.ROUTES -> partRoutes.lowercase()
+        BackupFormat.POINTS -> "точки маршрутов"
+        BackupFormat.SPECTRA -> partSpectra.lowercase()
+        BackupFormat.SPECTROGRAM -> "спектрограмма"
+        BackupFormat.EXPERIMENTS -> partExperiments.lowercase()
+        else -> entry
     }
 
     override fun problem(problem: BackupProblem): String = when (problem) {
-        BackupProblem.NotABackup -> "Это не резервная копия приложения."
+        BackupProblem.NotABackup ->
+            "Это не копия, созданная приложением. Выберите файл с расширением " +
+                "«.radbackup» — тот, что приложение сохранило при создании копии."
+        BackupProblem.EmptyFile ->
+            "Файл пуст. Так бывает, когда он лежит в облаке и ещё не скачан: " +
+                "откройте его в файловом менеджере, дождитесь загрузки и выберите снова."
         is BackupProblem.TooNew ->
             "Копия создана более новой версией приложения. Обновите приложение, " +
                 "чтобы её восстановить."
-        is BackupProblem.Missing -> "В копии не хватает части «${problem.entry}»."
+        is BackupProblem.Missing -> "В копии не хватает части «${partName(problem.entry)}»."
         is BackupProblem.Corrupted ->
-            "Копия повреждена: часть «${problem.entry}» не совпала с контрольной суммой. " +
+            "Копия повреждена: часть «${partName(problem.entry)}» дошла не полностью. " +
                 "Текущие данные не тронуты."
         is BackupProblem.Unreadable -> "Файл не читается: ${problem.message}"
     }
@@ -246,15 +273,38 @@ object BackupEn : BackupStrings {
         BackupStage.SPECTROGRAM -> "spectrogram"
         BackupStage.EXPERIMENTS -> "experiments"
         BackupStage.FINISHING -> "finishing"
+        BackupStage.VERIFYING -> "checking the copy"
+    }
+
+    override fun partName(entry: String): String = when (entry) {
+        BackupFormat.MANIFEST -> "the copy description"
+        BackupFormat.CHECKSUMS -> "the check list"
+        BackupFormat.SETTINGS -> partSettings.lowercase()
+        BackupFormat.PROFILES -> partProfiles.lowercase()
+        BackupFormat.SESSIONS -> "sessions"
+        BackupFormat.MEASUREMENTS -> partMeasurements.lowercase()
+        BackupFormat.EVENTS -> "events"
+        BackupFormat.RARE -> "instrument state"
+        BackupFormat.ROUTES -> partRoutes.lowercase()
+        BackupFormat.POINTS -> "route points"
+        BackupFormat.SPECTRA -> partSpectra.lowercase()
+        BackupFormat.SPECTROGRAM -> "spectrogram"
+        BackupFormat.EXPERIMENTS -> partExperiments.lowercase()
+        else -> entry
     }
 
     override fun problem(problem: BackupProblem): String = when (problem) {
-        BackupProblem.NotABackup -> "This is not a backup of the app."
+        BackupProblem.NotABackup ->
+            "This is not a copy made by the app. Choose the «.radbackup» file — " +
+                "the one the app saved when the copy was created."
+        BackupProblem.EmptyFile ->
+            "The file is empty. That happens when it still lives in the cloud: " +
+                "open it in a file manager, let it download, and choose it again."
         is BackupProblem.TooNew ->
             "This backup was made by a newer version of the app. Update the app to restore it."
-        is BackupProblem.Missing -> "The backup is missing the «${problem.entry}» part."
+        is BackupProblem.Missing -> "The backup is missing the «${partName(problem.entry)}» part."
         is BackupProblem.Corrupted ->
-            "The backup is damaged: «${problem.entry}» does not match its checksum. " +
+            "The backup is damaged: «${partName(problem.entry)}» did not arrive in full. " +
                 "Current data is untouched."
         is BackupProblem.Unreadable -> "The file cannot be read: ${problem.message}"
     }

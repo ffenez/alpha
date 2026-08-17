@@ -357,6 +357,36 @@ class BackupRoundTripTest {
     }
 
     @Test
+    fun `копия, переупакованная с папкой внутри, всё равно копия`() {
+        // Файловые менеджеры и облака распаковывают и пакуют заново, кладя
+        // части на уровень глубже. Части те же — отказывать незачем.
+        val original = writeBackup(fullSource(measurements = 20))
+        val nested = ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(nested).use { out ->
+            java.util.zip.ZipInputStream(ByteArrayInputStream(original)).use { zip ->
+                while (true) {
+                    val entry = zip.nextEntry ?: break
+                    out.putNextEntry(java.util.zip.ZipEntry("RadiaCode-backup/" + entry.name))
+                    zip.copyTo(out)
+                    out.closeEntry()
+                }
+            }
+        }
+
+        val info = BackupReader.inspect(open(nested.toByteArray())).getOrThrow()
+        assertEquals(20L, info.counts.measurements)
+    }
+
+    @Test
+    fun `пустой файл назван пустым, а не чужим`() {
+        // «Это не копия» на пустом файле не подсказывает ничего; облако,
+        // отдавшее заглушку, — самая частая причина.
+        val problem = (BackupReader.inspect(open(ByteArray(0))).exceptionOrNull()
+            as BackupException).problem
+        assertEquals(BackupProblem.EmptyFile, problem)
+    }
+
+    @Test
     fun `чужой архив честно назван не копией`() {
         val out = ByteArrayOutputStream()
         java.util.zip.ZipOutputStream(out).use { zip ->

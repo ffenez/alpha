@@ -9,6 +9,7 @@ import app.radiacode.data.export.backup.BackupManifest
 import app.radiacode.data.export.backup.BackupProblem
 import app.radiacode.data.export.backup.BackupProgress
 import app.radiacode.data.export.backup.BackupReader
+import app.radiacode.data.export.backup.BackupStage
 import app.radiacode.data.export.backup.BackupWriter
 import app.radiacode.data.export.backup.RestoreMode
 import app.radiacode.data.export.backup.RestoreSelection
@@ -102,7 +103,7 @@ class BackupManager(
         if (busy) return
         running = scope.launch {
             _state.value = BackupJob.Saving(
-                BackupProgress(app.radiacode.data.export.backup.BackupStage.PROFILES, 0, null),
+                BackupProgress(BackupStage.PROFILES, 0, null),
             )
             val result = runCatching {
                 withContext(Dispatchers.IO) {
@@ -123,6 +124,16 @@ class BackupManager(
                             _state.value = BackupJob.Saving(progress)
                         }
                     } ?: error("нет доступа к выбранному файлу")
+                    // Копия перечитывается сразу же.
+                    //
+                    // Файл, который не читается, — не копия, и узнать об этом
+                    // через полгода при восстановлении значит не узнать вовсе.
+                    // Проверка стоит одного лишнего прохода по файлу; цена
+                    // ошибки — вся история.
+                    _state.value = BackupJob.Saving(
+                        BackupProgress(BackupStage.VERIFYING, 0, null),
+                    )
+                    BackupReader.inspect { openInput(target) }.getOrThrow()
                     fileSize(target)
                 }
             }
@@ -158,7 +169,7 @@ class BackupManager(
         if (busy) return
         running = scope.launch {
             _state.value = BackupJob.Restoring(
-                BackupProgress(app.radiacode.data.export.backup.BackupStage.PROFILES, 0, null),
+                BackupProgress(BackupStage.PROFILES, 0, null),
             )
             val result = runCatching {
                 withContext(Dispatchers.IO) {

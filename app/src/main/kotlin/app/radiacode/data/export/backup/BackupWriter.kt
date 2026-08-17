@@ -74,6 +74,9 @@ enum class BackupStage {
     SPECTROGRAM,
     EXPERIMENTS,
     FINISHING,
+
+    /** Копия перечитывается с диска: файл, который не читается, — не копия. */
+    VERIFYING,
 }
 
 /**
