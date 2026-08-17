@@ -146,8 +146,8 @@ fun SearchScreen(
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val strings = LocalStrings.current
-    // Та же настройка, что у блоков Главной: «статистика под графиком» —
-    // одно решение человека на всё приложение, а не два одинаковых тумблера.
+    // Та же настройка, что у блоков Главной: «статистика под графиком» — одно
+    // решение на всё приложение.
     val showStats by graph.settings.monitorBlocks
         .collectAsState(initial = app.alpha.data.MonitorBlocks())
     val backgroundCard = BackgroundCardCatalogue.of(strings.language)
@@ -164,9 +164,9 @@ fun SearchScreen(
     val energyToneEnabled by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
     val connection by graph.serviceStatus.connection.collectAsState()
     val doseUnit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
-    // Два РЕЖИМА — два вопроса, а не «точный» и «быстрый»: «Наведение»
-    // отвечает «куда вести прибор сейчас», «Проверка» — «держится ли
-    // превышение над записанным фоном». Выбор запоминается.
+    // Два режима — два вопроса: «Наведение» отвечает «куда вести прибор
+    // сейчас», «Проверка» — «держится ли превышение над записанным фоном».
+    // Выбор запоминается.
     val modeId by graph.settings.searchMode.collectAsState(initial = null)
     val screenMode = SearchMode.of(modeId)
     // Ровный счёт как повод предложить проверку: состояние живёт между
@@ -191,9 +191,8 @@ fun SearchScreen(
     val doseTint by graph.settings.doseTint.collectAsState(initial = true)
     val tintFactor by graph.settings.doseTintFactor
         .collectAsState(initial = DoseTint.DEFAULT_FACTOR)
-    // «Наведение» держит своё состояние в графе, а не в композиции: точку
-    // отсчёта ставит человек, и уход на другую вкладку не имеет права её
-    // отменить — раньше она молча пропадала вместе с экраном.
+    // «Наведение» держит состояние в графе, а не в композиции: точку отсчёта
+    // ставит человек, и уход на другую вкладку её не отменяет.
     val navigateSession = graph.navigateSession
     var navigate by navigateSession::state
 
@@ -214,9 +213,8 @@ fun SearchScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    // Пока Поиск на экране, его измерения — эксперимент и не учат обычный
-    // фон места (спец §18). Частота опроса здесь ни при чём: её держит окно
-    // приложения целиком.
+    // Пока Поиск на экране, его измерения — эксперимент и не учат обычный фон
+    // места (спец §18).
     DisposableEffect(resumed) {
         if (resumed) graph.searchPresenceHub.attach()
         onDispose { if (resumed) graph.searchPresenceHub.detach() }
@@ -326,11 +324,10 @@ fun SearchScreen(
     }
 
     // The search tone follows the **ratio of the decision window**, not the
-    // raw rate: that is what makes it a signal a person can walk towards
-    // instead of a stream of chatter (redesign §7). The engine glides to the
-    // target, so a step in the ratio is never a step in the audio.
+    // raw rate (redesign §7). The engine glides to the target, so a step in
+    // the ratio is never a step in the audio.
     // В «Наведении» знаменатель другой — точка отсчёта, а не записанный фон, —
-    // и именно его несёт шкала дуги: глаз и ухо обязаны говорить одно и то же.
+    // и его же несёт шкала дуги.
     LaunchedEffect(search.direction, screenMode) {
         while (screenMode == SearchMode.NAVIGATE) {
             nowTick = System.currentTimeMillis()
@@ -357,8 +354,8 @@ fun SearchScreen(
     // policy, which fires once per newly reached step.
     LaunchedEffect(mode, resumed, screenMode) {
         if (mode != SearchFeedbackMode.VIBRO) return@LaunchedEffect
-        // В «Наведении» непрерывная дрожь неуместна: там вибро — короткий
-        // отклик на СОБЫТИЯ, и он живёт в эффекте ниже.
+        // В «Наведении» вибро — короткий отклик на события, он живёт в
+        // эффекте ниже.
         if (screenMode == SearchMode.NAVIGATE) return@LaunchedEffect
         // Do-Not-Disturb is polled once a second, not once per pulse: at the
         // fastest cadence the pulses are 120 ms apart, and asking the system
@@ -382,10 +379,9 @@ fun SearchScreen(
         }
     }
 
-    // Вибро «Наведения»: короткий отклик на СОБЫТИЕ, а не непрерывная дрожь.
-    // Событий ровно два — счёт начал расти и найден новый максимум, — и оба
-    // приглушены порогом и паузой: телефон, дрожащий каждую секунду, перестаёт
-    // что-либо сообщать.
+    // Вибро «Наведения»: отклик на событие, а не непрерывная дрожь. Событий
+    // два — счёт начал расти и найден новый максимум; оба приглушены порогом
+    // и паузой.
     var lastTrend by remember { mutableStateOf(NavigateTrend.COLLECTING) }
     var pulsedPeak by remember { mutableStateOf(0.0) }
     var lastPulseAt by remember { mutableLongStateOf(0L) }
@@ -408,12 +404,10 @@ fun SearchScreen(
     }
 
     // Keep the display awake only while a background measurement runs AND
-    // this screen is in the foreground: the user is watching a 45 s countdown
-    // and should not have to poke the screen. Scoped to the screen — released
-    // on pause and on leaving the composition, never app-wide or persistent.
-    // …and for the whole time «Наведение» is on screen: that mode is read while
-    // the instrument is being walked over a surface, and a display that sleeps
-    // mid-sweep is a display that has to be woken with the other hand.
+    // this screen is in the foreground (45 s countdown), and for the whole
+    // time «Наведение» is on screen — the instrument is walked over a surface
+    // while the screen is read. Scoped to the screen: released on pause and on
+    // leaving the composition.
     val view = LocalView.current
     val keepAwake = resumed &&
         (backgroundRun is LocalBackground.Running || screenMode == SearchMode.NAVIGATE)
@@ -427,9 +421,9 @@ fun SearchScreen(
     val recorded = background
     val check = recorded?.check(System.currentTimeMillis(), activeProfileId, deviceSerial)
     // Фон, изученный самим приложением: обычный фон места по скорости счёта.
-    // Он вступает, когда записанного эталона нет или он больше не годится, —
-    // искать можно, не записывая фон вручную. Подменой эталона он не является:
-    // его вес ограничен разбросом самого места (см. AdaptiveBackground).
+    // Вступает, когда записанного эталона нет или он больше не годится.
+    // Эталон он не подменяет: его вес ограничен разбросом самого места
+    // (`AdaptiveBackground`).
     val baselineState by graph.serviceStatus.baseline.collectAsState()
     val learned = remember(baselineState) {
         AdaptiveBackground.of((baselineState as? BaselineState.Active)?.baseline)
@@ -498,11 +492,8 @@ fun SearchScreen(
             .padding(Dimens.space3),
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
-        // Плашки с названием экрана нет: экран назван во вкладке снизу, и
-        // повторять это сверху незачем. Кнопки звука и вибрации тоже убраны —
-        // канал отклика выбирается и включается в Настройках → Уведомления и
-        // отклик, а на рабочем экране они занимали место и требовали подписи
-        // о том, что именно включено.
+        // Названия экрана нет: экран назван во вкладке снизу. Канал отклика
+        // выбирается в Настройках → Уведомления и отклик.
         val navigating = screenMode == SearchMode.NAVIGATE
         Segmented(
             options = listOf(t.modeNavigate, t.modeVerify),
@@ -513,10 +504,9 @@ fun SearchScreen(
             },
             modifier = Modifier.fillMaxWidth(),
         )
-        // Выключенный канал уже назван приписки ради у самих кнопок — второй раз
-        // целым предложением он бы стал постоянным пояснением. Остальные причины
-        // молчания это СОСТОЯНИЯ (нет прибора, нет потока, тихий режим), и они
-        // появляются только когда наступили.
+        // Выключенный канал назван у самих кнопок. Остальные причины молчания
+        // — состояния (нет прибора, нет потока, тихий режим), и они появляются
+        // только когда наступили.
         val reason = if (mode == SearchFeedbackMode.OFF) {
             null
         } else {
@@ -528,9 +518,8 @@ fun SearchScreen(
                     dndBlocked = dndBlocked,
                     audioUnavailable = audioUnavailable,
                     volumeZero = volumeZero,
-                    // В «Наведении» знаменатель другой, и молчание объясняет он
-                    // же: фраза про записанный фон говорила бы здесь о другой
-                    // величине.
+                    // В «Наведении» знаменатель другой: фраза про записанный
+                    // фон говорила бы о другой величине.
                     backgroundRecorded = navigating || record != null,
                     insideBackground = !navigating && SearchTone.frequencyHz(ratio) == null,
                 ),
@@ -553,10 +542,8 @@ fun SearchScreen(
                 spot = spot,
                 nowMillis = System.currentTimeMillis() - deviceClockOffset,
                 cps = cps,
-                // Доза печатается ровно так, как её даёт измерительная модель:
-                // общий формат приложения плюс СОБСТВЕННАЯ относительная
-                // погрешность прибора. Четыре знака без неё читались как
-                // точность, которой у величины нет.
+                // Доза печатается общим форматом приложения плюс собственная
+                // относительная погрешность прибора.
                 doseLine = sample?.doseRate?.let { rate ->
                     val value = DoseFormat.rateWithUnit(rate, doseUnit, strings)
                     Uncertainty.errPercentLabel(sample?.doseRateErr)
@@ -582,10 +569,10 @@ fun SearchScreen(
                     graph.spotMeasure.dismiss()
                     scope.launch { graph.settings.setSearchMode(SearchMode.VERIFY.id) }
                 },
-                // Счёт держится ровно — похоже, человек остановился. Экран
-                // ПРЕДЛАГАЕТ проверку, но не начинает её сам: остановку
-                // приложение не видит, а запуск по спокойному сигналу означал
-                // бы измерение, результат которого предрешён (SearchStillness).
+                // Счёт держится ровно — экран ПРЕДЛАГАЕТ проверку, но не
+                // начинает её сам: остановку приложение не видит, а запуск по
+                // спокойному сигналу дал бы измерение с предрешённым
+                // результатом (`SearchStillness`).
                 offerVerify = SearchStillness.offering(stillness, nowTick),
                 onOfferAccept = {
                     stillness = SearchStillness.dismiss(stillness)
@@ -608,11 +595,8 @@ fun SearchScreen(
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
-                // Цвет числа — отношение к ЗАПИСАННОМУ фону: зелёное, пока
-                // счёт держится на уровне фона, багровое вдвое выше него. То
-                // же правило, что у дозы на Главной (`DoseTint`), — два экрана
-                // с разными шкалами под одинаковыми цветами означали бы, что
-                // цвет ничего не значит.
+                // Цвет числа — отношение к записанному фону: то же правило,
+                // что у дозы на Главной (`DoseTint`).
                 val tintFraction = if (doseTint) {
                     DoseTint.of(cps, record?.cps, tintFactor)
                 } else {
@@ -629,12 +613,9 @@ fun SearchScreen(
                     animationSpec = Motion.normal(),
                     label = "searchTint",
                 )
-                // Разбор открывает и само ЧИСЛО, а не только строка вывода.
-                //
-                // Когда счёт держится на уровне фона, выводу сказать нечего, и
-                // строка пуста — вместе с ней исчезала единственная цель
-                // нажатия, хотя вопрос «почему так решено» в этот момент
-                // задают чаще всего.
+                // Разбор открывает и само число: когда счёт держится на уровне
+                // фона, строка вывода пуста, а вопрос «почему так решено»
+                // остаётся.
                 Text(
                     text = cps?.let { Uncertainty.num1(it) } ?: "—",
                     style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
@@ -649,15 +630,14 @@ fun SearchScreen(
                         )
                         .padding(horizontal = Dimens.space2),
                 )
-                // Под числом не осталось ничего: величина названа заголовком
-                // экрана, а σ разбирают в «Почему», рядом с окном, по которому
-                // она посчитана.
+                // Величина названа заголовком экрана, σ разбирается в «Почему»
+                // рядом с окном, по которому посчитана.
 
                 if (record != null) {
                     val delta = SearchVerdict.deltaPercent(search.comparison)
                     // Две плитки той же формы, что на Главной: фон и отношение
-                    // к нему — величины одного порядка важности, и читаются они
-                    // вместе. «+31 %» без самого фона не проверить.
+                    // к нему читаются вместе — «+31 %» без самого фона не
+                    // проверить.
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
                         modifier = Modifier
@@ -666,10 +646,9 @@ fun SearchScreen(
                     ) {
                         MetricTileBox(
                             tile = MetricTile(
-                                // Заголовок плитки называет ИСТОЧНИК фона:
-                                // изученный приложением и записанный человеком
-                                // — разные утверждения о надёжности сравнения,
-                                // и молча подменять одно другим нельзя.
+                                // Заголовок плитки называет источник фона:
+                                // изученный приложением и записанный человеком —
+                                // разные утверждения о надёжности сравнения.
                                 label = if (learnedInUse) t.backgroundLearnedTag else strings.backgroundTag,
                                 value = Uncertainty.num1(record.cps),
                             ),
@@ -690,8 +669,7 @@ fun SearchScreen(
                     }
                 }
 
-                // Сам вывод открывает разбор: вопрос «почему так решено»
-                // задают, глядя именно на эту строку.
+                // Сам вывод открывает разбор.
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(Dimens.space1),
@@ -705,10 +683,8 @@ fun SearchScreen(
                         )
                         .padding(vertical = Dimens.space1, horizontal = Dimens.space2),
                 ) {
-                    // Когда счёт держится на уровне фона, сказать нечего —
-                    // и экран молчит: это уже сказано цветом самого числа.
-                    // Любое ДРУГОЕ состояние говорит словами, там молчание
-                    // было бы утаиванием.
+                    // На уровне фона экран молчит — это сказано цветом числа;
+                    // любое другое состояние говорит словами.
                     if (level != SearchLevel.BACKGROUND) {
                         StatusRow(
                             text = SearchVerdict.headline(
@@ -720,28 +696,15 @@ fun SearchScreen(
                             color = levelColor,
                         )
                     }
-                    // Объяснения вывода под ним нет: оно повторяло то, что
-                    // ниже показывают шкала и лента, а полностью разбор
-                    // открывается нажатием на сам вывод.
-                    // Подписи «почему такой вывод ›» нет — как и на Главной:
-                    // нажимается сам вывод, а приглашение к нажатию занимало
-                    // строку под каждым состоянием и повторяло то, что уже
-                    // сообщает цвет ссылки.
+                    // Полный разбор открывается нажатием на сам вывод.
                 }
 
-                // Чип направления и подпись «по последним 10 с» убраны с
-                // «Проверки»: направление изменения — вопрос НАВЕДЕНИЯ, и там
-                // оно показано модулем целиком. Здесь оно повторяло то же
-                // третий раз, между выводом и шкалой. Сам расчёт направления
-                // не тронут — он живёт в режиме наведения и в «Почему?».
+                // Направление изменения — вопрос «Наведения», и там оно
+                // показано модулем целиком; расчёт живёт там же и в «Почему?».
 
-                // Полоска показывает НАБОР ПОДТВЕРЖДЕНИЯ, а не уровень.
-                //
-                // Прежде это была шкала «сколько сейчас относительно фона» —
-                // то же самое, что уже сказано числом и его цветом, только
-                // мелко и без единиц. Теперь она отвечает на единственный
-                // вопрос, на который у экрана нет другого ответа: сколько ещё
-                // держать прибор здесь. Отличия нет — полоски нет.
+                // Полоска показывает НАБОР ПОДТВЕРЖДЕНИЯ, а не уровень: она
+                // отвечает, сколько ещё держать прибор здесь. Отличия нет —
+                // полоски нет.
                 val decision = search.decision
                 if (decision != null && !decision.ready && level != SearchLevel.BACKGROUND) {
                     LedMeter(
@@ -768,13 +731,9 @@ fun SearchScreen(
             }
         }
 
-        // ----------------------------------------------------------- the tape
-        //
-        // Лента нажимается целиком и открывает ПОЛНОЭКРАННЫЙ график скорости
-        // счёта — тот же, что у дозы: перекрестие с временем и значением,
-        // перелистывание, щипок, окна и статистика окна. Второй ленты с теми
-        // же жестами в приложении не заводится: это одна величина, показанная
-        // в двух размерах, и разойтись они не имеют права.
+        // Лента нажимается целиком и открывает полноэкранный график скорости
+        // счёта — тот же, что у дозы: перекрестие, перелистывание, щипок, окна
+        // и статистика окна.
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -785,8 +744,7 @@ fun SearchScreen(
                 ),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                // Заголовка ленты и подписи полосы на экране нет: величину
-                // называет ось графика, а что такое полоса — справка «i».
+                // Величину называет ось графика, что такое полоса — справка «i».
                 val points = search.points
                 if (points.isEmpty()) {
                     Text(
@@ -804,10 +762,8 @@ fun SearchScreen(
                             yTop = search.scale?.top ?: 10f,
                             band = band,
                             baseline = record?.cps,
-                            // Подписи у пунктира нет: само число фона стоит
-                            // плиткой над лентой, и повторять его на линии
-                            // значит писать одно и то же дважды на одном
-                            // экране. Пунктир и так читается как опора.
+                            // Подписи у пунктира нет: число фона стоит плиткой
+                            // над лентой.
                             baselineLabel = null,
                             xStartLabel = t.tapeStartLabel,
                             xEndLabel = strings.nowLabel,

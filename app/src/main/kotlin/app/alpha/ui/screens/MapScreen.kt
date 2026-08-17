@@ -252,8 +252,7 @@ fun MapScreen(graph: AppGraph) {
         TrackMetric.DOSE -> manualDose
         TrackMetric.CPS -> manualCps
     }
-    // Счётчик тайлов — диагностика, а не интерфейс: он виден только когда
-    // человек сам включил отладочный отчёт.
+    // Счётчик тайлов — диагностика: виден при включённом отладочном отчёте.
     val debugReport by graph.settings.debugReportEnabled.collectAsState(initial = false)
 
     // Which scope to draw: the stored choice, or the default for what exists.
@@ -279,10 +278,9 @@ fun MapScreen(graph: AppGraph) {
             justStopped = false
             sessionScope = MapTrackScope.CURRENT
         }
-        // У начатой записи маршрута ещё может не быть строки в журнале: она
-        // появляется с первой координатой. Тогда показывать нечего, и экран
-        // говорит «жду первые точки» — а не показывает прошлую прогулку как
-        // текущую.
+        // У начатой записи маршрута может не быть строки в журнале: она
+        // появляется с первой координатой. Тогда экран говорит «жду первые
+        // точки», а не показывает прошлую прогулку.
         val session = when {
             active?.sessionId != null -> graph.trackRepository.session(active.sessionId!!)
             active != null -> null
@@ -359,8 +357,7 @@ fun MapScreen(graph: AppGraph) {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
-        // Человек мог выбрать «Приблизительно» — это тоже разрешение, и запись
-        // с ним начинается: грубый след честнее отсутствующего.
+        // «Приблизительно» — тоже разрешение, и запись с ним начинается.
         hasLocation = results.values.any { it } || hasAnyLocation(context)
         if (hasLocation) startTrackRecording(context)
     }
@@ -438,9 +435,8 @@ fun MapScreen(graph: AppGraph) {
             }
         }
 
-        // Тонкая строка над картой, а не badge поверх неё: выключенное
-        // определение места — это не состояние карты, а причина, по которой
-        // на ней ничего не появится, и она называет действие.
+        // Тонкая строка над картой: выключенное определение места — причина,
+        // по которой на карте ничего не появится, и она называет действие.
         if (hasLocation && !gpsEnabled) {
             Chip(
                 text = t.gpsOffAction,
@@ -493,7 +489,7 @@ fun MapScreen(graph: AppGraph) {
                     )
                 }
             },
-            // Запись — на самой карте: она рисует то, на что человек смотрит.
+            // Запись начинается и останавливается на самой карте.
             recordingSince = recording?.startedAt,
             onToggleRecording = if (hasLocation) {
                 {
@@ -535,8 +531,8 @@ fun MapScreen(graph: AppGraph) {
             !hasLocation -> LocationPermissionCard(
                 onRequest = { permissionLauncher.launch(arrayOf(FINE_LOCATION, COARSE_LOCATION)) },
             )
-            // Идущая запись живёт значком на карте. Внизу остаётся только то,
-            // чего по карте не видно: почему точек нет.
+            // Идущая запись видна значком на карте; внизу остаётся только
+            // причина отсутствия точек.
             active != null -> TrackLocationNotice(state = trackLocation)
             else -> Unit
         }
@@ -592,9 +588,8 @@ fun SessionTrackMapScreen(
 /**
  * Сохранённый маршрут, открытый из Истории.
  *
- * Ключ здесь — сам маршрут, а не сессия измерения: одна прогулка может лежать
- * внутри одной сессии, поперёк двух или вовсе без неё, и открывать её через
- * сессию значило бы искать запись не по тому, чем она является.
+ * Ключ — сам маршрут, а не сессия измерения: одна прогулка может лежать внутри
+ * одной сессии, поперёк двух или вовсе без неё.
  */
 @Composable
 fun RouteMapScreen(
@@ -660,8 +655,8 @@ private fun TrackDetailScreen(
     var metricIndex by rememberSaveable { mutableIntStateOf(0) }
     val metric = if (metricIndex == 0) TrackMetric.DOSE else TrackMetric.CPS
 
-    // Шкала здесь та же, что на карте: маршрут, открытый через неделю, обязан
-    // выглядеть так же, как выглядел, — иначе цвет ничего не значит.
+    // Шкала та же, что на карте: маршрут, открытый через неделю, выглядит так
+    // же.
     val scaleMode by graph.settings.mapColorScale.collectAsState(initial = MapColorScale.ABSOLUTE)
     val tintFactor by graph.settings.doseTintFactor
         .collectAsState(initial = DoseTint.DEFAULT_FACTOR)
@@ -682,8 +677,8 @@ private fun TrackDetailScreen(
         TrackMetric.CPS -> manualCps
     }
 
-    // Имя маршрута правится прямо здесь, поэтому экран держит своё: параметр
-    // придёт заново только при следующем открытии.
+    // Имя маршрута правится здесь, поэтому экран держит своё значение:
+    // параметр придёт заново при следующем открытии.
     var shownTitle by remember(title) { mutableStateOf(title) }
 
     // Курсор один на карту и на график: это один момент одной прогулки.
@@ -694,8 +689,8 @@ private fun TrackDetailScreen(
     val scope = rememberCoroutineScope()
     var notice by remember { mutableStateOf<String?>(null) }
     val saver = rememberFileSaver { ok -> notice = if (ok) t.exportSaved else t.exportFailed }
-    // Любой файл маршрута несёт координаты, поэтому вопрос о них задаётся
-    // ОДИН раз — между выбором формата и системным диалогом сохранения.
+    // Любой файл маршрута несёт координаты, поэтому вопрос о них задаётся один
+    // раз — между выбором формата и системным диалогом сохранения.
     var pendingFormat by remember { mutableStateOf<ExportFile?>(null) }
     var exporting by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
@@ -740,8 +735,7 @@ private fun TrackDetailScreen(
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         // Шапка маршрута — та же, что у сессии, спектра и опыта: имя, время
-        // и «⋮». Экспорт стоит там же, где у остальных записей, а не отдельной
-        // кнопкой рядом с названием.
+        // и «⋮».
         val trackId = data?.trackSessionId
         EntityHeader(
             title = shownTitle,
@@ -764,8 +758,7 @@ private fun TrackDetailScreen(
                     strings = strings,
                     export = ExportCatalogue.of(strings.language),
                     history = h,
-                    // Сравнивать маршрут выбирают в Журнале, где видны оба:
-                    // изнутри одного маршрута второго не выбрать.
+                    // Сравнение маршрутов выбирают в Журнале, где видны оба.
                     canCompare = false,
                     onExport = { exporting = true },
                     onCompare = {},
@@ -818,8 +811,8 @@ private fun TrackDetailScreen(
             pendingFormat?.let { format ->
                 RoutePrivacyDialog(
                     // «Без координат» оставляет только ход измерения во
-                    // времени: у карты и следа от такого файла ничего не
-                    // остаётся, поэтому вариант предлагается лишь отчёту.
+                    // времени: карты и следа в таком файле нет, поэтому
+                    // вариант предлагается только отчёту.
                     allowNoCoordinates = format == ExportFile.HTML,
                     onPick = { privacy ->
                         pendingFormat = null
@@ -860,9 +853,8 @@ private fun TrackDetailScreen(
                 )
             }
         }
-        // Сводка маршрута — одна тусклая строка под заголовком, а не карточка
-        // в полэкрана: путь и длительность отвечают «что это за прогулка», и
-        // повторять их плитками поверх карты незачем.
+        // Сводка маршрута — одна тусклая строка под заголовком: путь и
+        // длительность отвечают, что это за прогулка.
         data?.takeIf { it.points.isNotEmpty() }?.let { d ->
             val summary = TrackMap.summary(d.points)
             Text(
@@ -922,8 +914,7 @@ private fun TrackDetailScreen(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             if (d != null && d.points.isNotEmpty()) {
-                // График и карта показывают одно и то же: ведёшь по графику —
-                // кольцо едет по следу, трогаешь след — курсор встаёт здесь.
+                // График и карта показывают одно и то же: курсор общий.
                 RouteProfileChart(
                     points = d.points,
                     metric = metric,
@@ -1077,8 +1068,8 @@ private fun TrackMapCard(
             onViewport = onViewport,
         )
 
-        // Сверху слева — только пройденное расстояние: единственное число,
-        // которое относится к тому, что нарисовано, и меняется по мере ходьбы.
+        // Сверху слева — пройденное расстояние: единственное число, которое
+        // относится к нарисованному и меняется по мере ходьбы.
         Column(
             verticalArrangement = Arrangement.spacedBy(Dimens.space1),
             modifier = Modifier.align(Alignment.TopStart).padding(Dimens.space2),
@@ -1086,9 +1077,8 @@ private fun TrackMapCard(
             if (grid == null && render.distanceMeters > 0) {
                 Chip(text = TrackMap.formatDistance(render.distanceMeters, t))
             }
-            // Тайлы: сам счётчик — диагностика и живёт под отладочным отчётом,
-            // но молчать о том, что карта пустая из-за сети, нельзя: в поле у
-            // человека нет логов, и серый прямоугольник обязан назвать причину.
+            // Счётчик тайлов — диагностика под отладочным отчётом, но о том,
+            // что карта пуста из-за сети, экран говорит всегда.
             val hint = TileStatus.networkHint(tiles.loaded, tiles.failed, waitedMillis, t)
             if (showTileStats) {
                 Chip(
@@ -1105,8 +1095,8 @@ private fun TrackMapCard(
                     Text(text = hint, style = type.footnote, color = colors.warn)
                 }
             }
-            // Ожидание координат — состояние, а не украшение: пока фикса нет,
-            // это единственное объяснение неподвижной карте.
+            // Ожидание координат — состояние: пока фикса нет, это объяснение
+            // неподвижной карте.
             MyPosition.chipText(
                 state = positionState,
                 fix = position,
@@ -1118,11 +1108,9 @@ private fun TrackMapCard(
             }
         }
 
-        // Сверху справа — сама запись: её видно, не читая ни строки, и
-        // останавливается она там же, где показана. Внизу экрана кнопка жила
-        // отдельно от того, что она останавливает, а рядом с ней стояло число
-        // точек — счёт, который ничего не решает: важно, идёт запись или нет,
-        // а сколько в ней точек, видно по самому следу.
+        // Сверху справа — запись: она видна без чтения и останавливается там
+        // же, где показана. Число точек не показывается: важно, идёт запись
+        // или нет.
         onToggleRecording?.let { toggle ->
             RecordingBadge(
                 since = recordingSince,
@@ -1132,15 +1120,13 @@ private fun TrackMapCard(
             )
         }
 
-        // Снизу слева — что показано: величина переключается чаще, чем
-        // двигается камера, и стоит она под большим пальцем.
+        // Снизу слева — переключатель величины, под большим пальцем.
         Column(
             verticalArrangement = Arrangement.spacedBy(Dimens.space1),
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                // Снизу слева стоит указание авторства OpenStreetMap — это
-                // условие лицензии тайлов, а не подпись, которую можно закрыть
-                // контролом. Отступ оставляет её видимой.
+                // Снизу слева стоит указание авторства OpenStreetMap —
+                // условие лицензии тайлов; отступ оставляет его видимым.
                 .padding(start = Dimens.space2, end = Dimens.space2, bottom = ATTRIBUTION_SPACE),
         ) {
             Segmented(
@@ -1151,9 +1137,8 @@ private fun TrackMapCard(
             )
         }
 
-        // Снизу справа — камера. Два разных действия, две разные иконки: одна
-        // ведёт к человеку, вторая показывает нарисованное целиком, и подменять
-        // друг друга они не имеют права.
+        // Снизу справа — камера: «я на карте» и «показать целиком» — два
+        // разных действия с разными значками.
         Column(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(Dimens.space1),
@@ -1207,9 +1192,8 @@ private val METRIC_TOGGLE_WIDTH = 132.dp
 
 /**
  * Круглая кнопка поверх карты: значок рисуется, а не набирается символом —
- * типографский «⌖» в разных шрифтах выглядит по-разному и на части устройств
- * не отрисовывается вовсе. Цель нажатия — обычного мобильного размера, даже
- * когда сам значок маленький; подпись остаётся для доступности.
+ * «⌖» в разных шрифтах выглядит по-разному и не везде отрисовывается. Цель
+ * нажатия обычного мобильного размера; подпись остаётся для доступности.
  */
 @Composable
 private fun MapIconButton(
@@ -1231,8 +1215,7 @@ private fun MapIconButton(
         Canvas(Modifier.size(22.dp)) {
             val stroke = 1.6.dp.toPx()
             when (icon) {
-                // «Я на карте»: кольцо с точкой и четырьмя засечками по осям —
-                // тот же знак, что на любой карте, поэтому объяснять его нечем.
+                // «Я на карте»: кольцо с точкой и четырьмя засечками по осям.
                 MapIcon.MY_LOCATION -> {
                     val radius = size.minDimension / 2f
                     val ring = radius * 0.55f
@@ -1464,20 +1447,18 @@ private fun RouteSummaryCard(
                         summary.maxDoseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
                         t.statMax,
                     ),
-                    // «Измерений», а не «точек»: географическая точка и
-                    // радиометрическое измерение — разные вещи, а число здесь
-                    // считает именно измерения вдоль маршрута.
+                    // «Измерений», а не «точек»: считаются радиометрические
+                    // измерения вдоль маршрута.
                     StatCell(HistoryFormat.count(summary.pointCount), t.statMeasurements),
-                    // «0 меток» — не факт о маршруте, а пустое место в сетке:
-                    // клетка появляется, когда есть первая метка.
+                    // Клетка меток появляется с первой меткой: «0 меток» —
+                    // не факт о маршруте.
                     data.hotspots.size.takeIf { it > 0 }?.let {
                         StatCell(HistoryFormat.count(it), t.statMarkers)
                     },
                 ),
             )
-            // Что означает цвет — здесь, а не поверх карты: карта осталась
-            // картой, а объяснение живёт там же, где остальные пояснения, и
-            // выключается вместе с ними.
+            // Что означает цвет — здесь, а не поверх карты: объяснение живёт
+            // вместе с остальными пояснениями и выключается вместе с ними.
             Hint(
                 text = if (scaleIsAbsolute && scaleMode == MapColorScale.ABSOLUTE) {
                     t.scaleAbsolute
