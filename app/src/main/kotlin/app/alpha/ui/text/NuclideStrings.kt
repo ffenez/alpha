@@ -36,6 +36,19 @@ interface NuclideStrings {
     /** «Совпала 1 из 3 проверяемых линий.» — счёт берётся у matcher. */
     fun matchedOfChecked(found: Int, total: Int): String
     val notEnoughToConfirm: String
+
+    /**
+     * У нуклида ровно одна гамма-линия.
+     *
+     * «Совпала 1 из 1 проверяемых линий. Этого недостаточно» читается как
+     * противоречие: совпало всё, что было, — и всё равно мало. Причина не в
+     * счёте, а в том, что второй линии у нуклида нет и перекрёстно проверить
+     * совпадение нечем.
+     */
+    fun singleLineNuclide(nuclide: String): String
+
+    /** Линии есть, но проверить на этом спектре удалось только одну. */
+    fun onlyOneLineCheckable(nuclide: String): String
     val multiLineStronger: String
 
     /** «Совпал пик около 1120 кэВ, но линии 609 кэВ в спектре нет.» */
@@ -210,6 +223,14 @@ object NuclideRu : NuclideStrings {
     }
 
     override val notEnoughToConfirm = "Этого недостаточно для подтверждения."
+
+    override fun singleLineNuclide(nuclide: String) =
+        "У $nuclide одна гамма-линия — перекрёстно проверить совпадение нечем: " +
+            "у любого совпадения по одной энергии остаётся эта неопределённость."
+
+    override fun onlyOneLineCheckable(nuclide: String) =
+        "Проверить удалось только одну линию $nuclide: остальные вне шкалы прибора " +
+            "или слишком слабы, чтобы различить их на этой статистике."
     override val multiLineStronger =
         "Несколько линий согласуются между собой — это сильнее одной линии, " +
             "но подтверждением не является."
@@ -448,6 +469,14 @@ object NuclideEn : NuclideStrings {
         "$found of $total checked lines matched."
 
     override val notEnoughToConfirm = "That is not enough to confirm it."
+
+    override fun singleLineNuclide(nuclide: String) =
+        "$nuclide has a single gamma line — there is no second line to cross-check it " +
+            "against, and that uncertainty stays with any single-energy match."
+
+    override fun onlyOneLineCheckable(nuclide: String) =
+        "Only one line of $nuclide could be checked: the others are outside the " +
+            "instrument scale or too weak to tell apart at this statistics."
     override val multiLineStronger =
         "Several lines agree with each other — stronger than one line, but not " +
             "a confirmation."
@@ -668,6 +697,7 @@ fun NuclideStrings.allTexts(): List<String> = listOf(
     statusPossibleMatch, statusNotConfirmed, statusNotEvaluated, statusNotEvaluatedDetail,
     statusAmbiguous, ambiguousDetail("Pb-214 / I-131"), contradictsExpectedLines,
     matchedOfChecked(1, 3), notEnoughToConfirm, multiLineStronger,
+    singleLineNuclide("K-40"), onlyOneLineCheckable("Bi-214"),
     missingStrongLine("1120", "609"),
     limits,
     labelOrigin, labelHalfLife, labelDecay,

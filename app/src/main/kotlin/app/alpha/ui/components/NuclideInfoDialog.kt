@@ -164,12 +164,12 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
         // Нажимаемость строки названа один раз под таблицей: значок «›» в
         // каждой строке спорил бы с значком вердикта, а он несёт смысл.
         if (onShowOnSpectrum != null) {
-            Hint(text = model.lineTapHint, color = colors.ink2)
+            Text(text = model.lineTapHint, style = type.footnote, color = colors.ink2)
         }
         model.ratio.forEach { line ->
             Text(text = line, style = type.footnote, color = colors.muted)
         }
-        Hint(text = model.yieldNote)
+        Text(text = model.yieldNote, style = type.footnote, color = colors.muted)
     }
 
     // 3. Свойства нуклида — один компактный блок, без повторов происхождения.
@@ -192,8 +192,15 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
         }
     }
 
+    // «Где встречается» — содержимое справки, а не пояснение на экране.
+    //
+    // Раздел печатался через `Hint` и при выключенных «Пояснениях на экранах»
+    // оставлял на карточке пустой заголовок: человек открыл справку СПЕЦИАЛЬНО,
+    // и прятать в ней текст — значит выдать пустую справку за справку.
+    // Глобальная настройка управляет рабочими экранами, а не содержимым того,
+    // что открыто по требованию.
     Section(model.sectionEveryday) {
-        Hint(text = model.everyday, style = type.bodySmall, color = colors.ink2)
+        Text(text = model.everyday, style = type.bodySmall, color = colors.ink2)
     }
 
     Section(model.sectionStrengthen) {
@@ -208,12 +215,12 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
                 )
             }
         }
-        Hint(text = model.strengthenNote)
+        Text(text = model.strengthenNote, style = type.footnote, color = colors.muted)
     }
 
     // 4. Одна оговорка про метод — внизу и только здесь.
     Section(model.sectionLimitation) {
-        Hint(text = model.limitation, style = type.bodySmall)
+        Text(text = model.limitation, style = type.bodySmall, color = colors.muted)
     }
 
     // 5. Второй уровень: полный список линий и происхождение чисел.

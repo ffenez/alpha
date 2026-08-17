@@ -110,7 +110,6 @@ fun SpectralRangesCard(
     val raw by graph.settings.energyWindowsRaw.collectAsState(initial = null)
     val expanded by graph.settings.spectralRangesExpanded.collectAsState(initial = false)
     val specs = remember(raw) { EnergyWindows.parse(raw) }
-    var explaining by remember { mutableStateOf(false) }
     var details by rememberSaveable { mutableStateOf(false) }
 
     val analysis = remember(counts, durationSeconds, calibration, specs) {
@@ -161,7 +160,7 @@ fun SpectralRangesCard(
                     // покрытие каналами — в технических данных: они нужны
                     // редко и подробно, а место занимали всегда.
                     RangesTable(analysis, details = false, t = t)
-                    RatioRow(index, t, onExplain = { explaining = true })
+                    RatioRow(index, t)
                     // Кнопка настройки диапазонов уехала в Настройки → Прибор:
                     // границы это ПАРАМЕТР АНАЛИЗА, который задают один раз, а
                     // на рабочем экране он занимал место постоянно.
@@ -170,9 +169,6 @@ fun SpectralRangesCard(
         }
     }
 
-    if (explaining) {
-        RatioExplainDialog(analysis, t, onDismiss = { explaining = false })
-    }
     if (technicalOpen) {
         TechnicalDataSheet(analysis, t, onDismiss = onCloseTechnical)
     }
@@ -235,6 +231,20 @@ private fun TechnicalDataSheet(
                         style = type.valueSmall,
                         color = colors.ink2,
                     )
+                    Text(
+                        text = t.ratioFormula(
+                            SpectrumFormat.rangeLabel(index.lowWindow),
+                            SpectrumFormat.rangeLabel(index.highWindow),
+                        ),
+                        style = type.footnoteMono,
+                        color = colors.ink2,
+                    )
+                    // Что величина описывает и чем она НЕ является, стоит
+                    // рядом с ней самой: ограничение — часть числа, а не
+                    // примечание к экрану.
+                    Text(text = t.ratioWhat, style = type.bodySmall, color = colors.ink2)
+                    Text(text = t.ratioNotHardness, style = type.bodySmall, color = colors.ink2)
+                    Text(text = t.indexNote, style = type.footnote, color = colors.muted)
                 }
                 Text(text = t.windowsEdgeNote, style = type.footnote, color = colors.muted)
                 AppButton(
@@ -303,12 +313,18 @@ private fun RangesTable(
     }
 }
 
-/** Спектральное отношение: значение с неопределённостью и дверь в «i». */
+/**
+ * Спектральное отношение: название и число.
+ *
+ * Значка «i» рядом больше нет: он стоял в рабочей строке и открывал текст, а
+ * читают эту строку ради числа. Объяснение — что это за величина, чем она НЕ
+ * является и почему это не жёсткость прибора — переехало в технические
+ * данные, туда же, где лежат остальные подробности разбора.
+ */
 @Composable
 private fun RatioRow(
     index: EnergyWindows.SpectralIndex?,
     t: SpectrumStrings,
-    onExplain: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -329,74 +345,7 @@ private fun RatioRow(
             style = type.valueSmall,
             color = colors.ink,
         )
-        Chip(text = "i", color = colors.ink2, onClick = onExplain)
     }
-}
-
-/**
- * «i» у отношения: формула, что оно описывает, чем НЕ является и чем оно не
- * приходится жёсткости прибора. Отказ «не мера опасности» стоит здесь же —
- * объяснение величины и её ограничение живут вместе.
- */
-@Composable
-private fun RatioExplainDialog(
-    analysis: EnergyWindows.Analysis,
-    t: SpectrumStrings,
-    onDismiss: () -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val strings = LocalStrings.current
-    val index = analysis.index
-    Dialog(onDismissRequest = onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = t.ratioTitle, style = type.title, color = colors.ink)
-                if (index != null) {
-                    Text(
-                        text = t.ratioFormula(
-                            SpectrumFormat.rangeLabel(index.lowWindow),
-                            SpectrumFormat.rangeLabel(index.highWindow),
-                        ),
-                        style = type.footnoteMono,
-                        color = colors.ink2,
-                    )
-                }
-                Hint(text = t.ratioWhat, style = type.bodySmall, color = colors.ink2)
-                Hint(text = t.ratioNotHardness, style = type.bodySmall, color = colors.ink2)
-                Hint(text = t.indexNote)
-                AppButton(
-                    text = strings.close,
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowScope.RangeHeader(text: String, weight: Float) {
-    Text(
-        text = text,
-        style = LocalAppTypography.current.overline,
-        color = LocalAppColors.current.muted,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.weight(weight),
-    )
-}
-
-@Composable
-private fun RowScope.RangeCell(text: String, weight: Float, color: Color) {
-    Text(
-        text = text,
-        style = LocalAppTypography.current.valueSmall,
-        color = color,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.weight(weight),
-    )
 }
 
 /**
@@ -743,3 +692,27 @@ private fun BoundsField(
 }
 
 private val FIELD_PAD = 8.dp
+
+@Composable
+private fun RowScope.RangeHeader(text: String, weight: Float) {
+    Text(
+        text = text,
+        style = LocalAppTypography.current.overline,
+        color = LocalAppColors.current.muted,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(weight),
+    )
+}
+
+@Composable
+private fun RowScope.RangeCell(text: String, weight: Float, color: Color) {
+    Text(
+        text = text,
+        style = LocalAppTypography.current.valueSmall,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(weight),
+    )
+}

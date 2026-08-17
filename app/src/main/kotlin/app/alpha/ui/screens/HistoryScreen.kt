@@ -98,6 +98,7 @@ import app.alpha.ui.logic.DeletionPlan
 import app.alpha.ui.logic.HistoryDeletion
 import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.logic.HistorySelection
+import app.alpha.ui.logic.PendingDeletion
 import app.alpha.ui.logic.ProfileTree
 import app.alpha.ui.logic.SpectrumFormat
 import app.alpha.ui.text.HistoryCatalogue
@@ -718,17 +719,19 @@ fun HistoryScreen(
     // карточке спектров, поэтому список поднят сюда и передаётся вниз.
     val savedSpectra by graph.measurementRepository.savedSpectra(SPECTRA_LIMIT)
         .collectAsState(initial = emptyList())
-    var confirming by remember { mutableStateOf<DeletionPlan?>(null) }
+    var confirming by remember { mutableStateOf<PendingDeletion?>(null) }
     // Что вышло из объединения снимков — рядом со списком, где их и выбирали.
     var mergeNote by remember { mutableStateOf<String?>(null) }
 
-    confirming?.let { plan ->
+    confirming?.let { pending ->
         DeleteConfirmDialog(
-            plan = plan,
+            plan = pending.plan,
             onConfirm = {
                 scope.launch {
-                    graph.sessionRepository.delete(selection.sessions, selection.spectra)
-                    selection = HistorySelection()
+                    // Удаляется ровно то, что посчитано в плане: набор целей
+                    // приехал вместе с ним.
+                    graph.sessionRepository.delete(pending.sessions, pending.spectra)
+                    if (pending.fromSelection) selection = HistorySelection()
                     confirming = null
                     reload += 1
                 }
@@ -949,15 +952,19 @@ fun HistoryScreen(
                                                 EntityMenus.session(
                                                     strings = strings,
                                                     export = e,
+                                                    canDelete = !group.running,
                                                     onExport = { exportingSession = ids.last() },
                                                     onProfile = { profileForSession = ids.last() },
                                                     onDelete = {
                                                         scope.launch {
-                                                            confirming = graph.sessionRepository
-                                                                .deletionPlan(
-                                                                    sessionIds = ids.toSet(),
-                                                                    spectrumIds = emptySet(),
-                                                                )
+                                                            confirming = PendingDeletion(
+                                                                plan = graph.sessionRepository
+                                                                    .deletionPlan(
+                                                                        sessionIds = ids.toSet(),
+                                                                        spectrumIds = emptySet(),
+                                                                    ),
+                                                                sessions = ids.toSet(),
+                                                            )
                                                         }
                                                     },
                                                 )
@@ -1271,9 +1278,14 @@ fun HistoryScreen(
                                 text = HistoryDeletion.actionLabel(selection, h),
                                 onClick = {
                                     scope.launch {
-                                        confirming = graph.sessionRepository.deletionPlan(
-                                            sessionIds = selection.sessions,
-                                            spectrumIds = selection.spectra,
+                                        confirming = PendingDeletion(
+                                            plan = graph.sessionRepository.deletionPlan(
+                                                sessionIds = selection.sessions,
+                                                spectrumIds = selection.spectra,
+                                            ),
+                                            sessions = selection.sessions,
+                                            spectra = selection.spectra,
+                                            fromSelection = true,
                                         )
                                     }
                                 },

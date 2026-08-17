@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v093Title: String
+    val v093Summary: String
+
     val v092Title: String
     val v092Summary: String
 
@@ -219,6 +222,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v093Title = "Справка о нуклиде открывается по имени, запись удаляется"
+    override val v093Summary =
+        "Нажатие на имя нуклида снова открывает справку о нём, и «Где встречается» видно при " +
+        "любых настройках. У калия-40 сказано, почему одной совпавшей линии мало — она у него " +
+        "единственная, — а удаление записи из её «⋮» действительно удаляет запись."
 
     override val v092Title = "Спектр стал рабочим экраном"
     override val v092Summary =
@@ -682,6 +691,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v093Title = "The nuclide card opens from its name, and a record deletes"
+    override val v093Summary =
+        "Tapping a nuclide opens its card again, and «Where it occurs» is visible whatever the " +
+        "settings. Potassium-40 says why one matched line is not enough — it is its only line — " +
+        "and deleting a record from its «⋮» actually deletes it."
 
     override val v092Title = "The spectrum became a working screen"
     override val v092Summary =

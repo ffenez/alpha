@@ -60,8 +60,16 @@ class NuclideCardTest {
         val model = card("Am-241", listOf(peak(59.5f)))
         assertEquals(NuclideCardStatus.POSSIBLE_MATCH, model.status.status)
         assertEquals(NuclideRu.statusPossibleMatch, model.status.headline)
-        assertEquals(
-            "Совпала 1 из 1 проверяемых линий. Этого недостаточно для подтверждения.",
+        // «Совпала 1 из 1 … этого недостаточно» читалось как противоречие:
+        // совпало всё, что было. Причина не в счёте, а в устройстве нуклида —
+        // второй линии у него нет, и проверить совпадение нечем.
+        assertTrue(
+            model.status.detail.startsWith("Совпала 1 из 1 проверяемых линий."),
+            model.status.detail,
+        )
+        assertTrue(model.status.detail.contains("одна гамма-линия"), model.status.detail)
+        assertTrue(
+            !model.status.detail.contains(NuclideRu.notEnoughToConfirm),
             model.status.detail,
         )
     }

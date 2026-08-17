@@ -58,10 +58,15 @@ internal object EntityMenus {
         onExport: () -> Unit,
         onProfile: () -> Unit,
         onDelete: () -> Unit,
+        /**
+         * Идущую запись удалять нечем: измерения приходят в неё прямо сейчас.
+         * Пункт гаснет, а не исчезает — иначе непонятно, куда он делся.
+         */
+        canDelete: Boolean = true,
     ): List<EntityMenuItem> = listOf(
         EntityMenuItem(export.export, onClick = onExport),
         EntityMenuItem(strings.profile, onClick = onProfile),
-        EntityMenuItem(strings.delete, onClick = onDelete),
+        EntityMenuItem(strings.delete, enabled = canDelete, onClick = onDelete),
     )
 
     fun route(

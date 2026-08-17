@@ -135,4 +135,26 @@ class EntityMenusTest {
             }
         }
     }
+
+    /**
+     * Удаление идущей записи гаснет.
+     *
+     * Измерения приходят в неё прямо сейчас: нажатие на «Удалить» ничего бы не
+     * дало, а молчаливое действие человек читает как поломку.
+     */
+    @Test
+    fun `у идущей сессии удаление недоступно`() {
+        val strings = stringsFor(AppLanguage.RU)
+        val export = ExportCatalogue.of(AppLanguage.RU)
+        val running = EntityMenus.session(
+            strings = strings,
+            export = export,
+            onExport = {},
+            onProfile = {},
+            onDelete = {},
+            canDelete = false,
+        )
+        assertEquals(strings.delete, running.last().title)
+        assertTrue(!running.last().enabled)
+    }
 }

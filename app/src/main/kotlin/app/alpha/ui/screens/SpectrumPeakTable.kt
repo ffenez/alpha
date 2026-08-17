@@ -126,6 +126,8 @@ internal fun PeakTable(
     rows: List<PeakRow>,
     highlightedNuclide: String?,
     onSelect: (PeakRow) -> Unit,
+    /** Тап по самому имени нуклида открывает справку о нём — как и раньше. */
+    onNuclide: (String) -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -163,6 +165,10 @@ internal fun PeakTable(
                 // весом и цветом внимания; артефакты и прочерки приглушены.
                 val artificial = match is PeakMatch.Candidate && !match.natural ||
                     match is PeakMatch.AmbiguousGroup && !match.natural
+                // Имя нуклида — своя цель нажатия: по нему открывается
+                // справка о нуклиде, как было раньше. Остальная строка ведёт в
+                // лист пика (площадь, отклонённые кандидаты, переходы).
+                val nuclide = match.primaryNuclide
                 Text(
                     text = (if (isHighlighted) "▸ " else "") +
                         SpectrumFormat.matchCell(match, t),
@@ -179,7 +185,17 @@ internal fun PeakTable(
                     },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1.5f),
+                    modifier = Modifier
+                        .weight(1.5f)
+                        .then(
+                            if (nuclide != null) {
+                                Modifier
+                                    .clickable { onNuclide(nuclide) }
+                                    .padding(vertical = 4.dp)
+                            } else {
+                                Modifier
+                            },
+                        ),
                 )
             }
             if (index < rows.size - 1) AppDivider()

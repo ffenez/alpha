@@ -275,7 +275,23 @@ object NuclideCard {
             )
             // Несколько линий — свидетельство сильнее одной, но потолок тот же.
             EvidenceClass.SUPPORTED -> possible(counted, s.multiLineStronger, s)
-            EvidenceClass.WEAK -> possible(counted, s.notEnoughToConfirm, s)
+            // Одной линии мало — но ПОЧЕМУ, зависит от самого нуклида.
+            //
+            // «Совпала 1 из 1 проверяемых линий. Этого недостаточно» читалось
+            // как противоречие: совпало всё, что было. У K-40 гамма-линия
+            // ровно одна, и проверять совпадение просто нечем; у нуклида с
+            // несколькими линиями бывает, что на этом спектре проверить
+            // удалось одну. Это разные причины, и они названы по отдельности.
+            EvidenceClass.WEAK -> possible(
+                counted = counted,
+                tail = when {
+                    c.lines.size == 1 -> s.singleLineNuclide(c.nuclide)
+                    c.lines.count { it.observability != LineObservability.OUT_OF_RANGE } <= 1 ->
+                        s.onlyOneLineCheckable(c.nuclide)
+                    else -> s.notEnoughToConfirm
+                },
+                s = s,
+            )
         }
     }
 

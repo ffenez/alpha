@@ -1324,6 +1324,10 @@ private fun SpectrumContent(
                         highlightedIsotope = row.match.primaryNuclide
                         openPeak = row
                     },
+                    onNuclide = { symbol ->
+                        highlightedIsotope = symbol
+                        infoIsotope = symbol
+                    },
                 )
             }
             // Родство кандидатов: Pb-214 рядом с Bi-214 читается как две
