@@ -134,6 +134,7 @@ object SpectrumFormat {
             ArtifactKind.SINGLE_ESCAPE, ArtifactKind.DOUBLE_ESCAPE -> s.artifactEscape
             ArtifactKind.SUM -> s.artifactSum
             ArtifactKind.BACKSCATTER -> s.artifactBackscatter
+            ArtifactKind.XRAY -> s.artifactXray
         }
     }
 
@@ -143,7 +144,9 @@ object SpectrumFormat {
      */
     fun matchNotes(match: PeakMatch, s: SpectrumStrings = SpectrumRu): List<String> =
         when (match) {
-            PeakMatch.None -> emptyList()
+            // Прочерк без пометки читался как «прибор ничего не нашёл».
+            // Пометка называет границу: линии нет В БИБЛИОТЕКЕ.
+            PeakMatch.None -> listOf(s.noExplanationNote)
             is PeakMatch.Contradicted ->
                 listOf(s.contradictedNote(match.nuclides.joinToString(" / ")))
             is PeakMatch.AmbiguousGroup ->
@@ -172,6 +175,11 @@ object SpectrumFormat {
                             match.cascadeNuclide.orEmpty(),
                         )
                         ArtifactKind.BACKSCATTER -> s.artifactBackscatterNote
+                        ArtifactKind.XRAY -> s.artifactXrayNote(
+                            match.xrayLines.joinToString(" · ") {
+                                "${it.first} ${energyCell(it.second)}"
+                            },
+                        )
                     },
                 )
                 if (match.compatibleNuclides.isNotEmpty()) {

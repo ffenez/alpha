@@ -168,7 +168,9 @@ class PeakEvidenceBridgeTest {
         val match = verdict.rows.single().match
         assertEquals(PeakMatch.None, match)
         assertEquals("—", SpectrumFormat.matchCell(match))
-        assertTrue(SpectrumFormat.matchNotes(match).isEmpty())
+        // Прочерк объясняет сам себя: без пометки он читался как «прибор
+        // ничего не нашёл», хотя означает границу библиотеки.
+        assertEquals(listOf(SpectrumRu.noExplanationNote), SpectrumFormat.matchNotes(match))
     }
 
     @Test

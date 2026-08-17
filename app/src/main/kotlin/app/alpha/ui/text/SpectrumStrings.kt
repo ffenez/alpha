@@ -151,6 +151,13 @@ interface SpectrumStrings {
     val infoAxisY: String
 
     /** Первый уровень: почему выступ назван пиком. */
+    val infoUnexplainedTitle: String
+    val infoUnexplainedRule: String
+    val infoUnexplainedLibrary: String
+    val infoUnexplainedXray: String
+    val infoUnexplainedCalibration: String
+    val infoUnexplainedStatistics: String
+
     val infoPeakTitle: String
     val infoPeak: String
 
@@ -347,6 +354,14 @@ interface SpectrumStrings {
     val artifactBackscatter: String
     val artifactBackscatterNote: String
 
+    val artifactXray: String
+
+    /** «K-серия тяжёлых элементов (Pb 84,9 · Bi 87,3 кэВ) …». */
+    fun artifactXrayNote(lines: String): String
+
+    /** Пометка строки пика, которому не нашлось ни линии, ни артефакта. */
+    val noExplanationNote: String
+
     /** Линии, совместимые с пиком-артефактом (511 и Tl-208 510,8). */
     fun artifactCompatibleNote(nuclides: String): String
 
@@ -463,6 +478,24 @@ object SpectrumRu : SpectrumStrings {
     override val infoAxisY = "Вертикальная ось — число зарегистрированных событий в канале " +
         "за всё накопление. Выступы на кривой называются пиками: они могут соответствовать " +
         "характерным энергиям гамма-излучения нуклидов."
+    override val infoUnexplainedTitle = "Пик без объяснения"
+    override val infoUnexplainedRule =
+        "Прочерк в колонке совпадения означает не «здесь ничего нет», а «в библиотеке " +
+            "приложения нет линии на этой энергии, и известные артефакты этот пик не " +
+            "описывают». Причин обычно четыре."
+    override val infoUnexplainedLibrary =
+        "Нуклида нет в библиотеке: в ней природные ряды, калий-40 и то, что встречается " +
+            "в быту, медицине и технике. Реакторных и лабораторных нуклидов в ней нет."
+    override val infoUnexplainedXray =
+        "Характеристический рентген: 73–90 кэВ дают K-линии свинца и висмута, 90–115 кэВ — " +
+            "тория и урана. Его выбивает гамма-излучение из свинца окружения и из ядер самих " +
+            "рядов; вся серия сливается прибором в один бугор."
+    override val infoUnexplainedCalibration =
+        "Сдвиг шкалы: если необъяснённой оказалась не одна энергия, а все сразу и на " +
+            "одну и ту же величину, дело в калибровке прибора, а не в нуклидах."
+    override val infoUnexplainedStatistics =
+        "Мало импульсов: на коротком накоплении случайный выброс имеет ширину пика. " +
+            "Копите дальше — настоящая линия растёт, выброс расходится."
     override val infoPeakTitle = "Что означает найденный пик"
     override val infoPeak = "Приложение отмечает выступы, которые заметно поднимаются над " +
         "окружающим спектром и имеют ширину, совместимую с разрешением детектора. " +
@@ -688,6 +721,13 @@ object SpectrumRu : SpectrumStrings {
     override val artifactBackscatterNote =
         "область обратного рассеяния 200–255 кэВ: фотоны, рассеянные окружением " +
             "назад в детектор"
+    override val artifactXray = "характеристический рентген"
+    override fun artifactXrayNote(lines: String) =
+        "K-серия тяжёлых элементов ($lines): гамма-излучение выбивает электрон K-оболочки " +
+            "в свинце окружения или в ядрах самих рядов"
+    override val noExplanationNote =
+        "ни линии библиотеки, ни известного артефакта на этой энергии — см. справку " +
+            "«Пик без объяснения»"
     override fun artifactCompatibleNote(nuclides: String) =
         "с этим пиком совместимы и линии: $nuclides"
 
@@ -842,6 +882,27 @@ object SpectrumEn : SpectrumStrings {
     override val infoAxisY = "The vertical axis is the number of registered events in a " +
         "channel over the whole accumulation. The bumps on the curve are called peaks: they " +
         "may correspond to characteristic gamma energies of nuclides."
+    override val infoUnexplainedTitle = "A peak with no explanation"
+    override val infoUnexplainedRule =
+        "A dash in the match column does not mean «there is nothing here». It means «the " +
+            "library of the app has no line at this energy, and the known artifacts do not " +
+            "describe this peak». There are usually four reasons."
+    override val infoUnexplainedLibrary =
+        "The nuclide is not in the library: it holds the natural chains, potassium-40 and " +
+            "what turns up in everyday life, medicine and industry. Reactor and laboratory " +
+            "nuclides are not in it."
+    override val infoUnexplainedXray =
+        "Characteristic X-rays: 73–90 keV comes from the K lines of lead and bismuth, " +
+            "90–115 keV from those of thorium and uranium. Gamma radiation knocks them out " +
+            "of lead in the surroundings and of the nuclei of the chains themselves; the " +
+            "instrument merges the whole series into one bump."
+    override val infoUnexplainedCalibration =
+        "A shift of the scale: if it is not one energy that went unexplained but all of " +
+            "them, by the same amount, the calibration of the instrument is the reason, not " +
+            "the nuclides."
+    override val infoUnexplainedStatistics =
+        "Too few counts: on a short accumulation a random spike has the width of a peak. " +
+            "Keep collecting — a real line grows, a spike spreads out."
     override val infoPeakTitle = "What a found peak means"
     override val infoPeak = "The app marks bumps that rise noticeably above the surrounding " +
         "spectrum and whose width agrees with the resolution of the detector. A single-channel " +
@@ -1065,6 +1126,13 @@ object SpectrumEn : SpectrumStrings {
     override val artifactBackscatterNote =
         "the 200–255 keV backscatter region: photons scattered by the surroundings " +
             "back into the detector"
+    override val artifactXray = "characteristic X-rays"
+    override fun artifactXrayNote(lines: String) =
+        "the K series of heavy elements ($lines): gamma radiation knocks a K-shell electron " +
+            "out of lead in the surroundings or of the nuclei of the chains themselves"
+    override val noExplanationNote =
+        "no library line and no known artifact at this energy — see «A peak with no " +
+            "explanation» in the reference"
     override fun artifactCompatibleNote(nuclides: String) =
         "lines of $nuclides are also compatible with this peak"
 
@@ -1206,6 +1274,9 @@ private fun SpectrumStrings.formatTexts(): List<String> = listOf(
     artifactEscape, artifactEscapeNote("2614,5", "511"),
     artifactSum, artifactSumNote("1173,2", "1332,5", "Co-60"),
     artifactBackscatter, artifactBackscatterNote,
+    artifactXray, artifactXrayNote("Pb 84,9"), noExplanationNote,
+    infoUnexplainedTitle, infoUnexplainedRule, infoUnexplainedLibrary,
+    infoUnexplainedXray, infoUnexplainedCalibration, infoUnexplainedStatistics,
     artifactCompatibleNote("Tl-208"),
     calibrationLine("−5,6 + 2,41·ch", channels(1024)),
 )

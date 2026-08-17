@@ -3,6 +3,7 @@ package app.alpha.ui.logic
 import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.Peak
 import app.alpha.analysis.PeakDetection
+import app.alpha.analysis.evidence.EnergyMatch
 import app.alpha.analysis.evidence.EvidenceClass
 import app.alpha.analysis.evidence.EvidenceEngine
 import app.alpha.analysis.evidence.EvidenceLineLibrary
@@ -18,7 +19,7 @@ import app.alpha.analysis.evidence.SqrtResolution
 import kotlin.math.abs
 
 /** Вид артефакта спектрометрии — то, что стоит в ячейке вместо нуклида. */
-enum class ArtifactKind { ANNIHILATION, SINGLE_ESCAPE, DOUBLE_ESCAPE, SUM, BACKSCATTER }
+enum class ArtifactKind { ANNIHILATION, SINGLE_ESCAPE, DOUBLE_ESCAPE, SUM, BACKSCATTER, XRAY }
 
 /**
  * Что стоит в колонке «возможное совпадение» у одного пика.
@@ -49,6 +50,12 @@ sealed interface PeakMatch {
         val sumSecondKeV: Float? = null,
         /** Нуклид каскада суммы. */
         val cascadeNuclide: String? = null,
+        /**
+         * Линии K-серии, совместимые с пиком ([ArtifactKind.XRAY]): символ
+         * элемента и энергия, кэВ. Элемент здесь — не утверждение о составе
+         * образца, а название механизма.
+         */
+        val xrayLines: List<Pair<String, Float>> = emptyList(),
         val compatibleNuclides: List<String> = emptyList(),
     ) : PeakMatch
 
@@ -218,8 +225,14 @@ object PeakEvidenceBridge {
         }
         val alive = claimants.filter { it.first.classification != EvidenceClass.CONTRADICTED }
 
-        // Артефакты — ДО нуклидов (порядок ADR 006).
-        val artifact = evidence.artifactExplanations.filter { it.peak === peak }
+        // Артефакты — ДО нуклидов (порядок ADR 006). Исключение —
+        // характеристический рентген: его энергия табличная ровно так же, как у
+        // гамма-линии, поэтому спор двух таблиц решается расстоянием до
+        // центроиды, а не порядком стадий. Иначе линия 81,0 кэВ бария уступала
+        // бы Kα висмута 77,1 кэВ, которая от неё на 4 кэВ дальше.
+        val artifact = evidence.artifactExplanations
+            .filter { it.peak === peak }
+            .filterNot { it is PeakExplanation.Fluorescence && lineFitsCloser(it, alive) }
         if (artifact.isNotEmpty()) {
             return artifactMatch(artifact, alive.map { it.first.nuclide }.distinct())
         }
@@ -260,7 +273,8 @@ object PeakEvidenceBridge {
     }
 
     /**
-     * Приоритет объяснений: аннигиляция → escape → сумма → рассеяние. Один пик
+     * Приоритет объяснений: аннигиляция → escape → сумма → рассеяние →
+     * характеристический рентген. Один пик
      * может иметь несколько объяснений — выбирать между ними по одному спектру
      * нечем (KDoc [app.alpha.analysis.evidence.ArtifactInterpreter]), в
      * ячейку идёт первое по порядку каскада, остальное — детали.
@@ -298,13 +312,48 @@ object PeakEvidenceBridge {
                 compatibleNuclides = compatibleNuclides,
             )
         }
-        val backscatter = explanations.filterIsInstance<PeakExplanation.Backscatter>().first()
+        explanations.filterIsInstance<PeakExplanation.Backscatter>().firstOrNull()?.let {
+            return PeakMatch.Artifact(
+                kind = ArtifactKind.BACKSCATTER,
+                parentKeV = it.parent?.centroidKeV?.toFloat(),
+                compatibleNuclides = compatibleNuclides,
+            )
+        }
+        val fluorescence = explanations.filterIsInstance<PeakExplanation.Fluorescence>().first()
+        // Допуск артефакта — половина FWHM, а при 20 кэВ ширины на 85 кэВ в него
+        // попадает половина таблицы. В строку идёт по ОДНОЙ ближайшей линии на
+        // элемент и не больше [XRAY_NOTE_LIMIT] элементов: перечисление всех
+        // попавших линий не добавляет знания — прибор их всё равно не разделяет.
+        val centroid = fluorescence.peak.centroidKeV
+        val nearestPerElement = fluorescence.lines
+            .groupBy { it.element }
+            .map { (_, lines) -> lines.minBy { abs(it.energyKeV - centroid) } }
+            .sortedBy { abs(it.energyKeV - centroid) }
+            .take(XRAY_NOTE_LIMIT)
         return PeakMatch.Artifact(
-            kind = ArtifactKind.BACKSCATTER,
-            parentKeV = backscatter.parent?.centroidKeV?.toFloat(),
+            kind = ArtifactKind.XRAY,
+            xrayLines = nearestPerElement.map { it.element to it.energyKeV.toFloat() },
             compatibleNuclides = compatibleNuclides,
         )
     }
+
+    /** Есть ли у пика линия нуклида ближе, чем ближайшая линия K-серии. */
+    private fun lineFitsCloser(
+        fluorescence: PeakExplanation.Fluorescence,
+        alive: List<Pair<NuclideEvidence, EnergyMatch>>,
+    ): Boolean {
+        val centroid = fluorescence.peak.centroidKeV
+        val xray = fluorescence.lines.minOf { abs(it.energyKeV - centroid) }
+        val line = alive.minOfOrNull { (_, match) -> abs(match.deltaKeV) }
+        return line != null && line < xray
+    }
+
+    /**
+     * Сколько элементов называет пометка характеристического рентгена.
+     * **Инженерный параметр**: три — столько их физически различимо помещается
+     * в допуск на этих энергиях (Pb, Bi и Th у 90 кэВ).
+     */
+    const val XRAY_NOTE_LIMIT = 3
 
     /** Природность нуклида — по его линиям в библиотеке движка. */
     private fun naturalNuclide(evidence: SpectrumEvidence, nuclide: String): Boolean {

@@ -57,7 +57,27 @@ sealed interface PeakExplanation {
         val predictedKeV: Double,
         val deltaKeV: Double,
     ) : PeakExplanation
+
+    /**
+     * Пик совместим с характеристическим рентгеном K-серии тяжёлого элемента.
+     * [lines] — все линии таблицы, попавшие в допуск; их может быть несколько
+     * у разных элементов, и выбирать между ними по одному спектру нечем.
+     */
+    data class Fluorescence(
+        override val peak: ObservedPeak,
+        val lines: List<XrayLine>,
+    ) : PeakExplanation
 }
+
+/**
+ * Линия характеристического рентгена: [element] — химический символ,
+ * [transition] — переход K-серии, [energyKeV] — энергия.
+ */
+data class XrayLine(
+    val element: String,
+    val transition: String,
+    val energyKeV: Double,
+)
 
 /**
  * Известный совпадающий каскад: два фотона, испускаемые в ОДНОМ распаде почти
@@ -122,6 +142,42 @@ object ArtifactInterpreter {
     const val BACKSCATTER_MIN_KEV = 200.0
     const val BACKSCATTER_MAX_KEV = 255.0
 
+    /**
+     * K-серия характеристического рентгена элементов, которые реально стоят за
+     * пиками 70–115 кэВ в гамма-спектре (X-Ray Data Booklet, LBNL, табл. 1-2).
+     *
+     * Механизм не требует нового нуклида, поэтому это артефакт: гамма-квант
+     * выбивает электрон K-оболочки, и место вакансии заполняется с испусканием
+     * рентгена.
+     *  - Pb — флуоресценция свинца окружения (защита, глазурь, припой, стекло)
+     *    и вакансии в Pb-208 после внутренней конверсии в ряду тория;
+     *  - Bi — вакансии в висмуте после распадов радонового ряда;
+     *  - Th — вакансии в Th-234, дочернем U-238 (классический бугор 93 кэВ у
+     *    урановых образцов);
+     *  - U — флуоресценция самого урана в образце (урановое стекло, руда).
+     *
+     * L-серия сюда не входит: у этих элементов она лежит в 10–21 кэВ, ниже
+     * порога поиска пиков любой модели серии.
+     */
+    val XRAY_LINES: List<XrayLine> = listOf(
+        XrayLine("Pb", "Kα2", 72.805),
+        XrayLine("Pb", "Kα1", 74.969),
+        XrayLine("Bi", "Kα2", 74.815),
+        XrayLine("Bi", "Kα1", 77.108),
+        XrayLine("Pb", "Kβ1", 84.936),
+        XrayLine("Pb", "Kβ2", 87.360),
+        XrayLine("Bi", "Kβ1", 87.343),
+        XrayLine("Bi", "Kβ2", 89.830),
+        XrayLine("Th", "Kα2", 89.953),
+        XrayLine("Th", "Kα1", 93.350),
+        XrayLine("U", "Kα2", 94.665),
+        XrayLine("U", "Kα1", 98.439),
+        XrayLine("Th", "Kβ1", 105.609),
+        XrayLine("Th", "Kβ2", 108.590),
+        XrayLine("U", "Kβ1", 111.300),
+        XrayLine("U", "Kβ2", 114.550),
+    )
+
     val CASCADES: List<Cascade> = listOf(
         Cascade("Co-60", 1173.2, 1332.5),
         Cascade("Bi-214", 609.3, 1120.3),
@@ -156,6 +212,7 @@ object ArtifactInterpreter {
             out += escapes(peak, peaks, resolution)
             out += sums(peak, peaks, resolution)
             out += backscatter(peak, peaks, resolution)
+            fluorescence(peak, resolution)?.let { out += it }
         }
         return out
     }
@@ -241,6 +298,32 @@ object ArtifactInterpreter {
             out += PeakExplanation.Backscatter(peak, null, peak.centroidKeV, 0.0)
         }
         return out
+    }
+
+    /**
+     * Доля FWHM, в пределах которой пик считается совместимым с линией
+     * K-серии. **Инженерный параметр**: у рентгеновской линии энергия
+     * ТАБЛИЧНАЯ, поэтому допуск покрывает не ширину детектора (её достаточно
+     * для положения центроиды), а ошибку шкалы — четверть FWHM это около 5 кэВ
+     * на 85 кэВ. Половина FWHM, как у escape и суммы, дотягивалась от 122 кэВ
+     * до K-линий урана и забирала пик у линий кобальта и европия.
+     */
+    const val FLUORESCENCE_TOLERANCE_FRACTION = 0.25
+
+    /**
+     * Совпадение с K-серией [XRAY_LINES]. Отдельные линии серии прибор не
+     * разделяет (FWHM около 20 кэВ на 85 кэВ), поэтому в объяснение попадают
+     * ВСЕ линии, прошедшие допуск.
+     */
+    private fun fluorescence(
+        peak: ObservedPeak,
+        resolution: ResolutionModel,
+    ): PeakExplanation.Fluorescence? {
+        val hits = XRAY_LINES.filter {
+            abs(peak.centroidKeV - it.energyKeV) <=
+                FLUORESCENCE_TOLERANCE_FRACTION * resolution.fwhmKeV(it.energyKeV)
+        }
+        return if (hits.isEmpty()) null else PeakExplanation.Fluorescence(peak, hits)
     }
 
     private fun nearest(

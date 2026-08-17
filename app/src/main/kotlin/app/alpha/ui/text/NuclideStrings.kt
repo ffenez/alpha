@@ -139,6 +139,7 @@ interface NuclideStrings {
     // Символ («K-40»), энергии линий и выходы — данные, они лежат в
     // NuclideInfoLibrary и не переводятся; здесь только текст.
 
+
     val ba133Name: String
     val ba133HalfLife: String
     val ba133Decay: String
@@ -401,6 +402,7 @@ object NuclideRu : NuclideStrings {
         "Точное сравнение отношения линий ограничено: относительная эффективность " +
             "детектора для этих энергий не откалибрована, поэтому наблюдаемое и " +
             "табличное отношения показаны раздельно."
+
 
 
     override val ba133Name = "барий-133"
@@ -799,6 +801,7 @@ object NuclideEn : NuclideStrings {
         "An exact comparison of the line ratio is limited: the relative efficiency " +
             "of the detector at these energies is not calibrated, so the observed " +
             "and the tabulated ratios are shown separately."
+
 
 
     override val ba133Name = "barium-133"

@@ -62,7 +62,9 @@ class NuclideCardSweepTest {
         // Нуклиды, у которых прибор видит ровно одну линию. Появится новый —
         // тест заставит проверить и его формулировку.
         assertEquals(
-            listOf("K-40", "Cs-137", "Am-241", "Tc-99m", "Na-22", "Bi-212", "Ra-226"),
+            listOf(
+                "K-40", "Cs-137", "Am-241", "Tc-99m", "Na-22", "Bi-212", "Ra-226",
+            ),
             single.map { it.symbol },
         )
         for (nuclide in single) {

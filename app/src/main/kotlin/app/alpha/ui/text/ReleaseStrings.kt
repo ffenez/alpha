@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0170Title: String
+    val v0170Summary: String
+
     val v0160Title: String
     val v0160Summary: String
 
@@ -276,6 +279,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0170Title = "Прочерк в таблице пиков заговорил"
+    override val v0170Summary =
+        "Пик, которому не нашлось линии, больше не молчит: строка называет причину, а в " +
+        "справке появился раздел «Пик без объяснения». Бугор 73–90 кэВ теперь подписывается " +
+        "характеристическим рентгеном свинца и висмута, 90–115 кэВ — тория и урана: это " +
+        "рентген, выбитый гамма-излучением, а не нуклид."
 
     override val v0160Title = "Медицина, техника и проверочные источники"
     override val v0160Summary =
@@ -862,6 +872,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0170Title = "The dash in the peak table now speaks"
+    override val v0170Summary =
+        "A peak with no line found no longer stays silent: the row names the reason, and the " +
+        "reference gained a section «A peak with no explanation». The 73–90 keV bump is now " +
+        "labelled as the characteristic X-rays of lead and bismuth, 90–115 keV as those of " +
+        "thorium and uranium — X-rays knocked out by gamma radiation, not a nuclide."
 
     override val v0160Title = "Medicine, industry and check sources"
     override val v0160Summary =

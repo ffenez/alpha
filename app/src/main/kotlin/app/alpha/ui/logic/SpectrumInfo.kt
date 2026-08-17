@@ -74,6 +74,21 @@ object SpectrumInfo {
                 lines = listOf(s.infoCandidate, s.infoCandidateCaution),
             ),
         )
+        // «Пик без объяснения» стоит сразу за «возможным совпадением»: это
+        // вторая половина того же вопроса — что означает прочерк в колонке.
+        add(
+            SpectrumInfoSection(
+                level = SpectrumInfoLevel.WHAT,
+                title = s.infoUnexplainedTitle,
+                lines = listOf(
+                    s.infoUnexplainedRule,
+                    s.infoUnexplainedLibrary,
+                    s.infoUnexplainedXray,
+                    s.infoUnexplainedCalibration,
+                    s.infoUnexplainedStatistics,
+                ),
+            ),
+        )
         // «Сколько копить» — первый уровень: это вопрос о том, что делать
         // сейчас, а не о том, как посчитана картинка.
         add(
