@@ -118,8 +118,10 @@ class EvidenceEngineTest {
 
     @Test
     fun `an unexplained peak stays unexplained`() {
-        val result = analyse(listOf(peakAt(661.7, netArea = 900.0), peakAt(900.0, netArea = 400.0)))
-        assertEquals(listOf(900.0), result.unexplainedPeaks.map { it.centroidKeV })
+        // 1950 кэВ: ближайшие линии библиотеки — 1764,5 и 2204,2, обе дальше
+        // ширины пика на этой энергии, поэтому объяснять пик нечем.
+        val result = analyse(listOf(peakAt(661.7, netArea = 900.0), peakAt(1950.0, netArea = 400.0)))
+        assertEquals(listOf(1950.0), result.unexplainedPeaks.map { it.centroidKeV })
     }
 
     @Test

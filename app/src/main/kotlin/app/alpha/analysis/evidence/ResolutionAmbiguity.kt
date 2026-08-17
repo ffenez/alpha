@@ -84,20 +84,28 @@ object ResolutionAmbiguities {
     }
 
     /**
-     * Соперник остаётся в группе, только если его собственная САМАЯ ЯРКАЯ линия
-     * не опровергает его молчанием.
+     * Соперник остаётся в группе, только если его собственные линии не
+     * опровергают его молчанием.
      *
-     * Полевой случай, ради которого правило и появилось: одиночная 661,7 кэВ
-     * (Cs-137) попадала в группу с 637,0 кэВ (I-131) — по энергиям прибор их и
-     * правда не разводит. Но у I-131 есть линия 364,5 кэВ с выходом 81 %, а у
-     * 637,0 выход 7 %: если бы иод давал видимую слабую линию, его сильная была
-     * бы в спектре заведомо. Её нет — значит соперник не соперник, и группа
-     * распадается.
+     * Проверок две, и обе консервативны.
      *
-     * Правило консервативное по построению: сравнивается только с ЗАМЕТНО более
-     * яркой линией ([FLAGSHIP_RATIO]) и только когда та не нашлась ни одним
-     * пиком. Слабые линии друг друга не опровергают, и отсутствие сравнимой по
-     * яркости линии ничего не значит.
+     * 1. **Заметно более яркая линия молчит.** Одиночная 661,7 кэВ (Cs-137)
+     *    попадала в группу с 637,0 кэВ (I-131) — по энергии прибор их не
+     *    разводит. Но у иода есть 364,5 кэВ с выходом 81 % против 7 % у 637,0:
+     *    была бы видна слабая, сильная была бы заведомо. Её нет — соперник
+     *    отпадает.
+     * 2. **Сопоставимая по яркости и близкая по энергии линия молчит.** Если
+     *    соперник претендует на пик СВОЕЙ САМОЙ ЯРКОЙ линией, первая проверка
+     *    молчит по построению. Тогда смотрится вторая линия: La-138 при 1436
+     *    кэВ обязан дать и 789 кэВ (33,6 % против 66,4 %), Cs-134 при 605 —
+     *    и 796 кэВ (85,5 % против 97,6 %). Ни одной такой линии в спектре нет
+     *    — соперник не соперник.
+     *
+     * Ограничение по энергии ([EFFICIENCY_SPAN_RATIO]) во второй проверке
+     * существует из-за неизвестной кривой эффективности: у двух линий, которые
+     * различаются по энергии не более чем вдвое, ε не может отличаться в разы,
+     * и «сопоставимый выход» действительно означает сопоставимую площадь.
+     * Линии, разнесённые дальше, друг друга молчанием не опровергают.
      */
     private fun survivesFlagshipTest(
         rival: LibraryLine,
@@ -106,23 +114,41 @@ object ResolutionAmbiguities {
         observedPeaks: List<ObservedPeak>,
     ): Boolean {
         if (observedPeaks.isEmpty()) return true
-        val flagship = lines
-            .filter { it.nuclide == rival.nuclide }
-            .maxByOrNull { it.intensityPercent }
-            ?: return true
-        if (flagship.energyKeV == rival.energyKeV) return true
-        if (flagship.intensityPercent < rival.intensityPercent * FLAGSHIP_RATIO) return true
-        val seen = observedPeaks.any {
-            !resolvable(flagship.energyKeV, it.centroidKeV, resolution)
+        val siblings = lines
+            .filter { it.nuclide == rival.nuclide && it.energyKeV != rival.energyKeV }
+        if (siblings.isEmpty()) return true
+
+        fun seen(line: LibraryLine): Boolean = observedPeaks.any {
+            !resolvable(line.energyKeV, it.centroidKeV, resolution)
         }
-        return seen
+
+        val flagship = siblings.maxByOrNull { it.intensityPercent }
+        if (
+            flagship != null &&
+            flagship.intensityPercent >= rival.intensityPercent * FLAGSHIP_RATIO &&
+            !seen(flagship)
+        ) {
+            return false
+        }
+
+        val comparable = siblings.filter {
+            it.intensityPercent * FLAGSHIP_RATIO >= rival.intensityPercent &&
+                resolvable(it.energyKeV, rival.energyKeV, resolution) &&
+                maxOf(it.energyKeV, rival.energyKeV) <=
+                EFFICIENCY_SPAN_RATIO * minOf(it.energyKeV, rival.energyKeV)
+        }
+        if (comparable.isNotEmpty() && comparable.none { seen(it) }) return false
+
+        return true
     }
 
     /**
-     * Во сколько раз линия должна быть ярче, чтобы её отсутствие опровергало
-     * нуклид. **Инженерный параметр**: втрое — при таком отношении выходов
-     * сильная линия не может спрятаться там, где видна слабая, даже с учётом
-     * неизвестной кривой эффективности детектора.
+     * Во сколько раз линии могут различаться по энергии, чтобы их выходы ещё
+     * можно было сравнивать без кривой эффективности. **Инженерный параметр**:
+     * вдвое — на таком интервале эффективность полного поглощения малого
+     * сцинтиллятора меняется в разы меньше, чем на всей шкале.
      */
+    const val EFFICIENCY_SPAN_RATIO = 2.0
+
     const val FLAGSHIP_RATIO = 3.0
 }

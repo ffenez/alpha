@@ -138,6 +138,43 @@ interface NuclideStrings {
     // ----------------------------------------------------------- нуклиды
     // Символ («K-40»), энергии линий и выходы — данные, они лежат в
     // NuclideInfoLibrary и не переводятся; здесь только текст.
+
+    val ac228Name: String
+    val ac228HalfLife: String
+    val ac228Decay: String
+    val ac228Everyday: String
+    val ac228Confirmation: String
+
+    val bi212Name: String
+    val bi212HalfLife: String
+    val bi212Decay: String
+    val bi212Everyday: String
+    val bi212Confirmation: String
+
+    val ra226Name: String
+    val ra226HalfLife: String
+    val ra226Decay: String
+    val ra226Everyday: String
+    val ra226Confirmation: String
+
+    val u235Name: String
+    val u235HalfLife: String
+    val u235Decay: String
+    val u235Everyday: String
+    val u235Confirmation: String
+
+    val la138Name: String
+    val la138HalfLife: String
+    val la138Decay: String
+    val la138Everyday: String
+    val la138Confirmation: String
+
+    val cs134Name: String
+    val cs134HalfLife: String
+    val cs134Decay: String
+    val cs134Everyday: String
+    val cs134Confirmation: String
+
     val k40Name: String
     val k40HalfLife: String
     val k40Decay: String
@@ -320,6 +357,77 @@ object NuclideRu : NuclideStrings {
         "Точное сравнение отношения линий ограничено: относительная эффективность " +
             "детектора для этих энергий не откалибрована, поэтому наблюдаемое и " +
             "табличное отношения показаны раздельно."
+
+
+    override val ac228Name = "актиний-228"
+    override val ac228HalfLife = "6,15 ч"
+    override val ac228Decay = "β⁻ → Th-228"
+    override val ac228Everyday =
+        "Дочерний в ряду тория-232, поэтому встречается там же, где сам торий: " +
+            "гранит, монацитовый песок, калильные сетки, старая оптика. Его линии " +
+            "911 и 969 кэВ — самые заметные в природном фоне после 1461 кэВ калия."
+    override val ac228Confirmation =
+        "Осмысленное совпадение — 911 и 969 кэВ вместе, лучше с 338 кэВ и с " +
+            "линиями других членов ряда (238,6 кэВ Pb-212, 2615 кэВ Tl-208). " +
+            "Одна линия 911 кэВ стоит рядом с 934 кэВ Bi-214 из уранового ряда."
+
+    override val bi212Name = "висмут-212"
+    override val bi212HalfLife = "60,6 мин"
+    override val bi212Decay = "β⁻ (64 %) → Po-212, α (36 %) → Tl-208"
+    override val bi212Everyday =
+        "Ещё один член ториевого ряда; в спектре сцинтиллятора у него различима " +
+            "одна линия 727 кэВ, остальные слабы или закрыты соседями."
+    override val bi212Confirmation =
+        "Сама по себе линия 727 кэВ значит мало: подтверждает её присутствие " +
+            "остальной ряд — 238,6 кэВ Pb-212, 583 и 2615 кэВ Tl-208, 911 кэВ Ac-228."
+
+    override val ra226Name = "радий-226"
+    override val ra226HalfLife = "1600 лет"
+    override val ra226Decay = "α → Rn-222"
+    override val ra226Everyday =
+        "Начало уранового ряда в его равновесной части: строительный камень, " +
+            "фосфогипс, старые светящиеся циферблаты. В воздухе его продолжение — " +
+            "радон и его дочерние продукты."
+    override val ra226Confirmation =
+        "Собственная линия 186 кэВ слаба и неотличима от 185,7 кэВ урана-235: " +
+            "по ней одной выбрать нельзя. О присутствии ряда говорят линии дочерних " +
+            "продуктов — 352 кэВ Pb-214 и 609 кэВ Bi-214."
+
+    override val u235Name = "уран-235"
+    override val u235HalfLife = "7,04·10⁸ лет"
+    override val u235Decay = "α → Th-231"
+    override val u235Everyday =
+        "0,72 % природного урана: урановая руда, некоторые рудные образцы и " +
+            "минералы. В обычной комнате его линий не бывает."
+    override val u235Confirmation =
+        "Главная линия 185,7 кэВ совпадает с 186,2 кэВ радия-226, и прибор их не " +
+            "разделяет. Различие даёт набор: 143,8 и 205,3 кэВ есть только у урана, " +
+            "а линии радонового ряда — только у радия."
+
+    override val la138Name = "лантан-138"
+    override val la138HalfLife = "1,02·10¹¹ лет"
+    override val la138Decay = "захват электрона (66 %) → Ba-138, β⁻ (34 %) → Ce-138"
+    override val la138Everyday =
+        "0,09 % природного лантана: редкоземельные минералы (монацит, бастнезит), " +
+            "полирующие порошки, некоторые лампы и катализаторы. Собственное " +
+            "излучение сцинтилляторов на основе лантана к нашему прибору не " +
+            "относится — у него другой кристалл."
+    override val la138Confirmation =
+        "Осмысленное совпадение — 1436 и 789 кэВ вместе в отношении примерно 2:1. " +
+            "Линия 1436 кэВ стоит недалеко от 1461 кэВ калия-40, и на этом приборе " +
+            "они разделяются только при долгом накоплении."
+
+    override val cs134Name = "цезий-134"
+    override val cs134HalfLife = "2,06 года"
+    override val cs134Decay = "β⁻ → Ba-134"
+    override val cs134Everyday =
+        "Искусственный: появляется вместе с цезием-137 в свежих выбросах и в " +
+            "образцах из зон загрязнения. Из-за короткого периода его отношение к " +
+            "цезию-137 говорит о возрасте выброса."
+    override val cs134Confirmation =
+        "Осмысленное совпадение — 605 и 796 кэВ вместе, они почти равны по выходу. " +
+            "Линия 605 кэВ соседствует с 609 кэВ Bi-214 из природного ряда, поэтому " +
+            "без второй линии вывода нет."
 
     override val k40Name = "калий-40"
     override val k40HalfLife = "1,248·10⁹ лет"
@@ -568,6 +676,81 @@ object NuclideEn : NuclideStrings {
             "of the detector at these energies is not calibrated, so the observed " +
             "and the tabulated ratios are shown separately."
 
+
+    override val ac228Name = "actinium-228"
+    override val ac228HalfLife = "6.15 h"
+    override val ac228Decay = "β⁻ → Th-228"
+    override val ac228Everyday =
+        "A daughter of the thorium-232 series, so it is met wherever thorium is: " +
+            "granite, monazite sand, incandescent mantles, old optics. Its 911 and " +
+            "969 keV lines are the most visible in the natural background after the " +
+            "1461 keV of potassium."
+    override val ac228Confirmation =
+        "A meaningful match is 911 and 969 keV together, better with 338 keV and " +
+            "with lines of the other members of the series (238.6 keV of Pb-212, " +
+            "2615 keV of Tl-208). The lone 911 keV line sits next to the 934 keV of " +
+            "Bi-214 from the uranium series."
+
+    override val bi212Name = "bismuth-212"
+    override val bi212HalfLife = "60.6 min"
+    override val bi212Decay = "β⁻ (64 %) → Po-212, α (36 %) → Tl-208"
+    override val bi212Everyday =
+        "Another member of the thorium series; in a scintillator spectrum one line " +
+            "of it is distinguishable, 727 keV, the rest are weak or covered by " +
+            "neighbours."
+    override val bi212Confirmation =
+        "The 727 keV line means little on its own: what supports it is the rest of " +
+            "the series — 238.6 keV of Pb-212, 583 and 2615 keV of Tl-208, 911 keV " +
+            "of Ac-228."
+
+    override val ra226Name = "radium-226"
+    override val ra226HalfLife = "1600 years"
+    override val ra226Decay = "α → Rn-222"
+    override val ra226Everyday =
+        "The equilibrium part of the uranium series: building stone, phosphogypsum, " +
+            "old luminous dials. Its continuation in the air is radon and the radon " +
+            "daughters."
+    override val ra226Confirmation =
+        "Its own 186 keV line is weak and indistinguishable from the 185.7 keV of " +
+            "uranium-235: that line alone cannot choose between them. The series is " +
+            "spoken for by the daughters — 352 keV of Pb-214 and 609 keV of Bi-214."
+
+    override val u235Name = "uranium-235"
+    override val u235HalfLife = "7.04·10⁸ years"
+    override val u235Decay = "α → Th-231"
+    override val u235Everyday =
+        "0.72 % of natural uranium: uranium ore, some mineral samples. In an " +
+            "ordinary room its lines do not appear."
+    override val u235Confirmation =
+        "The main 185.7 keV line coincides with the 186.2 keV of radium-226, and the " +
+            "instrument does not separate them. The set does: 143.8 and 205.3 keV " +
+            "belong to uranium only, and the radon-series lines to radium only."
+
+    override val la138Name = "lanthanum-138"
+    override val la138HalfLife = "1.02·10¹¹ years"
+    override val la138Decay = "electron capture (66 %) → Ba-138, β⁻ (34 %) → Ce-138"
+    override val la138Everyday =
+        "0.09 % of natural lanthanum: rare-earth minerals (monazite, bastnäsite), " +
+            "polishing powders, some lamps and catalysts. The self-activity of " +
+            "lanthanum-based scintillators does not concern this instrument — its " +
+            "crystal is a different one."
+    override val la138Confirmation =
+        "A meaningful match is 1436 and 789 keV together, in a ratio of about 2:1. " +
+            "The 1436 keV line sits close to the 1461 keV of potassium-40, and on " +
+            "this instrument the two separate only after a long accumulation."
+
+    override val cs134Name = "caesium-134"
+    override val cs134HalfLife = "2.06 years"
+    override val cs134Decay = "β⁻ → Ba-134"
+    override val cs134Everyday =
+        "Artificial: it appears together with caesium-137 in fresh releases and in " +
+            "samples from contaminated areas. Its short half-life makes the ratio to " +
+            "caesium-137 a measure of the age of the release."
+    override val cs134Confirmation =
+        "A meaningful match is 605 and 796 keV together — their yields are nearly " +
+            "equal. The 605 keV line neighbours the 609 keV of Bi-214 from the " +
+            "natural series, so without the second line there is no conclusion."
+
     override val k40Name = "potassium-40"
     override val k40HalfLife = "1,248·10⁹ years"
     override val k40Decay =
@@ -695,6 +878,12 @@ val NuclideCatalogue = AreaCatalogue(ru = NuclideRu, en = NuclideEn)
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun NuclideStrings.allTexts(): List<String> = listOf(
+    ac228Name, ac228HalfLife, ac228Decay, ac228Everyday, ac228Confirmation,
+    bi212Name, bi212HalfLife, bi212Decay, bi212Everyday, bi212Confirmation,
+    ra226Name, ra226HalfLife, ra226Decay, ra226Everyday, ra226Confirmation,
+    u235Name, u235HalfLife, u235Decay, u235Everyday, u235Confirmation,
+    la138Name, la138HalfLife, la138Decay, la138Everyday, la138Confirmation,
+    cs134Name, cs134HalfLife, cs134Decay, cs134Everyday, cs134Confirmation,
     statusPossibleMatch, statusNotConfirmed, statusNotEvaluated, statusNotEvaluatedDetail,
     statusAmbiguous, ambiguousDetail("Pb-214 / I-131"), contradictsExpectedLines,
     matchedOfChecked(1, 3), notEnoughToConfirm, multiLineStronger,

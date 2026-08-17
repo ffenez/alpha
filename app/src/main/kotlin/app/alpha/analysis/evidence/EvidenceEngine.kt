@@ -71,7 +71,7 @@ object EvidenceEngine {
             lines.mapNotNull { line -> bestMatch(peaks, line, options) }
         }.filterValues { it.isNotEmpty() }
 
-        val calibration = calibrationOf(matchesByNuclide.values.flatten(), options)
+        val calibration = calibrationOf(matchesByNuclide.values.flatten(), options, peaks)
 
         val candidates = matchesByNuclide.map { (nuclide, matches) ->
             evidenceFor(
@@ -115,15 +115,21 @@ object EvidenceEngine {
     private fun calibrationOf(
         matches: List<EnergyMatch>,
         options: EvidenceOptions,
+        /** Найденные пики: по ним соперник проверяется своей яркой линией. */
+        observedPeaks: List<ObservedPeak>,
     ): CalibrationDiagnostic {
         val reliable = matches
             .filter { it.peak.significance >= CalibrationDiagnostics.RELIABLE_MIN_SIGNIFICANCE }
             .filter {
                 ResolutionAmbiguities.ambiguityFor(
-                    it.peak,
-                    it.line,
-                    options.resolution,
-                    options.library,
+                    peak = it.peak,
+                    matched = it.line,
+                    resolution = options.resolution,
+                    lines = options.library,
+                    // Соперник, чья яркая линия молчит, живым не считается и
+                    // здесь: иначе достаточно положить в библиотеку соседа,
+                    // чтобы диагностика перестала работать вовсе.
+                    observedPeaks = observedPeaks,
                 ) == null
             }
             // Один пик — один остаток: две линии одного нуклида, слитые

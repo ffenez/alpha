@@ -234,9 +234,15 @@ object PeakEvidenceBridge {
         val ambiguity = primary.resolutionAmbiguities.firstOrNull { it.peak === peak }
         val aliveNuclides = alive.map { it.first.nuclide }.distinct()
 
-        // Прибор не даёт выбора: либо у пика несколько живых кандидатов, либо
-        // сам кандидат целиком стоит на неразличимых линиях.
-        if (aliveNuclides.size > 1 || primary.classification == EvidenceClass.AMBIGUOUS) {
+        // Группа неразрешимости — вопрос ПРИБОРА, а не числа претендентов:
+        // соперник, опровергнутый молчанием собственных линий, в группу не
+        // входит (`ResolutionAmbiguities`). Поэтому пик отдаётся группе только
+        // тогда, когда у главного кандидата есть живая альтернатива на этом
+        // пике или он сам целиком стоит на неразличимых линиях.
+        if (
+            (aliveNuclides.size > 1 && ambiguity != null) ||
+            primary.classification == EvidenceClass.AMBIGUOUS
+        ) {
             val group = (ambiguity?.nuclides.orEmpty() + aliveNuclides).distinct()
             return PeakMatch.AmbiguousGroup(
                 nuclides = group,

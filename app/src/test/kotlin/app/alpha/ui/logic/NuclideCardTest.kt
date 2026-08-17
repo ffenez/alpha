@@ -141,11 +141,10 @@ class NuclideCardTest {
 
     @Test
     fun `lines are sorted by yield and carry their energy for the spectrum`() {
-        // Bi-214: 609,3 (45,5 %) · 1764,5 (15,3 %) · 1120,3 (14,9 %). Сильная
-        // линия первой — именно её отсутствие что-то значит.
+        // Bi-214: сильная линия первой — именно её отсутствие что-то значит.
         val model = card("Bi-214", listOf(peak(609.3f)))
         assertEquals(
-            listOf(609.3f, 1764.5f, 1120.3f),
+            listOf(609.3f, 1764.5f, 1120.3f, 1238.1f, 2204.2f, 1377.7f, 934.1f),
             model.lineCheck.map { it.energyKeV },
         )
     }

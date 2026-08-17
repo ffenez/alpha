@@ -59,11 +59,21 @@ class NuclideCardSweepTest {
     @Test
     fun `однолинейный нуклид объясняет, что второй линии у него нет`() {
         val single = NuclideInfoLibrary.all().filter { it.lines.size == 1 }
-        // Именно эти три: K-40, Cs-137, Am-241. Появится четвёртый — тест
-        // заставит проверить и его.
-        assertEquals(listOf("K-40", "Cs-137", "Am-241"), single.map { it.symbol })
+        // Нуклиды, у которых прибор видит ровно одну линию. Появится новый —
+        // тест заставит проверить и его формулировку.
+        assertEquals(
+            listOf("K-40", "Cs-137", "Am-241", "Bi-212", "Ra-226"),
+            single.map { it.symbol },
+        )
         for (nuclide in single) {
             val card = cardFor(nuclide.symbol, nuclide.lines.first().energyKeV)
+            // Ra-226 — исключение по физике, а не по коду: его единственная
+            // линия 186,2 кэВ неотличима от 185,7 кэВ U-235, и выбирать между
+            // ними этим прибором нечем.
+            if (nuclide.symbol == "Ra-226") {
+                assertEquals(NuclideCardStatus.AMBIGUOUS, card.status.status, nuclide.symbol)
+                continue
+            }
             assertEquals(NuclideCardStatus.POSSIBLE_MATCH, card.status.status, nuclide.symbol)
             assertEquals(
                 NuclideRu.matchedOfChecked(1, 1) + " " + NuclideRu.singleLineNuclide(

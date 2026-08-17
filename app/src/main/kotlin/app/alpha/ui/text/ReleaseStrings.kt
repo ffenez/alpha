@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0150Title: String
+    val v0150Summary: String
+
     val v0140Title: String
     val v0140Summary: String
 
@@ -270,6 +273,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0150Title = "Библиотека линий выросла вдвое"
+    override val v0150Summary =
+        "В спектре появились актиний-228 (911 и 969 кэВ — самые заметные линии тория после " +
+        "калия), висмут-212, радий-226, уран-235, лантан-138 и цезий-134, а у висмута-214 " +
+        "прибавились слабые линии. У каждого нуклида своя справка; неразличимые пары вроде " +
+        "186 кэВ радия и урана названы парами, а не выбором."
 
     override val v0140Title = "Кандидатов снова столько, сколько видит прибор"
     override val v0140Summary =
@@ -842,6 +852,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0150Title = "The line library has doubled"
+    override val v0150Summary =
+        "The spectrum now knows actinium-228 (911 and 969 keV, the most visible thorium lines " +
+        "after potassium), bismuth-212, radium-226, uranium-235, lanthanum-138 and " +
+        "caesium-134, and bismuth-214 gained its weak lines. Each nuclide has its reference " +
+        "card; inseparable pairs such as the 186 keV of radium and uranium are named as pairs, " +
+        "not as a choice."
 
     override val v0140Title = "As many candidates as the instrument actually sees"
     override val v0140Summary =

@@ -73,11 +73,12 @@ class IsotopeMatcherTest {
 
     @Test
     fun `ambiguous peak lists alternatives`() {
-        // 600 keV fits both Bi-214 (609.3) and Tl-208 (583.2).
+        // 600 кэВ подходит и Cs-134 (604,7), и Bi-214 (609,3), и Tl-208 (583,2):
+        // ближайшая линия выигрывает, остальные названы альтернативами.
         val hint = IsotopeMatcher.match(listOf(peak(600f, significance = 9f))).first()
-        assertEquals("Bi-214", hint.isotope, "closest line wins")
+        assertEquals("Cs-134", hint.isotope, "closest line wins")
+        assertTrue("Bi-214" in hint.alternatives, "alternatives: ${hint.alternatives}")
         assertTrue("Tl-208" in hint.alternatives, "alternatives: ${hint.alternatives}")
-        assertEquals("также похоже: Tl-208", SpectrumFormat.hintAlternatives(hint))
     }
 
     @Test
