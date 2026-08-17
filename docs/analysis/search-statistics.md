@@ -11,11 +11,11 @@
 
 Реализация:
 
-- `app/src/main/kotlin/app/radiacode/analysis/RateComparison.kt` — окно счёта и точный тест
-- `app/src/main/kotlin/app/radiacode/ui/logic/SearchLadder.kt` — лестница состояний и направление
-- `app/src/main/kotlin/app/radiacode/ui/logic/SearchEngine.kt` — окна, порядок вычислений
-- `app/src/main/kotlin/app/radiacode/ui/logic/BackgroundRecord.kt` — записанный фон и его пригодность
-- `app/src/main/kotlin/app/radiacode/ui/logic/SearchVerdict.kt` — формулировки и «Почему?»
+- `app/src/main/kotlin/app/alpha/analysis/RateComparison.kt` — окно счёта и точный тест
+- `app/src/main/kotlin/app/alpha/ui/logic/SearchLadder.kt` — лестница состояний и направление
+- `app/src/main/kotlin/app/alpha/ui/logic/SearchEngine.kt` — окна, порядок вычислений
+- `app/src/main/kotlin/app/alpha/ui/logic/BackgroundRecord.kt` — записанный фон и его пригодность
+- `app/src/main/kotlin/app/alpha/ui/logic/SearchVerdict.kt` — формулировки и «Почему?»
 - тесты: `app/src/test/.../analysis/RateComparisonTest.kt`, `.../ui/logic/SearchLadderTest.kt`,
   `SearchEngineTest.kt`, `RateChartModelTest.kt`, `BackgroundRecordTest.kt`, `SearchVerdictTest.kt`
 

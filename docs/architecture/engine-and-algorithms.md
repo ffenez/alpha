@@ -249,7 +249,7 @@ ChartMetrics.startWindow(metric, savedSpans, now)   выбранная ступ�
 
 | Что | Где |
 |---|---|
-| Протокол (чистый Kotlin, без Android) | `protocol/src/main/kotlin/app/radiacode/protocol/` |
+| Протокол (чистый Kotlin, без Android) | `protocol/src/main/kotlin/app/alpha/protocol/` |
 | BLE, сессия, часы прибора | `app/.../device/` |
 | Служба, хабы, трасса обмена | `app/.../service/` |
 | Room, репозитории, предагрегация | `app/.../data/` |

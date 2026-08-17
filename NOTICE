@@ -1,5 +1,5 @@
-radiacode
-Copyright (c) 2026 radiacode contributors
+alpha
+Copyright (c) 2026 alpha contributors
 
 The RadiaCode BLE protocol implementation in the :protocol module is a Kotlin
 port of cdump/radiacode (https://github.com/cdump/radiacode), licensed under

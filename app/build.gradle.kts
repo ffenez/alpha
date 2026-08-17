@@ -6,18 +6,18 @@ plugins {
 }
 
 android {
-    namespace = "app.radiacode"
+    namespace = "app.alpha"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "app.radiacode"
+        applicationId = "app.alpha"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
+        versionCode = 19
         // Стадия разработки — в ИМЕНИ приложения («Alpha»), поэтому в номере
         // версии её нет: один факт живёт в одном месте, иначе подпись под
         // иконкой читалась бы как «Alpha 0.1.0-alpha».
-        versionName = "0.8.3"
+        versionName = "0.9.0"
 
         // Под иконкой — только имя: версия там ничего не решает, а место на
         // домашнем экране узкое, и длинная подпись обрезается. Номер версии
@@ -94,7 +94,7 @@ dependencies {
     // Robolectric smoke: every screen opens on a simulated device — the class
     // of defects invisible to plain JVM tests (Android XML parser quirks,
     // nested scroll measurement, NaN reaching a Canvas). See
-    // app/src/test/kotlin/app/radiacode/smoke.
+    // app/src/test/kotlin/app/alpha/smoke.
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.compose.ui.test.junit4)
@@ -113,9 +113,9 @@ tasks.withType<Test>().configureEach {
     filter {
         isFailOnNoMatchingTests = false
         if (smokeRequested) {
-            includeTestsMatching("app.radiacode.smoke.*")
+            includeTestsMatching("app.alpha.smoke.*")
         } else {
-            excludeTestsMatching("app.radiacode.smoke.*")
+            excludeTestsMatching("app.alpha.smoke.*")
         }
     }
     // Robolectric + Compose + native graphics не живут в дефолтных 512 МБ.

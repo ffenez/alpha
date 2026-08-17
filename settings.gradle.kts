@@ -20,7 +20,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "radiacode"
+rootProject.name = "alpha"
 
 include(":app")
 include(":protocol")

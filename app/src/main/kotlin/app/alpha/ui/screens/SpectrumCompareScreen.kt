@@ -1,0 +1,604 @@
+package app.alpha.ui.screens
+
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import app.alpha.AppGraph
+import app.alpha.analysis.EnergyCalibration
+import app.alpha.analysis.SpectrumCompare
+import app.alpha.analysis.SpectrumDisplay
+import app.alpha.data.SpectrumBlob
+import app.alpha.data.db.SpectrumSnapshotEntity
+import app.alpha.data.export.RcResultData
+import app.alpha.data.export.RcSpectrum
+import app.alpha.data.export.ProcessingMetadata
+import app.alpha.data.export.RcXml
+import app.alpha.data.export.SpectrumExport
+import app.alpha.protocol.Spectrum
+import app.alpha.ui.components.Hint
+import app.alpha.ui.components.AppButton
+import app.alpha.ui.components.AppDivider
+import app.alpha.ui.components.Card
+import app.alpha.ui.components.ChartNotesDialog
+import app.alpha.ui.components.Chip
+import app.alpha.ui.components.DiffChart
+import app.alpha.ui.components.DiffChartSpec
+import app.alpha.ui.components.Segmented
+import app.alpha.ui.components.SpectrumChart
+import app.alpha.ui.logic.SpectrumScale
+import app.alpha.ui.components.SpectrumChartSpec
+import app.alpha.ui.logic.CompareFormat
+import app.alpha.ui.logic.HistoryFormat
+import app.alpha.ui.logic.SpectrumFormat
+import app.alpha.ui.text.CompareCatalogue
+import app.alpha.ui.text.HistoryCatalogue
+import app.alpha.ui.text.HistoryRu
+import app.alpha.ui.text.HistoryStrings
+import app.alpha.ui.text.LocalStrings
+import app.alpha.ui.theme.Dimens
+import app.alpha.ui.theme.LocalAppColors
+import app.alpha.ui.theme.LocalAppTypography
+import kotlinx.coroutines.launch
+
+/** Chart resolution, matches the Спектр screen. */
+private const val COLUMN_COUNT = 240
+
+/**
+ * Сравнение двух сохранённых спектров (вход из Истории). Два режима:
+ * «A−B интервал» — вычитание снимков одного накопления (спектр только за
+ * промежуток между ними), «Скорости счёта» — честное сравнение независимых
+ * измерений в имп/с с полосами ±1σ/±2σ и выводом по диапазонам энергий.
+ */
+@Composable
+fun SpectrumCompareScreen(
+    graph: AppGraph,
+    firstId: Long,
+    secondId: Long,
+    onBack: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = CompareCatalogue.of(strings.language)
+
+    BackHandler { onBack() }
+
+    var pair by remember { mutableStateOf<Pair<SpectrumSnapshotEntity, SpectrumSnapshotEntity>?>(null) }
+    var missing by remember { mutableStateOf(false) }
+    LaunchedEffect(firstId, secondId) {
+        val first = graph.measurementRepository.spectrumById(firstId)
+        val second = graph.measurementRepository.spectrumById(secondId)
+        if (first == null || second == null) missing = true else pair = first to second
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(Dimens.space3),
+        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AppButton(text = "← ${strings.back}", onClick = onBack)
+            Spacer(Modifier.weight(1f))
+        }
+
+        val p = pair
+        when {
+            missing -> Card(modifier = Modifier.fillMaxWidth()) {
+                Text(text = t.snapshotsMissing, style = type.bodySmall, color = colors.muted)
+            }
+            p == null -> Card(modifier = Modifier.fillMaxWidth()) {
+                Text(text = t.snapshotsReading, style = type.bodySmall, color = colors.muted)
+            }
+            else -> CompareContent(graph, p.first, p.second)
+        }
+    }
+}
+
+private fun SpectrumSnapshotEntity.toCompareInput() = SpectrumCompare.Input(
+    counts = SpectrumBlob.decode(counts),
+    durationSeconds = durationSeconds,
+    calibration = EnergyCalibration(a0, a1, a2),
+    timestampMillis = timestamp,
+)
+
+@Composable
+private fun CompareContent(
+    graph: AppGraph,
+    first: SpectrumSnapshotEntity,
+    second: SpectrumSnapshotEntity,
+) {
+    var mode by rememberSaveable { mutableIntStateOf(0) }
+    val t = CompareCatalogue.of(LocalStrings.current.language)
+
+    PairCard(first, second)
+
+    Segmented(
+        options = listOf(t.modeInterval, t.modeRates),
+        selectedIndex = mode,
+        onSelect = { mode = it },
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    if (mode == 0) {
+        IntervalSection(graph, first, second)
+    } else {
+        RatesSection(first, second)
+    }
+}
+
+@Composable
+private fun PairCard(first: SpectrumSnapshotEntity, second: SpectrumSnapshotEntity) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            PairRow("A", first)
+            AppDivider()
+            PairRow("B", second)
+        }
+    }
+}
+
+@Composable
+private fun PairRow(marker: String, entity: SpectrumSnapshotEntity) {
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val now = System.currentTimeMillis()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+    ) {
+        Chip(text = marker, color = colors.dataText)
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = SpectrumExport.title(entity),
+                style = type.label,
+                color = colors.ink,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = HistoryFormat.dayTime(entity.timestamp, now, s = h) +
+                    " · Δt " + SpectrumFormat.accumulationClock(entity.durationSeconds),
+                style = type.footnote,
+                color = colors.ink2,
+            )
+        }
+    }
+}
+
+// --- mode 1: A−B interval extraction ---
+
+@Composable
+private fun IntervalSection(
+    graph: AppGraph,
+    first: SpectrumSnapshotEntity,
+    second: SpectrumSnapshotEntity,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = CompareCatalogue.of(strings.language)
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val outcome = remember(first.id, second.id) {
+        SpectrumCompare.extractInterval(first.toCompareInput(), second.toCompareInput())
+    }
+    // Подпись графика — под «i»: что нарисовано, читают один раз.
+    var notes by remember { mutableStateOf<List<String>?>(null) }
+    notes?.let { shown -> ChartNotesDialog(notes = shown) { notes = null } }
+
+    when (outcome) {
+        is SpectrumCompare.IntervalOutcome.Invalid -> Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(t.intervalImpossible, style = type.title, color = colors.ink)
+                Text(text = outcome.reason, style = type.body, color = colors.ink2)
+                Hint(
+                    text = t.intervalImpossibleHint,
+                )
+            }
+        }
+        is SpectrumCompare.IntervalOutcome.Ok -> {
+            var logScale by rememberSaveable { mutableStateOf(true) }
+            var savedNote by remember { mutableStateOf<String?>(null) }
+            var pendingExport by remember { mutableStateOf<String?>(null) }
+            var exportNote by remember { mutableStateOf<String?>(null) }
+
+            val exportLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.CreateDocument("application/xml"),
+            ) { uri ->
+                val content = pendingExport
+                pendingExport = null
+                if (uri != null && content != null) {
+                    scope.launch {
+                        exportNote = if (writeTextToUri(context, uri, content)) {
+                            strings.fileSaved
+                        } else {
+                            t.fileNotWritten
+                        }
+                    }
+                }
+            }
+
+            // Метка СОЗНАТЕЛЬНО без языка интерфейса: она уезжает в базу
+            // (`spectra.label`) и в экспорт XML, поэтому снимок, сохранённый
+            // по-русски, обязан остаться собой после смены языка — иначе
+            // одна и та же строка означала бы разное в разных сеансах.
+            val label = "Интервал A−B · Δt " +
+                SpectrumFormat.accumulationClock(outcome.durationSeconds)
+            val totalCounts = outcome.counts.sumOf { it.toLong() }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Chip(text = SpectrumFormat.accumulationChip(outcome.durationSeconds, totalCounts))
+                Spacer(Modifier.width(Dimens.space1))
+                Chip(
+                    text = "i",
+                    color = colors.ink2,
+                    onClick = { notes = listOf(t.intervalChartCaption) },
+                )
+                Spacer(Modifier.weight(1f))
+                Segmented(
+                    options = listOf(strings.scaleLog, strings.scaleLinear),
+                    selectedIndex = if (logScale) 0 else 1,
+                    onSelect = { logScale = it == 0 },
+                    modifier = Modifier.weight(0.9f),
+                )
+            }
+
+            val full = remember(outcome) {
+                SpectrumDisplay.fullWindow(outcome.calibration, outcome.counts.size)
+            }
+            val columns = remember(outcome) {
+                SpectrumDisplay.aggregateMax(
+                    outcome.counts.map { it.toFloat() },
+                    0..outcome.counts.size - 1,
+                    COLUMN_COUNT,
+                )
+            }
+            val dataMax = columns.maxOrNull() ?: 0f
+            Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    SpectrumChart(
+                        spec = SpectrumChartSpec(
+                            columns = columns,
+                            scale = if (logScale) SpectrumScale.Log else SpectrumScale.Linear,
+                            yTop = if (logScale) {
+                                SpectrumDisplay.logTop(dataMax)
+                            } else {
+                                maxOf(dataMax * 1.15f, 10f)
+                            },
+                            energyTicks = SpectrumDisplay.energyTicks(full),
+                        ),
+                    )
+                }
+            }
+
+            outcome.warnings.forEach { warning ->
+                Text(
+                    text = "⚠ $warning",
+                    style = type.footnote,
+                    color = colors.warn,
+                    modifier = Modifier.padding(horizontal = Dimens.space1),
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                AppButton(
+                    text = strings.exportXml,
+                    onClick = {
+                        pendingExport = RcXml.write(intervalResultData(outcome, label))
+                        exportLauncher.launch(
+                            SpectrumExport.fileName(outcome.endMillis, "xml"),
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                AppButton(
+                    text = t.saveSnapshot,
+                    onClick = {
+                        scope.launch {
+                            graph.measurementRepository.saveSpectrum(
+                                spectrum = Spectrum(
+                                    durationSeconds = outcome.durationSeconds,
+                                    a0 = outcome.calibration.a0,
+                                    a1 = outcome.calibration.a1,
+                                    a2 = outcome.calibration.a2,
+                                    counts = outcome.counts,
+                                ),
+                                accumulated = false,
+                                origin = SpectrumSnapshotEntity.ORIGIN_USER,
+                                label = label,
+                                // Спец §22: производный снимок хранит метод и
+                                // версии алгоритмов, которыми получен.
+                                analysisMeta = ProcessingMetadata.stamp(
+                                    method = "interval_subtraction (A−B)",
+                                    algorithms = listOf("spectrum_compare"),
+                                    extra = mapOf(
+                                        "sourceIds" to "${first.id},${second.id}",
+                                        "intervalSeconds" to outcome.durationSeconds.toString(),
+                                        "calibrationToleranceKeV" to
+                                            SpectrumCompare.CALIBRATION_TOLERANCE_KEV.toString(),
+                                    ),
+                                ),
+                            )
+                            savedNote = t.snapshotSaved(label)
+                        }
+                    },
+                    enabled = savedNote == null,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            listOfNotNull(exportNote, savedNote).forEach { note ->
+                Text(
+                    text = note,
+                    style = type.footnote,
+                    color = colors.muted,
+                    modifier = Modifier.padding(horizontal = Dimens.space1),
+                )
+            }
+        }
+    }
+}
+
+private fun intervalResultData(
+    outcome: SpectrumCompare.IntervalOutcome.Ok,
+    label: String,
+): RcResultData = RcResultData(
+    deviceModel = "RadiaCode",
+    sampleName = label,
+    sampleNote = null,
+    startMillis = outcome.startMillis,
+    endMillis = outcome.endMillis,
+    spectrum = RcSpectrum(
+        name = label,
+        serialNumber = null,
+        a0 = outcome.calibration.a0,
+        a1 = outcome.calibration.a1,
+        a2 = outcome.calibration.a2,
+        measurementSeconds = outcome.durationSeconds,
+        counts = outcome.counts,
+    ),
+    background = null,
+)
+
+// --- mode 2: independent rate comparison ---
+
+@Composable
+private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshotEntity) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = CompareCatalogue.of(strings.language)
+
+    val aInput = remember(first.id) { first.toCompareInput() }
+    val outcome = remember(first.id, second.id) {
+        SpectrumCompare.compareRates(aInput, second.toCompareInput())
+    }
+
+    when (outcome) {
+        is SpectrumCompare.RateOutcome.Invalid -> Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(t.ratesImpossible, style = type.title, color = colors.ink)
+                Text(text = outcome.reason, style = type.body, color = colors.ink2)
+            }
+        }
+        is SpectrumCompare.RateOutcome.Ok -> {
+            var logScale by rememberSaveable { mutableStateOf(true) }
+
+            val full = remember(outcome) {
+                SpectrumDisplay.fullWindow(outcome.calibration, aInput.counts.size)
+            }
+            val range = 0..aInput.counts.size - 1
+            val ticks = remember(full) { SpectrumDisplay.energyTicks(full) }
+
+            // Chart 1: both spectra in counts, B normalized to A's live time.
+            val columnsA = remember(outcome) {
+                SpectrumDisplay.aggregateMax(
+                    aInput.counts.map { it.toFloat() },
+                    range,
+                    COLUMN_COUNT,
+                )
+            }
+            val timeRatio =
+                aInput.durationSeconds.toFloat() / second.durationSeconds.toFloat()
+            val columnsB = remember(outcome) {
+                SpectrumDisplay.aggregateMax(
+                    outcome.bCountsOnGrid.map { it * timeRatio },
+                    range,
+                    COLUMN_COUNT,
+                )
+            }
+            val dataMax = maxOf(columnsA.maxOrNull() ?: 0f, columnsB.maxOrNull() ?: 0f)
+
+            // Подписи графиков переехали под «i»: каждая объясняет, КАК
+            // построена картинка (какая линия чья, что означают полосы), и
+            // такой текст читают один раз, а место он занимал всегда.
+            var notes by remember { mutableStateOf<List<String>?>(null) }
+            notes?.let { shown -> ChartNotesDialog(notes = shown) { notes = null } }
+
+            Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = Dimens.space1),
+                    ) {
+                        Text(
+                            text = t.chartPairTitle.uppercase(),
+                            style = type.labelSmall,
+                            color = colors.ink2,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Chip(
+                            text = "i",
+                            color = colors.ink2,
+                            onClick = { notes = listOf(t.chartPairCaption) },
+                        )
+                        Segmented(
+                            options = listOf(strings.scaleLog, strings.scaleLinear),
+                            selectedIndex = if (logScale) 0 else 1,
+                            onSelect = { logScale = it == 0 },
+                            modifier = Modifier.weight(0.6f),
+                        )
+                    }
+                    SpectrumChart(
+                        spec = SpectrumChartSpec(
+                            columns = columnsA,
+                            overlay = columnsB,
+                            scale = if (logScale) SpectrumScale.Log else SpectrumScale.Linear,
+                            yTop = if (logScale) {
+                                SpectrumDisplay.logTop(dataMax)
+                            } else {
+                                maxOf(dataMax * 1.15f, 10f)
+                            },
+                            energyTicks = ticks,
+                        ),
+                    )
+                }
+            }
+
+            // Chart 2: the rate difference with its Poisson bands.
+            val diffColumns = remember(outcome) {
+                SpectrumCompare.aggregateDiff(
+                    outcome.diffCps,
+                    outcome.sigmaCps,
+                    range,
+                    COLUMN_COUNT,
+                )
+            }
+            Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = Dimens.space1),
+                    ) {
+                        Text(
+                            text = t.chartDiffTitle.uppercase(),
+                            style = type.labelSmall,
+                            color = colors.ink2,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Chip(
+                            text = "i",
+                            color = colors.ink2,
+                            onClick = { notes = listOf(t.chartDiffCaption) },
+                        )
+                    }
+                    DiffChart(
+                        spec = DiffChartSpec(
+                            diff = diffColumns.diff,
+                            sigma = diffColumns.sigma,
+                            energyTicks = ticks,
+                        ),
+                    )
+                }
+            }
+
+            // Verdicts per energy region.
+            val verdicts = remember(outcome) {
+                SpectrumCompare.regionVerdicts(outcome, aInput.counts.size)
+            }
+            if (verdicts.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(bottom = 5.dp)) {
+                            CompareHeader(t.columnEnergy, 1.1f)
+                            CompareHeader(t.columnDiff, 1f)
+                            CompareHeader(t.columnZ, 0.8f)
+                            CompareHeader(t.columnVerdict, 1.6f)
+                        }
+                        AppDivider()
+                        verdicts.forEachIndexed { index, verdict ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                            ) {
+                                CompareCell(
+                                    CompareFormat.regionLabel(verdict.startKeV, verdict.endKeV),
+                                    1.1f,
+                                    colors.ink,
+                                )
+                                CompareCell(CompareFormat.cps(verdict.diffCps), 1f, colors.ink)
+                                CompareCell(CompareFormat.zLabel(verdict.z), 0.8f, colors.ink)
+                                CompareCell(
+                                    CompareFormat.verdictLabel(verdict.verdict, t),
+                                    1.6f,
+                                    when (verdict.verdict) {
+                                        SpectrumCompare.Verdict.NOISE -> colors.muted
+                                        SpectrumCompare.Verdict.EXCESS -> colors.warn
+                                        else -> colors.ink2
+                                    },
+                                )
+                            }
+                            if (index < verdicts.size - 1) AppDivider()
+                        }
+                        Hint(
+                            text = t.zExplanation,
+                        )
+                    }
+                }
+            }
+
+            outcome.warnings.forEach { warning ->
+                Text(
+                    text = "⚠ $warning",
+                    style = type.footnote,
+                    color = colors.warn,
+                    modifier = Modifier.padding(horizontal = Dimens.space1),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.CompareHeader(text: String, weight: Float) {
+    Text(
+        text = text.uppercase(),
+        style = LocalAppTypography.current.overline,
+        color = LocalAppColors.current.muted,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(weight),
+    )
+}
+
+@Composable
+private fun RowScope.CompareCell(text: String, weight: Float, color: Color) {
+    Text(
+        text = text,
+        style = LocalAppTypography.current.valueSmall,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(weight),
+    )
+}

@@ -30,7 +30,7 @@ signature согласуется со всеми наблюдаемыми И о�
 
 ## Решение: каскад доказательств, а не взвешенная сумма
 
-Реализовано в `app/src/main/kotlin/app/radiacode/analysis/evidence/` (чистый
+Реализовано в `app/src/main/kotlin/app/alpha/analysis/evidence/` (чистый
 JVM, без единой пользовательской строки).
 
 ```

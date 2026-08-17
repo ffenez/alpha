@@ -9,11 +9,11 @@
 
 Реализация:
 
-- `app/src/main/kotlin/app/radiacode/ui/logic/TrendFit.kt`
-- `app/src/main/kotlin/app/radiacode/ui/logic/DoseHistogram.kt`
-- `app/src/main/kotlin/app/radiacode/analysis/DescriptiveDeviation.kt`
-- `app/src/main/kotlin/app/radiacode/analysis/AnomalyStatistics.kt` (экспериментальный)
-- `app/src/test/kotlin/app/radiacode/analysis/validation/` (харнесс валидации)
+- `app/src/main/kotlin/app/alpha/ui/logic/TrendFit.kt`
+- `app/src/main/kotlin/app/alpha/ui/logic/DoseHistogram.kt`
+- `app/src/main/kotlin/app/alpha/analysis/DescriptiveDeviation.kt`
+- `app/src/main/kotlin/app/alpha/analysis/AnomalyStatistics.kt` (экспериментальный)
+- `app/src/test/kotlin/app/alpha/analysis/validation/` (харнесс валидации)
 
 ---
 
@@ -172,7 +172,7 @@ Ann. Math. Statist. 19(2), 279–281; Geyer (1992), Statist. Sci. 7(4), 473–48
 
 ## 4. Харнесс валидации (§36.5–36.7, §37A)
 
-`app/src/test/kotlin/app/radiacode/analysis/validation/`:
+`app/src/test/kotlin/app/alpha/analysis/validation/`:
 
 - `SyntheticSeries.kt` — детерминированные ряды: счёт C_t ~ Poisson(λ = 30/с)
   (спец §5), затем экспоненциальный интегратор x_t = (1−a)·x_{t−1} + a·k·C_t с
