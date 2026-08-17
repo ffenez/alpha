@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v096Title: String
+    val v096Summary: String
+
     val v095Title: String
     val v095Summary: String
 
@@ -228,6 +231,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v096Title = "Три заголовка на Главной и запись на самой карте"
+    override val v096Summary =
+        "Главная кричит только по делу: сработал ваш порог, «Повышенный уровень» и «Уходите " +
+        "отсюда» — остальное открывается нажатием на числа. На карте запись переехала в " +
+        "правый верхний угол пульсирующим значком, счёт точек убран, а выключенный на ходу " +
+        "GPS больше не выглядит как бесконечное ожидание спутников."
 
     override val v095Title = "Главная стала короче, «Информация» стала «Справкой»"
     override val v095Summary =
@@ -710,6 +720,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v096Title = "Three headlines on the main screen, recording on the map"
+    override val v096Summary =
+        "The main screen speaks only when it matters: your own threshold, «Elevated level» and " +
+        "«Leave this place» — everything else opens by tapping the numbers. On the map the " +
+        "recording moved to the top-right as a pulsing badge, the point count is gone, and GPS " +
+        "switched off mid-recording no longer looks like waiting for satellites."
 
     override val v095Title = "The main screen got shorter, «Information» became «Help»"
     override val v095Summary =

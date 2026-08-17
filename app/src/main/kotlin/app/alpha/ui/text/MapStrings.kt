@@ -101,8 +101,6 @@ interface MapStrings {
      */
     val emptyNoPermissionTitle: String
     val emptyNoPermissionBody: String
-    /** «12 точек» рядом с длительностью записи: видно, что след живой. */
-    fun recordedPoints(count: String): String
 
     val emptyNoProviderTitle: String
     val emptyNoProviderBody: String
@@ -202,7 +200,6 @@ object MapRu : MapStrings {
     override val emptyNoPermissionBody =
         "След пишется по координатам телефона. Разрешение выдаётся в настройках " +
             "системы для этого приложения."
-    override fun recordedPoints(count: String) = "$count точек"
 
     override val emptyNoProviderTitle = "Определение места выключено"
     override val emptyNoProviderBody =
@@ -322,7 +319,6 @@ object MapEn : MapStrings {
     override val emptyNoPermissionBody =
         "A track is written from the phone's coordinates. The permission is granted " +
             "in the system settings for this app."
-    override fun recordedPoints(count: String) = "$count points"
 
     override val emptyNoProviderTitle = "Location is switched off"
     override val emptyNoProviderBody =
@@ -395,7 +391,6 @@ fun MapStrings.allTexts(): List<String> = listOf(
     recordedFromTo("12:00", "12:30"), onlyAccurateFixes(50), builtFromPoints("50 000"),
     emptyWaitingTitle, emptyWaitingBody,
     emptyNoPermissionTitle, emptyNoPermissionBody, emptyNoProviderTitle, emptyNoProviderBody,
-    recordedPoints("12"),
     emptyAreaTitle, emptyAreaBody,
     emptyTrackTitle, emptyTrackBody, emptyNoTracksTitle, emptyNoTracksBody,
     locationTitle, locationBody, locationAllow,

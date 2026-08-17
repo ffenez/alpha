@@ -106,7 +106,9 @@ import app.alpha.ui.logic.TrendAvailability
 import app.alpha.ui.logic.TrendFit
 import app.alpha.ui.logic.Uncertainty
 import app.alpha.ui.logic.WhyInput
-import app.alpha.ui.logic.statusExplanation
+import app.alpha.ui.logic.DoseAlarm
+import app.alpha.ui.logic.DoseAlarmLevel
+import app.alpha.ui.logic.statusDetail
 import app.alpha.ui.logic.statusHeadline
 import app.alpha.ui.text.HistoryCatalogue
 import app.alpha.ui.text.HistoryRu
@@ -1055,7 +1057,15 @@ private fun HeroCard(
                         // один всплеск сдвигает среднее и не сдвигает медиану,
                         // поэтому весь движок обычного фона считает медианой
                         // (ADR 002), и плитка обязана показывать то же самое.
-                        value = band?.let { DoseFormat.rate(it.doseMedianMicroSvH, unit) } ?: "—",
+                        // Пока фон собирается, плитка так и говорит: прочерк
+                        // неотличим от поломки, а «собирается» отвечает и на
+                        // «почему пусто», и на «что будет дальше».
+                        value = band?.let { DoseFormat.rate(it.doseMedianMicroSvH, unit) }
+                            ?: if (baselineState is BaselineState.Learning) {
+                                t.backgroundCollecting
+                            } else {
+                                "—"
+                            },
                     ),
                 )
                 if (blocks.trend) {
@@ -1120,31 +1130,32 @@ private fun HeroCard(
                 status is MonitorStatus.Fixed && status.above -> colors.warn
                 else -> colors.ok
             }
-            // Когда всё как обычно, сказать нечего — и экран молчит.
+            // ЗАГОЛОВКОВ НА ГЛАВНОЙ ТРИ, и каждый прерывает человека по делу:
             //
-            // Пополняется ли обычный фон прямо сейчас — вопрос о том, КАК
-            // приложение учится, а не о том, что оно намерило. Он переехал в
-            // «Информацию» целиком: на Главной эта строка стояла под каждым
-            // показанием и объясняла внутреннее устройство тому, кто просто
-            // смотрит на число.
+            //  1. «Держится выше порога» — сработал ЕГО СОБСТВЕННЫЙ порог:
+            //     величина и длительность выполнены обе;
+            //  2. «Повышенный уровень» — абсолютный уровень заметно выше
+            //     природного фона, независимо от места и настроек;
+            //  3. «Уходите отсюда» — за час здесь набирается годовая доза.
             //
-            // «Обычно здесь» висело под каждым показанием каждый день и через
-            // неделю переставало читаться: строка, которая никогда не меняется,
-            // не сообщает ничего. Остаётся зелёный кружок слева — он и есть
-            // ответ «всё как всегда», и он же открывает разбор, если ответ
-            // хочется проверить. Любое ДРУГОЕ состояние говорит словами: там
-            // молчание было бы утаиванием.
-            val quiet = status is MonitorStatus.Usual &&
-                stream.live &&
-                !stale &&
-                baselineState !is BaselineState.Learning
-            // В обычном состоянии под числом НЕТ НИЧЕГО. Кружок повторял то,
-            // что уже сказано цветом самого числа, а разбор открывается
-            // нажатием на число.
-            if (quiet) return@Column
-            // Сам вывод — и есть кнопка «почему»: вопрос задают, глядя именно
-            // на эту строку, и отдельная кнопка рядом с ней была лишним шагом
-            // между вопросом и ответом.
+            // Всё остальное — «обычно здесь», «выше обычного», «выше порога,
+            // проверяю», ход сбора фона — это СРАВНЕНИЕ С МЕСТОМ, и оно живёт
+            // в справке, которая открывается нажатием на числа. Строка,
+            // которая висит под каждым показанием каждый день, через неделю
+            // перестаёт читаться, и вместе с ней перестают читаться те две,
+            // ради которых экран вообще имеет право кричать.
+            val alarmLevel = DoseAlarm.of(doseMicroSvH)
+            val ownThreshold = status is MonitorStatus.Alert
+            val headline = when {
+                alarmLevel != DoseAlarmLevel.NONE -> DoseAlarm.headline(alarmLevel, t)
+                ownThreshold -> statusHeadline(status, strings)
+                else -> null
+            } ?: return@Column
+            val headlineColor = when (alarmLevel) {
+                DoseAlarmLevel.LEAVE -> colors.crit
+                DoseAlarmLevel.ELEVATED -> colors.warn
+                DoseAlarmLevel.NONE -> statusColor
+            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1157,8 +1168,7 @@ private fun HeroCard(
                 // Без свежих данных вывод не имеет права читаться как
                 // текущий: он остаётся на экране (скрывать его — значит
                 // заставить человека гадать), но подписан тем, к чему
-                // относится. Одна строка на любой статус — прошедшее время у
-                // каждой формулировки пришлось бы писать отдельно.
+                // относится.
                 if (!stream.live) {
                     Text(
                         text = t.byLastMeasurement,
@@ -1171,24 +1181,23 @@ private fun HeroCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
-                    StatusDot(statusColor)
+                    StatusDot(headlineColor)
                     Text(
-                        text = statusHeadline(status, strings),
+                        text = headline,
                         style = type.label,
-                        color = statusColor,
+                        color = headlineColor,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    // Что вывод опирается на статистику места, а не на одно
-                    // показание, сказано словами в «Почему такой вывод» —
-                    // метка «стат.» рядом со строкой этого не объясняла.
                 }
-                // Сравнение с порогом, пока обычный фон места не собран, —
-                // пояснение, а не вывод: оно верно почти всегда, и заголовком
-                // приучало не читать строку вывода вовсе.
-                statusExplanation(status, unit, strings)?.let { explanation ->
-                    Hint(
-                        text = explanation,
+                // Чем измеряется заголовок: отношение к природному фону со
+                // знаменателем или доза за час. Без этого «повышенный» —
+                // приговор, а не наблюдение.
+                val note = DoseAlarm.note(alarmLevel, doseMicroSvH, t)
+                    ?: statusDetail(status, unit, strings).takeIf { ownThreshold }
+                note?.let {
+                    Text(
+                        text = it,
                         style = type.footnote,
                         color = colors.muted,
                         textAlign = TextAlign.Center,

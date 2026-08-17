@@ -994,7 +994,34 @@ class MeasurementService : Service() {
         }
         var lastAcceptedAt = 0L
         var lastAccuracy = Float.MAX_VALUE
-        val listener = LocationListener { location ->
+        // SAM-интерфейс здесь не годится: у него только `onLocationChanged`,
+        // а нам нужны ещё два обратных вызова — про выключение и включение
+        // источника. Без них выключенный на ходу GPS выглядит как «ждём
+        // спутников» бесконечно: система просто перестаёт присылать фиксы и
+        // ничего об этом не говорит.
+        val listener = object : LocationListener {
+            override fun onProviderDisabled(provider: String) {
+                // Выключили один источник — проверяем, остался ли хоть один.
+                val stillOn = LOCATION_PROVIDERS.any {
+                    runCatching { locationManager.isProviderEnabled(it) }.getOrDefault(false)
+                }
+                graph.serviceStatus.onTrackLocation(
+                    if (stillOn) {
+                        ServiceStatus.TrackLocation.WAITING
+                    } else {
+                        ServiceStatus.TrackLocation.NO_PROVIDER
+                    },
+                )
+            }
+
+            override fun onProviderEnabled(provider: String) {
+                // Источник вернулся: подписка на него уже есть (её ставили при
+                // старте), поэтому достаточно снова назвать состояние
+                // ожиданием — первый же фикс переведёт его в «идут точки».
+                graph.serviceStatus.onTrackLocation(ServiceStatus.TrackLocation.WAITING)
+            }
+
+            override fun onLocationChanged(location: Location) {
             // Источников несколько, и они присылают одно и то же место с
             // разной точностью. Точка принимается, если прошла секунда — или
             // если она ТОЧНЕЕ предыдущей: иначе сетевой фикс с точностью в
@@ -1011,7 +1038,7 @@ class MeasurementService : Service() {
                     atMillis = System.currentTimeMillis(),
                     stored = false,
                 )
-                return@LocationListener
+                return
             }
             lastAcceptedAt = location.time
             lastAccuracy = location.accuracy
@@ -1037,6 +1064,7 @@ class MeasurementService : Service() {
                     // GPS altitude feeds flight detection (полёт badge/chart).
                     altitudeMeters = if (location.hasAltitude()) location.altitude else null,
                 )
+            }
             }
         }
         locationListener = listener

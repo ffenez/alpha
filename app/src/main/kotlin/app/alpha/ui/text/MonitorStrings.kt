@@ -118,6 +118,22 @@ interface MonitorStrings {
 
     // --- справка V2 ---
 
+    // --- три заголовка Главной ---
+
+    /**
+     * Заголовков на Главной ровно три, и каждый стоит того, чтобы прервать
+     * человека: его собственный порог, повышенный уровень и «уходите». Всё
+     * остальное — сравнение с обычным фоном места — живёт в справке, которая
+     * открывается нажатием на числа.
+     */
+    val alarmElevated: String
+    fun alarmElevatedNote(times: String): String
+    val alarmLeave: String
+    val alarmLeaveNote: String
+
+    /** Фон места ещё собирается — плитка говорит это вместо прочерка. */
+    val backgroundCollecting: String
+
     /** «Фон этого места» — вместо «изучаю обычный фон». */
     val placeBackgroundTitle: String
 
@@ -304,6 +320,14 @@ object MonitorRu : MonitorStrings {
     // Окно объясняет не только числа: что происходит, почему фона ещё нет,
     // как идёт сравнение и по каким параметрам. Это справка, а не «информация».
     override val whyTitle = "Справка"
+
+    override val alarmElevated = "Повышенный уровень"
+    override fun alarmElevatedNote(times: String) = "$times к природному фону"
+    // Не «опасно», а что делать: инструмент называет действие и его причину,
+    // а приговор человек выносит сам.
+    override val alarmLeave = "Уходите отсюда"
+    override val alarmLeaveNote = "за час здесь набирается годовая доза для населения"
+    override val backgroundCollecting = "собирается"
 
     override val placeBackgroundTitle = "Фон этого места"
     override fun collectedOf(collected: String, required: String) = "$collected из $required"
@@ -494,6 +518,12 @@ object MonitorEn : MonitorStrings {
 
     override val whyTitle = "Help"
 
+    override val alarmElevated = "Elevated level"
+    override fun alarmElevatedNote(times: String) = "$times the natural background"
+    override val alarmLeave = "Leave this place"
+    override val alarmLeaveNote = "an hour here is a year's public dose limit"
+    override val backgroundCollecting = "collecting"
+
     override val placeBackgroundTitle = "Background of this place"
     override fun collectedOf(collected: String, required: String) = "$collected of $required"
     override val comparisonTitle = "Comparison"
@@ -621,6 +651,8 @@ val MonitorCatalogue = AreaCatalogue(ru = MonitorRu, en = MonitorEn)
  * области не проверяют.
  */
 fun MonitorStrings.allTexts(): List<String> = listOf(
+    alarmElevated, alarmElevatedNote("×70"), alarmLeave, alarmLeaveNote,
+    backgroundCollecting,
     placeBackgroundTitle, collectedOf("0,9 ч", "3 ч"), comparisonTitle, comparisonNotEnough,
     excludedTitle, excludedLine("12 мин", "Поиск или эксперимент"),
     howDeviationTitle, technicalTitle,

@@ -1,5 +1,14 @@
 package app.alpha.ui.screens
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -484,6 +493,19 @@ fun MapScreen(graph: AppGraph) {
                     )
                 }
             },
+            // Запись — на самой карте: она рисует то, на что человек смотрит.
+            recordingSince = recording?.startedAt,
+            onToggleRecording = if (hasLocation) {
+                {
+                    if (recording != null) {
+                        stopTrackRecording(context)
+                    } else {
+                        startTrackRecording(context)
+                    }
+                }
+            } else {
+                null
+            },
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
 
@@ -513,42 +535,10 @@ fun MapScreen(graph: AppGraph) {
             !hasLocation -> LocationPermissionCard(
                 onRequest = { permissionLauncher.launch(arrayOf(FINE_LOCATION, COARSE_LOCATION)) },
             )
-            // Идущая запись сама себе строка состояния: сколько идёт и сколько
-            // точек уже записано. Число точек здесь не украшение — без него
-            // «идёт 12 мин» выглядит одинаково и когда след пишется, и когда
-            // система не отдаёт ни одной координаты.
-            active != null -> Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                val written = d?.points?.size ?: 0
-                Chip(
-                    text = t.recordingFor(
-                        HistoryFormat.duration((nowMillis - active.startedAt) / 1000, s = h),
-                    ),
-                    color = colors.ok,
-                    dot = colors.ok,
-                )
-                Chip(
-                    text = t.recordedPoints(HistoryFormat.count(written)),
-                    color = if (written > 0) colors.ink2 else colors.warn,
-                )
-                Spacer(Modifier.weight(1f))
-                AppButton(text = t.stopRecording, onClick = { stopTrackRecording(context) })
-            }
-            else -> AppButton(
-                // На экране уже лежит чужой маршрут — кнопка обязана сказать,
-                // что она заводит НОВЫЙ, а не дописывает показанный.
-                text = if (d != null && d.hasTrack && d.points.isNotEmpty()) {
-                    t.startNewRecording
-                } else {
-                    t.startRecording
-                },
-                onClick = { startTrackRecording(context) },
-                primary = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            // Идущая запись живёт значком на карте. Внизу остаётся только то,
+            // чего по карте не видно: почему точек нет.
+            active != null -> TrackLocationNotice(state = trackLocation)
+            else -> Unit
         }
     }
 }
@@ -1004,6 +994,10 @@ private fun TrackMapCard(
     onTrackPointTap: (Long) -> Unit = {},
     onViewport: (MapViewport) -> Unit,
     emptyState: @Composable () -> Unit,
+    /** Идущая запись следа: с какого момента она идёт; null — записи нет. */
+    recordingSince: Long? = null,
+    /** Кнопка записи на самой карте; null — экран только смотрит (История). */
+    onToggleRecording: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalAppColors.current
@@ -1122,6 +1116,20 @@ private fun TrackMapCard(
             )?.takeIf { positionState == PositionState.WAITING_FIX }?.let { text ->
                 Chip(text = text, color = colors.ink2)
             }
+        }
+
+        // Сверху справа — сама запись: её видно, не читая ни строки, и
+        // останавливается она там же, где показана. Внизу экрана кнопка жила
+        // отдельно от того, что она останавливает, а рядом с ней стояло число
+        // точек — счёт, который ничего не решает: важно, идёт запись или нет,
+        // а сколько в ней точек, видно по самому следу.
+        onToggleRecording?.let { toggle ->
+            RecordingBadge(
+                since = recordingSince,
+                nowMillis = nowMillis,
+                onClick = toggle,
+                modifier = Modifier.align(Alignment.TopEnd).padding(Dimens.space2),
+            )
         }
 
         // Снизу слева — что показано: величина переключается чаще, чем
@@ -1790,4 +1798,105 @@ private fun EventEntity.toHotspot(from: Long, to: Long?): MapHotspot? {
         doseMicroSvH = doseRate?.let(DoseUnits::rawToMicroSievertPerHour),
         typicalMicroSvH = if (param1 > 0) param1 / 1000f else null,
     )
+}
+
+/**
+ * Значок записи следа — на самой карте, сверху справа.
+ *
+ * ## Почему здесь, а не кнопкой внизу
+ *
+ * Запись относится к карте, а не к экрану: она рисует то, на что человек
+ * смотрит. Кнопка внизу стояла отдельно от результата, а рядом с ней жило
+ * число записанных точек — счёт, который ни на что не влияет: важно, идёт
+ * запись или нет, а сколько в ней точек, видно по длине самого следа.
+ *
+ * ## Пульс — это состояние, а не украшение
+ *
+ * Точка дышит ровно тогда, когда запись идёт: неподвижная карта в помещении
+ * выглядит одинаково и при работающей записи, и при остановленной, и пульс —
+ * единственное, что различает их без чтения.
+ */
+@Composable
+private fun RecordingBadge(
+    since: Long?,
+    nowMillis: Long,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val t = MapCatalogue.of(strings.language)
+    val h = HistoryCatalogue.of(strings.language)
+    val recording = since != null
+
+    val pulse = rememberInfiniteTransition(label = "recording")
+    val alpha by pulse.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = PULSE_MILLIS, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "pulse",
+    )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+        modifier = modifier
+            .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
+            .background(colors.surface.copy(alpha = 0.92f))
+            .border(
+                LocalAppMetrics.current.border,
+                if (recording) colors.crit else colors.line,
+                RoundedCornerShape(LocalAppMetrics.current.radiusChip),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = Dimens.space2, vertical = 6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(RECORD_DOT)
+                .graphicsLayer { this.alpha = if (recording) alpha else 1f }
+                .clip(CircleShape)
+                .background(if (recording) colors.crit else colors.ink2),
+        )
+        Text(
+            text = if (since != null) {
+                HistoryFormat.duration((nowMillis - since) / 1000, s = h)
+            } else {
+                t.startRecording
+            },
+            style = type.footnote,
+            color = if (recording) colors.ink else colors.ink2,
+        )
+    }
+}
+
+/** Период дыхания точки записи: спокойный пульс, а не мигание тревоги. */
+private const val PULSE_MILLIS = 900
+
+private val RECORD_DOT = 9.dp
+
+/**
+ * Почему в идущей записи нет точек.
+ *
+ * Молчать здесь нельзя: неподвижная карта выглядит одинаково и когда телефон
+ * ещё ловит спутники, и когда определение места выключено в системе — а во
+ * втором случае ждать бесполезно, и человек должен об этом узнать от прибора,
+ * а не через полчаса пустого следа.
+ */
+@Composable
+private fun TrackLocationNotice(state: ServiceStatus.TrackLocation) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val t = MapCatalogue.of(LocalStrings.current.language)
+    val (text, tone) = when (state) {
+        ServiceStatus.TrackLocation.NO_PROVIDER -> t.emptyNoProviderTitle to colors.warn
+        ServiceStatus.TrackLocation.NO_PERMISSION -> t.emptyNoPermissionTitle to colors.warn
+        ServiceStatus.TrackLocation.WAITING -> t.emptyWaitingTitle to colors.muted
+        ServiceStatus.TrackLocation.RECEIVING -> return
+    }
+    Text(text = text, style = type.footnote, color = tone)
 }
