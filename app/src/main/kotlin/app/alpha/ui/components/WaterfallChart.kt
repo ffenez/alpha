@@ -37,32 +37,22 @@ import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
 
 /**
- * Спектрограмма-водопад («Научный терминал»): X = время, Y = энергия,
- * яркость ячейки = интенсивность ([Spectrogram.intensity]).
- *
- * ## Только картинка
- *
- * Полосы мощности дозы под водопадом больше нет: мощность дозы живёт на своём
- * графике и на Главной, а здесь она отнимала у картинки высоту и вторую
- * величину на одну ось времени. Спектрограмма отвечает на вопрос «когда
- * появилась линия», и весь экран принадлежит этому вопросу.
- *
- * ## Ось энергии объявлена
+ * Спектрограмма-водопад: X = время, Y = энергия, яркость ячейки =
+ * интенсивность ([Spectrogram.intensity]).
  *
  * Высота строки связана с энергией по [WaterfallSpec.energyScale]; растр
  * строится по долям высоты ([Spectrogram.bandOfFraction]), поэтому обе оси
  * рисуются одним кодом, а полосы не пересчитываются и не интерполируются.
  *
- * Цвет: проверенная янтарная рампа карты. На тёмной теме её порядок
- * переворачивается, чтобы яркость всегда РОСЛА с интенсивностью; нулевая
- * интенсивность — сама поверхность карточки, пропуск потока — своя плоскость.
+ * Цвет — янтарная рампа карты; на тёмной теме её порядок обратный, чтобы
+ * яркость росла с интенсивностью. Нулевая интенсивность — поверхность
+ * карточки, пропуск потока — цвет [AppColors.chartBeyondData].
  */
 @Immutable
 data class WaterfallSpec(
     /**
-     * Колонки сетки времени, старые → новые; `null` = в этой ячейке измерений
-     * не было. Пропуск обязан быть виден: пустая колонка и колонка с нулевым
-     * счётом — разные факты.
+     * Колонки сетки времени, старые → новые. `null` = измерений в ячейке не
+     * было; это не нулевой счёт.
      */
     val columns: List<SpectrogramColumn?>,
     /**
@@ -85,19 +75,13 @@ data class WaterfallSpec(
     val timeLabels: List<Pair<Float, String>> = emptyList(),
     /** Единица оси энергии: подпись приходит с экрана вместе с его языком. */
     val energyUnit: String = "кэВ",
-    /**
-     * Прицел: горизонтальный маркер энергии и подпись под пальцем. Живёт
-     * только во время касания — постоянный маркер означал бы выбранную
-     * энергию, а её никто не выбирал.
-     */
+    /** Прицел: маркер энергии и подпись; живёт только во время касания. */
     val probe: WaterfallProbe? = null,
 )
 
 /**
- * Прицел по энергии: доля высоты поля и то, что показывается рядом.
- *
- * Текст собирает экран: здесь нет ни языка, ни единиц, ни форматирования —
- * только геометрия и готовые строки.
+ * Прицел по энергии: доля высоты поля и готовые строки подписи. Форматирование
+ * и язык — на стороне экрана.
  */
 @Immutable
 data class WaterfallProbe(
@@ -108,7 +92,7 @@ data class WaterfallProbe(
 )
 
 /**
- * Строк растра. Сетка растра не совпадает с сеткой полос намеренно: строки
+ * Строк растра. Сетка растра не совпадает с сеткой полос: строки
  * распределяются по выбранной оси энергии, а полоса занимает столько строк,
  * сколько ей отводит эта ось.
  */
@@ -118,14 +102,14 @@ private const val RENDER_ROWS = 192
 fun WaterfallChart(
     spec: WaterfallSpec,
     modifier: Modifier = Modifier,
-    /** null — высоту задаёт родитель: в полноэкранном режиме поле и есть экран. */
+    /** null — высоту задаёт родитель. */
     height: Dp? = null,
     /**
      * Курсор времени: индекс колонки и доля высоты, если палец ведут по полю.
      * `null` во втором параметре — прицела нет (нажатие, а не ведение).
      */
     onCursor: ((Int, Float?) -> Unit)? = null,
-    /** Палец отпущен: прицел исчезает, курсор времени остаётся. */
+    /** Палец отпущен: прицел снимается, курсор времени остаётся. */
     onCursorEnd: (() -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
@@ -165,8 +149,8 @@ fun WaterfallChart(
         val groups = spec.bandGroups.ifEmpty {
             (0 until Spectrogram.BAND_COUNT).map { it..it }
         }
-        // Строка растра → номер группы полос. Считается один раз: внутри
-        // цикла по колонкам это был бы поиск на каждый пиксель.
+        // Считается один раз: внутри цикла по колонкам это был бы поиск на
+        // каждый пиксель.
         val rowGroup = IntArray(h) { row ->
             // Row 0 of the bitmap is the top = highest energy.
             val fraction = (h - 0.5f - row) / h
@@ -181,9 +165,8 @@ fun WaterfallChart(
                 for (row in 0 until h) pixels[row * w + x] = gapArgb
                 continue
             }
-            // Значение считается по ГРУППЕ полос (адаптивная энергетическая
-            // нарезка), и все строки группы красятся одинаково: это честная
-            // запись «на таком энергетическом разрешении столько-то».
+            // Значение берётся по ГРУППЕ полос, все строки группы красятся
+            // одинаково: разрешение картинки равно разрешению группы.
             var columnMax = 0f
             for (i in groups.indices) {
                 val v = column.groupCounts(groups[i])
@@ -231,9 +214,8 @@ fun WaterfallChart(
                 if (onCursor == null || spec.columns.isEmpty()) {
                     Modifier
                 } else {
-                    // Геометрия поля повторяется здесь ровно потому, что жест
-                    // приходит раньше отрисовки: обе стороны считают её из
-                    // одних и тех же величин.
+                    // Жест приходит раньше отрисовки, поэтому геометрия поля
+                    // считается здесь из тех же величин.
                     val padR = with(density) { 4.dp.toPx() }
                     val padT = with(density) { 2.dp.toPx() }
                     val padB = labelHeightPx + with(density) { 3.dp.toPx() }
@@ -284,7 +266,6 @@ fun WaterfallChart(
         if (plotW <= 0 || plotH <= 0) return@Canvas
         val plotBottom = padT + plotH
 
-        // 1. Waterfall bitmap, nearest-neighbor so cells stay crisp.
         if (bitmap != null) {
             drawImage(
                 image = bitmap,
@@ -296,11 +277,8 @@ fun WaterfallChart(
             )
         }
 
-        // 2. Energy gridlines + labels (fraction 0 = MIN_KEV at the bottom).
+        // Доля 0 = MIN_KEV у нижнего края.
         val grid = colors.ink2.copy(alpha = 0.18f)
-        // Единица оси — внутри поля, у первой подписи: отдельная строка
-        // «кэВ ↑ · время →» под графиком повторяла то, что и так видно по
-        // числам слева и по времени снизу.
         drawText(
             textLayoutResult = textMeasurer.measure(spec.energyUnit, axisStyle),
             color = colors.muted,
@@ -320,7 +298,6 @@ fun WaterfallChart(
             )
         }
 
-        // 3. Time labels along the axis.
         for ((fraction, label) in spec.timeLabels) {
             val measured = textMeasurer.measure(label, axisStyle)
             val xx = (padL + fraction * plotW - measured.size.width / 2f)
@@ -332,7 +309,6 @@ fun WaterfallChart(
             )
         }
 
-        // 4. Курсор времени.
         val selected = spec.selectedIndex
         val cursorX = if (selected != null && selected in spec.columns.indices) {
             padL + (selected + 0.5f) * plotW / spec.columns.size
@@ -348,7 +324,7 @@ fun WaterfallChart(
             )
         }
 
-        // 5. Прицел по энергии — только пока палец на поле.
+        // Прицел живёт только во время касания.
         val probe = spec.probe
         if (probe != null) {
             val yy = plotBottom - probe.energyFraction.coerceIn(0f, 1f) * plotH
@@ -366,8 +342,7 @@ fun WaterfallChart(
                 val measured = lines.map { textMeasurer.measure(it, axisStyle) }
                 val boxW = measured.maxOf { it.size.width }.toFloat() + 8.dp.toPx()
                 val boxH = measured.sumOf { it.size.height }.toFloat() + 6.dp.toPx()
-                // Подпись уходит от края и от самого пальца: под пальцем её
-                // не видно, а за краем поля она была бы обрезана.
+                // Подпись смещается от курсора и от края поля.
                 val anchorX = cursorX ?: padL
                 val left = if (anchorX + 8.dp.toPx() + boxW > size.width - padR) {
                     anchorX - 8.dp.toPx() - boxW
@@ -400,7 +375,6 @@ fun WaterfallChart(
             }
         }
 
-        // Hairline frame around the waterfall plot.
         drawRect(
             color = colors.line,
             topLeft = Offset(padL, padT),
@@ -410,7 +384,7 @@ fun WaterfallChart(
     }
 }
 
-/** Legend swatch row data: 4 ramp steps from «фон» to «макс», theme-ordered. */
+/** Ступени рампы для легенды, в порядке текущей темы. */
 @Composable
 fun waterfallLegendColors(): List<Color> {
     val dark = LocalAppColors.current.isDark
