@@ -74,8 +74,8 @@ sealed interface StreamState {
         ): StreamState {
             val age = lastSampleAtMillis?.let { ((nowMillis - it) / 1000L).coerceAtLeast(0L) }
             return when {
-                // Подключение в процессе — это ответ сам по себе, и он важнее
-                // возраста: данные вот-вот пойдут, ругаться на разрыв незачем.
+                // Подключение в процессе — ответ сам по себе, и он важнее
+                // возраста данных.
                 connection is ConnectionState.Connecting ||
                     connection is ConnectionState.Reconnecting -> Reconnecting
                 connection !is ConnectionState.Connected -> Disconnected(age)
@@ -91,28 +91,22 @@ sealed interface StreamState {
 /**
  * Главная строка о состоянии потока — или `null`, когда говорить нечего.
  *
- * В [StreamState.Live] возвращается null НАМЕРЕННО: молчание и есть сообщение
- * «всё идёт», а любая надпись в этом состоянии — шум, который человек учится
- * не замечать (и перестаёт замечать её же в момент, когда она важна).
+ * В [StreamState.Live] возвращается null намеренно: молчание и есть сообщение
+ * «поток идёт».
  */
 fun streamStatusLine(state: StreamState, s: app.alpha.ui.text.Strings): String? = when (state) {
     StreamState.Live -> null
     is StreamState.Stale -> s.streamNoNewData(state.ageSeconds)
-    // Переподключение не называется словами: это НЕ состояние прибора, а
-    // работа приложения, и человеку от неё ничего не требуется. Точка связи в
-    // шапке уже показывает, что связи сейчас нет, а надпись про неё появлялась
-    // и исчезала сама по себе — и оставалась в памяти как мигание.
+    // Переподключение не называется словами: это работа приложения, а не
+    // состояние прибора. Отсутствие связи уже показывает точка в шапке.
     StreamState.Reconnecting -> null
     is StreamState.Disconnected ->
         if (state.ageSeconds == null) s.streamNoDataYet else s.streamLost
 }
 
 /**
- * Вторичная подпись: возраст последнего измерения.
- *
- * Существует только в устойчивом состоянии — там, где основная строка уже не
- * называет секунды. В [StreamState.Stale] возраст стоит в главной строке, и
- * повторять его вторым шрифтом незачем.
+ * Вторичная подпись: возраст последнего измерения. Существует только в
+ * устойчивом состоянии; в [StreamState.Stale] возраст стоит в главной строке.
  */
 fun streamAgeLine(state: StreamState, s: app.alpha.ui.text.Strings): String? =
     when (state) {
