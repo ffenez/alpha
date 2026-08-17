@@ -94,6 +94,7 @@ import app.radiacode.ui.logic.SpectrumInfoLevel
 import app.radiacode.ui.logic.SpectrumInfoSection
 import app.radiacode.ui.logic.SpectrumViewOptions
 import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.ExportCatalogue
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.SpectrumCatalogue
 import app.radiacode.ui.text.SpectrumStrings
@@ -144,10 +145,6 @@ internal fun SpectrumActionsBar(
     serialNumber: String?,
     /** Continuation mode: «Сохранить» persists the merged sum instead. */
     onSaveOverride: (() -> Unit)? = null,
-    /** Просмотр снимка: приборных действий у него нет, и это сказано словами. */
-    viewingSnapshot: Boolean = false,
-    snapshotEntity: SpectrumSnapshotEntity? = null,
-    onCompareWith: (Long) -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -162,15 +159,12 @@ internal fun SpectrumActionsBar(
 
     var notice by remember { mutableStateOf<SpectrumFileNotice?>(null) }
     var savedAtMillis by remember { mutableStateOf<Long?>(null) }
-    var pendingExport by remember { mutableStateOf<String?>(null) }
     var moreOpen by remember { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
-    var comparePickerOpen by remember { mutableStateOf(false) }
-    // Сравнивать снимок есть с чем только тогда, когда снимков больше одного.
-    val otherSpectra by graph.measurementRepository.savedSpectra()
-        .collectAsState(initial = emptyList())
+    var exporting by remember { mutableStateOf(false) }
 
-    fun onWritten(ok: Boolean) {
+    val e = ExportCatalogue.of(strings.language)
+    val saver = rememberFileSaver { ok ->
         if (ok) {
             savedAtMillis = System.currentTimeMillis()
         } else {
@@ -181,43 +175,6 @@ internal fun SpectrumActionsBar(
             )
         }
     }
-
-    val exportXmlLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/xml"),
-    ) { uri ->
-        val content = pendingExport
-        pendingExport = null
-        if (uri != null && content != null) {
-            scope.launch { onWritten(writeTextToUri(context, uri, content)) }
-        }
-    }
-    val exportN42Launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/octet-stream"),
-    ) { uri ->
-        val content = pendingExport
-        pendingExport = null
-        if (uri != null && content != null) {
-            scope.launch { onWritten(writeTextToUri(context, uri, content)) }
-        }
-    }
-    val exportHtmlLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/html"),
-    ) { uri ->
-        val content = pendingExport
-        pendingExport = null
-        if (uri != null && content != null) {
-            scope.launch { onWritten(writeTextToUri(context, uri, content)) }
-        }
-    }
-    val exportCsvLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/csv"),
-    ) { uri ->
-        val content = pendingExport
-        pendingExport = null
-        if (uri != null && content != null) {
-            scope.launch { onWritten(writeTextToUri(context, uri, content)) }
-        }
-    }
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -226,76 +183,29 @@ internal fun SpectrumActionsBar(
         }
     }
 
-    // Экспорт и импорт готовятся здесь, а вызываются из меню «⋯».
-    // У снимка экспортируется ОН САМ — со своим временем, меткой и без
-    // серийника подключённого сейчас прибора: этот прибор его не снимал.
-    val exportSerial = if (viewingSnapshot) null else serialNumber
-    val onExportXml: () -> Unit = {
-        if (spectrum != null) {
-            val now = snapshotEntity?.timestamp ?: System.currentTimeMillis()
-            val entity = snapshotEntity ?: spectrum.toEntity(timestamp = now, accumulated = false)
-            pendingExport = RcXml.write(
-                SpectrumExport.toResultData(
-                    entity = entity,
-                    background = if (viewingSnapshot) null else backgroundEntity,
-                    serialNumber = exportSerial,
-                    appVersion = appVersionName(context),
-                ),
-            )
-            exportXmlLauncher.launch(SpectrumExport.fileName(now, "xml"))
-        }
-    }
-    val onExportN42: () -> Unit = {
-        if (spectrum != null) {
-            val now = snapshotEntity?.timestamp ?: System.currentTimeMillis()
-            val entity = snapshotEntity ?: spectrum.toEntity(timestamp = now, accumulated = false)
-            pendingExport = N42.write(
-                foreground = SpectrumExport.toN42Measurement(entity, N42.CLASS_FOREGROUND),
-                background = if (viewingSnapshot) null else backgroundEntity?.let {
-                    SpectrumExport.toN42Measurement(it, N42.CLASS_BACKGROUND)
-                },
-                serialNumber = exportSerial,
-                model = SpectrumExport.modelFromSerial(exportSerial),
-                softwareVersion = appVersionName(context),
-                // Спец §22: метод, нормализация, калибровка и версии
-                // алгоритмов едут вместе с файлом.
-                remarks = SpectrumExport.metadataLines(entity, appVersionName(context)),
-            )
-            exportN42Launcher.launch(SpectrumExport.fileName(now, "n42"))
-        }
-    }
-
-    // Отчёт — для человека, N42 и XML — для программ, CSV — для таблицы.
-    // Одно другого не заменяет, поэтому все четыре стоят рядом (§14 ТЗ).
-    val language = LocalStrings.current.language
-    val onExportHtml: () -> Unit = {
-        if (spectrum != null) {
-            val now = snapshotEntity?.timestamp ?: System.currentTimeMillis()
-            val entity = snapshotEntity ?: spectrum.toEntity(timestamp = now, accumulated = false)
-            pendingExport = SpectrumReportHtml.render(
-                SpectrumReportFactory.build(
-                    entity = entity,
-                    appName = REPORT_APP_NAME,
-                    appVersion = appVersionName(context) ?: "",
-                    language = language,
-                ),
-            )
-            exportHtmlLauncher.launch(SpectrumExport.fileName(now, "html"))
-        }
-    }
-    val onExportCsv: () -> Unit = {
-        if (spectrum != null) {
-            val now = snapshotEntity?.timestamp ?: System.currentTimeMillis()
-            val entity = snapshotEntity ?: spectrum.toEntity(timestamp = now, accumulated = false)
-            pendingExport = SpectrumReportFactory.toCsv(entity)
-            exportCsvLauncher.launch(SpectrumExport.fileName(now, "csv"))
-        }
+    // Живой спектр выгружается тем же окном форматов, что и сохранённый
+    // снимок: разница между ними — только в том, есть ли у записи прошлое.
+    if (exporting && spectrum != null) {
+        val now = System.currentTimeMillis()
+        val entity = spectrum.toEntity(timestamp = now, accumulated = false)
+        EntityExportSheet(
+            title = e.export,
+            groups = spectrumExportGroups(
+                entity = entity,
+                e = e,
+                appVersion = appVersionName(context),
+                language = strings.language,
+                saver = saver,
+                onPicked = { exporting = false },
+            ),
+            onDismiss = { exporting = false },
+        )
     }
 
     // Приборные действия остаются на своих местах и просто гаснут: исчезнув,
     // они заставили бы искать, куда делась кнопка. Причина названа строкой
     // ниже — «недоступно» без причины хуже отсутствия.
-    val deviceBlock = SpectrumSources.deviceActionBlock(viewingSnapshot, connected)
+    val deviceBlock = SpectrumSources.deviceActionBlock(viewingSnapshot = false, connected)
     val deviceActionsEnabled = deviceBlock == DeviceActionBlock.NONE
     // Кнопки НАЗЫВАЮТ РЕЗУЛЬТАТ и объясняют себя одной строкой: «Записать
     // фон» и «Сохранить» звучали как одно и то же действие, и разницу
@@ -316,7 +226,7 @@ internal fun SpectrumActionsBar(
                 text = t.saveSnapshot,
                 onClick = onSaveOverride ?: { hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
                 // Снимок уже сохранён — сохранять его во второй раз незачем.
-                enabled = spectrum != null && !viewingSnapshot,
+                enabled = spectrum != null,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -345,14 +255,7 @@ internal fun SpectrumActionsBar(
     // состояние учит первому действию, а не молчит.
     val background = backgroundEntity
     val h = HistoryCatalogue.of(strings.language)
-    if (viewingSnapshot) {
-        Text(
-            text = t.snapshotNoDevice,
-            style = type.footnote,
-            color = colors.muted,
-            modifier = Modifier.padding(horizontal = Dimens.space1),
-        )
-    } else Text(
+    Text(
         text = if (background != null) {
             t.backgroundRecorded(
                 at = HistoryFormat.day(background.timestamp, s = h),
@@ -389,14 +292,9 @@ internal fun SpectrumActionsBar(
             t = t,
             hasSpectrum = spectrum != null,
             connected = deviceActionsEnabled,
-            viewingSnapshot = viewingSnapshot,
-            onCompare = { moreOpen = false; comparePickerOpen = true },
             onReset = { moreOpen = false; confirmReset = true },
             onImport = { moreOpen = false; importLauncher.launch(arrayOf("*/*")) },
-            onExportHtml = { moreOpen = false; onExportHtml() },
-            onExportXml = { moreOpen = false; onExportXml() },
-            onExportN42 = { moreOpen = false; onExportN42() },
-            onExportCsv = { moreOpen = false; onExportCsv() },
+            onExport = { moreOpen = false; exporting = true },
             onDismiss = { moreOpen = false },
         )
     }
@@ -420,17 +318,6 @@ internal fun SpectrumActionsBar(
                 }
             }
         }
-    }
-
-    if (comparePickerOpen) {
-        SnapshotPickerDialog(
-            spectra = otherSpectra.filter { it.id != snapshotEntity?.id },
-            onPick = { id ->
-                comparePickerOpen = false
-                onCompareWith(id)
-            },
-            onDismiss = { comparePickerOpen = false },
-        )
     }
 
     notice?.let { current ->
@@ -498,15 +385,9 @@ internal fun SpectrumMoreDialog(
     t: SpectrumStrings,
     hasSpectrum: Boolean,
     connected: Boolean,
-    /** Просмотр снимка: импорта чужого файла отсюда нет, зато есть сравнение. */
-    viewingSnapshot: Boolean = false,
-    onCompare: () -> Unit = {},
     onReset: () -> Unit,
     onImport: () -> Unit,
-    onExportHtml: () -> Unit,
-    onExportXml: () -> Unit,
-    onExportN42: () -> Unit,
-    onExportCsv: () -> Unit,
+    onExport: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colors = LocalAppColors.current
@@ -516,65 +397,33 @@ internal fun SpectrumMoreDialog(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(text = t.moreActions, style = type.title, color = colors.ink)
-                if (viewingSnapshot) {
-                    AppButton(
-                        text = strings.compareWithAnother,
-                        onClick = onCompare,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
                 AppButton(
                     text = t.resetAccumulation,
                     onClick = onReset,
                     enabled = connected,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (!viewingSnapshot) {
-                    AppButton(
-                        text = strings.importAction,
-                        onClick = onImport,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                // Отчёт первым: обычному человеку нужен именно он (§49 ТЗ).
                 AppButton(
-                    text = strings.exportHtml,
-                    onClick = onExportHtml,
+                    text = strings.importAction,
+                    onClick = onImport,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                // Один пункт вместо четырёх кнопок форматов: форматы живут в
+                // окне экспорта, одном на всё приложение.
+                AppButton(
+                    text = ExportCatalogue.of(strings.language).export,
+                    onClick = onExport,
                     enabled = hasSpectrum,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                AppButton(
-                    text = strings.exportXml,
-                    onClick = onExportXml,
-                    enabled = hasSpectrum,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                AppButton(
-                    text = strings.exportN42,
-                    onClick = onExportN42,
-                    enabled = hasSpectrum,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                AppButton(
-                    text = strings.exportCsv,
-                    onClick = onExportCsv,
-                    enabled = hasSpectrum,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Hint(
-                    text = strings.exportFormatsNote,
-                )
-                if (viewingSnapshot) {
-                    Text(
-                        text = t.snapshotNoDevice,
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
-                AppButton(
-                    text = strings.close,
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
+                Text(
+                    text = strings.cancel,
+                    style = type.bodySmall,
+                    color = colors.ink2,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .clickable(onClick = onDismiss)
+                        .padding(Dimens.space1),
                 )
             }
         }

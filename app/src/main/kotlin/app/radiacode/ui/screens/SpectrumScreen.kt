@@ -64,6 +64,9 @@ import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.ConfirmDialog
+import app.radiacode.ui.components.EntityHeader
+import app.radiacode.ui.components.RenameDialog
 import app.radiacode.ui.components.EvidenceTag
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.NeedBackgroundDialog
@@ -94,6 +97,7 @@ import app.radiacode.ui.logic.SpectrumInfoLevel
 import app.radiacode.ui.logic.SpectrumInfoSection
 import app.radiacode.ui.logic.SpectrumViewOptions
 import app.radiacode.ui.text.HistoryCatalogue
+import app.radiacode.ui.text.ExportCatalogue
 import app.radiacode.ui.text.LocalStrings
 import app.radiacode.ui.text.SpectrumCatalogue
 import app.radiacode.ui.text.SpectrumStrings
@@ -142,6 +146,8 @@ fun SpectrumScreen(
      */
     snapshotId: Long? = null,
     onBack: (() -> Unit)? = null,
+    /** Продолжить накопление поверх открытого снимка (действие из «⋮»). */
+    onContinueSnapshot: ((Long) -> Unit)? = null,
     /**
      * Не null — экран показывает ТОЛЬКО спектр во весь экран, в том виде, в
      * каком по нему тапнули (режим, сглаживание, окно зума).
@@ -181,6 +187,18 @@ fun SpectrumScreen(
         snapshotEntity = loaded
         snapshotMissing = snapshotId != null && loaded == null
     }
+    // Действия над открытым снимком: экспорт, сравнение, имя, удаление.
+    var exportingSnapshot by remember { mutableStateOf(false) }
+    var renamingSnapshot by remember { mutableStateOf(false) }
+    var deletingSnapshot by remember { mutableStateOf(false) }
+    var comparePicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var exportNote by remember { mutableStateOf<String?>(null) }
+    val exportStrings = ExportCatalogue.of(strings.language)
+    val fileSaver = rememberFileSaver { ok ->
+        exportNote = if (ok) exportStrings.saved else exportStrings.failed
+    }
+
     // Сравнение снимка с другим — тот же компаратор, что в Истории.
     var compareWith by remember { mutableStateOf<Long?>(null) }
     val comparedId = compareWith
@@ -303,6 +321,68 @@ fun SpectrumScreen(
             null
         }
 
+    val openEntity = snapshotEntity
+    if (openEntity != null) {
+        if (exportingSnapshot) {
+            EntityExportSheet(
+                title = exportStrings.export,
+                groups = spectrumExportGroups(
+                    entity = openEntity,
+                    e = exportStrings,
+                    appVersion = appVersionName(context),
+                    language = strings.language,
+                    saver = fileSaver,
+                    onPicked = { exportingSnapshot = false },
+                ),
+                onDismiss = { exportingSnapshot = false },
+            )
+        }
+        if (renamingSnapshot) {
+            val h = HistoryCatalogue.of(strings.language)
+            RenameDialog(
+                title = h.routeRename,
+                initial = openEntity.label.orEmpty(),
+                placeholder = h.routeNameHint,
+                onSave = { name ->
+                    renamingSnapshot = false
+                    scope.launch {
+                        graph.measurementRepository.renameSpectrum(openEntity.id, name)
+                        snapshotEntity = graph.measurementRepository.spectrumById(openEntity.id)
+                    }
+                },
+                onDismiss = { renamingSnapshot = false },
+            )
+        }
+        if (deletingSnapshot) {
+            val h = HistoryCatalogue.of(strings.language)
+            ConfirmDialog(
+                title = h.routeDeleteTitle(1),
+                body = h.routeDeleteBody,
+                confirmText = strings.delete,
+                onConfirm = {
+                    deletingSnapshot = false
+                    scope.launch {
+                        graph.sessionRepository.delete(emptySet(), setOf(openEntity.id))
+                        onBack?.invoke()
+                    }
+                },
+                onDismiss = { deletingSnapshot = false },
+            )
+        }
+        if (comparePicker) {
+            val others by graph.measurementRepository.savedSpectra()
+                .collectAsState(initial = emptyList())
+            SnapshotPickerDialog(
+                spectra = others.filter { it.id != openEntity.id },
+                onPick = { id ->
+                    comparePicker = false
+                    compareWith = id
+                },
+                onDismiss = { comparePicker = false },
+            )
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -310,48 +390,52 @@ fun SpectrumScreen(
             .padding(Dimens.space3),
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (onBack != null) {
-                AppButton(text = "← ${strings.back}", onClick = onBack)
-                Spacer(Modifier.width(Dimens.space2))
-            }
-            // Имя вкладки в шапке не повторяется. Метка «Снимок» остаётся:
-            // это не название экрана, а состояние — что показан не живой
-            // спектр, а сохранённый.
-            if (viewing) {
-                Chip(text = t.snapshotViewTag, color = colors.ink)
-            }
-            Spacer(Modifier.weight(1f))
-            Chip(
-                text = spectrum?.let {
-                    SpectrumFormat.accumulationChip(
-                        it.durationSeconds,
-                        it.counts.sumOf { c -> c.toLong() },
-                        t,
-                    )
-                } ?: strings.noData,
-            )
-        }
-        // Чей это снимок и когда снят — первое, что нужно знать о картинке из
-        // прошлого; накопление стоит рядом с самим числом импульсов.
-        snapshotEntity?.let { entity ->
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = SpectrumExport.title(entity),
-                    style = type.title,
-                    color = colors.ink,
-                )
-                Text(
-                    text = t.snapshotTakenAt(
-                        at = HistoryFormat.dayTime(
-                            entity.timestamp,
-                            System.currentTimeMillis(),
-                            s = HistoryCatalogue.of(strings.language),
-                        ),
-                        accumulation = SpectrumFormat.accumulationClock(entity.durationSeconds),
+        // Открытый снимок — такая же запись, как сессия и маршрут, и шапка у
+        // него та же: имя, время съёмки с накоплением и «⋮» с действиями.
+        // Живой спектр — не запись, у него шапки нет: он всегда «сейчас».
+        val entity = snapshotEntity
+        if (entity != null && onBack != null) {
+            EntityHeader(
+                title = SpectrumExport.title(entity),
+                subtitle = t.snapshotTakenAt(
+                    at = HistoryFormat.dayTime(
+                        entity.timestamp,
+                        System.currentTimeMillis(),
+                        s = HistoryCatalogue.of(strings.language),
                     ),
-                    style = type.footnote,
-                    color = colors.ink2,
+                    accumulation = SpectrumFormat.accumulationClock(entity.durationSeconds),
+                ),
+                onBack = onBack,
+                menu = EntityMenus.spectrum(
+                    strings = strings,
+                    export = ExportCatalogue.of(strings.language),
+                    history = HistoryCatalogue.of(strings.language),
+                    canCompare = true,
+                    onExport = { exportingSnapshot = true },
+                    onCompare = { comparePicker = true },
+                    onContinue = { onContinueSnapshot?.invoke(entity.id) },
+                    onRename = { renamingSnapshot = true },
+                    onDelete = { deletingSnapshot = true },
+                ),
+            )
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onBack != null) {
+                    AppButton(text = "← ${strings.back}", onClick = onBack)
+                    Spacer(Modifier.width(Dimens.space2))
+                }
+                if (viewing) {
+                    Chip(text = t.snapshotViewTag, color = colors.ink)
+                }
+                Spacer(Modifier.weight(1f))
+                Chip(
+                    text = spectrum?.let {
+                        SpectrumFormat.accumulationChip(
+                            it.durationSeconds,
+                            it.counts.sumOf { c -> c.toLong() },
+                            t,
+                        )
+                    } ?: strings.noData,
                 )
             }
         }
@@ -437,17 +521,22 @@ fun SpectrumScreen(
 
         // Нижние действия живут ВНЕ содержимого спектра: импорт чужого файла
         // должен работать и тогда, когда прибора рядом нет и показывать нечего.
-        SpectrumActionsBar(
-            graph = graph,
-            spectrum = spectrum,
-            connected = connected,
-            hubState = hubState,
-            serialNumber = (connection as? ConnectionState.Connected)?.info?.serialNumber,
-            onSaveOverride = onSaveMerged,
-            viewingSnapshot = viewing,
-            snapshotEntity = snapshotEntity,
-            onCompareWith = { compareWith = it },
-        )
+        // У открытого снимка своих кнопок внизу нет: сохранять его второй раз
+        // незачем, а всё остальное — сравнение, экспорт, имя, удаление —
+        // живёт в «⋮» шапки, как у любой другой записи журнала.
+        if (!viewing) {
+            SpectrumActionsBar(
+                graph = graph,
+                spectrum = spectrum,
+                connected = connected,
+                hubState = hubState,
+                serialNumber = (connection as? ConnectionState.Connected)?.info?.serialNumber,
+                onSaveOverride = onSaveMerged,
+            )
+        }
+        exportNote?.let {
+            Text(text = it, style = type.footnote, color = colors.muted)
+        }
     }
 }
 

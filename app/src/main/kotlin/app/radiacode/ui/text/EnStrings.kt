@@ -309,7 +309,7 @@ object EnStrings : Strings {
     override val fileSaved = "file saved"
     override val spectraTitle = "Spectra"
     override val compare = "compare"
-    override val snapshotOpensActions = "a snapshot opens in full: curve, peaks and actions"
+    override val snapshotOpensActions = "a tap opens the snapshot, «⋮» holds its actions"
     override val openSnapshot = "Open the spectrum"
     override val chooseSnapshotToCompare = "Which snapshot to compare with"
 

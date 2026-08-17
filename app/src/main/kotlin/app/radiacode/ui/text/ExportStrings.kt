@@ -30,6 +30,17 @@ interface ExportStrings {
     val trackHint: String
     val text: String
     val textHint: String
+    // --- обмен данными: форматы для других программ ---
+    val standard: String
+    val standardHint: String
+    val rawXml: String
+    val rawXmlHint: String
+
+    // --- заголовки групп в окне экспорта ---
+    val groupReport: String
+    val groupExchange: String
+    val groupTable: String
+
     val oneReport: String
     val oneReportHint: String
     val separateFiles: String
@@ -70,6 +81,15 @@ internal object ExportRu : ExportStrings {
     override val trackHint = "GPX · для навигаторов"
     override val text = "Текст"
     override val textHint = "TXT · чтобы вставить в сообщение"
+    override val standard = "Спектрометрия"
+    override val standardHint = "N42 · стандартный формат для программ анализа"
+    override val rawXml = "Формат прибора"
+    override val rawXmlHint = "XML · читают RadiaCode и совместимые программы"
+
+    override val groupReport = "Для чтения"
+    override val groupExchange = "Для программ"
+    override val groupTable = "Для таблиц"
+
     override val oneReport = "Один отчёт"
     override val oneReportHint = "записи на одном графике и в общей таблице"
     override val separateFiles = "Отдельные файлы"
@@ -109,6 +129,15 @@ internal object ExportEn : ExportStrings {
     override val trackHint = "GPX · for navigators"
     override val text = "Text"
     override val textHint = "TXT · to paste into a message"
+    override val standard = "Spectrometry"
+    override val standardHint = "N42 · the standard format of analysis software"
+    override val rawXml = "Instrument format"
+    override val rawXmlHint = "XML · read by RadiaCode and compatible software"
+
+    override val groupReport = "To read"
+    override val groupExchange = "For software"
+    override val groupTable = "For spreadsheets"
+
     override val oneReport = "One report"
     override val oneReportHint = "records on one chart and in one table"
     override val separateFiles = "Separate files"
@@ -140,6 +169,8 @@ fun ExportStrings.allTexts(): List<String> = listOf(
     export,
     report, reportHint, table, tableHint, data, dataHint,
     mapData, mapDataHint, track, trackHint, text, textHint,
+    standard, standardHint, rawXml, rawXmlHint,
+    groupReport, groupExchange, groupTable,
     oneReport, oneReportHint, separateFiles, separateFilesHint,
     saved, filesSaved(2), failed, preparing,
     coordinatesTitle, coordinatesNote,

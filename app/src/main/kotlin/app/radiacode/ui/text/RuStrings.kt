@@ -308,7 +308,7 @@ object RuStrings : Strings {
     override val fileSaved = "файл сохранён"
     override val spectraTitle = "Спектры"
     override val compare = "сравнить"
-    override val snapshotOpensActions = "снимок открывается целиком: кривая, пики и действия"
+    override val snapshotOpensActions = "нажатие открывает снимок, «⋮» — действия над ним"
     override val openSnapshot = "Открыть спектр"
     override val chooseSnapshotToCompare = "С каким снимком сравнить"
 

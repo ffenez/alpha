@@ -168,6 +168,8 @@ internal class FakeSpectrumDao : SpectrumDao {
 
     override suspend fun page(afterId: Long, limit: Int): List<SpectrumSnapshotEntity> = emptyList()
 
+    override suspend fun rename(id: Long, label: String?) = Unit
+
     override suspend fun pageSince(
         afterId: Long,
         from: Long,

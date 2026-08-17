@@ -19,6 +19,9 @@ package app.radiacode.ui.text
  */
 interface ReleaseStrings {
 
+    val v082Title: String
+    val v082Summary: String
+
     val v081Title: String
     val v081Summary: String
 
@@ -204,6 +207,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v082Title = "Одинаковые записи открываются одинаково"
+    override val v082Summary =
+        "Нажатие на снимок спектра теперь открывает сам снимок, а не список кнопок: у " +
+        "сессии, маршрута, спектра и опыта одна шапка с именем, временем и «⋮», где живут " +
+        "экспорт, переименование и удаление. Форматы выгрузки собраны в одно окно, и " +
+        "«Экспорт» называется экспортом на всех записях."
 
     override val v081Title = "Копия проверяется сразу после записи"
     override val v081Summary =
@@ -633,6 +643,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v082Title = "Records that are alike now open alike"
+    override val v082Summary =
+        "Tapping a spectrum snapshot opens the snapshot instead of a list of buttons: a " +
+        "session, a route, a spectrum and an experiment share one header with the name, the " +
+        "time and «⋮», where export, rename and delete live. The export formats moved into " +
+        "one window, and «Export» is called export on every record."
 
     override val v081Title = "A copy is checked the moment it is written"
     override val v081Summary =

@@ -321,6 +321,15 @@ class MeasurementRepository(
 
     suspend fun spectrumById(id: Long): SpectrumSnapshotEntity? = spectrumDao.byId(id)
 
+    /**
+     * Переименовать снимок.
+     *
+     * Пустое имя стирает своё название, а не записывает пустую строку: снимок
+     * тогда снова подписывается временем съёмки, как и все безымянные.
+     */
+    suspend fun renameSpectrum(id: Long, label: String) =
+        spectrumDao.rename(id, label.trim().ifEmpty { null })
+
     /** Device snapshot metadata (no blobs) for the radon hourly thinning. */
     suspend fun deviceSnapshotMeta(from: Long, to: Long): List<SpectrumMetaRow> =
         spectrumDao.deviceSnapshotMeta(from, to)

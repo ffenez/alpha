@@ -1084,6 +1084,10 @@ interface SpectrumDao {
     @Query("SELECT * FROM spectra WHERE id > :afterId ORDER BY id LIMIT :limit")
     suspend fun page(afterId: Long, limit: Int): List<SpectrumSnapshotEntity>
 
+    /** Своё имя снимка: человек называет его так, как узнает через год. */
+    @Query("UPDATE spectra SET label = :label WHERE id = :id")
+    suspend fun rename(id: Long, label: String?)
+
     @Query(
         "SELECT * FROM spectra WHERE id > :afterId AND timestamp >= :from " +
             "ORDER BY id LIMIT :limit",

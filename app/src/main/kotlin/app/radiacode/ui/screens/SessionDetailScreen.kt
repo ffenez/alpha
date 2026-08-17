@@ -39,6 +39,7 @@ import app.radiacode.data.export.SeriesExport
 import app.radiacode.data.export.html.ReportEvent
 import app.radiacode.data.export.html.SessionReportHtml
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.EntityHeader
 import app.radiacode.ui.components.ChartNotesDialog
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.StatCell
@@ -125,6 +126,8 @@ fun SessionDetailScreen(
     // Спец §20: профиль записи правится задним числом, вместе с её участием в
     // обучении обычного фона.
     var reassigning by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
     val summaryForProfile = detail?.summary
     if (reassigning && summaryForProfile != null) {
@@ -143,46 +146,36 @@ fun SessionDetailScreen(
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(Dimens.space3),
-        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← ${strings.back}", onClick = onBack)
-            Spacer(Modifier.weight(1f))
-            // Ряд измерений в CSV: до сих пор наружу уезжали только спектры, то
-            // есть срез, а не ход измерения. Сохранение — явное действие через
-            // системный диалог, как и у спектров.
-            detail?.let { d ->
-                val e = ExportCatalogue.of(strings.language)
-                // Три формата за одним чипом: отчёт для чтения, таблица для
-                // обработки, данные для программ. Читать сессию глазами нужно
-                // чаще, поэтому отчёт стоит первым.
-                fun withSamples(block: (List<app.radiacode.data.db.SampleEntity>) -> Unit) {
-                    scope.launch {
-                        block(
-                            graph.measurementRepository.samplesList(
-                                d.summary.startedAt,
-                                d.summary.endedAt ?: d.toMillis,
-                            ),
-                        )
-                    }
-                }
-                ExportMenuChip(
+    val d0 = detail
+    if (exporting && d0 != null) {
+        val e = ExportCatalogue.of(strings.language)
+        fun withSamples(block: (List<app.radiacode.data.db.SampleEntity>) -> Unit) {
+            scope.launch {
+                block(
+                    graph.measurementRepository.samplesList(
+                        d0.summary.startedAt,
+                        d0.summary.endedAt ?: d0.toMillis,
+                    ),
+                )
+            }
+        }
+        EntityExportSheet(
+            title = e.export,
+            groups = listOf(
+                ExportGroup(
+                    title = e.groupReport,
                     options = listOf(
                         ExportOptions.report(e) {
+                            exporting = false
                             withSamples { samples ->
                                 saver.save(
                                     ExportFile.HTML,
-                                    SeriesExport.fileName(d.summary.startedAt, "html"),
+                                    SeriesExport.fileName(d0.summary.startedAt, "html"),
                                     SessionReportHtml.render(
                                         ReportFactories.session(
-                                            summary = d.summary,
+                                            summary = d0.summary,
                                             samples = samples,
-                                            events = d.events.map { event ->
+                                            events = d0.events.map { event ->
                                                 ReportEvent(
                                                     timeText = HistoryFormat.dayTime(
                                                         event.timestamp,
@@ -206,28 +199,84 @@ fun SessionDetailScreen(
                                 )
                             }
                         },
-                        ExportOptions.table(e) {
-                            withSamples { samples ->
-                                saver.save(
-                                    ExportFile.CSV,
-                                    SeriesExport.fileName(d.summary.startedAt, "csv"),
-                                    SeriesExport.csv(samples),
-                                )
-                            }
-                        },
+                    ),
+                ),
+                ExportGroup(
+                    title = e.groupExchange,
+                    options = listOf(
                         ExportOptions.data(e) {
+                            exporting = false
                             withSamples { samples ->
                                 saver.save(
                                     ExportFile.JSON,
-                                    SeriesExport.fileName(d.summary.startedAt, "json"),
-                                    ReportFactories.sessionJson(d.summary, samples),
+                                    SeriesExport.fileName(d0.summary.startedAt, "json"),
+                                    ReportFactories.sessionJson(d0.summary, samples),
                                 )
                             }
                         },
                     ),
-                )
-            }
-        }
+                ),
+                ExportGroup(
+                    title = e.groupTable,
+                    options = listOf(
+                        ExportOptions.table(e) {
+                            exporting = false
+                            withSamples { samples ->
+                                saver.save(
+                                    ExportFile.CSV,
+                                    SeriesExport.fileName(d0.summary.startedAt, "csv"),
+                                    SeriesExport.csv(samples),
+                                )
+                            }
+                        },
+                    ),
+                ),
+            ),
+            onDismiss = { exporting = false },
+        )
+    }
+
+    if (confirmDelete) {
+        SessionDeleteDialog(
+            onConfirm = {
+                confirmDelete = false
+                scope.launch {
+                    graph.sessionRepository.delete(setOf(sessionId), emptySet())
+                    onBack()
+                }
+            },
+            onDismiss = { confirmDelete = false },
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(Dimens.space3),
+        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+    ) {
+        // Шапка записи — та же, что у маршрута, спектра и опыта: имя, время
+        // и «⋮» с редкими действиями. Экспорт уехал туда же: он нужен реже,
+        // чем прочитать саму сессию.
+        detail?.let { d ->
+            val h = HistoryCatalogue.of(strings.language)
+            val now = System.currentTimeMillis()
+            val duration = ((d.summary.endedAt ?: now) - d.summary.startedAt) / 1000L
+            EntityHeader(
+                title = d.summary.profileName ?: t.sessionTag,
+                subtitle = HistoryFormat.dayTime(d.summary.startedAt, now, s = h) +
+                    " · " + HistoryFormat.duration(duration, s = h),
+                onBack = onBack,
+                menu = EntityMenus.session(
+                    strings = strings,
+                    export = ExportCatalogue.of(strings.language),
+                    onExport = { exporting = true },
+                    onProfile = { reassigning = true },
+                    onDelete = { confirmDelete = true },
+                ),
+            )
+        } ?: EntityHeader(title = t.sessionTag, onBack = onBack)
 
         val d = detail
         when {
@@ -666,4 +715,30 @@ private suspend fun loadDetail(graph: AppGraph, sessionId: Long): SessionDetail?
         altitudeColumns = altitudeColumns,
         flight = flight,
     )
+}
+
+/**
+ * Подтверждение удаления сессии.
+ *
+ * Спрашивается один раз и словами о последствии: вместе с сессией уходят её
+ * измерения, и вернуть их можно только из резервной копии.
+ */
+@Composable
+private fun SessionDeleteDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(text = h.routeDeleteTitle(1), style = type.title, color = colors.ink)
+                Text(text = h.routeDeleteBody, style = type.bodySmall, color = colors.muted)
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    AppButton(text = strings.delete, onClick = onConfirm)
+                    AppButton(text = strings.cancel, onClick = onDismiss)
+                }
+            }
+        }
+    }
 }

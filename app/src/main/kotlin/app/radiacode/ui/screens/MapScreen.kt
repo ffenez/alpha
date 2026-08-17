@@ -67,6 +67,9 @@ import app.radiacode.data.export.html.RouteReportHtml
 import app.radiacode.data.export.html.RouteTrim
 import app.radiacode.ui.text.ExportCatalogue
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.ConfirmDialog
+import app.radiacode.ui.components.EntityHeader
+import app.radiacode.ui.components.RenameDialog
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.Hint
 import app.radiacode.ui.components.MapGestureLock
@@ -80,6 +83,7 @@ import app.radiacode.ui.logic.GridCell
 import app.radiacode.ui.logic.MIN_CONFIDENT_POINTS
 import app.radiacode.ui.logic.GridStats
 import app.radiacode.ui.logic.HistoryFormat
+import app.radiacode.ui.logic.RouteFormat
 import app.radiacode.ui.logic.DoseTint
 import app.radiacode.ui.logic.MapBounds
 import app.radiacode.ui.logic.MapColorScale
@@ -688,6 +692,10 @@ private fun TrackDetailScreen(
         TrackMetric.CPS -> manualCps
     }
 
+    // Имя маршрута правится прямо здесь, поэтому экран держит своё: параметр
+    // придёт заново только при следующем открытии.
+    var shownTitle by remember(title) { mutableStateOf(title) }
+
     // Курсор один на карту и на график: это один момент одной прогулки.
     var cursorIndex by remember(data) { mutableStateOf<Int?>(null) }
     val cursorPoint = data?.points?.getOrNull(cursorIndex ?: -1)
@@ -699,6 +707,9 @@ private fun TrackDetailScreen(
     // Любой файл маршрута несёт координаты, поэтому вопрос о них задаётся
     // ОДИН раз — между выбором формата и системным диалогом сохранения.
     var pendingFormat by remember { mutableStateOf<ExportFile?>(null) }
+    var exporting by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     fun exportRoute(trackId: Long, format: ExportFile, privacy: RoutePrivacy) {
         scope.launch {
@@ -738,37 +749,126 @@ private fun TrackDetailScreen(
         modifier = Modifier.fillMaxSize().padding(Dimens.space3),
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = t.back, onClick = onBack)
-            Spacer(Modifier.weight(1f))
-            // Трек в GPX: стандарт, который открывают карты и GIS. Сохранение —
-            // явное действие через системный диалог; ничего не уходит само.
-            data?.trackSessionId?.let { trackId ->
-                val e = ExportCatalogue.of(strings.language)
-                ExportMenuChip(
-                    options = listOf(
-                        ExportOptions.report(e) { pendingFormat = ExportFile.HTML },
-                        ExportOptions.map(e) { pendingFormat = ExportFile.GEOJSON },
-                        ExportOptions.track(e) { pendingFormat = ExportFile.GPX },
-                        ExportOptions.table(e) { pendingFormat = ExportFile.CSV },
+        // Шапка маршрута — та же, что у сессии, спектра и опыта: имя, время
+        // и «⋮». Экспорт стоит там же, где у остальных записей, а не отдельной
+        // кнопкой рядом с названием.
+        val trackId = data?.trackSessionId
+        EntityHeader(
+            title = shownTitle,
+            subtitle = data?.let { d ->
+                listOfNotNull(
+                    d.startedAt?.let {
+                        HistoryFormat.dayTime(it, System.currentTimeMillis(), s = h)
+                    },
+                    HistoryFormat.duration(
+                        ((d.endedAt ?: System.currentTimeMillis()) - (d.startedAt ?: 0L)) / 1000,
+                        s = h,
                     ),
+                ).joinToString(" · ")
+            },
+            onBack = onBack,
+            menu = if (trackId == null) {
+                emptyList()
+            } else {
+                EntityMenus.route(
+                    strings = strings,
+                    export = ExportCatalogue.of(strings.language),
+                    history = h,
+                    // Сравнивать маршрут выбирают в Журнале, где видны оба:
+                    // изнутри одного маршрута второго не выбрать.
+                    canCompare = false,
+                    onExport = { exporting = true },
+                    onCompare = {},
+                    onRename = { renaming = true },
+                    onDelete = { confirmDelete = true },
                 )
-                pendingFormat?.let { format ->
-                    RoutePrivacyDialog(
-                        // «Без координат» оставляет только ход измерения во
-                        // времени: у карты и следа от такого файла ничего не
-                        // остаётся, поэтому вариант предлагается лишь отчёту.
-                        allowNoCoordinates = format == ExportFile.HTML,
-                        onPick = { privacy ->
-                            pendingFormat = null
-                            exportRoute(trackId, format, privacy)
-                        },
-                        onDismiss = { pendingFormat = null },
-                    )
-                }
-                Spacer(Modifier.width(Dimens.space2))
+            },
+        )
+        trackId?.let { id ->
+            if (exporting) {
+                val e = ExportCatalogue.of(strings.language)
+                EntityExportSheet(
+                    title = e.export,
+                    groups = listOf(
+                        ExportGroup(
+                            title = e.groupReport,
+                            options = listOf(
+                                ExportOptions.report(e) {
+                                    exporting = false
+                                    pendingFormat = ExportFile.HTML
+                                },
+                            ),
+                        ),
+                        ExportGroup(
+                            title = e.groupExchange,
+                            options = listOf(
+                                ExportOptions.map(e) {
+                                    exporting = false
+                                    pendingFormat = ExportFile.GEOJSON
+                                },
+                                ExportOptions.track(e) {
+                                    exporting = false
+                                    pendingFormat = ExportFile.GPX
+                                },
+                            ),
+                        ),
+                        ExportGroup(
+                            title = e.groupTable,
+                            options = listOf(
+                                ExportOptions.table(e) {
+                                    exporting = false
+                                    pendingFormat = ExportFile.CSV
+                                },
+                            ),
+                        ),
+                    ),
+                    onDismiss = { exporting = false },
+                )
             }
-            Chip(text = title, color = colors.ink)
+            pendingFormat?.let { format ->
+                RoutePrivacyDialog(
+                    // «Без координат» оставляет только ход измерения во
+                    // времени: у карты и следа от такого файла ничего не
+                    // остаётся, поэтому вариант предлагается лишь отчёту.
+                    allowNoCoordinates = format == ExportFile.HTML,
+                    onPick = { privacy ->
+                        pendingFormat = null
+                        exportRoute(id, format, privacy)
+                    },
+                    onDismiss = { pendingFormat = null },
+                )
+            }
+            if (renaming) {
+                RenameDialog(
+                    title = h.routeRename,
+                    initial = shownTitle,
+                    placeholder = h.routeNameHint,
+                    clean = { RouteFormat.cleanName(it) },
+                    onSave = { name ->
+                        renaming = false
+                        scope.launch {
+                            graph.trackRepository.rename(id, name)
+                            shownTitle = name.trim().ifEmpty { shownTitle }
+                        }
+                    },
+                    onDismiss = { renaming = false },
+                )
+            }
+            if (confirmDelete) {
+                ConfirmDialog(
+                    title = h.routeDeleteTitle(1),
+                    body = h.routeDeleteBody,
+                    confirmText = strings.delete,
+                    onConfirm = {
+                        confirmDelete = false
+                        scope.launch {
+                            graph.trackRepository.delete(id)
+                            onBack()
+                        }
+                    },
+                    onDismiss = { confirmDelete = false },
+                )
+            }
         }
         // Сводка маршрута — одна тусклая строка под заголовком, а не карточка
         // в полэкрана: путь и длительность отвечают «что это за прогулка», и

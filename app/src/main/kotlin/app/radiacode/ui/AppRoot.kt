@@ -294,6 +294,13 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     snapshotId = key.spectrumSnapshotId,
                     onBack = { spectrumSnapshotId = null },
                     onOpenFullscreen = openFullSpectrum,
+                    // «Продолжить накопление» из «⋮» снимка ведёт туда же, куда
+                    // вело из Истории: на вкладку Спектра, поверх этого снимка.
+                    onContinueSnapshot = { id ->
+                        spectrumSnapshotId = null
+                        continueSpectrumId = id
+                        tab = AppTab.SPECTRUM
+                    },
                 )
                 key.fingerprint -> FingerprintScreen(
                     graph = graph,

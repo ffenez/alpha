@@ -75,6 +75,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import app.radiacode.ui.components.AppMenu
+import app.radiacode.ui.components.ConfirmDialog
+import app.radiacode.ui.components.EntityMenuButton
+import app.radiacode.ui.components.EntityMenuItem
+import app.radiacode.ui.components.RenameDialog
 import app.radiacode.ui.components.AppMenuItem
 import app.radiacode.ui.components.Card
 import app.radiacode.ui.components.CheckMark
@@ -130,6 +134,7 @@ import app.radiacode.data.export.html.SessionReportHtml
 import app.radiacode.data.export.html.SpectrumReportHtml
 import app.radiacode.data.export.SpectrumReportFactory
 import app.radiacode.ui.text.ExportCatalogue
+import app.radiacode.ui.text.ExportStrings
 import app.radiacode.ui.components.StatusRow
 import app.radiacode.ui.logic.DoseTint
 import app.radiacode.ui.logic.MapColorScale
@@ -309,6 +314,9 @@ fun HistoryScreen(
     // координаты — поэтому после формата задаётся вопрос о них.
     var routeFormat by remember { mutableStateOf<ExportFile?>(null) }
     var exportNote by remember { mutableStateOf<String?>(null) }
+    var exportingSelection by remember { mutableStateOf(false) }
+    var exportingSession by remember { mutableStateOf<Long?>(null) }
+    var profileForSession by remember { mutableStateOf<Long?>(null) }
     val e = ExportCatalogue.of(strings.language)
     val fileSaver = rememberFileSaver { ok -> exportNote = if (ok) e.saved else e.failed }
     val folderSaver = rememberFolderSaver { saved, failed ->
@@ -343,16 +351,126 @@ fun HistoryScreen(
         }
     }
 
+    // Сессия из списка уносится теми же тремя форматами, что и с её экрана.
+    exportingSession?.let { id ->
+        var summary by remember(id) { mutableStateOf<SessionSummary?>(null) }
+        LaunchedEffect(id) { summary = graph.sessionRepository.summary(id) }
+        summary?.let { found ->
+            EntityExportSheet(
+                title = e.export,
+                groups = listOf(
+                    ExportGroup(
+                        title = e.groupReport,
+                        options = listOf(
+                            ExportOptions.report(e) {
+                                exportingSession = null
+                                scope.launch {
+                                    fileSaver.save(
+                                        ExportFile.HTML,
+                                        SeriesExport.fileName(found.startedAt, "html"),
+                                        SessionReportHtml.render(
+                                            ReportFactories.session(
+                                                summary = found,
+                                                samples = samplesOf(graph, found),
+                                                events = emptyList(),
+                                                appName = REPORT_APP,
+                                                appVersion = appVersionName(context) ?: "",
+                                                language = strings.language,
+                                            ),
+                                        ),
+                                    )
+                                }
+                            },
+                        ),
+                    ),
+                    ExportGroup(
+                        title = e.groupExchange,
+                        options = listOf(
+                            ExportOptions.data(e) {
+                                exportingSession = null
+                                scope.launch {
+                                    fileSaver.save(
+                                        ExportFile.JSON,
+                                        SeriesExport.fileName(found.startedAt, "json"),
+                                        ReportFactories.sessionJson(
+                                            found,
+                                            samplesOf(graph, found),
+                                        ),
+                                    )
+                                }
+                            },
+                        ),
+                    ),
+                    ExportGroup(
+                        title = e.groupTable,
+                        options = listOf(
+                            ExportOptions.table(e) {
+                                exportingSession = null
+                                scope.launch {
+                                    fileSaver.save(
+                                        ExportFile.CSV,
+                                        SeriesExport.fileName(found.startedAt, "csv"),
+                                        SeriesExport.csv(samplesOf(graph, found)),
+                                    )
+                                }
+                            },
+                        ),
+                    ),
+                ),
+                onDismiss = { exportingSession = null },
+            )
+        }
+    }
+
+    // Профиль записи правится и из списка: раньше для этого нужно было войти
+    // в сессию и найти чип рядом с заголовком.
+    profileForSession?.let { id ->
+        var summary by remember(id) { mutableStateOf<SessionSummary?>(null) }
+        val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
+        LaunchedEffect(id) { summary = graph.sessionRepository.summary(id) }
+        summary?.let { found ->
+            SessionProfileDialog(
+                startedAt = found.startedAt,
+                profileId = found.profileId,
+                profiles = profiles,
+                onPick = { profileId ->
+                    profileForSession = null
+                    scope.launch {
+                        graph.sessionRepository.reassignProfile(id, profileId)
+                        reload += 1
+                    }
+                },
+                onDismiss = { profileForSession = null },
+            )
+        }
+    }
+
     // Формат → координаты → системный диалог: три вопроса подряд, но каждый
     // задаётся один раз и только про то, что человек уже начал делать.
     exportingRoute?.let { route ->
         if (routeFormat == null) {
-            ExportFormatDialog(
-                options = listOf(
-                    ExportOptions.report(e) { routeFormat = ExportFile.HTML },
-                    ExportOptions.map(e) { routeFormat = ExportFile.GEOJSON },
-                    ExportOptions.track(e) { routeFormat = ExportFile.GPX },
-                    ExportOptions.table(e) { routeFormat = ExportFile.CSV },
+            EntityExportSheet(
+                title = e.export,
+                groups = listOf(
+                    ExportGroup(
+                        title = e.groupReport,
+                        options = listOf(
+                            ExportOptions.report(e) { routeFormat = ExportFile.HTML },
+                        ),
+                    ),
+                    ExportGroup(
+                        title = e.groupExchange,
+                        options = listOf(
+                            ExportOptions.map(e) { routeFormat = ExportFile.GEOJSON },
+                            ExportOptions.track(e) { routeFormat = ExportFile.GPX },
+                        ),
+                    ),
+                    ExportGroup(
+                        title = e.groupTable,
+                        options = listOf(
+                            ExportOptions.table(e) { routeFormat = ExportFile.CSV },
+                        ),
+                    ),
                 ),
                 onDismiss = { exportingRoute = null },
             )
@@ -670,6 +788,32 @@ fun HistoryScreen(
                                             }
                                         }
                                     },
+                                    // «⋮» у сессии — те же действия, что и на
+                                    // её экране: один набор на список и на
+                                    // запись.
+                                    menu = if (selection.active) {
+                                        emptyList()
+                                    } else {
+                                        EntityMenus.session(
+                                            strings = strings,
+                                            export = e,
+                                            onExport = {
+                                                exportingSession = item.group.ids.last()
+                                            },
+                                            onProfile = {
+                                                profileForSession = item.group.ids.last()
+                                            },
+                                            onDelete = {
+                                                scope.launch {
+                                                    confirming = graph.sessionRepository
+                                                        .deletionPlan(
+                                                            sessionIds = item.group.ids.toSet(),
+                                                            spectrumIds = emptySet(),
+                                                        )
+                                                }
+                                            },
+                                        )
+                                    },
                                 )
                                 is HistoryItem.Deviation -> DeviationRow(item.event, unit)
                             }
@@ -736,10 +880,19 @@ fun HistoryScreen(
                         // здесь нет намеренно — таблица и данные снимаются с
                         // самой записи, где видно, что именно уезжает.
                         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                            ExportMenuButton(
+                            AppButton(
+                                text = e.export,
                                 enabled = !selection.isEmpty,
-                                options = listOf(
+                                onClick = { exportingSelection = true },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        if (exportingSelection) {
+                            EntityExportSheet(
+                                title = e.export,
+                                groups = listOf(ExportGroup(e.groupReport, listOf(
                                     ExportOptions.oneReport(e) {
+                                        exportingSelection = false
                                         scope.launch {
                                             val records = selection.sessions.mapNotNull { id ->
                                                 val summary = graph.sessionRepository.summary(id)
@@ -770,6 +923,7 @@ fun HistoryScreen(
                                         }
                                     },
                                     ExportOptions.separateFiles(e) {
+                                        exportingSelection = false
                                         val sessions = selection.sessions
                                         val spectra = selection.spectra
                                         val version = appVersionName(context) ?: ""
@@ -784,8 +938,8 @@ fun HistoryScreen(
                                         }
                                         selection = selection.cancel()
                                     },
-                                ),
-                                modifier = Modifier.weight(1f),
+                                ))),
+                                onDismiss = { exportingSelection = false },
                             )
                         }
                         exportNote?.let {
@@ -1229,6 +1383,8 @@ private fun SessionRow(
     onLongClick: () -> Unit,
     selectionActive: Boolean = false,
     selected: Boolean = false,
+    /** Редкие действия строки; пусто — в режиме выбора их не показывают. */
+    menu: List<EntityMenuItem> = emptyList(),
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -1276,6 +1432,9 @@ private fun SessionRow(
                 )
             }
             Spacer(Modifier.weight(1f))
+            if (menu.isNotEmpty()) {
+                EntityMenuButton(menu = menu, modifier = Modifier.padding(end = Dimens.space1))
+            }
             if (!selectionActive) NavArrow()
         }
 
@@ -1440,35 +1599,23 @@ private fun SavedSpectraCard(
 
     if (spectra.isEmpty()) return
 
-    var actionsFor by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
     var notice by remember { mutableStateOf<SpectrumFileNotice?>(null) }
     var exportedNote by remember { mutableStateOf<String?>(null) }
-    var pendingExport by remember { mutableStateOf<String?>(null) }
-
-    fun handleExportResult(uri: android.net.Uri?) {
-        val content = pendingExport
-        pendingExport = null
-        if (uri != null && content != null) {
-            scope.launch {
-                if (writeTextToUri(context, uri, content)) {
-                    exportedNote = strings.fileSaved
-                } else {
-                    notice = SpectrumFileNotice(
-                        title = strings.exportFailedTitle,
-                        lines = listOf(strings.exportFailedBody),
-                        isError = true,
-                    )
-                }
-            }
+    var exporting by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
+    var renaming by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
+    var deleting by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
+    val e = ExportCatalogue.of(strings.language)
+    val saver = rememberFileSaver { ok ->
+        if (ok) {
+            exportedNote = e.saved
+        } else {
+            notice = SpectrumFileNotice(
+                title = strings.exportFailedTitle,
+                lines = listOf(strings.exportFailedBody),
+                isError = true,
+            )
         }
     }
-
-    val exportXmlLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/xml"),
-    ) { uri -> handleExportResult(uri) }
-    val exportN42Launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/octet-stream"),
-    ) { uri -> handleExportResult(uri) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
@@ -1494,10 +1641,29 @@ private fun SavedSpectraCard(
                     entity = entity,
                     marker = null,
                     check = if (selectionActive) entity.id in selected else null,
+                    // Обычное нажатие открывает сам снимок — как у сессии и
+                    // маршрута. Промежуточный список действий, который стоял
+                    // здесь раньше, смешивал навигацию, экспорт и действия
+                    // над записью в одном окне.
                     onClick = {
-                        if (selectionActive) onToggle(entity.id) else actionsFor = entity
+                        if (selectionActive) onToggle(entity.id) else onOpen(entity.id)
                     },
                     onLongClick = { onToggle(entity.id) },
+                    menu = if (selectionActive) {
+                        emptyList()
+                    } else {
+                        EntityMenus.spectrum(
+                            strings = strings,
+                            export = e,
+                            history = h,
+                            canCompare = spectra.size >= 2,
+                            onExport = { exporting = entity },
+                            onCompare = { onToggle(entity.id) },
+                            onContinue = { onContinue(entity.id) },
+                            onRename = { renaming = entity },
+                            onDelete = { deleting = entity },
+                        )
+                    },
                 )
             }
             (exportedNote ?: mergeNote)?.let {
@@ -1506,102 +1672,47 @@ private fun SavedSpectraCard(
         }
     }
 
-    actionsFor?.let { entity ->
-        Dialog(onDismissRequest = { actionsFor = null }) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                    Text(
-                        text = SpectrumExport.title(entity),
-                        style = type.title,
-                        color = colors.ink,
-                    )
-                    Text(
-                        text = HistoryFormat.dayTime(entity.timestamp, System.currentTimeMillis(), s = h) +
-                            " · Δt " + SpectrumFormat.accumulationClock(entity.durationSeconds),
-                        style = type.footnote,
-                        color = colors.ink2,
-                    )
-                    // Первое действие — посмотреть сам спектр: кривая, пики,
-                    // нуклиды. Остальное — то, что делают с уже увиденным.
-                    AppButton(
-                        text = strings.openSnapshot,
-                        primary = true,
-                        onClick = {
-                            actionsFor = null
-                            onOpen(entity.id)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    AppButton(
-                        text = strings.exportXml,
-                        onClick = {
-                            pendingExport = RcXml.write(
-                                SpectrumExport.toResultData(
-                                    entity = entity,
-                                    background = null,
-                                    serialNumber = null,
-                                    appVersion = appVersionName(context),
-                                ),
-                            )
-                            exportXmlLauncher.launch(
-                                SpectrumExport.fileName(entity.timestamp, "xml"),
-                            )
-                            actionsFor = null
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    AppButton(
-                        text = strings.exportN42,
-                        onClick = {
-                            pendingExport = N42.write(
-                                foreground = SpectrumExport.toN42Measurement(
-                                    entity,
-                                    N42.CLASS_FOREGROUND,
-                                ),
-                                softwareVersion = appVersionName(context),
-                                remarks = SpectrumExport.metadataLines(
-                                    entity,
-                                    appVersionName(context),
-                                ),
-                            )
-                            exportN42Launcher.launch(
-                                SpectrumExport.fileName(entity.timestamp, "n42"),
-                            )
-                            actionsFor = null
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    AppButton(
-                        // Сравнение начинается с выбора: снимок отмечается, и
-                        // дальше человек отмечает второй — теми же нажатиями,
-                        // что и везде в журнале.
-                        text = strings.compareWithAnother,
-                        onClick = {
-                            onToggle(entity.id)
-                            actionsFor = null
-                        },
-                        enabled = spectra.size >= 2,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    AppButton(
-                        text = strings.continueAccumulation,
-                        onClick = {
-                            actionsFor = null
-                            onContinue(entity.id)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Hint(
-                        text = strings.continueAccumulationNote,
-                    )
-                    AppButton(
-                        text = strings.close,
-                        onClick = { actionsFor = null },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+    exporting?.let { entity ->
+        EntityExportSheet(
+            title = e.export,
+            groups = spectrumExportGroups(
+                entity = entity,
+                e = e,
+                appVersion = appVersionName(context),
+                language = strings.language,
+                saver = saver,
+                onPicked = { exporting = null },
+            ),
+            onDismiss = { exporting = null },
+        )
+    }
+
+    renaming?.let { entity ->
+        RenameDialog(
+            title = h.routeRename,
+            initial = entity.label.orEmpty(),
+            placeholder = h.routeNameHint,
+            onSave = { name ->
+                renaming = null
+                scope.launch { graph.measurementRepository.renameSpectrum(entity.id, name) }
+            },
+            onDismiss = { renaming = null },
+        )
+    }
+
+    deleting?.let { entity ->
+        ConfirmDialog(
+            title = h.routeDeleteTitle(1),
+            body = h.routeDeleteBody,
+            confirmText = strings.delete,
+            onConfirm = {
+                deleting = null
+                scope.launch {
+                    graph.sessionRepository.delete(emptySet(), setOf(entity.id))
                 }
-            }
-        }
+            },
+            onDismiss = { deleting = null },
+        )
     }
 
     notice?.let { current ->
@@ -1618,6 +1729,8 @@ private fun SavedSpectrumRow(
     onLongClick: () -> Unit = {},
     /** Non-null while the list is in selection mode: the tick of this row. */
     check: Boolean? = null,
+    /** Редкие действия строки; пусто — в режиме выбора их не показывают. */
+    menu: List<EntityMenuItem> = emptyList(),
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -1664,6 +1777,10 @@ private fun SavedSpectrumRow(
                 style = type.footnote,
                 color = colors.ink2,
             )
+            // Редкие действия — там же, где у маршрута: «⋮» справа в строке.
+            if (menu.isNotEmpty()) {
+                EntityMenuButton(menu = menu, modifier = Modifier.padding(start = Dimens.space2))
+            }
         }
         // Δt — это время НАКОПЛЕНИЯ снимка (`durationSeconds` прибора), а не
         // момент и не интервал между снимками. Поэтому оно и пишется
@@ -1896,3 +2013,90 @@ private suspend fun reportsFor(
     }
     return out
 }
+
+/**
+ * Форматы снимка спектра: отчёт для чтения, N42 и XML для программ, CSV для
+ * таблицы.
+ *
+ * Собрано в одном месте, потому что список одинаков и в Журнале, и на экране
+ * спектра: расходиться им незачем, а раньше они расходились — в Журнале не
+ * было ни отчёта, ни таблицы.
+ */
+@Composable
+internal fun spectrumExportGroups(
+    entity: SpectrumSnapshotEntity,
+    e: ExportStrings,
+    appVersion: String?,
+    language: AppLanguage,
+    saver: FileSaver,
+    onPicked: () -> Unit,
+): List<ExportGroup> = listOf(
+    ExportGroup(
+        title = e.groupReport,
+        options = listOf(
+            ExportOptions.report(e) {
+                onPicked()
+                saver.save(
+                    ExportFile.HTML,
+                    SpectrumExport.fileName(entity.timestamp, "html"),
+                    SpectrumReportHtml.render(
+                        SpectrumReportFactory.build(
+                            entity = entity,
+                            appName = REPORT_APP,
+                            appVersion = appVersion ?: "",
+                            language = language,
+                        ),
+                    ),
+                )
+            },
+        ),
+    ),
+    ExportGroup(
+        title = e.groupExchange,
+        options = listOf(
+            ExportOptions.standard(e) {
+                onPicked()
+                saver.save(
+                    ExportFile.N42,
+                    SpectrumExport.fileName(entity.timestamp, "n42"),
+                    N42.write(
+                        foreground = SpectrumExport.toN42Measurement(
+                            entity,
+                            N42.CLASS_FOREGROUND,
+                        ),
+                        softwareVersion = appVersion,
+                        remarks = SpectrumExport.metadataLines(entity, appVersion),
+                    ),
+                )
+            },
+            ExportOptions.rawXml(e) {
+                onPicked()
+                saver.save(
+                    ExportFile.XML,
+                    SpectrumExport.fileName(entity.timestamp, "xml"),
+                    RcXml.write(
+                        SpectrumExport.toResultData(
+                            entity = entity,
+                            background = null,
+                            serialNumber = null,
+                            appVersion = appVersion,
+                        ),
+                    ),
+                )
+            },
+        ),
+    ),
+    ExportGroup(
+        title = e.groupTable,
+        options = listOf(
+            ExportOptions.table(e) {
+                onPicked()
+                saver.save(
+                    ExportFile.CSV,
+                    SpectrumExport.fileName(entity.timestamp, "csv"),
+                    SpectrumReportFactory.toCsv(entity),
+                )
+            },
+        ),
+    ),
+)

@@ -19,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -70,6 +71,10 @@ internal enum class ExportFile(val mime: String, val extension: String) {
     /** GeoJSON: собственный тип понимают не все, поэтому файл остаётся JSON. */
     GEOJSON("application/json", "geojson"),
     GPX("application/gpx+xml", "gpx"),
+
+    /** N42: своего типа у стандарта нет, поэтому файл объявляется двоичным. */
+    N42("application/octet-stream", "n42"),
+    XML("application/xml", "xml"),
 }
 
 /** Умеет отдать текст в файл, выбранный человеком. */
@@ -122,7 +127,15 @@ internal fun rememberFileSaver(onDone: (Boolean) -> Unit): FileSaver {
         ActivityResultContracts.CreateDocument(ExportFile.GPX.mime),
         handle,
     )
-    return remember(html, csv, json, geojson, gpx) {
+    val n42 = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(ExportFile.N42.mime),
+        handle,
+    )
+    val xml = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(ExportFile.XML.mime),
+        handle,
+    )
+    return remember(html, csv, json, geojson, gpx, n42, xml) {
         FileSaver(pending) { file, name ->
             when (file) {
                 ExportFile.HTML -> html.launch(name)
@@ -130,6 +143,8 @@ internal fun rememberFileSaver(onDone: (Boolean) -> Unit): FileSaver {
                 ExportFile.JSON -> json.launch(name)
                 ExportFile.GEOJSON -> geojson.launch(name)
                 ExportFile.GPX -> gpx.launch(name)
+                ExportFile.N42 -> n42.launch(name)
+                ExportFile.XML -> xml.launch(name)
             }
         }
     }
@@ -221,144 +236,83 @@ internal object ExportOptions {
     fun map(s: ExportStrings, onPick: () -> Unit) = ExportOption(s.mapData, s.mapDataHint, onPick)
     fun track(s: ExportStrings, onPick: () -> Unit) = ExportOption(s.track, s.trackHint, onPick)
     fun text(s: ExportStrings, onPick: () -> Unit) = ExportOption(s.text, s.textHint, onPick)
+    fun standard(s: ExportStrings, onPick: () -> Unit) =
+        ExportOption(s.standard, s.standardHint, onPick)
+    fun rawXml(s: ExportStrings, onPick: () -> Unit) =
+        ExportOption(s.rawXml, s.rawXmlHint, onPick)
     fun oneReport(s: ExportStrings, onPick: () -> Unit) =
         ExportOption(s.oneReport, s.oneReportHint, onPick)
     fun separateFiles(s: ExportStrings, onPick: () -> Unit) =
         ExportOption(s.separateFiles, s.separateFilesHint, onPick)
 }
 
-/**
- * Чип «Экспорт» с меню форматов в языке терминала.
- *
- * Меню, а не ряд кнопок: экспорт — редкое действие, и три-четыре равновеликие
- * кнопки рядом с записью весят больше, чем сама запись.
- */
-@Composable
-internal fun ExportMenuChip(
-    options: List<ExportOption>,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    val strings = LocalStrings.current
-    val s = ExportCatalogue.of(strings.language)
-    val colors = LocalAppColors.current
-    ExportMenuHost(options = options, modifier = modifier) { onOpen ->
-        Chip(
-            text = s.export,
-            color = if (enabled) colors.dataText else colors.muted,
-            onClick = { if (enabled) onOpen() },
-        )
-    }
-}
-
-/** То же меню, но кнопкой — там, где экспорт стоит в ряду главных действий. */
-@Composable
-internal fun ExportMenuButton(
-    options: List<ExportOption>,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    val strings = LocalStrings.current
-    val s = ExportCatalogue.of(strings.language)
-    ExportMenuHost(options = options, modifier = modifier) { onOpen ->
-        AppButton(
-            text = s.export,
-            onClick = onOpen,
-            enabled = enabled,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
+/** Группа форматов в окне экспорта: для чтения, для программ, для таблиц. */
+internal data class ExportGroup(val title: String, val options: List<ExportOption>)
 
 /**
- * Якорь и меню под ним.
+ * Экспорт записи: одно окно на все сущности.
  *
- * Меню раскрывается ПОД якорем: экспорт стоит то в верхней строке записи, то в
- * ряду действий внизу, и высота якоря известна только после замера — именно она
- * отделяет список от кнопки, которой его открыли.
+ * ## Почему окно, а не меню у кнопки
+ *
+ * Экспорт вызывается из разных мест: из строки журнала, из «⋮» на экране
+ * записи, из режима выбора. Всплывающее меню требует якоря и открывается
+ * по-разному в каждом из них; окно везде одно и то же — и человек узнаёт его,
+ * не разбираясь, откуда он его позвал.
+ *
+ * ## Порядок групп
+ *
+ * Сначала то, что открывается и читается, потом то, что нужно другим
+ * программам, потом таблица. Раньше XML и N42 стояли крупными кнопками рядом с
+ * «Сохранить», хотя нужны они реже всего и понятны не всем: формат назван
+ * второй строкой, а первой — то, ЗАЧЕМ его берут.
  */
 @Composable
-private fun ExportMenuHost(
-    options: List<ExportOption>,
-    modifier: Modifier = Modifier,
-    anchor: @Composable (onOpen: () -> Unit) -> Unit,
-) {
-    var open by remember { mutableStateOf(false) }
-    var anchorHeight by remember { mutableIntStateOf(0) }
-    val gap = with(LocalDensity.current) { Dimens.space1.roundToPx() }
-    Box(
-        modifier = modifier
-            .wrapContentSize(Alignment.TopEnd)
-            .onSizeChanged { anchorHeight = it.height },
-    ) {
-        anchor { open = true }
-        AppMenu(
-            expanded = open,
-            onDismiss = { open = false },
-            alignment = Alignment.TopEnd,
-            offset = IntOffset(0, anchorHeight + gap),
-        ) {
-            for (option in options) {
-                ExportMenuRow(option) { open = false; option.onPick() }
-            }
-        }
-    }
-}
-
-/** Строка меню: результат крупно, формат — приглушённой строкой под ним. */
-@Composable
-private fun ExportMenuRow(option: ExportOption, onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    Column {
-        AppMenuItem(text = option.title, onClick = onClick)
-        Text(
-            text = option.hint,
-            style = type.footnote,
-            color = colors.muted,
-            modifier = Modifier.padding(
-                start = Dimens.space3,
-                end = Dimens.space3,
-                bottom = 6.dp,
-            ),
-        )
-    }
-}
-
-/**
- * Выбор формата отдельным окном.
- *
- * Нужен там, где экспорт вызван ИЗ меню строки: всплывающее меню поверх меню
- * теряет якорь и открывается неизвестно где. Окно же честно говорит, что
- * разговор продолжается — и следующим шагом будет вопрос о координатах.
- */
-@Composable
-internal fun ExportFormatDialog(
-    options: List<ExportOption>,
+internal fun EntityExportSheet(
+    title: String,
+    groups: List<ExportGroup>,
     onDismiss: () -> Unit,
 ) {
     val strings = LocalStrings.current
-    val s = ExportCatalogue.of(strings.language)
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = s.export, style = type.title, color = colors.ink)
-                for (option in options) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        AppButton(
-                            text = option.title,
-                            onClick = option.onPick,
-                            modifier = Modifier.fillMaxWidth(),
+                Text(text = title, style = type.title, color = colors.ink)
+                for (group in groups.filter { it.options.isNotEmpty() }) {
+                    if (groups.size > 1) {
+                        Text(
+                            text = group.title.uppercase(),
+                            style = type.labelSmall,
+                            color = colors.ink2,
                         )
-                        Text(text = option.hint, style = type.footnote, color = colors.muted)
+                    }
+                    for (option in group.options) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            AppButton(
+                                text = option.title,
+                                onClick = option.onPick,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                text = option.hint,
+                                style = type.footnote,
+                                color = colors.muted,
+                            )
+                        }
                     }
                 }
-                AppButton(
+                // Большой кнопки «Закрыть» здесь нет: окно закрывается касанием
+                // мимо и системным «назад». Компактная отмена — на случай,
+                // когда человек ищет её глазами.
+                Text(
                     text = strings.cancel,
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
+                    style = type.bodySmall,
+                    color = colors.ink2,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .clickable(onClick = onDismiss)
+                        .padding(Dimens.space1),
                 )
             }
         }

@@ -65,6 +65,7 @@ import app.radiacode.ui.components.AppButton
 import app.radiacode.ui.components.AppDivider
 import app.radiacode.ui.components.AppTextField
 import app.radiacode.ui.components.Card
+import app.radiacode.ui.components.EntityHeader
 import app.radiacode.ui.components.ChartNotesDialog
 import app.radiacode.ui.components.Chip
 import app.radiacode.ui.components.EvidenceTag
@@ -505,8 +506,30 @@ private fun ExperimentDetail(
     }
     val saver = rememberFileSaver { ok -> notice = if (ok) t.reportSaved else t.reportFailed }
 
+    val language = LocalStrings.current.language
+    val e = ExportCatalogue.of(language)
+    var exporting by remember { mutableStateOf(false) }
+
     Screen {
-        Header(title = t.detailTitle, back = t.back, onBack = onBack)
+        // Та же шапка, что у сессии, маршрута и спектра: имя, время и «⋮».
+        EntityHeader(
+            title = t.detailTitle,
+            subtitle = current?.let {
+                ExperimentFormat.kindLabel(it.kind, t) + " · " +
+                    HistoryFormat.dayTime(it.createdAt, System.currentTimeMillis(), s = h)
+            },
+            onBack = onBack,
+            menu = if (current == null) {
+                emptyList()
+            } else {
+                EntityMenus.experiment(
+                    strings = LocalStrings.current,
+                    export = e,
+                    onExport = { exporting = true },
+                    onDelete = { confirmDelete = true },
+                )
+            },
+        )
         if (current == null) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Text(text = t.loading, style = type.bodySmall, color = colors.muted)
@@ -752,86 +775,100 @@ private fun ExperimentDetail(
             )
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            // Опыт уезжает наружу целиком: отчёт с геометрией — для чтения,
-            // таблица и данные — для обработки, текст — чтобы вставить в
-            // переписку. Формат выбирается в меню, а не четырьмя кнопками.
-            val language = LocalStrings.current.language
-            val e = ExportCatalogue.of(language)
+        // Экспорт живёт в «⋮», как у остальных записей: отчёт с геометрией
+        // для чтения, таблица и данные для обработки, текст — чтобы вставить
+        // в переписку.
+        if (exporting) {
             val fileStamp = current.createdAt
-            ExportMenuButton(
-                enabled = runs.isNotEmpty(),
-                options = listOf(
-                    ExportOptions.report(e) {
-                        scope.launch {
-                            val profileName = current.profileId
-                                ?.let { graph.profileRepository.byId(it)?.name }
-                            saver.save(
-                                ExportFile.HTML,
-                                SeriesExport.fileName(fileStamp, "html"),
-                                ExperimentReportHtml.render(
-                                    ReportFactories.experiment(
-                                        entity = current,
+            EntityExportSheet(
+                title = e.export,
+                groups = listOf(
+                    ExportGroup(
+                        title = e.groupReport,
+                        options = listOf(
+                            ExportOptions.report(e) {
+                                exporting = false
+                                scope.launch {
+                                    val profileName = current.profileId
+                                        ?.let { graph.profileRepository.byId(it)?.name }
+                                    saver.save(
+                                        ExportFile.HTML,
+                                        SeriesExport.fileName(fileStamp, "html"),
+                                        ExperimentReportHtml.render(
+                                            ReportFactories.experiment(
+                                                entity = current,
+                                                profileName = profileName,
+                                                runs = runData,
+                                                comparison = comparison,
+                                                verdictText = comparison?.let {
+                                                    ExperimentFormat.verdictHeadline(
+                                                        it.verdict,
+                                                        it.a.label,
+                                                        it.b.label,
+                                                        t,
+                                                    )
+                                                } ?: t.needTwoRuns,
+                                                appName = REPORT_APP,
+                                                appVersion = appVersionName(context) ?: "",
+                                                language = language,
+                                            ),
+                                        ),
+                                    )
+                                }
+                            },
+                            ExportOptions.text(e) {
+                                exporting = false
+                                scope.launch {
+                                    val profileName = current.profileId
+                                        ?.let { graph.profileRepository.byId(it)?.name }
+                                    pendingReport = ExperimentReport.render(
+                                        experiment = current,
                                         profileName = profileName,
                                         runs = runData,
                                         comparison = comparison,
-                                        verdictText = comparison?.let {
-                                            ExperimentFormat.verdictHeadline(
-                                                it.verdict,
-                                                it.a.label,
-                                                it.b.label,
-                                                t,
-                                            )
-                                        } ?: t.needTwoRuns,
-                                        appName = REPORT_APP,
-                                        appVersion = appVersionName(context) ?: "",
-                                        language = language,
-                                    ),
-                                ),
-                            )
-                        }
-                    },
-                    ExportOptions.table(e) {
-                        saver.save(
-                            ExportFile.CSV,
-                            SeriesExport.fileName(fileStamp, "csv"),
-                            ReportFactories.experimentCsv(runData),
-                        )
-                    },
-                    ExportOptions.data(e) {
-                        saver.save(
-                            ExportFile.JSON,
-                            SeriesExport.fileName(fileStamp, "json"),
-                            ReportFactories.experimentJson(current, runData, comparison),
-                        )
-                    },
-                    ExportOptions.text(e) {
-                        scope.launch {
-                            val profileName = current.profileId
-                                ?.let { graph.profileRepository.byId(it)?.name }
-                            pendingReport = ExperimentReport.render(
-                                experiment = current,
-                                profileName = profileName,
-                                runs = runData,
-                                comparison = comparison,
-                                windowSpecs = windowSpecs,
-                                distance = if (current.kind == ExperimentEntity.KIND_DISTANCE) {
-                                    AbExperiment.distanceSeries(runData)
-                                } else {
-                                    emptyList()
-                                },
-                                appVersion = appVersionName(context),
-                            )
-                            exportLauncher.launch(ExperimentReport.fileName(current))
-                        }
-                    },
+                                        windowSpecs = windowSpecs,
+                                        distance = if (
+                                            current.kind == ExperimentEntity.KIND_DISTANCE
+                                        ) {
+                                            AbExperiment.distanceSeries(runData)
+                                        } else {
+                                            emptyList()
+                                        },
+                                        appVersion = appVersionName(context),
+                                    )
+                                    exportLauncher.launch(ExperimentReport.fileName(current))
+                                }
+                            },
+                        ),
+                    ),
+                    ExportGroup(
+                        title = e.groupExchange,
+                        options = listOf(
+                            ExportOptions.data(e) {
+                                exporting = false
+                                saver.save(
+                                    ExportFile.JSON,
+                                    SeriesExport.fileName(fileStamp, "json"),
+                                    ReportFactories.experimentJson(current, runData, comparison),
+                                )
+                            },
+                        ),
+                    ),
+                    ExportGroup(
+                        title = e.groupTable,
+                        options = listOf(
+                            ExportOptions.table(e) {
+                                exporting = false
+                                saver.save(
+                                    ExportFile.CSV,
+                                    SeriesExport.fileName(fileStamp, "csv"),
+                                    ReportFactories.experimentCsv(runData),
+                                )
+                            },
+                        ),
+                    ),
                 ),
-                modifier = Modifier.weight(1f),
-            )
-            AppButton(
-                text = t.delete,
-                onClick = { confirmDelete = true },
-                modifier = Modifier.weight(1f),
+                onDismiss = { exporting = false },
             )
         }
         notice?.let {
