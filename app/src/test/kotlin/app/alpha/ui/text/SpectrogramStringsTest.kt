@@ -83,21 +83,18 @@ class SpectrogramStringsTest {
 
     /**
      * ТЗ §14: на экране остаются только короткие подписи, а полные
-     * формулировки живут под «i». Проверяется и то, и другое: подпись коротка,
-     * а сама формулировка никуда не делась.
+     * формулировки живут в справке. Проверяется и то, и другое: подпись
+     * коротка, а сама формулировка никуда не делась.
      */
     @Test
     fun `the screen labels are short and the full wording still exists`() {
         for (catalogue in catalogues) {
-            assertTrue(catalogue.pausedTag.length <= 10, catalogue.pausedTag)
             assertTrue(catalogue.offlineTag.length <= 24, catalogue.offlineTag)
-            // Полные фразы остаются: они переехали уровнем ниже, а не исчезли.
-            assertTrue(catalogue.paused.length > catalogue.pausedTag.length)
+            assertTrue(catalogue.axisLog.length <= 4, catalogue.axisLog)
+            assertTrue(catalogue.axisLinear.length <= 4, catalogue.axisLinear)
+            // Полная фраза остаётся: она переехала уровнем ниже, а не исчезла.
             assertTrue(catalogue.offlineHistory.length > catalogue.offlineTag.length)
         }
-        // Запись продолжается на паузе — это остаётся сказанным словами.
-        assertTrue(SpectrogramRu.paused.contains("запись продолжается"))
-        assertTrue(SpectrogramEn.paused.contains("recording continues"))
     }
 
     /** Отказ сливать через пропуск — часть смысла, а не деталь реализации. */

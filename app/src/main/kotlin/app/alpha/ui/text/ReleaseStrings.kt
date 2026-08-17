@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0104Title: String
+    val v0104Summary: String
+
     val v0103Title: String
     val v0103Summary: String
 
@@ -252,6 +255,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0104Title = "Меньше кнопок над спектрограммой"
+    override val v0104Summary =
+        "Пауза и переключатель «Авто» убраны: окно и так кончается сейчас, а верх цветовой " +
+        "шкалы подписан числом у самой полосы. Карточка выбранного момента закрывается " +
+        "нажатием по ней и показывает сумму импульсов сразу, не открывая ещё одно окно."
 
     override val v0103Title = "Спектрограмма — только картинка"
     override val v0103Summary =
@@ -786,6 +795,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0104Title = "Fewer buttons above the spectrogram"
+    override val v0104Summary =
+        "The pause and the «Auto» switch are gone: the window already ends now, and the top " +
+        "of the colour scale is written next to the ramp. The card of the selected moment " +
+        "closes on a tap and shows the total counts itself, without opening another window."
 
     override val v0103Title = "The spectrogram is the picture alone"
     override val v0103Summary =

@@ -171,25 +171,19 @@ private fun MainScaffoldContent(graph: AppGraph) {
     }
     var showSpectrogram by rememberSaveable { mutableStateOf(false) }
     // Полный экран спектрограммы — тот же приём, что у спектра: поле владеет
-    // дисплеем, поэтому режим живёт здесь, выше таб-бара. Вид (окно, режим,
-    // верх шкалы, пауза) хранится рядом: человек тапнул по тому, что видел, и
-    // увидеть обязан то же самое, только крупнее.
+    // дисплеем, поэтому режим живёт здесь, выше таб-бара. Вид (окно и режим)
+    // хранится рядом: человек тапнул по тому, что видел, и увидеть обязан то
+    // же самое, только крупнее.
     var spectrogramFull by rememberSaveable { mutableStateOf(false) }
     var spectrogramWindow by rememberSaveable { mutableStateOf(0L) }
     var spectrogramShape by rememberSaveable { mutableStateOf(false) }
-    var spectrogramFixedTop by rememberSaveable { mutableStateOf(0f) }
-    var spectrogramPaused by rememberSaveable { mutableStateOf(false) }
     val spectrogramOptions = SpectrogramViewOptions(
         windowMillis = spectrogramWindow,
         shapeMode = spectrogramShape,
-        fixedTop = spectrogramFixedTop,
-        paused = spectrogramPaused,
     )
     val onSpectrogramOptions: (SpectrogramViewOptions) -> Unit = { next ->
         spectrogramWindow = next.windowMillis
         spectrogramShape = next.shapeMode
-        spectrogramFixedTop = next.fixedTop
-        spectrogramPaused = next.paused
     }
     var showExperiments by rememberSaveable { mutableStateOf(false) }
     var showRadon by rememberSaveable { mutableStateOf(false) }

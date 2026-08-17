@@ -25,12 +25,6 @@ interface SpectrogramStrings {
 
     val title: String
 
-    /** Полная формулировка паузы — в справке: показ стоит, запись идёт. */
-    val paused: String
-
-    /** Подпись самого чипа паузы: два слова рядом со значком. */
-    val pausedTag: String
-
     val noLink: String
     val warmingUp: String
 
@@ -125,10 +119,6 @@ interface SpectrogramStrings {
     /** В режиме формы величины нет — и подпись говорит именно это. */
     val legendShapeTitle: String
 
-    /** Верх шкалы пересчитывается по видимому окну или держится. */
-    val scaleAuto: String
-    val scaleFixed: String
-    val scaleModeNote: String
 
     /** Верх шкалы в режиме формы: доля внутри столбца, а не количество. */
     val legendColumnMax: String
@@ -147,15 +137,13 @@ interface SpectrogramStrings {
     val keyCount: String
     val keyMeanEnergy: String
 
-    // --- подробности момента ---
-    val statColumnCounts: String
-    val statMeasured: String
+    // --- техническая строка карточки момента ---
+
+    /** Сумма импульсов колонки: она объясняет три величины над собой. */
+    fun countsInColumn(counts: Int): String
 
     /** Ячейка покрыта не полностью: пропуск записи, а не спад интенсивности. */
     fun partialColumn(measured: Long, step: Long): String
-
-    /** На каком энергетическом разрешении нарисована эта колонка. */
-    fun groupResolution(perGroup: Int, groups: Int): String
 
     /**
      * Почему из момента нельзя открыть полный спектр: в истории лежат полосы,
@@ -203,8 +191,6 @@ interface SpectrogramStrings {
 object SpectrogramRu : SpectrogramStrings {
 
     override val title = "Спектрограмма"
-    override val paused = "показ остановлен · запись продолжается"
-    override val pausedTag = "пауза"
     override val noLink = "нет соединения с прибором"
     override val warmingUp = "накапливаем первые интервалы… столбцы появятся через ~10 с"
     override val offlineHistory = "нет соединения — показана записанная история"
@@ -258,12 +244,6 @@ object SpectrogramRu : SpectrogramStrings {
     override val legendZero = "0"
     override val legendIntensityTitle = "Интенсивность · имп/с"
     override val legendShapeTitle = "Форма · доля от максимума столбца"
-    override val scaleAuto = "Авто"
-    override val scaleFixed = "Фикс"
-    override val scaleModeNote =
-        "Верх цветовой шкалы: «Авто» пересчитывается по видимому окну, поэтому один и тот же " +
-            "цвет при разных окнах означает разную интенсивность. «Фикс» держит верх таким, " +
-            "каким он был при нажатии, и цвета становятся сравнимы между окнами."
     override val legendColumnMax = "макс. столбца"
     override fun legendRate(value: String) = "$value имп/с"
 
@@ -274,16 +254,11 @@ object SpectrogramRu : SpectrogramStrings {
     override val keyCount = "счёт"
     override val keyMeanEnergy = "ср. энергия"
 
-    override val statColumnCounts = "имп в колонке"
-    override val statMeasured = "измерено"
+    override fun countsInColumn(counts: Int) = "$counts имп в колонке"
 
     override fun partialColumn(measured: Long, step: Long) =
         "Измерено $measured с из $step с шага: остальное время прибор не писал. Скорость " +
             "считается по измеренному, поэтому неполная колонка не выглядит спадом."
-
-    override fun groupResolution(perGroup: Int, groups: Int) =
-        "Колонка нарисована на $groups энергетических группах по $perGroup полос: столько " +
-            "нужно, чтобы в группе набралась статистика."
 
     override val noStoredSpectrum =
         "Полный спектр этого момента не открыть: в истории спектрограммы лежат " +
@@ -348,8 +323,6 @@ object SpectrogramRu : SpectrogramStrings {
 object SpectrogramEn : SpectrogramStrings {
 
     override val title = "Spectrogram"
-    override val paused = "display paused · recording continues"
-    override val pausedTag = "paused"
     override val noLink = "no link to the instrument"
     override val warmingUp = "collecting the first intervals… columns appear in ~10 s"
     override val offlineHistory = "no link — showing the recorded history"
@@ -410,12 +383,6 @@ object SpectrogramEn : SpectrogramStrings {
     override val legendZero = "0"
     override val legendIntensityTitle = "Intensity · counts/s"
     override val legendShapeTitle = "Shape · fraction of the column maximum"
-    override val scaleAuto = "Auto"
-    override val scaleFixed = "Held"
-    override val scaleModeNote =
-        "Top of the colour scale: «Auto» is recomputed for the visible window, so the same " +
-            "colour means a different intensity in a different window. «Held» keeps the top " +
-            "it had when you tapped it, which makes colours comparable across windows."
     // Верх шкалы формы — максимум ВНУТРИ столбца, а не «больше излучения»:
     // «column max» удерживает это, «high» уже утверждало бы количество.
     override val legendColumnMax = "column max"
@@ -428,17 +395,12 @@ object SpectrogramEn : SpectrogramStrings {
     override val keyCount = "count rate"
     override val keyMeanEnergy = "mean energy"
 
-    override val statColumnCounts = "counts in the column"
-    override val statMeasured = "measured"
+    override fun countsInColumn(counts: Int) = "$counts counts in the column"
 
     override fun partialColumn(measured: Long, step: Long) =
         "Measured $measured s out of the $step s step: the rest of the time the instrument " +
             "was not writing. The rate is computed from the measured time, so a partial " +
             "column does not look like a drop."
-
-    override fun groupResolution(perGroup: Int, groups: Int) =
-        "This column is drawn on $groups energy groups of $perGroup bands each — that is " +
-            "what it takes for a group to hold statistics."
 
     override val noStoredSpectrum =
         "The full spectrum of this moment cannot be opened: the spectrogram history holds " +
@@ -517,16 +479,16 @@ val SpectrogramCatalogue = AreaCatalogue(ru = SpectrogramRu, en = SpectrogramEn)
  */
 fun SpectrogramStrings.allTexts(): List<String> = listOf(
     recordNote, clearHistory, clearConfirmTitle, clearConfirmBody,
-    title, paused, pausedTag, noLink, warmingUp, offlineHistory, offlineTag, backgroundNote,
+    title, noLink, warmingUp, offlineHistory, offlineTag, backgroundNote,
     windowMinutes(15), windowHours(2),
     modeIntensity, modeShape,
     energyUnit, axisLog, axisLinear,
     energyScaleLogNote, energyScaleLinearNote, energyValue(146),
     legendZero, legendColumnMax, legendRate("1,2"),
-    legendIntensityTitle, legendShapeTitle, scaleAuto, scaleFixed, scaleModeNote,
+    legendIntensityTitle, legendShapeTitle,
     windowSeconds(26), countsPerSecond("24,3"),
     keyDoseRate, keyCount, keyMeanEnergy,
-    statColumnCounts, statMeasured, partialColumn(12, 30), groupResolution(4, 24),
+    countsInColumn(916), partialColumn(12, 30),
     noStoredSpectrum, helpTitle, technicalTitle,
     rateTitle, rateDetailed, rateBalanced, rateEconomy, rateVolume("1,3"), rateThinning(7, 5),
     statIntervals, statStored, statRecorded, statColumnStep, statBands,
