@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,6 +33,7 @@ import app.alpha.device.BluetoothState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.graphics.lerp
 import app.alpha.ui.logic.DoseTint
+import app.alpha.ui.logic.MonitorLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -54,6 +57,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -436,191 +441,223 @@ fun MonitorScreen(
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
     val t = MonitorCatalogue.of(strings.language)
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(Dimens.space3),
-        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-        ) {
-            Chip(
-                text = profileChipText(activeProfile, profiles, contextState, t),
-                color = colors.ink,
-                onClick = { showProfilePicker = true },
-            )
-            Spacer(Modifier.weight(1f))
-            ConnectedFlash(connectedAt)
-            ConnectionChip(connection, serviceRunning, stream)
-            StreamChip(stream)
-            Icon(
-                imageVector = AppIcons.Lambda,
-                contentDescription = strings.settings,
-                tint = colors.ink2,
-                modifier = Modifier
-                    .size(22.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onOpenSettings,
-                    ),
-            )
-        }
-
-        // Выключенный Bluetooth стоит выше всего: пока он выключен, прибор не
-        // подключится, и все числа ниже относятся к прошлому.
-        BluetoothBanner()
-
-        HeroCard(
-            doseMicroSvH = doseMicroSvH,
-            errPercent = live?.doseRateErr,
-            cps = live?.countRate,
-            trend = trend,
-            trendWindowLabel = t.trendWindowHour,
-            doseTodayMicroSv = doseTodayMicroSv,
-            status = status,
-            baselineState = baselineState,
-            unit = unit,
-            stale = !stream.live,
-            stream = stream,
-            blocks = blocks,
-            admission = admission,
-            frozen = frozen,
-            onWhy = { showWhy = true },
-            onOpenDose = onOpenDose,
-            tintEnabled = doseTint,
-            tintFactor = doseTintFactor,
+    // Свободная высота экрана достаётся главной карточке. Без графиков она
+    // иначе висела бы полосой под числом: телефоны выше, чем содержимое
+    // Главной, и пустота внизу читается как «что-то не загрузилось».
+    // Измеряются СОСЕДИ карточки — их высота от неё не зависит, поэтому
+    // измерение не зацикливается.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val viewportHeight = maxHeight
+        val density = LocalDensity.current
+        var headerHeight by remember { mutableStateOf(0.dp) }
+        var belowHeight by remember { mutableStateOf(0.dp) }
+        val heroContentMin = MonitorLayout.heroContentMin(
+            viewport = viewportHeight,
+            header = headerHeight,
+            below = belowHeight,
+            gap = Dimens.space3,
         )
-
-        val baseline = (baselineState as? BaselineState.Active)?.baseline
-        val alert = status is MonitorStatus.Alert
-        for (metric in chartMetrics) key(metric) {
-            val loaded = charts[metric]
-            // Окно карточки — то же состояние, что у полноэкранного графика:
-            // ступень, правый край и слежение за «сейчас».
-            val bounds = ViewportBounds(
-                edgeMillis = nowMillis,
-                earliestMillis = earliestMillis,
-                maxSpanMillis = ChartMetrics.maxSpanMillis(metric),
-            )
-            val gesture = gestures[metric] ?: ChartGesture.of(
-                Viewports.atEdge(
-                    ChartMetrics.startWindow(metric, savedSpans, nowMillis).spanMillis,
-                    bounds,
-                ),
-                bounds,
-            )
-            val viewport = gesture.visible
-            fun setGesture(next: ChartGesture) {
-                gestures = gestures + (metric to next)
-                cache.gestures = gestures
-            }
-            // Живой край двигает видимое окно; кадр остаётся, пока хватает
-            // запаса геометрии.
-            LaunchedEffect(nowMillis / 1_000L, metric) {
-                val current = gestures[metric] ?: return@LaunchedEffect
-                val next = current.followTick(bounds)
-                if (next != current) setGesture(next)
-            }
-            // Кадр пересобирается, когда движение улеглось: под пальцем
-            // двигается уже нарисованная картинка.
-            var lastGestureAt by remember(metric) { mutableLongStateOf(0L) }
-            LaunchedEffect(lastGestureAt) {
-                if (lastGestureAt == 0L) return@LaunchedEffect
-                delay(CHART_SETTLE_MILLIS)
-                val current = gestures[metric] ?: return@LaunchedEffect
-                if (current.moved) setGesture(current.commit(bounds))
-            }
-            // Правый край кадра идёт за «сейчас» каждую секунду без чтения
-            // базы: снимок неизменен, окно — арифметика по колонкам. Ширина
-            // карточки решает, сколько колонок имеет смысл (Charts V2 §20).
-            val plotWidthPx = plotWidths[metric] ?: 0f
-            // Ключи кадра — снимок и посчитанное окно, а не секунда часов:
-            // иначе кадр пересобирается ежесекундно на каждую карточку.
-            val frame = remember(
-                loaded?.snapshot, loaded?.earliestMillis, unit, thresholds, baseline, alert,
-                gesture.frame, gesture.rendered, gesture.visible.values, chartDetail,
-                plotWidthPx, blocks.stats,
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(Dimens.space3),
+            verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+        ) {
+            Column(
+                modifier = Modifier.onSizeChanged {
+                    headerHeight = with(density) { it.height.toDp() }
+                },
+                verticalArrangement = Arrangement.spacedBy(Dimens.space3),
             ) {
-                loaded?.let {
-                    val liveWindow = ChartWindows.limitedByHistory(
-                        gesture.frame.window(),
-                        it.earliestMillis,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
+                ) {
+                    Chip(
+                        text = profileChipText(activeProfile, profiles, contextState, t),
+                        color = colors.ink,
+                        onClick = { showProfilePicker = true },
                     )
-                    buildFrame(
-                        snapshot = it.snapshot,
-                        window = liveWindow,
-                        unit = unit,
-                        logScale = false,
-                        thresholds = thresholds,
-                        baseline = baseline,
-                        endpointAlert = alert && metric == ChartMetric.DOSE,
-                        metric = metric,
-                        xLabelCount = 3,
-                        // Карточка Главной всегда живая: правый край окна и
-                        // есть «сейчас».
-                        nowMillis = nowMillis,
-                        axisStrings = ChartAxisCatalogue.of(strings.language),
-                        showUnit = false,
-                        detail = chartDetail,
-                        // Далёкий порог на карточке не рисуется.
-                        showDistantAlarm = false,
-                        plotWidthPx = plotWidthPx,
-                        renderWindow = gesture.rendered,
-                        // Ни распределения, ни статистики окна: их нет на
-                        // экране карточки.
-                        withHistogram = false,
-                        withStats = blocks.stats,
-                        values = gesture.visible.values,
+                    Spacer(Modifier.weight(1f))
+                    ConnectedFlash(connectedAt)
+                    ConnectionChip(connection, serviceRunning, stream)
+                    StreamChip(stream)
+                    Icon(
+                        imageVector = AppIcons.Lambda,
+                        contentDescription = strings.settings,
+                        tint = colors.ink2,
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onOpenSettings,
+                            ),
                     )
                 }
-            }
-            MetricChartCard(
-                metric = metric,
-                frame = frame,
-                spanMillis = loaded?.window?.spanMillis,
-                hasBaselineBand = baseline != null,
-                unit = unit,
-                showStats = blocks.stats,
-                onOpen = {
-                    if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
-                },
-                following = viewport.followLiveEdge,
-                onBackToNow = {
-                    setGesture(gesture.withViewport(Viewports.jumpToEdge(viewport, bounds), bounds))
-                },
-                viewWindow = ChartWindows.withRightPadding(viewport.window()),
-                onOpenFromChart = {
-                    if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
-                },
-                onPlotWidth = { width ->
-                    if (plotWidths[metric] != width) {
-                        plotWidths = plotWidths + (metric to width)
-                    }
-                },
-                onTransform = { input ->
-                    lastGestureAt = System.currentTimeMillis()
-                    // Жест меняет ВРЕМЯ, а не картинку: из состояния получается
-                    // окно, окно идёт в загрузку и в кадр. Готовое изображение
-                    // не растягивается — агрегация обязана отвечать масштабу.
-                    // Щипок непрерывный, вокруг точки под пальцами.
-                    var next = gesture
-                    if (input.zoom != 1f) {
-                        next = next.zoom(input.zoom, input.focusXFraction, bounds)
-                    }
-                    if (input.panXFraction != 0f) {
-                        next = next.pan(-input.panXFraction, bounds)
-                    }
-                    // Вышли за нарисованное — паузы не ждём.
-                    setGesture(if (next.covered()) next else next.commit(bounds))
-                },
-            )
-        }
 
-        BatteryBanner()
+                // Выключенный Bluetooth стоит выше всего: пока он выключен, прибор
+                // не подключится, и все числа ниже относятся к прошлому.
+                BluetoothBanner()
+            }
+
+            HeroCard(
+                minContentHeight = heroContentMin,
+                doseMicroSvH = doseMicroSvH,
+                errPercent = live?.doseRateErr,
+                cps = live?.countRate,
+                trend = trend,
+                trendWindowLabel = t.trendWindowHour,
+                doseTodayMicroSv = doseTodayMicroSv,
+                status = status,
+                baselineState = baselineState,
+                unit = unit,
+                stale = !stream.live,
+                stream = stream,
+                blocks = blocks,
+                admission = admission,
+                frozen = frozen,
+                onWhy = { showWhy = true },
+                onOpenDose = onOpenDose,
+                tintEnabled = doseTint,
+                tintFactor = doseTintFactor,
+            )
+
+            Column(
+                modifier = Modifier.onSizeChanged {
+                    belowHeight = with(density) { it.height.toDp() }
+                },
+                verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+            ) {
+                val baseline = (baselineState as? BaselineState.Active)?.baseline
+                val alert = status is MonitorStatus.Alert
+                for (metric in chartMetrics) key(metric) {
+                    val loaded = charts[metric]
+                    // Окно карточки — то же состояние, что у полноэкранного графика:
+                    // ступень, правый край и слежение за «сейчас».
+                    val bounds = ViewportBounds(
+                        edgeMillis = nowMillis,
+                        earliestMillis = earliestMillis,
+                        maxSpanMillis = ChartMetrics.maxSpanMillis(metric),
+                    )
+                    val gesture = gestures[metric] ?: ChartGesture.of(
+                        Viewports.atEdge(
+                            ChartMetrics.startWindow(metric, savedSpans, nowMillis).spanMillis,
+                            bounds,
+                        ),
+                        bounds,
+                    )
+                    val viewport = gesture.visible
+                    fun setGesture(next: ChartGesture) {
+                        gestures = gestures + (metric to next)
+                        cache.gestures = gestures
+                    }
+                    // Живой край двигает видимое окно; кадр остаётся, пока хватает
+                    // запаса геометрии.
+                    LaunchedEffect(nowMillis / 1_000L, metric) {
+                        val current = gestures[metric] ?: return@LaunchedEffect
+                        val next = current.followTick(bounds)
+                        if (next != current) setGesture(next)
+                    }
+                    // Кадр пересобирается, когда движение улеглось: под пальцем
+                    // двигается уже нарисованная картинка.
+                    var lastGestureAt by remember(metric) { mutableLongStateOf(0L) }
+                    LaunchedEffect(lastGestureAt) {
+                        if (lastGestureAt == 0L) return@LaunchedEffect
+                        delay(CHART_SETTLE_MILLIS)
+                        val current = gestures[metric] ?: return@LaunchedEffect
+                        if (current.moved) setGesture(current.commit(bounds))
+                    }
+                    // Правый край кадра идёт за «сейчас» каждую секунду без чтения
+                    // базы: снимок неизменен, окно — арифметика по колонкам. Ширина
+                    // карточки решает, сколько колонок имеет смысл (Charts V2 §20).
+                    val plotWidthPx = plotWidths[metric] ?: 0f
+                    // Ключи кадра — снимок и посчитанное окно, а не секунда часов:
+                    // иначе кадр пересобирается ежесекундно на каждую карточку.
+                    val frame = remember(
+                        loaded?.snapshot, loaded?.earliestMillis, unit, thresholds, baseline, alert,
+                        gesture.frame, gesture.rendered, gesture.visible.values, chartDetail,
+                        plotWidthPx, blocks.stats,
+                    ) {
+                        loaded?.let {
+                            val liveWindow = ChartWindows.limitedByHistory(
+                                gesture.frame.window(),
+                                it.earliestMillis,
+                            )
+                            buildFrame(
+                                snapshot = it.snapshot,
+                                window = liveWindow,
+                                unit = unit,
+                                logScale = false,
+                                thresholds = thresholds,
+                                baseline = baseline,
+                                endpointAlert = alert && metric == ChartMetric.DOSE,
+                                metric = metric,
+                                xLabelCount = 3,
+                                // Карточка Главной всегда живая: правый край окна и
+                                // есть «сейчас».
+                                nowMillis = nowMillis,
+                                axisStrings = ChartAxisCatalogue.of(strings.language),
+                                showUnit = false,
+                                detail = chartDetail,
+                                // Далёкий порог на карточке не рисуется.
+                                showDistantAlarm = false,
+                                plotWidthPx = plotWidthPx,
+                                renderWindow = gesture.rendered,
+                                // Ни распределения, ни статистики окна: их нет на
+                                // экране карточки.
+                                withHistogram = false,
+                                withStats = blocks.stats,
+                                values = gesture.visible.values,
+                            )
+                        }
+                    }
+                    MetricChartCard(
+                        metric = metric,
+                        frame = frame,
+                        spanMillis = loaded?.window?.spanMillis,
+                        hasBaselineBand = baseline != null,
+                        unit = unit,
+                        showStats = blocks.stats,
+                        onOpen = {
+                            if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
+                        },
+                        following = viewport.followLiveEdge,
+                        onBackToNow = {
+                            setGesture(gesture.withViewport(Viewports.jumpToEdge(viewport, bounds), bounds))
+                        },
+                        viewWindow = ChartWindows.withRightPadding(viewport.window()),
+                        onOpenFromChart = {
+                            if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
+                        },
+                        onPlotWidth = { width ->
+                            if (plotWidths[metric] != width) {
+                                plotWidths = plotWidths + (metric to width)
+                            }
+                        },
+                        onTransform = { input ->
+                            lastGestureAt = System.currentTimeMillis()
+                            // Жест меняет ВРЕМЯ, а не картинку: из состояния получается
+                            // окно, окно идёт в загрузку и в кадр. Готовое изображение
+                            // не растягивается — агрегация обязана отвечать масштабу.
+                            // Щипок непрерывный, вокруг точки под пальцами.
+                            var next = gesture
+                            if (input.zoom != 1f) {
+                                next = next.zoom(input.zoom, input.focusXFraction, bounds)
+                            }
+                            if (input.panXFraction != 0f) {
+                                next = next.pan(-input.panXFraction, bounds)
+                            }
+                            // Вышли за нарисованное — паузы не ждём.
+                            setGesture(if (next.covered()) next else next.commit(bounds))
+                        },
+                    )
+                }
+
+                BatteryBanner()
+            }
+        }
     }
 
     if (showProfilePicker) {
@@ -817,6 +854,11 @@ private fun StreamChip(stream: StreamState) {
  */
 @Composable
 private fun HeroCard(
+    /**
+     * Наименьшая высота СОДЕРЖИМОГО карточки, dp: свободная высота страницы,
+     * которую карточка забирает себе. Ноль — карточка по своему содержимому.
+     */
+    minContentHeight: Dp = 0.dp,
     doseMicroSvH: Float?,
     errPercent: Float?,
     cps: Float?,
@@ -845,7 +887,15 @@ private fun HeroCard(
     val strings = LocalStrings.current
     val t = MonitorCatalogue.of(strings.language)
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        Column(
+            modifier = Modifier.heightIn(min = minContentHeight),
+            // Излишек высоты уходит НАД числом и ПОД строку состояния поровну:
+            // растянутая карточка держит ту же вёрстку, только по центру.
+            verticalArrangement = Arrangement.spacedBy(
+                Dimens.space3,
+                Alignment.CenterVertically,
+            ),
+        ) {
             // 1. Главная величина, по центру.
             Column(
                 modifier = Modifier.fillMaxWidth(),

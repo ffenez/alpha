@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0180Title: String
+    val v0180Summary: String
+
     val v0170Title: String
     val v0170Summary: String
 
@@ -279,6 +282,11 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0180Title = "Главная занимает весь экран"
+    override val v0180Summary =
+        "Свободная высота страницы уходит главной карточке: пока график ещё ничего не " +
+        "рисует, число с плитками стоит по центру экрана, а не полосой под шапкой."
 
     override val v0170Title = "Прочерк в таблице пиков заговорил"
     override val v0170Summary =
@@ -872,6 +880,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0180Title = "The main screen fills the phone"
+    override val v0180Summary =
+        "The free height of the page goes to the main card: while the chart has nothing to " +
+        "draw yet, the reading and its tiles sit in the middle of the screen instead of a " +
+        "strip under the header."
 
     override val v0170Title = "The dash in the peak table now speaks"
     override val v0170Summary =
