@@ -38,14 +38,22 @@ data class Peak(
  *     scintillator resolution as FWHM(E) = R₆₆₂·√(662·E) (relative resolution
  *     ∝ 1/√E). R₆₆₂ belongs to the CONNECTED MODEL — 8,4 % for the CsI(Tl)
  *     models, 7,4 % for the GAGG 103G — and is passed in, never assumed;
- *  3. the local continuum under the peak is the mean of two side windows
- *     (one peak-width away on each side); net = gross − continuum·width;
+ *  3. континуум под пиком — ЛИНЕЙНЫЙ: две боковые полосы (по одной ширине
+ *     пика с каждой стороны) дают уровень под центром (полусумма средних) и
+ *     наклон (их разность). Площадь считается по уровню — net = gross −
+ *     continuum·width, — а вычитание внутри окна идёт по наклонной, иначе
+ *     центроида уезжает в сторону более высокого края;
  *  4. значимость = нетто / σ(нетто), где Var(net) = валовые импульсы +
  *     width²·B̂/m (m — каналов в боковых полосах): учитывается и статистика
  *     окна пика, и неопределённость ОЦЕНКИ континуума [IAEA]; кандидаты
- *     below [DEFAULT_MIN_SIGNIFICANCE] are noise and dropped;
+ *     below [DEFAULT_MIN_SIGNIFICANCE] are noise and dropped, как и окна с
+ *     менее чем [MIN_GROSS_COUNTS] импульсами, где нормальное приближение
+ *     Пуассона неприменимо;
  *  5. структура принимается за пик, только если её наблюдаемая FWHM лежит в
- *     0,5–2,5 ожидаемой по модели разрешения: одноканальный выброс — не пик;
+ *     0,5–2,5 ожидаемой по модели разрешения: одноканальный выброс — не пик.
+ *     Гейт работает лишь тогда, когда высота центрального канала измерима
+ *     ([SHAPE_MIN_HEIGHT_SIGNIFICANCE]): у слабой широкой линии полувысота —
+ *     пуассоновский шум, и такая линия остаётся принятой с fwhmKeV = null;
  *  6. перекрывающиеся в пределах FWHM кандидаты сливаются, сильнейший по
  *     значимости побеждает.
  *
@@ -87,29 +95,71 @@ object PeakDetection {
     private const val MAX_WIDTH_RATIO = 2.5f
 
     /**
+     * Во сколько раз высота центрального канала должна превышать собственную
+     * пуассоновскую неопределённость, чтобы ширину на половине высоты вообще
+     * имело смысл мерить.
+     *
+     * **Инженерный параметр.** Ширина меряется по ОДНОМУ каналу в центре:
+     * пока его нетто-высота сравнима со своим шумом, «полувысота» — случайная
+     * величина, и первый же провал вниз обрывает спуск на соседнем канале.
+     * Именно так широкая линия 2614,5 кэВ (Tl-208) с несколькими импульсами на
+     * канал получала наблюдаемую ширину 5 каналов при ожидаемых 36 и
+     * отбраковывалась как «одноканальный выброс». Три сигмы — та же граница,
+     * с которой в спектрометрии вообще говорят о наличии структуры.
+     */
+    private const val SHAPE_MIN_HEIGHT_SIGNIFICANCE = 3f
+
+    /**
+     * Наибольшая доля нетто-площади, которую может нести ОДИН канал.
+     *
+     * **Инженерный параметр.** У фотопика с шириной по разрешению прибора на
+     * центральный канал приходится около четверти площади окна; одиночный
+     * выброс несёт всю. Половина — граница между этими случаями с запасом в
+     * обе стороны. Проверка работает и там, где ширину измерить нельзя: у
+     * выброса сглаживание создаёт рядом плато, и кандидат встаёт на канал, где
+     * собственной высоты нет вовсе.
+     */
+    private const val SPIKE_MAX_SHARE = 0.5f
+
+    /**
+     * Наименьшее число валовых импульсов в окне пика, при котором нормальное
+     * приближение Пуассона ещё применимо и знаменатель значимости можно
+     * называть σ.
+     *
+     * **Инженерный параметр**: при 20 импульсах асимметрия распределения
+     * Пуассона (1/√N ≈ 22 %) уже заметна, но σ остаётся оценкой порядка
+     * величины; ниже — числа вида «4σ» не имеют смысла, потому что само
+     * распределение не гауссово.
+     */
+    const val MIN_GROSS_COUNTS = 20f
+
+    /**
      * Наблюдаемая ширина на половине высоты нетто-структуры, в каналах; null,
      * если склоны не опустились до половины внутри окна поиска (структура шире
      * окна — её ширину это окно не измеряет).
+     *
+     * [continuumAt] — континуум под каналом: он наклонный, и вычитать под
+     * склоном одно и то же число значило бы мерить ширину чужой ступеньки.
      */
     private fun fwhmChannels(
         counts: List<Int>,
         center: Int,
         half: Int,
-        continuum: Float,
+        continuumAt: (Int) -> Float,
     ): Float? {
-        val peakNet = counts[center] - continuum
+        val peakNet = counts[center] - continuumAt(center)
         if (peakNet <= 0f) return null
         val halfLevel = peakNet / 2f
         var left: Int? = null
         for (j in center downTo (center - 3 * half).coerceAtLeast(0)) {
-            if (counts[j] - continuum <= halfLevel) {
+            if (counts[j] - continuumAt(j) <= halfLevel) {
                 left = j
                 break
             }
         }
         var right: Int? = null
         for (j in center..(center + 3 * half).coerceAtMost(counts.size - 1)) {
-            if (counts[j] - continuum <= halfLevel) {
+            if (counts[j] - continuumAt(j) <= halfLevel) {
                 right = j
                 break
             }
@@ -162,7 +212,19 @@ object PeakDetection {
         resolution662: Float = RESOLUTION_662,
         /** Порог поиска ЭТОГО прибора: у моделей разная нижняя граница шкалы. */
         minEnergyKeV: Float = DEFAULT_MIN_ENERGY_KEV,
+        /**
+         * Дисперсия отсчёта в каждом канале; null — пуассоновская (Var = N).
+         *
+         * Нужна там, где [counts] уже не сырые импульсы: у разности «образец
+         * минус фон» дисперсия равна `sample + r²·background`, и без этого
+         * значимость линии в проверке продукта считалась бы по заниженному
+         * знаменателю.
+         */
+        variance: List<Float>? = null,
     ): List<Peak> {
+        require(variance == null || variance.size == counts.size) {
+            "дисперсия задана для ${variance?.size} каналов из ${counts.size}"
+        }
         // Крайний канал — граница шкалы, а не точка спектра ([SpectrumEdge]):
         // сюда поиск пиков не заходит вовсе.
         val n = SpectrumEdge.lastAnalysableChannel(counts.size) + 1
@@ -184,21 +246,37 @@ object PeakDetection {
             }
             if (!isMax) continue
 
-            var side = 0.0
-            var sideCount = 0
+            // Боковые полосы считаются ПОРОЗНЬ: их разность и есть наклон
+            // континуума. Уровень под центром (полусумма) — то же число, что
+            // и прежнее среднее по обеим полосам, поэтому площадь и значимость
+            // от этого не меняются; меняется только вычитание внутри окна.
+            var leftSide = 0.0
+            var leftCount = 0
             for (j in (i - 3 * half)..(i - half - 1)) {
-                side += counts[j]; sideCount++
+                leftSide += counts[j]; leftCount++
             }
+            var rightSide = 0.0
+            var rightCount = 0
             for (j in (i + half + 1)..(i + 3 * half)) {
-                side += counts[j]; sideCount++
+                rightSide += counts[j]; rightCount++
             }
-            val continuum = (side / sideCount).toFloat()
+            val sideCount = leftCount + rightCount
+            val leftMean = (leftSide / leftCount).toFloat()
+            val rightMean = (rightSide / rightCount).toFloat()
+            val continuum = (leftMean + rightMean) / 2f
+            // Центры полос: i ∓ (2·half + 0,5); расстояние между ними
+            // 4·half + 1 каналов, и наклон на канал — разность средних на нём.
+            val slope = (rightMean - leftMean) / (4f * half + 1f)
+            val continuumAt = { j: Int -> continuum + slope * (j - i) }
 
             var gross = 0f
             for (j in (i - half)..(i + half)) gross += counts[j]
             val width = 2 * half + 1
             val net = gross - continuum * width
             if (net <= 0f) continue
+            // Нормальное приближение: ниже [MIN_GROSS_COUNTS] распределение
+            // валовых импульсов не гауссово, и «σ» было бы просто числом.
+            if (gross < MIN_GROSS_COUNTS) continue
             // Значимость = нетто / σ(нетто). Дисперсия нетто складывается из
             // статистики самого окна пика и неопределённости ОЦЕНКИ
             // континуума (IAEA, «Investigation of Uncertainty Sources in the
@@ -207,7 +285,19 @@ object PeakDetection {
             // где B̂ — континуум на канал, m — число каналов боковых полос.
             // Прежняя формула net/√(B·width) делила только на шум фона и
             // завышала значимость, а её результат назывался «SNR».
-            val varianceNet = gross + width.toFloat() * width * continuum / sideCount
+            // Var(net) = Var(Σ окна) + width²·Var(B̂), Var(B̂) = Var(Σ полос)/m².
+            // При пуассоновских отсчётах это в точности gross + width²·B̂/m.
+            val varianceNet = if (variance == null) {
+                gross + width.toFloat() * width * continuum / sideCount
+            } else {
+                var windowVariance = 0f
+                for (j in (i - half)..(i + half)) windowVariance += variance[j]
+                var sideVariance = 0f
+                for (j in (i - 3 * half)..(i - half - 1)) sideVariance += variance[j]
+                for (j in (i + half + 1)..(i + 3 * half)) sideVariance += variance[j]
+                windowVariance +
+                    width.toFloat() * width * sideVariance / (sideCount.toFloat() * sideCount)
+            }
             val significance = net / sqrt(max(varianceNet, 1f))
             if (significance < minSignificance) continue
             // Форма: фотопик имеет конечную ширину, заданную разрешением
@@ -218,16 +308,40 @@ object PeakDetection {
             // которой нет собственных нетто-импульсов (плато сглаживания
             // рядом с одиночным выбросом) или чьи склоны не опускаются до
             // половины в окне поиска, — не фотопик.
-            val observedFwhm = fwhmChannels(counts, i, half, continuum) ?: continue
-            val expectedFwhm = 2f * half
-            val ratio = observedFwhm / expectedFwhm.coerceAtLeast(1f)
-            if (ratio < MIN_WIDTH_RATIO || ratio > MAX_WIDTH_RATIO) continue
+            // Одиночный выброс: один канал несёт почти всю нетто-площадь.
+            // Проверка не зависит от того, измерима ли ширина, поэтому ловит и
+            // выброс, рядом с которым сглаживание поставило кандидата.
+            var maxChannelNet = 0f
+            for (j in (i - half)..(i + half)) {
+                val value = counts[j] - continuumAt(j)
+                if (value > maxChannelNet) maxChannelNet = value
+            }
+            if (maxChannelNet > SPIKE_MAX_SHARE * net) continue
 
-            // Centroid over net counts refines the peak energy.
+            // Ширина меряется по высоте центрального канала, поэтому гейт
+            // применим, только когда эта высота измерима: у слабой широкой
+            // линии (единицы импульсов на канал) «полувысота» — шум, и гейт
+            // отбраковывал бы настоящие линии. Тогда ширина не измерена
+            // (fwhmKeV = null), а не «не прошла».
+            val centerNet = counts[i] - continuum
+            val centerSigma = sqrt(max(counts[i].toFloat(), 1f) + continuum / sideCount)
+            val shapeMeasurable = centerNet >= SHAPE_MIN_HEIGHT_SIGNIFICANCE * centerSigma
+            val observedFwhm = fwhmChannels(counts, i, half, continuumAt)
+            if (shapeMeasurable) {
+                if (observedFwhm == null) continue
+                val ratio = observedFwhm / (2f * half).coerceAtLeast(1f)
+                if (ratio < MIN_WIDTH_RATIO || ratio > MAX_WIDTH_RATIO) continue
+            }
+
+            // Centroid over net counts refines the peak energy. Континуум под
+            // окном НАКЛОННЫЙ: вычитание одного уровня оставляет внутри окна
+            // остаточную ступеньку и сдвигает центроиду в сторону более
+            // высокого края (на синтетике с известной истиной — на 4–5 кэВ
+            // при 662 и 1461 кэВ).
             var weightSum = 0.0
             var weightedChannel = 0.0
             for (j in (i - half)..(i + half)) {
-                val weight = max(0f, counts[j] - continuum)
+                val weight = max(0f, counts[j] - continuumAt(j))
                 weightSum += weight
                 weightedChannel += weight.toDouble() * j
             }
@@ -238,8 +352,12 @@ object PeakDetection {
                 netCounts = net,
                 significance = significance,
                 // Ширина канала на шкале меняется, поэтому каналы переводятся
-                // в кэВ производной калибровки в самом пике.
-                fwhmKeV = observedFwhm * max(calibration.a1 + 2f * calibration.a2 * i, 0.01f),
+                // в кэВ производной калибровки в самом пике. null — высота
+                // центра не измерима: спуск до полувысоты пошёл бы по шуму, и
+                // число было бы шириной случайного провала, а не структуры.
+                fwhmKeV = observedFwhm
+                    ?.takeIf { shapeMeasurable }
+                    ?.times(max(calibration.a1 + 2f * calibration.a2 * i, 0.01f)),
             )
         }
 

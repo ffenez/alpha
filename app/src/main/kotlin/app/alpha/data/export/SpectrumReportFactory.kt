@@ -1,6 +1,7 @@
 package app.alpha.data.export
 
 import app.alpha.analysis.EnergyCalibration
+import app.alpha.device.DeviceModel
 import app.alpha.analysis.HintConfidence
 import app.alpha.analysis.IsotopeMatcher
 import app.alpha.analysis.PeakDetection
@@ -42,7 +43,12 @@ object SpectrumReportFactory {
         appName: String,
         appVersion: String,
         language: AppLanguage = AppLanguage.RU,
-        resolution662: Float = PeakDetection.RESOLUTION_662,
+        /**
+         * Снимок не хранит модель прибора, поэтому по умолчанию разбирается
+         * профилем неопознанного — тем же, что берёт экран Спектра. Иначе
+         * отчёт и таблица на экране давали бы разные пики для одного снимка.
+         */
+        resolution662: Float = DeviceModel.UNKNOWN.peakResolution662,
         zone: ZoneId = ZoneId.systemDefault(),
         nowMillis: Long = System.currentTimeMillis(),
     ): SpectrumReport {
@@ -53,6 +59,7 @@ object SpectrumReportFactory {
             counts = counts,
             calibration = calibration,
             resolution662 = resolution662,
+            minEnergyKeV = DeviceModel.UNKNOWN.peakFloorKeV,
         )
         val hints = IsotopeMatcher.match(peaks, resolution662).associateBy { it.peak.energyKeV }
 
