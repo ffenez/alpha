@@ -62,7 +62,8 @@ data class GammaLine(
  *  - Th-232 chain daughters: Pb-212 238.6, Tl-208 583.2 / 2614.5;
  *  - Am-241 59.5 (smoke detectors).
  *
- * All lines are well above the RC-110 acquisition threshold (~20 keV), but
+ * All lines are well above the acquisition threshold of the series (20–30 keV
+ * depending on the model), but
  * note that at 59.5 keV (Am-241) the CsI(Tl) response and factory energy
  * calibration are least accurate, so low-energy matches deserve extra doubt.
  */

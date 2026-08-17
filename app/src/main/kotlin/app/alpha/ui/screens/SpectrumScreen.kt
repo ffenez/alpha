@@ -1059,6 +1059,7 @@ private fun SpectrumContent(
                 counts = spectrum.counts,
                 calibration = calibration,
                 resolution662 = resolution662,
+                minEnergyKeV = model.peakFloorKeV,
             ).sortedBy { it.energyKeV }
         } else {
             emptyList()

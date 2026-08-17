@@ -36,8 +36,9 @@ data class Peak(
  *     search runs on the smoothed series, sums run on the raw counts;
  *  2. a candidate is a local maximum of the smoothed series within ± half the
  *     expected peak width, where the width is FWHM-aware: [fwhmKeV] models the
- *     RC-110 CsI(Tl) resolution as FWHM(E) = R₆₆₂·√(662·E) (relative
- *     resolution ∝ 1/√E, ~8 % at 662 keV per the RadiaCode 110 spec sheet);
+ *     scintillator resolution as FWHM(E) = R₆₆₂·√(662·E) (relative resolution
+ *     ∝ 1/√E). R₆₆₂ belongs to the CONNECTED MODEL — 8,4 % for the CsI(Tl)
+ *     models, 7,4 % for the GAGG 103G — and is passed in, never assumed;
  *  3. the local continuum under the peak is the mean of two side windows
  *     (one peak-width away on each side); net = gross − continuum·width;
  *  4. значимость = нетто / σ(нетто), где Var(net) = валовые импульсы +
@@ -64,8 +65,14 @@ object PeakDetection {
     /** Poisson significance gate: 4σ over the local continuum. */
     const val DEFAULT_MIN_SIGNIFICANCE = 4f
 
-    /** Below this the RC-110 response is dominated by threshold effects. */
-    private const val MIN_ENERGY_KEV = 40f
+    /**
+     * Порог поиска по умолчанию, кэВ — для моделей со шкалой от 20 кэВ.
+     *
+     * Число НЕ приколочено к одной модели: вызывающий передаёт
+     * [DeviceModel.peakFloorKeV] своего прибора, а это значение остаётся
+     * запасным для случая, когда прибор неизвестен.
+     */
+    const val DEFAULT_MIN_ENERGY_KEV = 40f
 
     /**
      * Во сколько раз наблюдаемая ширина структуры может отличаться от
@@ -157,6 +164,8 @@ object PeakDetection {
         minSignificance: Float = DEFAULT_MIN_SIGNIFICANCE,
         /** Разрешение ЭТОГО прибора: у 103G оно лучше, чем у 103 и 110. */
         resolution662: Float = RESOLUTION_662,
+        /** Порог поиска ЭТОГО прибора: у моделей разная нижняя граница шкалы. */
+        minEnergyKeV: Float = DEFAULT_MIN_ENERGY_KEV,
     ): List<Peak> {
         // Крайний канал — граница шкалы, а не точка спектра ([SpectrumEdge]):
         // сюда поиск пиков не заходит вовсе.
@@ -166,7 +175,7 @@ object PeakDetection {
 
         val candidates = mutableListOf<Peak>()
         for (i in 2 until n - 2) {
-            if (calibration.energyAt(i.toFloat()) < MIN_ENERGY_KEV) continue
+            if (calibration.energyAt(i.toFloat()) < minEnergyKeV) continue
             val half = halfWidthChannels(calibration, i, resolution662)
             if (i - 3 * half < 0 || i + 3 * half >= n) continue
 

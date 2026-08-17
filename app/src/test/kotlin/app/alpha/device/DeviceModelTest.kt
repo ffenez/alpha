@@ -62,4 +62,33 @@ class DeviceModelTest {
         assertEquals(DeviceModel.RC_103G, info.model)
         assertEquals("RadiaCode-103G", info.model.displayName)
     }
+
+    /**
+     * Порог поиска пиков — правило от шкалы прибора, а не число одной модели.
+     *
+     * Пока в алгоритме стояло 40 кэВ «как у RC-110», прибору с порогом 25 или
+     * 30 кэВ доставалась чужая граница. Проверяется само правило: у каждой
+     * модели порог вдвое выше её собственного начала шкалы.
+     */
+    @Test
+    fun `порог поиска пиков считается от шкалы модели`() {
+        for (model in DeviceModel.entries) {
+            assertEquals(model.minEnergyKeV * 2f, model.peakFloorKeV, model.name)
+        }
+        // Разные приборы — разные пороги, и это именно то, ради чего правило.
+        assertEquals(40f, DeviceModel.RC_110.peakFloorKeV)
+        assertEquals(50f, DeviceModel.RC_103G.peakFloorKeV)
+    }
+
+    /** Ни одна линия библиотеки не оказывается ниже порога спектрометров. */
+    @Test
+    fun `библиотечные линии видны любому спектрометру серии`() {
+        val lowest = app.alpha.analysis.GammaLineLibrary.LINES.minOf { it.energyKeV }
+        for (model in DeviceModel.entries.filter { it.isSpectrometer }) {
+            assertTrue(
+                lowest >= model.peakFloorKeV,
+                "${model.displayName}: порог ${model.peakFloorKeV}, линия $lowest",
+            )
+        }
+    }
 }

@@ -160,6 +160,7 @@ fun SpectrumFullScreen(
                 counts = spectrum.counts,
                 calibration = calibration,
                 resolution662 = model.peakResolution662,
+                minEnergyKeV = model.peakFloorKeV,
             ).sortedBy { it.energyKeV }
         } else {
             emptyList()

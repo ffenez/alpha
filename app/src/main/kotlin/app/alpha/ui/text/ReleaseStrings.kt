@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v097Title: String
+    val v097Summary: String
+
     val v096Title: String
     val v096Summary: String
 
@@ -231,6 +234,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v097Title = "Разбор спектра подстраивается под вашу модель"
+    override val v097Summary =
+        "Приложение перестало применять числа одной модели ко всей серии: нижняя граница " +
+        "поиска пиков теперь считается от шкалы подключённого прибора, как и разрешение, " +
+        "поэтому 103G и Zero больше не разбираются по чужим параметрам."
 
     override val v096Title = "Три заголовка на Главной и запись на самой карте"
     override val v096Summary =
@@ -720,6 +729,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v097Title = "Spectrum analysis follows your own model"
+    override val v097Summary =
+        "The app no longer applies one model's numbers to the whole series: the lower bound of " +
+        "the peak search is derived from the connected instrument's scale, as the resolution " +
+        "already was, so a 103G or a Zero is no longer analysed by someone else's parameters."
 
     override val v096Title = "Three headlines on the main screen, recording on the map"
     override val v096Summary =

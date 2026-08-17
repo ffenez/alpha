@@ -1,5 +1,7 @@
 package app.alpha.analysis
 
+import app.alpha.device.DeviceModel
+
 import app.alpha.ui.text.SpectrumRu
 import app.alpha.ui.text.SpectrumStrings
 import kotlin.math.ceil
@@ -74,9 +76,17 @@ object EnergyWindows {
         EnergyWindowSpec(700f, 1500f),
     )
 
-    /** Editing guards: the RC-110 range is 0.02–3 MeV [R1]. */
-    const val MIN_BOUND_KEV = 0f
-    const val MAX_BOUND_KEV = 3000f
+    /**
+     * Границы редактирования диапазонов, кэВ.
+     *
+     * Верх — потолок шкалы серии RadiaCode (3 МэВ у всех моделей в таблице
+     * [DeviceModel]); низ — ноль, потому что нижняя граница окна может
+     * начинаться от самого порога, а порог у моделей разный (20 кэВ у 103 и
+     * 110, 25 у 103G, 30 у Zero). Числа взяты из [DeviceModel], а не вписаны
+     * заново: появится модель с другой шкалой — правится одна таблица.
+     */
+    val MIN_BOUND_KEV = 0f
+    val MAX_BOUND_KEV = DeviceModel.entries.maxOf { it.maxEnergyKeV }
 
     /** Narrower than this is below the detector FWHM everywhere — not a window. */
     const val MIN_WIDTH_KEV = 10f
