@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0110Title: String
+    val v0110Summary: String
+
     val v0104Title: String
     val v0104Summary: String
 
@@ -255,6 +258,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0110Title = "Проверка перед релизом"
+    override val v0110Summary =
+        "Системная копия Android больше не может выгрузить базу измерений в облако, а доза " +
+        "за маршрут считается по измерениям: минуты, когда прибор молчал, дозы не дают. " +
+        "Английский отчёт печатает числа с точкой, а не с запятой."
 
     override val v0104Title = "Меньше кнопок над спектрограммой"
     override val v0104Summary =
@@ -795,6 +804,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0110Title = "The pre-release audit"
+    override val v0110Summary =
+        "Android's system backup can no longer upload the measurement database to the cloud, " +
+        "and the dose of a route is integrated from measurements: the minutes when the " +
+        "instrument was silent add none. English reports print numbers with a dot."
 
     override val v0104Title = "Fewer buttons above the spectrogram"
     override val v0104Summary =

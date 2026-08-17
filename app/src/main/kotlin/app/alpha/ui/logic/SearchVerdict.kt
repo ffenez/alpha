@@ -162,7 +162,7 @@ object SearchVerdict {
             label = t.whyCountRateNow,
             value = input.cps?.let { "${Uncertainty.num1(it)} ${t.cpsUnit}" } ?: t.valueNoData,
             evidence = Evidence.MEASURED,
-            note = input.cps?.let { Uncertainty.cpsSigmaLine(it) },
+            note = input.cps?.let { t.cpsSigmaLine(Uncertainty.num1(Uncertainty.cpsSigma(it))) },
         )
 
         val background = input.background

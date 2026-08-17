@@ -64,7 +64,8 @@ object SessionReportHtml {
                                     x = time.toDouble(),
                                     value = value,
                                     label = "${report.timeLabel(time)} · " +
-                                        "${formatValue(value)} ${series.unit}",
+                                        "${formatValue(value, report.strings.decimalComma)} " +
+                                        series.unit,
                                 )
                             },
                             axisLabels = timeAxis(series.points.map { it.first }, report.timeLabel),
@@ -109,9 +110,9 @@ object SessionReportHtml {
         }
     }
 
-    internal fun formatValue(value: Double): String = when {
-        value >= 100 -> String.format(java.util.Locale.US, "%.0f", value)
-        value >= 10 -> String.format(java.util.Locale.US, "%.1f", value).replace('.', ',')
-        else -> String.format(java.util.Locale.US, "%.3f", value).replace('.', ',')
+    internal fun formatValue(value: Double, decimalComma: Boolean = true): String = when {
+        value >= 100 -> ReportNumber.decimal(value, 0, decimalComma)
+        value >= 10 -> ReportNumber.decimal(value, 1, decimalComma)
+        else -> ReportNumber.decimal(value, 3, decimalComma)
     }
 }

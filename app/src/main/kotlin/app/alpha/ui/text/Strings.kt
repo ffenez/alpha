@@ -79,6 +79,9 @@ interface Strings {
     // --- Главная ---
     val doseRate: String
     val countRate: String
+
+    /** Единица скорости счёта: «с⁻¹» / «s⁻¹» — она принадлежит языку. */
+    val cpsUnit: String
     val hardness: String
     val trendPerHour: String
     val doseToday: String
@@ -678,7 +681,7 @@ fun Strings.allTexts(): List<String> = listOf(
     settingsAlarms, settingsAlarmsSub, settingsProfiles, settingsProfilesSub,
     settingsNotifications, settingsNotificationsSub, settingsView, settingsViewSub,
     settingsDevice, settingsDeviceSub, settingsAbout, settingsAboutSub,
-    languageTitle, languageSystem,
+    cpsUnit, languageTitle, languageSystem,
     statusNoData, statusMeasuring, statusAboveL1, statusUsual, statusUsualShort,
     explainMeasuring("0,30 мкЗв/ч"),
     statusAboveUsual, statusAboveThreshold, statusAboveThresholdShort,

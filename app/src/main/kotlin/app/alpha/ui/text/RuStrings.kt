@@ -22,6 +22,7 @@ object RuStrings : Strings {
     override val noData = "нет данных"
 
     override val doseRate = "Мощность дозы"
+    override val cpsUnit = "с⁻¹"
     override val countRate = "Скорость счёта"
     override val hardness = "Жёсткость"
     override val trendPerHour = "Динамика"

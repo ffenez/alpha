@@ -49,6 +49,13 @@ interface SearchStrings {
     val meterNeedsBackground: String
     val waitingStream: String
     val cpsUnit: String
+
+    /**
+     * «±3,6 с⁻¹ (1σ Пуассон)» — подпись под скоростью счёта. Единица и имя
+     * распределения живут в каталоге: собранные в общем форматтере, они
+     * уезжали в английский экран по-русски.
+     */
+    fun cpsSigmaLine(sigma: String): String
     /** Заголовок плитки, когда сравнение идёт с изученным фоном места. */
     val backgroundLearnedTag: String
     /** Что это за фон — в подробностях, а не на рабочем экране. */
@@ -391,6 +398,7 @@ object SearchRu : SearchStrings {
     override val meterNeedsBackground = "индикатор заработает после замера фона"
     override val waitingStream = "ждём поток данных…"
     override val cpsUnit = "с⁻¹"
+    override fun cpsSigmaLine(sigma: String) = "±$sigma с⁻¹ (1σ Пуассон)"
     override val backgroundLearnedTag = "ОБЫЧНО"
     override fun decisionRemaining(seconds: Int) = "нужно ещё ~$seconds с"
     override val decisionTooSmall = "разница слишком мала, чтобы её подтвердить"
@@ -777,6 +785,7 @@ object SearchEn : SearchStrings {
     override val meterNeedsBackground = "the meter starts working once the background is measured"
     override val waitingStream = "waiting for the data stream…"
     override val cpsUnit = "s⁻¹"
+    override fun cpsSigmaLine(sigma: String) = "±$sigma s⁻¹ (1σ Poisson)"
     override val backgroundLearnedTag = "USUAL"
     override fun decisionRemaining(seconds: Int) = "about $seconds s more"
     override val decisionTooSmall = "the difference is too small to confirm"
@@ -1158,7 +1167,7 @@ val SearchCatalogue = AreaCatalogue(ru = SearchRu, en = SearchEn)
 fun SearchStrings.allTexts(): List<String> = listOf(
     backgroundRecordedAt("12.08", "14:30"),
     title, soundChip, vibroChip, feedbackOffNote, feedbackOffShort,    toneHint, vibroHint,
-    toBackground, meterNeedsBackground,    waitingStream, cpsUnit, tapeStartLabel, baselineLabel("25,5"), excursionLabel("×1,8"),
+    toBackground, meterNeedsBackground,    waitingStream, cpsUnit, cpsSigmaLine("3,6"), tapeStartLabel, baselineLabel("25,5"), excursionLabel("×1,8"),
     modeNavigate, modeVerify,    navTrendCollecting, navTrendNoChange, navTrendRising, navTrendFalling,
     navRatio("1,60", navRatioInterval(95, "1,20", "2,10")), navRatio("1,60", null),
     navRatioInterval(95, "1,20", "2,10"), navRatioToLocal("1,00"), navWindows("1,8", "16,0"),

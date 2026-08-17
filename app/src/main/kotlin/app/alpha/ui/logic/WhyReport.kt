@@ -279,7 +279,8 @@ object WhyReportBuilder {
             add(
                 WhyLine(
                     label = s.countRate,
-                    value = input.cps?.let { Uncertainty.cpsWithSigma(it) } ?: "—",
+                    value = input.cps?.let { "${Uncertainty.cpsWithSigma(it)} ${s.cpsUnit}" }
+                        ?: "—",
                     note = s.countIsNotDose,
                 ),
             )

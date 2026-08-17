@@ -90,7 +90,7 @@ object SpectrumReportHtml {
                         marks = report.peaks.mapIndexed { index, peak ->
                             HtmlChart.Mark(
                                 x = peak.energyKeV,
-                                label = formatEnergy(peak.energyKeV),
+                                label = formatEnergy(peak.energyKeV, s.decimalComma),
                                 key = "p$index",
                             )
                         },
@@ -117,11 +117,11 @@ object SpectrumReportHtml {
                             ),
                         )
                         append("\">")
-                        append("<td>").append(HtmlDocument.escape(formatEnergy(peak.energyKeV)))
+                        append("<td>").append(HtmlDocument.escape(formatEnergy(peak.energyKeV, s.decimalComma)))
                         append("</td><td>")
                         append(HtmlDocument.escape(formatCount(peak.netCounts.toLong())))
                         append("</td><td>")
-                        append(HtmlDocument.escape(formatSignificance(peak.significance)))
+                        append(HtmlDocument.escape(formatSignificance(peak.significance, s.decimalComma)))
                         append("</td><td>")
                         append(
                             HtmlDocument.escape(
@@ -164,12 +164,12 @@ object SpectrumReportHtml {
         return out
     }
 
-    private fun formatEnergy(value: Double): String =
-        String.format(java.util.Locale.US, "%.1f", value).replace('.', ',')
+    private fun formatEnergy(value: Double, decimalComma: Boolean): String =
+        ReportNumber.decimal(value, 1, decimalComma)
 
     private fun formatCount(value: Long): String =
         value.toString().reversed().chunked(3).joinToString(" ").reversed()
 
-    private fun formatSignificance(value: Double): String =
-        String.format(java.util.Locale.US, "%.1f σ", value).replace('.', ',')
+    private fun formatSignificance(value: Double, decimalComma: Boolean): String =
+        ReportNumber.decimal(value, 1, decimalComma) + " σ"
 }

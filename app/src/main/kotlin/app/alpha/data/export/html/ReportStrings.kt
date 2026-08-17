@@ -10,6 +10,12 @@ package app.alpha.data.export.html
  */
 interface ReportStrings {
 
+    /**
+     * Разделитель дробной части: запятая у русского отчёта, точка у
+     * английского. Свойство языка, а не машины, которая собрала страницу.
+     */
+    val decimalComma: Boolean
+
     val accumulation: String
     val totalCounts: String
     val channels: String
@@ -67,6 +73,8 @@ interface ReportStrings {
 }
 
 object ReportRu : ReportStrings {
+
+    override val decimalComma = true
     override val accumulation = "накопление"
     override val totalCounts = "импульсов"
     override val channels = "каналов"
@@ -80,6 +88,7 @@ object ReportRu : ReportStrings {
         linear = "Лин",
         logarithmic = "Лог",
         fullScreen = "Во весь экран",
+        decimalComma = true,
     )
 
     override val recordsSection = "Записи"
@@ -129,6 +138,8 @@ object ReportRu : ReportStrings {
 }
 
 object ReportEn : ReportStrings {
+
+    override val decimalComma = false
     override val accumulation = "accumulation"
     override val totalCounts = "counts"
     override val channels = "channels"
@@ -139,6 +150,7 @@ object ReportEn : ReportStrings {
         "A match in energy is a hypothesis, not a detection: different sources share " +
             "energies, and a conclusion follows from the set of lines, not from one."
     override val chartLabels = HtmlChart.Labels(
+        decimalComma = false,
         linear = "Lin",
         logarithmic = "Log",
         fullScreen = "Full screen",
@@ -182,14 +194,14 @@ object ReportEn : ReportStrings {
             "geometry, not about what the substance is or what it does to health."
 
     override fun peakReadout(energyKeV: Double, counts: Double): String =
-        "${number(energyKeV, 1)} keV · ${number(counts, 0)} counts"
+        "${number(energyKeV, 1, comma = false)} keV · " +
+            "${number(counts, 0, comma = false)} counts"
 
-    override fun keV(value: Double): String = number(value, 0)
+    override fun keV(value: Double): String = number(value, 0, comma = false)
 
     override fun madeBy(appName: String, version: String, dateTime: String): String =
         "Made by $appName $version · $dateTime"
 }
 
-/** Число с запятой в дробной части: отчёт читают там же, где и приложение. */
-private fun number(value: Double, decimals: Int): String =
-    String.format(java.util.Locale.US, "%.${decimals}f", value).replace('.', ',')
+private fun number(value: Double, decimals: Int, comma: Boolean = true): String =
+    ReportNumber.decimal(value, decimals, comma)

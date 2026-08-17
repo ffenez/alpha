@@ -28,29 +28,17 @@ data class RouteSummary(
     val measurementCount: Int,
     val avgDoseMicroSvH: Float?,
     val maxDoseMicroSvH: Float?,
+    /**
+     * Доза за маршрут, мкЗв: интеграл по измерениям промежутка. Null у идущей
+     * записи (делить незаконченное не на что) и там, где измерений не было.
+     */
+    val doseMicroSv: Double? = null,
 ) {
     val running: Boolean get() = endedAt == null
 
     val durationSeconds: Long
         get() = ((endedAt ?: startedAt) - startedAt).coerceAtLeast(0L) / 1000
 
-    /**
-     * Доза за маршрут, мкЗв: средняя мощность на длительность.
-     *
-     * Это ОЦЕНКА, а не интеграл по показаниям: точки следа приходят неровно, и
-     * средняя по ним взвешена числом точек, а не временем. На ровной прогулке
-     * разница мала, на прогулке с долгим пропуском координат — нет, поэтому
-     * величина названа дозой за маршрут и нигде не выдаётся за измеренную.
-     * Пока маршрут идёт, её нет вовсе: делить незаконченное не на что.
-     */
-    val doseMicroSv: Double?
-        get() {
-            if (running) return null
-            val average = avgDoseMicroSvH ?: return null
-            val hours = durationSeconds / 3600.0
-            if (hours <= 0.0) return null
-            return average * hours
-        }
 }
 
 /** Что показывает журнал: всё вместе или один вид записей. */

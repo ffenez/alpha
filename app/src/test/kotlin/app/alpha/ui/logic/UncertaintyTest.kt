@@ -1,6 +1,8 @@
 package app.alpha.ui.logic
 
 import kotlin.math.abs
+import app.alpha.ui.text.SearchEn
+import app.alpha.ui.text.SearchRu
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -17,10 +19,15 @@ class UncertaintyTest {
         assertEquals(0f, Uncertainty.cpsSigma(-1f))
     }
 
+    /**
+     * Число и его σ собираются здесь, единица — в каталоге языка: вшитая в
+     * форматтер, она печаталась по-русски и на английском экране.
+     */
     @Test
-    fun `cps line carries the value and its sigma`() {
-        assertEquals("24,3 ±4,9 с⁻¹", Uncertainty.cpsWithSigma(24.3f))
-        assertEquals("±6,2 с⁻¹ (1σ Пуассон)", Uncertainty.cpsSigmaLine(38.2f))
+    fun `cps line carries the value and its sigma without a unit`() {
+        assertEquals("24,3 ±4,9", Uncertainty.cpsWithSigma(24.3f))
+        assertEquals("±6,2 с⁻¹ (1σ Пуассон)", SearchRu.cpsSigmaLine(Uncertainty.num1(6.18f)))
+        assertEquals("±6,2 s⁻¹ (1σ Poisson)", SearchEn.cpsSigmaLine(Uncertainty.num1(6.18f)))
     }
 
     @Test

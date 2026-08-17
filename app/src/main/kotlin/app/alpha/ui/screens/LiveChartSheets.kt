@@ -160,12 +160,12 @@ internal fun BoxScope.ChartDetailsSheet(
                 color = colors.ink,
                 modifier = Modifier.padding(horizontal = Dimens.space3),
             )
+            val axis = ChartAxisCatalogue.of(LocalStrings.current.language)
             DistributionStrip(
                 histogram = histogram,
                 labels = frame.histogramLabels,
-                countCaption = DoseHistograms.countAxisLabel(
-                    ChartAxisCatalogue.of(LocalStrings.current.language),
-                ),
+                caption = axis.histogramCaption,
+                countCaption = DoseHistograms.countAxisLabel(axis),
             )
         }
         Text(

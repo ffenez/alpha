@@ -24,9 +24,13 @@ object Uncertainty {
         return sqrt(cps / tauSeconds)
     }
 
-    /** «24,3 ±2,1 с⁻¹» — rate with its Poisson 1σ at τ = 1 s. */
-    fun cpsWithSigma(cps: Float): String =
-        "${num1(cps)} ±${num1(cpsSigma(cps))} с⁻¹"
+    /**
+     * «24,3 ±2,1» — счёт и его пуассоновская 1σ при τ = 1 с, БЕЗ единицы.
+     *
+     * Единица приходит из каталога языка (`с⁻¹` / `s⁻¹`): вшитая сюда, она
+     * уезжала в английский экран русской буквой.
+     */
+    fun cpsWithSigma(cps: Float): String = cpsWithSigmaBare(cps)
 
     /**
      * То же без единицы — для плитки, у которой единица стоит в подписи.
@@ -45,9 +49,6 @@ object Uncertainty {
      * неопределённостью.
      */
     fun cpsPlain(cps: Float): String = num1(cps)
-
-    /** «±3,6 с⁻¹ (1σ Пуассон)» — the Search hero subtitle. */
-    fun cpsSigmaLine(cps: Float): String = "±${num1(cpsSigma(cps))} с⁻¹ (1σ Пуассон)"
 
     /** «±8%» from the device error percent; null when absent or zero. */
     fun errPercentLabel(errPercent: Float?): String? {

@@ -107,7 +107,10 @@ class DoseHistogramTest {
         val insufficient = assertIs<DistributionState.Insufficient>(state)
         assertEquals(10, insufficient.observations)
         assertEquals(DoseHistograms.MIN_OBSERVATIONS, insufficient.required)
-        assertEquals("недостаточно данных для распределения", DoseHistograms.INSUFFICIENT_TEXT)
+        assertEquals(
+            "недостаточно данных для распределения",
+            DoseHistograms.insufficientText(),
+        )
     }
 
     @Test
@@ -186,6 +189,6 @@ class DoseHistogramTest {
         // Ось Y считает ПОКАЗАНИЯ прибора, а не секунды экспозиции: при
         // пропусках это разные числа, и подпись обязана называть то, что
         // реально суммируется (`a.sampleCount`). Никакой «частоты» и плотности.
-        assertEquals("показаний прибора (≈1 в секунду)", DoseHistograms.COUNT_AXIS_LABEL)
+        assertEquals("показаний прибора (≈1 в секунду)", DoseHistograms.countAxisLabel())
     }
 }

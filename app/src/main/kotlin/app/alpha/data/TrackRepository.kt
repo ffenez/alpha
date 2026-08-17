@@ -1,5 +1,6 @@
 package app.alpha.data
 
+import app.alpha.data.db.SampleDao
 import app.alpha.data.db.TrackAreaSummaryRow
 import app.alpha.data.db.TrackBoundsRow
 import app.alpha.data.db.TrackDao
@@ -12,12 +13,18 @@ import app.alpha.ui.logic.RouteFormat
 import app.alpha.ui.logic.RouteShape
 import app.alpha.ui.logic.RouteShapePoint
 import app.alpha.ui.logic.RouteSummary
+import app.alpha.ui.logic.ChartMapping
 import app.alpha.ui.logic.TrackMap
 import kotlinx.coroutines.flow.Flow
 
 /** Track recording: sessions of GPS points joined with the latest dose rate. */
 class TrackRepository(
     private val trackDao: TrackDao,
+    /**
+     * Измерения того же времени: доза маршрута считается по ним, а не по
+     * средней мощности за календарное время (см. [routeSummary]).
+     */
+    private val sampleDao: SampleDao,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
 
@@ -130,10 +137,21 @@ class TrackRepository(
      * один раз по полному следу и записывается. Так список остаётся дешёвым
      * (четыре числа одним запросом), а маршруты, записанные прежней версией,
      * не остаются без расстояния навсегда.
+     *
+     * Доза — ИНТЕГРАЛ ПО ИЗМЕРЕНИЯМ того же промежутка, той же формулой, что у
+     * сессии ([ChartMapping.integrateDoseMicroSv]): каждое показание отвечает
+     * за свою секунду, а время без показаний не даёт дозы вовсе. Прежняя
+     * оценка «средняя мощность × длительность» приписывала прогулке дозу за
+     * те минуты, когда прибор молчал, и уезжала в отчёт как измеренная.
      */
     suspend fun routeSummary(session: TrackSessionEntity): RouteSummary {
         val row = trackDao.routeSummary(session.id)
         val distance = session.distanceMeters ?: computeDistance(session)
+        val doseMicroSv = session.endedAt?.let { endedAt ->
+            ChartMapping.integrateDoseMicroSv(
+                sampleDao.downsampledRange(session.startedAt, endedAt, DOSE_BUCKET_MILLIS),
+            )
+        }
         return RouteSummary(
             id = session.id,
             name = session.name,
@@ -146,6 +164,7 @@ class TrackRepository(
                 ?.let { DoseUnits.rawToMicroSievertPerHour(it.toFloat()) },
             maxDoseMicroSvH = row.maxDoseRaw
                 ?.let { DoseUnits.rawToMicroSievertPerHour(it.toFloat()) },
+            doseMicroSv = doseMicroSv,
         )
     }
 
@@ -235,4 +254,14 @@ class TrackRepository(
         valueStep = valueStep,
         limit = limit,
     )
+    companion object {
+
+        /**
+         * Корзина интегрирования дозы, мс. Те же десять минут, что у сессии
+         * ([SessionRepository]): доза обеих записей обязана считаться одним
+         * способом, иначе один и тот же промежуток давал бы два числа.
+         */
+        private const val DOSE_BUCKET_MILLIS = 10L * 60_000L
+    }
+
 }

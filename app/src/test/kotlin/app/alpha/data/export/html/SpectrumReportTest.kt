@@ -165,4 +165,24 @@ class SpectrumReportTest {
         assertTrue(ru.contains("Найденные пики"))
         assertTrue(en.contains("hypothesis"))
     }
+
+    /**
+     * Разделитель дробной части принадлежит языку отчёта: «1460,8 keV» на
+     * английской странице читается как перечисление двух чисел, а не как
+     * энергия. Проверяются и таблица, и подписи оси графика — они собираются
+     * разными путями и разъезжались.
+     */
+    @Test
+    fun `дробная часть отделена по языку отчёта`() {
+        val ru = SpectrumReportHtml.render(report())
+        assertTrue(ru.contains("1460,8"), "русский отчёт без запятой")
+        assertFalse(ru.contains("1460.8"), "русский отчёт с точкой")
+
+        val en = SpectrumReportHtml.render(report().copy(strings = ReportEn))
+        assertTrue(en.contains("1460.8"), "английский отчёт без точки")
+        assertFalse(en.contains("1460,8"), "английский отчёт с запятой")
+        // Значимость собирается другим путём, чем энергия, и разъезжалась.
+        assertTrue(en.contains("12.4 σ"), "значимость на английском с запятой")
+        assertTrue(ru.contains("12,4 σ"), "значимость по-русски с точкой")
+    }
 }

@@ -37,16 +37,16 @@ class RouteSummaryTest {
     }
 
     /**
-     * Доза за маршрут — оценка средней мощности на длительность, и у идущей
-     * записи её нет: делить незаконченное не на что.
+     * Доза маршрута — ИНТЕГРАЛ ПО ИЗМЕРЕНИЯМ, который считает репозиторий
+     * ([app.alpha.data.TrackRepository]), а не средняя мощность на календарное
+     * время: минуты без показаний дозы не дают. Сводка её только несёт, и у
+     * записи без измерений её нет вовсе.
      */
     @Test
-    fun `dose over the route is the mean rate times the time it took`() {
-        assertEquals(0.12, route().doseMicroSv!!, 1e-6)
+    fun `the route carries the measured dose and invents none`() {
+        assertNull(route().doseMicroSv)
+        assertEquals(0.12, route().copy(doseMicroSv = 0.12).doseMicroSv!!, 1e-6)
         assertNull(route(endedAt = null).doseMicroSv)
-        assertNull(route(avg = null).doseMicroSv)
-        // Маршрут, начатый и законченный в одну секунду, дозы не даёт.
-        assertNull(route(startedAt = 0L, endedAt = 0L).doseMicroSv)
     }
 }
 

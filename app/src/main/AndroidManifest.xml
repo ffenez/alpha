@@ -52,11 +52,19 @@
         android:name="android.hardware.bluetooth_le"
         android:required="true" />
 
+    <!--
+      Системная копия выключена НАМЕРЕННО. Android Auto Backup выгружает базу
+      приложения в облако владельца телефона, а в ней лежат измерения и
+      координаты — ровно то, что по инварианту проекта не покидает устройство.
+      Перенос данных на новый телефон делает своя копия приложения
+      (Настройки → Копия), где человек сам выбирает файл и его судьбу.
+    -->
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
         <activity

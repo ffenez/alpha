@@ -113,7 +113,7 @@ class AppGraph private constructor(
         )
     }
 
-    val trackRepository: TrackRepository by lazy { TrackRepository(database.trackDao()) }
+    val trackRepository: TrackRepository by lazy { TrackRepository(database.trackDao(), database.sampleDao()) }
 
     /** Read side of the minute/hour pre-aggregation (ADR 004). */
     val preAggregateRepository: PreAggregateRepository by lazy {

@@ -33,7 +33,7 @@ enum class BinRule {
  * window (coverage is counted separately, `coveredSeconds`). Values are the
  * sub-bucket means of the window; at short windows a sub-bucket is one second,
  * so the bins then hold the raw samples themselves.
- * [DoseHistograms.COUNT_AXIS_LABEL] is the exact wording of what is counted
+ * [DoseHistograms.countAxisLabel] is the exact wording of what is counted
  * (graph spec §14, §39).
  */
 data class DoseHistogram(
@@ -100,7 +100,7 @@ sealed interface DistributionState {
 
     /**
      * Measurements exist but too few independent values to shape a
-     * distribution — the UI says [DoseHistograms.INSUFFICIENT_TEXT] and shows
+     * distribution — the UI says [DoseHistograms.insufficientText] and shows
      * nothing else.
      */
     data class Insufficient(val observations: Int, val required: Int) : DistributionState
@@ -128,7 +128,7 @@ sealed interface DistributionState {
  *    scientific claim rests on them.
  * 3. **Units.** x axis µSv/h; y axis counts of raw samples — instrument
  *    readings at its nominal ≈1 Hz cadence, which is not the same as seconds of
- *    exposure once the stream has gaps ([COUNT_AXIS_LABEL]).
+ *    exposure once the stream has gaps ([countAxisLabel]).
  * 4. **Reference.** Freedman, D. & Diaconis, P. (1981), *On the histogram as a
  *    density estimator: L₂ theory*, Z. Wahrscheinlichkeitstheorie verw. Gebiete
  *    57, 453–476. Graph spec §14 for the clamp/fallback requirement.
@@ -146,7 +146,7 @@ sealed interface DistributionState {
  * 8. **Algorithm version.** [AlgorithmVersions.DOSE_HISTOGRAM].
  * 9. **User-facing meaning.** «Сколько показаний прибора пришлось на каждый
  *    уровень мощности дозы». Below [MIN_OBSERVATIONS] independent values
- *    the honest answer is [INSUFFICIENT_TEXT] — not a prettier histogram.
+ *    the honest answer is [insufficientText] — not a prettier histogram.
  *
  * Pure JVM; no Android dependencies.
  */
@@ -180,12 +180,9 @@ object DoseHistograms {
      * Константы остались русскими: их пинит `DoseHistogramTest`, и они же
      * служат значением по умолчанию. Экран берёт подпись из каталога.
      */
-    const val COUNT_AXIS_LABEL = "показаний прибора (≈1 в секунду)"
-
-    const val INSUFFICIENT_TEXT = "недостаточно данных для распределения"
-
-    const val NO_DATA_TEXT = "нет измерений в окне"
-
+    
+    
+    
     fun countAxisLabel(s: ChartAxisStrings = ChartAxisRu): String = s.histogramCountAxis
 
     fun insufficientText(s: ChartAxisStrings = ChartAxisRu): String = s.histogramInsufficient

@@ -30,6 +30,7 @@ object EnStrings : Strings {
     override val noData = "no data"
 
     override val doseRate = "Dose rate"
+    override val cpsUnit = "s⁻¹"
     override val countRate = "Count rate"
     override val hardness = "Hardness"
     override val trendPerHour = "Trend"

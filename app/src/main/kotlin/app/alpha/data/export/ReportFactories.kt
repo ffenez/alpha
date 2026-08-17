@@ -84,12 +84,12 @@ object ReportFactories {
             subtitle = rangeText(summary.startedAt, summary.endedAt, zone),
             heroCells = listOfNotNull(
                 stats.avgDoseRateMicroSvH?.let {
-                    Triple(number(it.toDouble(), 3), s.average, if (ru) "мкЗв/ч" else "µSv/h")
+                    Triple(number(it.toDouble(), 3, ru), s.average, if (ru) "мкЗв/ч" else "µSv/h")
                 },
                 if (stats.minDoseRateMicroSvH != null && stats.maxDoseRateMicroSvH != null) {
                     Triple(
-                        "${number(stats.minDoseRateMicroSvH!!.toDouble(), 2)}–" +
-                            number(stats.maxDoseRateMicroSvH!!.toDouble(), 2),
+                        "${number(stats.minDoseRateMicroSvH!!.toDouble(), 2, ru)}–" +
+                            number(stats.maxDoseRateMicroSvH!!.toDouble(), 2, ru),
                         s.range,
                         null,
                     )
@@ -97,7 +97,7 @@ object ReportFactories {
                     null
                 },
                 Triple(
-                    number(summary.doseMicroSv, 2),
+                    number(summary.doseMicroSv, 2, ru),
                     s.accumulatedDose,
                     if (ru) "мкЗв" else "µSv",
                 ),
@@ -149,14 +149,14 @@ object ReportFactories {
             subtitle = rangeText(summary.startedAt, summary.endedAt, zone),
             heroCells = listOfNotNull(
                 summary.avgDoseMicroSvH?.let {
-                    Triple(number(it.toDouble(), 3), s.average, if (ru) "мкЗв/ч" else "µSv/h")
+                    Triple(number(it.toDouble(), 3, ru), s.average, if (ru) "мкЗв/ч" else "µSv/h")
                 },
                 summary.maxDoseMicroSvH?.let {
-                    Triple(number(it.toDouble(), 3), s.maximum, null)
+                    Triple(number(it.toDouble(), 3, ru), s.maximum, null)
                 },
                 summary.distanceMeters?.let {
                     Triple(
-                        if (it >= 1000) number(it / 1000, 2) else number(it, 0),
+                        if (it >= 1000) number(it / 1000, 2, ru) else number(it, 0, ru),
                         s.distance,
                         if (it >= 1000) (if (ru) "км" else "km") else (if (ru) "м" else "m"),
                     )
@@ -243,7 +243,7 @@ object ReportFactories {
                     counts = run.totalCounts.takeIf { it > 0 },
                     rateText = run.counts?.let {
                         val seconds = run.durationSeconds.coerceAtLeast(1)
-                        number(run.totalCounts.toDouble() / seconds, 1) +
+                        number(run.totalCounts.toDouble() / seconds, 1, ru) +
                             (if (ru) " имп/с" else " cps")
                     },
                     spectrum = run.counts,
@@ -275,9 +275,9 @@ object ReportFactories {
         ru: Boolean,
     ) = ReportComparison(
         label = comparison.label,
-        a = number(comparison.rateA, 2) + (if (ru) " имп/с" else " cps"),
-        b = number(comparison.rateB, 2) + (if (ru) " имп/с" else " cps"),
-        significance = number(comparison.z, 1) + " σ",
+        a = number(comparison.rateA, 2, ru) + (if (ru) " имп/с" else " cps"),
+        b = number(comparison.rateB, 2, ru) + (if (ru) " имп/с" else " cps"),
+        significance = number(comparison.z, 1, ru) + " σ",
         verdict = when (comparison.verdict) {
             AbAnalysis.Verdict.CONSISTENT -> if (ru) "различий не видно" else "no difference seen"
             AbAnalysis.Verdict.CHANGED -> if (ru) "различие есть" else "difference"
@@ -335,9 +335,9 @@ object ReportFactories {
                     label(summary, zone),
                     DATE_TIME.withZone(zone).format(Instant.ofEpochMilli(summary.startedAt)),
                     SpectrumReportFactory.duration(duration),
-                    summary.stats.avgDoseRateMicroSvH?.let { number(it.toDouble(), 3) } ?: "—",
-                    summary.stats.maxDoseRateMicroSvH?.let { number(it.toDouble(), 3) } ?: "—",
-                    number(summary.doseMicroSv, 2),
+                    summary.stats.avgDoseRateMicroSvH?.let { number(it.toDouble(), 3, ru) } ?: "—",
+                    summary.stats.maxDoseRateMicroSvH?.let { number(it.toDouble(), 3, ru) } ?: "—",
+                    number(summary.doseMicroSv, 2, ru),
                 )
             },
             details = emptyList(),
@@ -485,8 +485,13 @@ object ReportFactories {
     private fun stamp(millis: Long, zone: ZoneId): String =
         STAMP.withZone(zone).format(Instant.ofEpochMilli(millis))
 
-    private fun number(value: Double, decimals: Int): String =
-        String.format(Locale.US, "%.${decimals}f", value).replace('.', ',')
+    /**
+     * Число отчёта: разделитель дробной части задаёт язык отчёта, а не локаль
+     * телефона — страницу читают там, где её открыли.
+     */
+    private fun number(value: Double, decimals: Int, comma: Boolean = true): String =
+        String.format(Locale.US, "%.${decimals}f", value)
+            .let { if (comma) it.replace('.', ',') else it }
 
     private fun count(value: Long): String =
         value.toString().reversed().chunked(3).joinToString(" ").reversed()

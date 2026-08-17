@@ -2,6 +2,8 @@ package app.alpha.ui.logic
 
 import app.alpha.data.DoseUnitSetting
 import kotlin.math.abs
+import app.alpha.ui.text.ChartAxisEn
+import app.alpha.ui.text.ChartAxisRu
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -125,9 +127,11 @@ class TrendFitTest {
         assertEquals("+0,4 ↗", TrendFit.label(0.004f, DoseUnitSetting.MICRO_ROENTGEN))
     }
 
+    /** Формулировка живёт в каталоге языка, а не константой рядом с матемой. */
     @Test
     fun `unavailable wording is the honest one`() {
-        assertEquals("тренд недоступен", TrendFit.UNAVAILABLE)
+        assertEquals("тренд недоступен", ChartAxisRu.trendUnavailable)
+        assertEquals("trend unavailable", ChartAxisEn.trendUnavailable)
     }
 
     private fun TrendResult.slopePerHourBits(): Int =

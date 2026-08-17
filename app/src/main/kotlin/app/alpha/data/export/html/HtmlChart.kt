@@ -49,6 +49,12 @@ object HtmlChart {
         val linear: String = "Лин",
         val logarithmic: String = "Лог",
         val fullScreen: String = "Во весь экран",
+        /**
+         * Разделитель дробной части подписей оси. Он принадлежит ЯЗЫКУ отчёта,
+         * а не машине, которая его собрала: английская страница с «0,145»
+         * читается как список из двух чисел.
+         */
+        val decimalComma: Boolean = true,
     )
 
     /** Одна точка ряда: положение по оси и значение. */
@@ -160,8 +166,16 @@ object HtmlChart {
         // Сетка и подписи значений — по линейной шкале; в логарифмическом
         // виде своя сетка, поэтому обе нарисованы и переключаются вместе с
         // линией.
-        appendGrid(out, "lin", ::pyLinear, minValue, maxValue, valueUnit)
-        if (logarithmic) appendGrid(out, "log", ::pyLog, logMin, maxValue, valueUnit, log = true)
+        appendGrid(
+            out, "lin", ::pyLinear, minValue, maxValue, valueUnit,
+            decimalComma = labels.decimalComma,
+        )
+        if (logarithmic) {
+            appendGrid(
+                out, "log", ::pyLog, logMin, maxValue, valueUnit,
+                log = true, decimalComma = labels.decimalComma,
+            )
+        }
 
         for ((x, label) in axisLabels) {
             val position = px(x)
@@ -248,7 +262,10 @@ object HtmlChart {
         out.append("<svg viewBox=\"0 0 $WIDTH $HEIGHT\" role=\"img\" aria-label=\"")
             .append(HtmlDocument.escape(title)).append("\">\n")
 
-        appendGrid(out, "lin", ::py, minValue, maxValue, valueUnit)
+        appendGrid(
+            out, "lin", ::py, minValue, maxValue, valueUnit,
+            decimalComma = labels.decimalComma,
+        )
         for ((x, label) in axisLabels) {
             val position = px(x)
             out.append("<line x1=\"").append(fmt(position)).append("\" y1=\"$PAD_TOP\" x2=\"")
@@ -312,6 +329,7 @@ object HtmlChart {
         maxValue: Double,
         unit: String,
         log: Boolean = false,
+        decimalComma: Boolean = true,
     ) {
         val ticks = if (log) logTicks(minValue, maxValue) else linearTicks(minValue, maxValue)
         out.append("<g data-mode=\"").append(mode).append('"')
@@ -324,7 +342,8 @@ object HtmlChart {
                 .append("\" stroke=\"var(--line)\" stroke-width=\"1\"/>\n")
             out.append("<text x=\"").append(PAD_LEFT - 6).append("\" y=\"").append(fmt(y + 4))
                 .append("\" fill=\"var(--muted)\" font-size=\"11\" text-anchor=\"end\">")
-                .append(HtmlDocument.escape(tickLabel(tick))).append("</text>\n")
+                .append(HtmlDocument.escape(tickLabel(tick, decimalComma)))
+                .append("</text>\n")
         }
         out.append("<text x=\"").append(PAD_LEFT - 6).append("\" y=\"").append(PAD_TOP)
             .append("\" fill=\"var(--muted)\" font-size=\"10\" text-anchor=\"end\">")
@@ -368,17 +387,23 @@ object HtmlChart {
         return step * magnitude
     }
 
-    private fun tickLabel(value: Double): String = when {
+    private fun tickLabel(value: Double, decimalComma: Boolean): String = when {
         abs(value) >= 1000 -> (value / 1000).let {
-            if (it == it.roundToInt().toDouble()) "${it.roundToInt()}k" else String.format(
-                java.util.Locale.US, "%.1fk", it,
-            )
+            if (it == it.roundToInt().toDouble()) {
+                "${it.roundToInt()}k"
+            } else {
+                ReportNumber.decimal(it, 1, decimalComma) + "k"
+            }
         }
         value == value.roundToInt().toDouble() -> value.roundToInt().toString()
-        value >= 1 -> String.format(java.util.Locale.US, "%.1f", value)
-        else -> String.format(java.util.Locale.US, "%.2f", value)
+        value >= 1 -> ReportNumber.decimal(value, 1, decimalComma)
+        else -> ReportNumber.decimal(value, 2, decimalComma)
     }
 
+    /**
+     * Координата SVG — всегда с точкой: это не число для человека, а часть
+     * разметки, и запятая сделала бы её невалидной.
+     */
     private fun fmt(value: Double): String =
         String.format(java.util.Locale.US, "%.1f", value)
 
@@ -388,5 +413,13 @@ object HtmlChart {
     private fun jsonStrings(values: List<String>): String =
         values.joinToString(",", "[", "]") { Json.quote(it) }
 
-    private fun escapeJs(value: String): String = value.replace("'", "")
+    /**
+     * Идентификатор графика внутри обработчика `onclick`.
+     *
+     * Пропускаются только буквы, цифры, дефис и подчёркивание: сейчас сюда
+     * попадают только наши литералы («series0», «spectrum»), и белый список
+     * держит это свойство, чего вычёркивание кавычек не гарантировало.
+     */
+    private fun escapeJs(value: String): String =
+        value.filter { it.isLetterOrDigit() && it.code < 128 || it == '-' || it == '_' }
 }

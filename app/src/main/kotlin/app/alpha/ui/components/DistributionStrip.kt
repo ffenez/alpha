@@ -38,11 +38,12 @@ fun DistributionStrip(
     labels: List<Pair<Float, String>>,
     modifier: Modifier = Modifier,
     height: Dp = 62.dp,
-    caption: String = "распределение за окно",
+    /** Что за полоса — словами языка экрана, а не константой компонента. */
+    caption: String,
     // Say exactly what the bars count (graph spec §14, §39): raw 1 Hz samples,
     // i.e. measured seconds at the device's nominal cadence — not columns and
     // not a probability density.
-    countCaption: String = DoseHistograms.COUNT_AXIS_LABEL,
+    countCaption: String,
 ) {
     val colors = LocalAppColors.current
     val axisStyle = LocalAppTypography.current.axis

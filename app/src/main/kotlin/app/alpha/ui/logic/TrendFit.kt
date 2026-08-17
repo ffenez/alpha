@@ -104,7 +104,8 @@ data class TrendResult(
  * 9. **User-facing meaning.** «За последний час измеренная медиана менялась в
  *    среднем на X мкЗв/ч в час» — a description of the bins on screen, not a
  *    forecast and not a statement that something is happening. When the window
- *    does not carry enough bins or enough time, the UI says [UNAVAILABLE]
+ *    does not carry enough bins or enough time, the UI says so in the words of
+ *    the language catalogue
  *    instead of showing a number.
  *
  * Pure JVM; no Android dependencies.
@@ -153,8 +154,7 @@ object TrendFit {
     /** «тренд недоступен» — подпись вместо числа; язык берётся из каталога. */
     fun unavailable(s: ChartAxisStrings = ChartAxisRu): String = s.trendUnavailable
 
-    const val UNAVAILABLE = "тренд недоступен"
-
+    
     /**
      * Theil–Sen slope over [points] (present bins only), µSv/h per hour, or
      * null when the availability rule ([MIN_PRESENT_BINS], [MIN_SPAN_MILLIS])
