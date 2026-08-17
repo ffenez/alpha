@@ -24,10 +24,8 @@ interface MonitorStrings {
     val backToNow: String
 
     /**
-     * Подпись над выводом, когда свежих данных нет.
-     *
-     * Вывод остаётся на экране — скрывать его значит заставить человека
-     * гадать, — но читаться как текущий он не имеет права.
+     * Подпись над выводом, когда свежих данных нет: вывод остаётся на экране,
+     * но не читается как текущий.
      */
     val byLastMeasurement: String
 
@@ -53,9 +51,8 @@ interface MonitorStrings {
     val usualBackgroundUpdating: String
 
     /**
-     * Первый уровень (§12): ОДНО состояние без внутренней причины. Точные
-     * причины и длительности живут в «Почему такой вывод» — на Главной они
-     * читались как основной диагноз прибора, которым не являются.
+     * Первый уровень (§12): одно состояние без внутренней причины. Точные
+     * причины и длительности живут в «Почему такой вывод».
      */
     val usualBackgroundNotUpdating: String
     val usualBackgroundFrozen: String
@@ -65,19 +62,11 @@ interface MonitorStrings {
     val statMedian: String
     val statMax: String
     /**
-     * Bluetooth выключен — прибор не подключится, и это не отказ приложения.
-     *
-     * В отчёте о связи это выглядело как «Bluetooth was STATE_OFF, but STATE_ON
-     * was required» — фраза системы, по которой человеку нечего сделать. На
-     * экране должно стоять состояние и кнопка, которая ведёт туда, где его
-     * меняют.
+     * Bluetooth выключен: прибор не подключится, и это не отказ приложения.
+     * На экране стоит состояние и кнопка перехода в системные настройки.
      */
     /**
-     * «Подключено» — короткое подтверждение, которое гаснет само.
-     *
-     * Момент соединения человек ждёт, и он должен быть виден; но постоянная
-     * надпись «подключено» превращается в фон, который перестают замечать —
-     * и в момент, когда связь пропадёт, её отсутствие тоже не заметят.
+     * «Подключено» — короткое подтверждение связи, которое гаснет само.
      */
     val connectedFlash: String
 
@@ -121,10 +110,8 @@ interface MonitorStrings {
     // --- три заголовка Главной ---
 
     /**
-     * Заголовков на Главной ровно три, и каждый стоит того, чтобы прервать
-     * человека: его собственный порог, повышенный уровень и «уходите». Всё
-     * остальное — сравнение с обычным фоном места — живёт в справке, которая
-     * открывается нажатием на числа.
+     * Заголовков на Главной три: собственный порог, повышенный уровень и
+     * «уходите отсюда». Сравнение с обычным фоном места живёт в справке.
      */
     val alarmElevated: String
     fun alarmElevatedNote(times: String): String
@@ -265,9 +252,8 @@ object MonitorRu : MonitorStrings {
     override val trendWindowHour = "1 ч"
     override fun overWindow(window: String) = "за $window"
     override val usualBackgroundUpdating = "обычный фон пополняется"
-    // «Фоновая статистика» — имя движка, а человек читает вывод. Причина
-    // называется той стороной, которая ему видна: новые измерения сейчас не
-    // идут в копилку места. Подробная причина — по нажатию, в «Почему».
+    // Причина называется той стороной, которая видна на экране: новые
+    // измерения не идут в статистику места. Подробности — в «Почему».
     override val usualBackgroundNotUpdating = "новые данные сейчас не добавляются в фон"
     override val usualBackgroundFrozen = "обычный фон заморожен вручную"
     override val bandIsProfileP10P90 = "полоса — обычный диапазон места"
@@ -290,8 +276,8 @@ object MonitorRu : MonitorStrings {
     override fun minutesShort(value: Long) = "$value мин"
     override fun hoursShort(hours: String) = "$hours ч"
 
-    // «Изучаю обычный фон» — голос алгоритма о себе. Человек спрашивает про
-    // фон ЭТОГО МЕСТА и про то, сколько ещё собирать.
+    // Формулировка о фоне МЕСТА и о том, сколько ещё собирать, а не о работе
+    // алгоритма.
     override fun collectingUsualBackground(collected: String, required: String) =
         "фон этого места — $collected ч из $required ч"
     override fun usualBackgroundCollected(hours: String) =
@@ -323,8 +309,7 @@ object MonitorRu : MonitorStrings {
 
     override val alarmElevated = "Повышенный уровень"
     override fun alarmElevatedNote(times: String) = "$times к природному фону"
-    // Не «опасно», а что делать: инструмент называет действие и его причину,
-    // а приговор человек выносит сам.
+    // Не «опасно», а действие и его причина.
     override val alarmLeave = "Уходите отсюда"
     override val alarmLeaveNote = "за час здесь набирается годовая доза для населения"
     override val backgroundCollecting = "собирается"
@@ -359,8 +344,8 @@ object MonitorRu : MonitorStrings {
     override val exclusionContextUncertain = "место не подтверждено"
     override val exclusionStreamStale = "поток данных прерван"
     override val exclusionExperiment = "идёт Поиск или эксперимент"
-    // «карантин» — слово движка: человеку нужно, ЧТО произошло с измерением, а
-    // не как называется механизм, который его отложил (§3, §12).
+    // «Карантин» — слово движка; в тексте называется, что произошло с
+    // измерением (§3, §12).
     override val exclusionQuarantine = "недавно было отклонение уровня"
     override val exclusionStatisticsUnusable = "показание слишком неточное для статистики"
     override val exclusionManualFreeze = "обычный фон заморожен вручную"
@@ -549,8 +534,8 @@ object MonitorEn : MonitorStrings {
     override val evidenceInterpretationTag = "hypothesis"
     override val evidenceInterpretationNote = "a physical interpretation, not a fact"
 
-    // Причина называется симптомом человека, а не именем движка: ни «baseline»,
-    // ни «learning» здесь не появляются.
+    // Причина названа симптомом, а не именем движка: ни «baseline», ни
+    // «learning».
     override val exclusionLearningOff = "this profile does not build a usual background"
     override val usualBackgroundNotCollected =
         "this profile does not build a usual background"
