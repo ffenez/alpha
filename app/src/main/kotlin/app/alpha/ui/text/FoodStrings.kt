@@ -40,6 +40,13 @@ interface FoodStrings {
     val photoAttached: String
 
     // --- геометрия ---
+    /**
+     * Сосуд Маринелли: образец окружает детектор, поэтому геометрия
+     * повторяется буквально, а счёт выше, чем в банке.
+     */
+    val geometryMarinelli: String
+    val geometryMarinelliHint: String
+
     val geometryJarHalf: String
     val geometryJarLitre: String
     val geometryCup: String
@@ -102,6 +109,11 @@ object FoodRu : FoodStrings {
     override val changePhoto = "Другое фото"
     override val photoAttached = "фото выбрано"
 
+    override val geometryMarinelli = "Сосуд Маринелли"
+    override val geometryMarinelliHint =
+        "Образец окружает прибор со всех сторон: геометрия повторяется буквально, а счёт " +
+            "выше, чем в банке. Сравнивать такое измерение можно только с измерением в том " +
+            "же сосуде."
     override val geometryJarHalf = "Банка 0,5 л"
     override val geometryJarLitre = "Банка 1 л"
     override val geometryCup = "Кружка"
@@ -239,6 +251,11 @@ object FoodEn : FoodStrings {
     override val changePhoto = "Another photo"
     override val photoAttached = "photo chosen"
 
+    override val geometryMarinelli = "Marinelli beaker"
+    override val geometryMarinelliHint =
+        "The sample surrounds the instrument, so the geometry repeats exactly and the count " +
+            "rate is higher than in a jar. Compare such a measurement only with one made in " +
+            "the same beaker."
     override val geometryJarHalf = "Jar 0.5 l"
     override val geometryJarLitre = "Jar 1 l"
     override val geometryCup = "Mug"
@@ -352,7 +369,7 @@ fun FoodStrings.allTexts(): List<String> = listOf(
     stepBackground, stepSample, stepResult, start, backgroundHint, sampleHint,
     countRateNow("25,1"),
     sampleName, sampleMass, container, note, addPhoto, changePhoto, photoAttached,
-    geometryJarHalf, geometryJarLitre, geometryCup, geometryBag, geometryPlate,
+    geometryMarinelli, geometryMarinelliHint, geometryJarHalf, geometryJarLitre, geometryCup, geometryBag, geometryPlate,
     geometryCustom, geometryJarHint, geometryCupHint, geometryBagHint,
     geometryPlateHint, geometryCustomHint,
     verdictNoDifference, verdictNoDifferenceBody,

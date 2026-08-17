@@ -187,6 +187,7 @@ object PeakEvidenceBridge {
         val observed = peaks.map { ObservedPeak.from(it, resolution) }
         val options = EvidenceOptions(
             resolution = resolution,
+            minSignificance = PeakDetection.DEFAULT_MIN_SIGNIFICANCE.toDouble(),
             continuum = if (counts.isEmpty()) {
                 null
             } else {

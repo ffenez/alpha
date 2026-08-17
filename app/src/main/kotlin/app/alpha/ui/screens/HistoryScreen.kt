@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -225,6 +226,8 @@ fun HistoryScreen(
     onOpenSpectrum: (Long) -> Unit = {},
     /** Отрезок маршрута — полноэкранным графиком тех же измерений. */
     onOpenChart: ((from: Long, to: Long) -> Unit)? = null,
+    /** Место превышения на карте: у события журнала есть координаты. */
+    onOpenPlace: ((latitude: Double, longitude: Double) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -1072,7 +1075,31 @@ fun HistoryScreen(
                                         )
                                     }
 
-                                    is FeedEntry.Deviation -> DeviationRow(entry.event, unit)
+                                    is FeedEntry.Deviation -> DeviationRow(
+                                        event = entry.event,
+                                        unit = unit,
+                                        // Событие ведёт туда, где его видно:
+                                        // с координатами — на карту, без них
+                                        // — на график того же времени.
+                                        onClick = entry.event.let { event ->
+                                            val lat = event.latitude
+                                            val lon = event.longitude
+                                            when {
+                                                lat != null && lon != null &&
+                                                    onOpenPlace != null ->
+                                                    { { onOpenPlace(lat, lon) } }
+                                                onOpenChart != null -> {
+                                                    {
+                                                        onOpenChart(
+                                                            event.timestamp - EVENT_CHART_MARGIN,
+                                                            event.timestamp + EVENT_CHART_MARGIN,
+                                                        )
+                                                    }
+                                                }
+                                                else -> null
+                                            }
+                                        },
+                                    )
                                 }
                             }
                         }
@@ -1387,7 +1414,11 @@ private fun DataItem(label: String, value: String, valueColor: Color? = null) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
+private fun DeviationRow(
+    event: EventEntity,
+    unit: DoseUnitSetting,
+    onClick: (() -> Unit)? = null,
+) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
     val h = HistoryCatalogue.of(strings.language)
@@ -1397,8 +1428,12 @@ private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
         EventEntity.SOURCE_DEVIATION -> strings.deviation
         else -> strings.excursionPoint
     }
+    val located = event.latitude != null && event.longitude != null
     Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 9.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1409,6 +1444,16 @@ private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
                 style = type.footnote,
                 color = colors.ink2,
             )
+            if (onClick != null) {
+                Spacer(Modifier.width(Dimens.space1))
+                // Куда ведёт строка, сказано значком: на карту, если у события
+                // есть место, иначе на график того же времени.
+                Text(
+                    text = if (located) h.openOnMap else h.openOnChart,
+                    style = type.footnote,
+                    color = colors.dataText,
+                )
+            }
         }
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(Dimens.space3),
@@ -1430,6 +1475,13 @@ private fun DeviationRow(event: EventEntity, unit: DoseUnitSetting) {
 }
 
 // --- saved spectra: export + comparator entry ---
+
+/**
+ * Окно графика вокруг события журнала: по четверти часа с каждой стороны.
+ * **Инженерный параметр**: столько нужно, чтобы увидеть подъём и спад вокруг
+ * момента, а не одну точку в середине пустого поля.
+ */
+private const val EVENT_CHART_MARGIN = 15L * 60_000L
 
 /** Сколько снимков спектра держит лента: список — не архив прибора. */
 private const val SPECTRA_LIMIT = 30

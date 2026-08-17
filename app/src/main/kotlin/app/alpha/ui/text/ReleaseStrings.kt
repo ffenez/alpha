@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0140Title: String
+    val v0140Summary: String
+
     val v0130Title: String
     val v0130Summary: String
 
@@ -267,6 +270,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0140Title = "Кандидатов снова столько, сколько видит прибор"
+    override val v0140Summary =
+        "Разбор спектра перестал объявлять противоречием линию, которую сам поиск пиков не " +
+        "назвал бы находкой или которая стоит под соседним пиком, — из-за этого обычный " +
+        "природный фон терял кандидатов. Превышения в Истории теперь нажимаются: с " +
+        "координатами открывается карта на этом месте, без них — график того же времени."
 
     override val v0130Title = "Справка спектра отвечает «сколько копить»"
     override val v0130Summary =
@@ -832,6 +842,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0140Title = "As many candidates as the instrument actually sees"
+    override val v0140Summary =
+        "The spectrum analysis no longer calls a line missing when the peak search itself " +
+        "would not have reported it, or when it sits under a neighbouring peak — that alone " +
+        "was dropping candidates from an ordinary natural background. Excursions in History " +
+        "are tappable now: with coordinates they open the map on that spot, without them the " +
+        "chart of the same time."
 
     override val v0130Title = "The spectrum help answers «how long to collect»"
     override val v0130Summary =

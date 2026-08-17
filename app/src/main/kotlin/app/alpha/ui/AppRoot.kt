@@ -41,6 +41,7 @@ import app.alpha.ui.screens.FoodScreen
 import app.alpha.ui.screens.HistoryScreen
 import app.alpha.ui.logic.SpectrumViewOptions
 import app.alpha.ui.screens.LiveChartScreen
+import app.alpha.ui.screens.MapFocus
 import app.alpha.ui.screens.MapScreen
 import app.alpha.ui.screens.MonitorScreen
 import app.alpha.ui.screens.OnboardingScreen
@@ -171,6 +172,15 @@ private fun MainScaffoldContent(graph: AppGraph) {
         fullSpectrumHighlightKeV = options.highlightKeV
         fullSpectrum = true
     }
+    // Место превышения, о котором спросили из Истории: карта открывается на нём.
+    var mapFocusLat by rememberSaveable { mutableStateOf(0.0) }
+    var mapFocusLon by rememberSaveable { mutableStateOf(0.0) }
+    val mapFocus = if (mapFocusLat != 0.0 || mapFocusLon != 0.0) {
+        MapFocus(mapFocusLat, mapFocusLon)
+    } else {
+        null
+    }
+
     var showSpectrogram by rememberSaveable { mutableStateOf(false) }
     // Полный экран спектрограммы — тот же приём, что у спектра: поле владеет
     // дисплеем, поэтому режим живёт здесь, выше таб-бара. Вид (окно и режим)
@@ -443,7 +453,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     onStopContinuation = { continueSpectrumId = null },
                     onOpenFullscreen = openFullSpectrum,
                 )
-                AppTab.MAP -> MapScreen(graph)
+                AppTab.MAP -> MapScreen(graph, focus = mapFocus)
                 AppTab.HISTORY -> HistoryScreen(
                     graph = graph,
                     onOpenSession = { sessionDetailId = it },
@@ -453,6 +463,11 @@ private fun MainScaffoldContent(graph: AppGraph) {
                         chartRangeFrom = from
                         chartRangeTo = to
                         showLiveChart = true
+                    },
+                    onOpenPlace = { latitude, longitude ->
+                        mapFocusLat = latitude
+                        mapFocusLon = longitude
+                        tab = AppTab.MAP
                     },
                     onOpenSpectrum = { spectrumSnapshotId = it },
                     onContinueSpectrum = {
@@ -469,6 +484,10 @@ private fun MainScaffoldContent(graph: AppGraph) {
             tabs = navTabs,
             selected = tab,
             onSelect = {
+                if (it != AppTab.MAP) {
+                    mapFocusLat = 0.0
+                    mapFocusLon = 0.0
+                }
                 showSettings = false
                 showLiveChart = false
                 showFood = false

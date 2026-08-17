@@ -17,6 +17,8 @@ import app.alpha.ui.text.FoodStrings
  * чтобы два измерения были сравнимы между собой.
  */
 enum class FoodGeometry(val code: String) {
+    /** Сосуд Маринелли: образец окружает прибор, геометрия повторяется точно. */
+    MARINELLI("marinelli"),
     JAR_HALF_LITRE("jar_05"),
     JAR_LITRE("jar_1"),
     CUP("cup"),
@@ -26,6 +28,7 @@ enum class FoodGeometry(val code: String) {
     ;
 
     fun label(s: FoodStrings = FoodRu): String = when (this) {
+        MARINELLI -> s.geometryMarinelli
         JAR_HALF_LITRE -> s.geometryJarHalf
         JAR_LITRE -> s.geometryJarLitre
         CUP -> s.geometryCup
@@ -35,6 +38,7 @@ enum class FoodGeometry(val code: String) {
     }
 
     fun hint(s: FoodStrings = FoodRu): String = when (this) {
+        MARINELLI -> s.geometryMarinelliHint
         JAR_HALF_LITRE, JAR_LITRE -> s.geometryJarHint
         CUP -> s.geometryCupHint
         BAG -> s.geometryBagHint

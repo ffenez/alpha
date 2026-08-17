@@ -15,6 +15,10 @@ package app.alpha.ui.text
  */
 interface HistoryStrings {
 
+    /** Куда ведёт строка события журнала: «на карте ›» / «на графике ›». */
+    val openOnMap: String
+    val openOnChart: String
+
     /** Сокращения месяцев, 12 штук, январь первым. */
     val months: List<String>
 
@@ -175,6 +179,9 @@ interface HistoryStrings {
 }
 
 object HistoryRu : HistoryStrings {
+
+    override val openOnMap = "на карте ›"
+    override val openOnChart = "на графике ›"
     override val months = listOf(
         "янв", "фев", "мар", "апр", "мая", "июн",
         "июл", "авг", "сен", "окт", "ноя", "дек",
@@ -350,6 +357,9 @@ object HistoryRu : HistoryStrings {
 }
 
 object HistoryEn : HistoryStrings {
+
+    override val openOnMap = "on the map ›"
+    override val openOnChart = "on the chart ›"
     override val months = listOf(
         "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -518,6 +528,7 @@ val HistoryCatalogue = AreaCatalogue(ru = HistoryRu, en = HistoryEn)
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
+    openOnMap, openOnChart,
     today, yesterday,
     filterAll, filterSessions, filterRoutes, filterSpectra, filterFood,
     noFoodYet, foodExplained,

@@ -612,7 +612,6 @@ fun SpectrumScreen(
                 connected = connected,
                 hubState = hubState,
                 serialNumber = (connection as? ConnectionState.Connected)?.info?.serialNumber,
-                onSaveOverride = onSaveMerged,
             )
         }
         exportNote?.let {

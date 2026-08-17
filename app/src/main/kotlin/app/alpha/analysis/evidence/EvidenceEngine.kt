@@ -21,6 +21,12 @@ data class EvidenceOptions(
     val energyRangeKeV: ClosedFloatingPointRange<Double> = 20.0..3000.0,
     val library: List<LibraryLine> = EvidenceLineLibrary.LINES,
     val maxZ: Double = EnergyMatching.MAX_ACCEPTABLE_Z,
+    /**
+     * Порог значимости, с которым работал поиск пиков. Отсутствие линии
+     * доказывает что-либо только выше него: линию, которую сам поиск не
+     * объявил бы находкой, нельзя считать пропавшей.
+     */
+    val minSignificance: Double = LineObservabilityRule.DEFAULT_MIN_SIGNIFICANCE,
     val context: ContextEvidence = ContextEvidence(),
 )
 
@@ -166,6 +172,12 @@ object EvidenceEngine {
                         resolution = options.resolution,
                         efficiency = options.efficiency,
                         energyRangeKeV = options.energyRangeKeV,
+                        minSignificance = options.minSignificance,
+                        // Занятые области спектра — ВСЕ найденные пики, а не
+                        // только линии этого нуклида: линия, под которой стоит
+                        // чужой пик, не выделяется отдельным максимумом, и
+                        // «её нет» о ней сказать нельзя.
+                        foundEnergiesKeV = observedPeaks.map { it.centroidKeV },
                     )
                 },
                 explainedByArtifact = match != null && match.peak in explainedPeaks,

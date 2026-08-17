@@ -136,6 +136,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Overlay rebuild cadence while recording (1 Hz points come in faster). */
+/**
+ * Половина стороны рамки, на которую открывается карта у точки превышения,
+ * градусы. **Инженерный параметр**: 0,0015° ≈ 170 м по широте — место видно
+ * вместе с окрестностью, а не одной точкой во весь экран.
+ */
+private const val FOCUS_HALF_SPAN_DEG = 0.0015
+
 private const val LIVE_THROTTLE_MILLIS = 5_000L
 private const val HOTSPOT_EVENT_LIMIT = 500
 
@@ -216,8 +223,17 @@ private data class GridData(
  * own subscription in the service, alive exactly between Старт and Стоп.
  */
 @OptIn(FlowPreview::class)
+/**
+ * Куда открыть карту: место, о котором спросили из Истории.
+ *
+ * Координаты приходят из события журнала, поэтому это не «камера», а ФАКТ:
+ * вот здесь прибор зафиксировал превышение. Карта открывается на нём и в
+ * режиме «все записи» — событие могло случиться в любой прогулке.
+ */
+data class MapFocus(val latitudeDeg: Double, val longitudeDeg: Double)
+
 @Composable
-fun MapScreen(graph: AppGraph) {
+fun MapScreen(graph: AppGraph, focus: MapFocus? = null) {
     val h = HistoryCatalogue.of(LocalStrings.current.language)
     val context = LocalContext.current
     val colors = LocalAppColors.current
@@ -388,6 +404,22 @@ fun MapScreen(graph: AppGraph) {
         }
     }
 
+    // Пришли из Истории за конкретной точкой: показывается накопленная карта,
+    // а первая камера — небольшая рамка вокруг самого события.
+    LaunchedEffect(focus) {
+        if (focus != null) setScope(MapTrackScope.ALL)
+    }
+    val focusBounds = remember(focus) {
+        focus?.let {
+            MapBounds(
+                minLatitude = it.latitudeDeg - FOCUS_HALF_SPAN_DEG,
+                maxLatitude = it.latitudeDeg + FOCUS_HALF_SPAN_DEG,
+                minLongitude = it.longitudeDeg - FOCUS_HALF_SPAN_DEG,
+                maxLongitude = it.longitudeDeg + FOCUS_HALF_SPAN_DEG,
+            )
+        }
+    }
+
     // First camera of the accumulated map: everywhere the user ever recorded.
     var allBounds by remember { mutableStateOf<MapBounds?>(null) }
     LaunchedEffect(scope, hasRecordings) {
@@ -440,7 +472,8 @@ fun MapScreen(graph: AppGraph) {
             graph = graph,
             data = if (scope == MapTrackScope.CURRENT) d else null,
             grid = if (scope == MapTrackScope.ALL) grid else null,
-            initialBounds = if (scope == MapTrackScope.ALL) allBounds else null,
+            initialBounds = focusBounds
+                ?: if (scope == MapTrackScope.ALL) allBounds else null,
             metric = metric,
             metricIndex = metricIndex,
             onMetricSelect = { metricIndex = it },

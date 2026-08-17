@@ -143,8 +143,6 @@ internal fun SpectrumActionsBar(
     connected: Boolean,
     hubState: SpectrumHub.State,
     serialNumber: String?,
-    /** Continuation mode: «Сохранить» persists the merged sum instead. */
-    onSaveOverride: (() -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -173,24 +171,8 @@ internal fun SpectrumActionsBar(
         }
     }
 
-    // Одно действие внизу вместо трёх кнопок.
-    //
-    // Раньше здесь стояли «Сохранить в историю», «Сделать фоном» и «⋯»:
-    // три равновеликие цели у экрана, где смотрят на спектр, а не нажимают.
-    // Осталось то, ради чего сюда возвращаются, — снимок; фон, экспорт,
-    // импорт, масштаб и сброс живут в «⋮» шапки, где их и ищут.
-    //
-    // Название говорит РЕЗУЛЬТАТ: «Сохранить в историю» звучало как «записать
-    // куда-то», а появляется именно снимок — запись со своим временем,
-    // накоплением и профилем.
-    AppButton(
-        text = t.makeSnapshot,
-        primary = true,
-        onClick = onSaveOverride ?: { hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
-        enabled = spectrum != null,
-        modifier = Modifier.fillMaxWidth(),
-    )
-
+    // Кнопок под графиком нет вовсе: снимок, фон, экспорт, импорт и сброс
+    // живут в «⋮» шапки — это действия над записью, и место у них одно.
     // Статус фона — компактной строкой у своей кнопки: «фон: 11 авг · 51 ч».
     // Пока фона нет, на его месте стоит объяснение, что он даёт: пустое
     // состояние учит первому действию, а не молчит.

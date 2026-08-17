@@ -2,6 +2,7 @@ package app.alpha.analysis.evidence
 
 import app.alpha.analysis.EnergyCalibration
 import kotlin.math.roundToInt
+import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
@@ -92,6 +93,33 @@ object DetectionLimit {
     fun currieCounts(backgroundCounts: Double): Double =
         2.71 + 4.65 * sqrt(maxOf(backgroundCounts, 0.0))
 
+    /**
+     * Нетто-площадь, начиная с которой ПОИСК ПИКОВ объявил бы линию находкой.
+     *
+     * Отсутствие линии доказывает что-либо только тогда, когда её увидел бы
+     * тот же прибор, что искал остальные: у поиска пиков свой порог
+     * значимости k ([PeakDetection.DEFAULT_MIN_SIGNIFICANCE]), и он выше
+     * предела Карри. Решается A/σ(A) = k при σ²(A) ≈ A + 2B (валовые импульсы
+     * плюс вычтенный континуум):
+     *
+     * ```text
+     * A = (k² + √(k⁴ + 8k²B)) / 2
+     * ```
+     */
+    fun finderCounts(backgroundCounts: Double, minSignificance: Double): Double {
+        val b = maxOf(backgroundCounts, 0.0)
+        val k2 = minSignificance * minSignificance
+        if (k2 <= 0.0) return 0.0
+        return (k2 + sqrt(k2 * k2 + 8.0 * k2 * b)) / 2.0
+    }
+
+    /**
+     * Порог, ниже которого отсутствие линии не значит ничего: строже из двух —
+     * предела Карри и порога самого поиска пиков.
+     */
+    fun observableCounts(backgroundCounts: Double, minSignificance: Double): Double =
+        maxOf(currieCounts(backgroundCounts), finderCounts(backgroundCounts, minSignificance))
+
     /** Фоновые импульсы в области пика; null — континуум в этой точке неизвестен. */
     fun backgroundCounts(
         energyKeV: Double,
@@ -132,6 +160,12 @@ object LineObservabilityRule {
     /** Ниже этой энергии односторонний довод о ходе ε(E) не используется. */
     const val EFFICIENCY_MONOTONE_MIN_KEV = 150.0
 
+    /**
+     * Порог значимости поиска пиков по умолчанию — тот же, что у
+     * [app.alpha.analysis.PeakDetection.DEFAULT_MIN_SIGNIFICANCE].
+     */
+    const val DEFAULT_MIN_SIGNIFICANCE = 4.0
+
     fun evaluate(
         line: LibraryLine,
         referenceLine: LibraryLine,
@@ -140,15 +174,27 @@ object LineObservabilityRule {
         resolution: ResolutionModel,
         efficiency: DetectorEfficiencyModel? = null,
         energyRangeKeV: ClosedFloatingPointRange<Double>,
+        minSignificance: Double = DEFAULT_MIN_SIGNIFICANCE,
+        /**
+         * Энергии всех найденных пиков, кэВ. Линия, стоящая от любого из них
+         * ближе своей ширины, отдельным максимумом не выделяется — она внутри
+         * соседнего пика, и «её нет» о ней сказать нельзя, чей бы этот пик ни
+         * был.
+         */
+        foundEnergiesKeV: List<Double> = emptyList(),
     ): LineObservability {
         if (line.energyKeV !in energyRangeKeV) return LineObservability.OUT_OF_RANGE
         if (continuum == null) return LineObservability.UNDETERMINED
+        val fwhm = resolution.fwhmKeV(line.energyKeV)
+        if (foundEnergiesKeV.any { abs(it - line.energyKeV) < fwhm }) {
+            return LineObservability.UNDETERMINED
+        }
         if (referenceLine.intensityPercent <= 0.0 || referenceArea <= 0.0) {
             return LineObservability.UNDETERMINED
         }
         val background = DetectionLimit.backgroundCounts(line.energyKeV, continuum, resolution)
             ?: return LineObservability.UNDETERMINED
-        val limit = DetectionLimit.currieCounts(background)
+        val limit = DetectionLimit.observableCounts(background, minSignificance)
         val byYield = referenceArea * (line.intensityPercent / referenceLine.intensityPercent)
 
         val epsilon = efficiency?.relativeEfficiency(line.energyKeV)?.value
