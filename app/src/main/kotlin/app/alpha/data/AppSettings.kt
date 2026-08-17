@@ -415,6 +415,19 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         dataStore.edit { it[SPECTRUM_SCALE_ROOT] = root }
     }
 
+    /**
+     * Ось энергии спектрограммы: «log» (по умолчанию) или «linear».
+     *
+     * Хранится строкой, как и масштаб спектра: это ВЫБОР ПРЕДСТАВЛЕНИЯ, он
+     * переживает уход с экрана и уезжает в копию настроек вместе с остальными.
+     */
+    val spectrogramEnergyScale: Flow<String> =
+        dataStore.data.map { it[SPECTROGRAM_ENERGY_SCALE] ?: "log" }
+
+    suspend fun setSpectrogramEnergyScale(id: String) {
+        dataStore.edit { it[SPECTROGRAM_ENERGY_SCALE] = id }
+    }
+
     /** Вариант дизайн-языка: научный терминал или 8-bit. */
     val skin: Flow<AppSkin> = dataStore.data.map { AppSkin.of(it[SKIN]) }
 
@@ -739,6 +752,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val MANUAL_CPS = stringPreferencesKey("map_manual_cps")
         private val SPECTRUM_EPOCH = stringPreferencesKey("spectrum_epoch_mark")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
+        private val SPECTROGRAM_ENERGY_SCALE =
+            stringPreferencesKey("spectrogram_energy_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")
         private val MEASURED_RESOLUTION = stringPreferencesKey("measured_resolution")

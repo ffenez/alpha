@@ -19,6 +19,12 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0100Title: String
+    val v0100Summary: String
+
+    val v099Title: String
+    val v099Summary: String
+
     val v098Title: String
     val v098Summary: String
 
@@ -237,6 +243,20 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0100Title = "Спектрограмма: общий курсор и понятные величины"
+    override val v0100Summary =
+        "Мощность дозы стала отдельным графиком под картинкой на той же оси времени, " +
+        "а палец по спектрограмме ведёт общий курсор и показывает энергию под собой. " +
+        "Карточка момента говорит мощностью, счётом и средней энергией; ось энергии " +
+        "переключается на равномерную, техническое ушло в справку."
+
+    override val v099Title = "Увеличение спектра больше не даёт частокол"
+    override val v099Summary =
+        "При увеличении на логарифмической шкале между каналами больше не появляются " +
+        "вертикальные линии до низа поля: кривая идёт по реальным каналам, а пустые и " +
+        "нулевые каналы её разрывают, а не тянут вниз. Спектрограмму теперь можно очистить " +
+        "из её «⋮»."
 
     override val v098Title = "Сброс накопления объясняет, чего он не трогает"
     override val v098Summary =
@@ -738,6 +758,20 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0100Title = "Spectrogram: one cursor and readable quantities"
+    override val v0100Summary =
+        "The dose rate became its own plot under the image on the very same time axis, and " +
+        "dragging a finger across the spectrogram moves a shared cursor that reads out the " +
+        "energy under it. The moment card speaks in dose rate, count rate and mean energy; " +
+        "the energy axis can be switched to uniform and the technical parameters moved into " +
+        "the help."
+
+    override val v099Title = "Zooming the spectrum no longer builds a picket fence"
+    override val v099Summary =
+        "On the logarithmic scale, zooming no longer draws vertical lines to the bottom between " +
+        "channels: the curve follows real channels, and empty or zero ones break it instead of " +
+        "pulling it down. The spectrogram can now be cleared from its «⋮»."
 
     override val v098Title = "The reset says what it does not touch"
     override val v098Summary =

@@ -57,6 +57,16 @@ object SpectrumFrames {
         /** Верх оси значений для выбранного масштаба. */
         val yTop: Float,
     ) {
+        /**
+         * Сколько колонок В ЭТОМ кадре.
+         *
+         * Не константа: при увеличении колонок ровно столько, сколько видимых
+         * каналов. Отметки пиков и курсор обязаны считать положение по ЭТОМУ
+         * числу — иначе метка уезжает от своего пика ровно при том зуме, ради
+         * которого её и разглядывают.
+         */
+        val columnCount: Int get() = columns.size
+
         /** Окно уже включает всю шкалу — сдвигать его некуда. */
         val wholeRange: Boolean get() = visible.widthKeV >= full.widthKeV - 1f
     }
@@ -78,6 +88,14 @@ object SpectrumFrames {
         val full = SpectrumDisplay.fullWindow(calibration, counts.size)
         val visible = window?.let { SpectrumDisplay.clampInto(it, full) } ?: full
         val channels = SpectrumDisplay.channelRange(visible, calibration, counts.size)
+        // Колонок не больше, чем видимых каналов: увеличение обязано добавлять
+        // ГОРИЗОНТАЛЬНУЮ ПОДРОБНОСТЬ, а не выдумывать точки между каналами.
+        // Раньше десять видимых каналов растягивались на двести сорок колонок,
+        // и двести тридцать из них были пустыми — на логарифмической оси это
+        // и был «частокол» до низа поля.
+        val effectiveColumns = columnCount.coerceAtMost(
+            (channels.last - channels.first + 1).coerceAtLeast(1),
+        )
 
         val base = if (subtract && background != null) {
             SpectrumDisplay.subtractBackground(
@@ -90,7 +108,7 @@ object SpectrumFrames {
             counts.map { it.toFloat() }
         }
         val series = if (smoothing) SpectrumDisplay.movingAverage(base) else base
-        val columns = SpectrumDisplay.aggregateMax(series, channels, columnCount)
+        val columns = SpectrumDisplay.aggregateMax(series, channels, effectiveColumns)
 
         // Фон показывается наложением ТОЛЬКО в обычном режиме: вычитать его и
         // одновременно рисовать — использовать одни и те же импульсы дважды.
@@ -106,11 +124,15 @@ object SpectrumFrames {
                     currentSeconds = durationSeconds,
                 ),
                 channels,
-                columnCount,
+                effectiveColumns,
             )
         }
 
-        val dataMax = max(columns.maxOrNull() ?: 0f, overlay?.maxOrNull() ?: 0f)
+        // NaN — «нет данных», и в максимум он не входит.
+        val dataMax = max(
+            SpectrumDisplay.columnsMax(columns),
+            overlay?.let { SpectrumDisplay.columnsMax(it) } ?: 0f,
+        )
         // Верх оси принадлежит МАСШТАБУ: у логарифма это степень десяти (иначе
         // декадные линии не попадают на ровные доли высоты), у остальных —
         // сам максимум с запасом, но не ниже десяти импульсов.

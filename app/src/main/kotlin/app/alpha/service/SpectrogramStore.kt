@@ -86,6 +86,21 @@ class SpectrogramStore(private val repository: SpectrogramRepository? = null) {
         )
     }
 
+    /**
+     * Стереть запись целиком — и то, что на экране, и то, что в базе.
+     *
+     * В отличие от [onReset], это ЯВНАЯ команда человека: он попросил убрать
+     * записанное, а не начать новую сумму на приборе.
+     */
+    suspend fun clearHistory() {
+        ring.clear()
+        _slices.value = emptyList()
+        _latest.value = null
+        previous = null
+        previousAtMillis = 0L
+        repository?.clear()
+    }
+
     /** Device-side spectrum reset: drop the diff base, keep recorded history. */
     fun onReset() {
         previous = null

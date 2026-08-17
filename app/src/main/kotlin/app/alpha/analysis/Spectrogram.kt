@@ -54,15 +54,55 @@ object Spectrogram {
     private val LOG_SPAN = ln(MAX_KEV / MIN_KEV)
 
     /**
-     * Vertical position of an energy on the waterfall, 0 (=[MIN_KEV]) .. 1
-     * (=[MAX_KEV]); null outside the plotted range. Geometric scale: equal
-     * fractions are equal energy *ratios*, so the low-energy region where
-     * scintillator spectra live gets its fair share of rows.
+     * Ось энергии картинки: как высота строки связана с энергией.
+     *
+     * Обе шкалы честные, но отвечают на разные вопросы. [LOG] — геометрическая:
+     * равные доли высоты это равные ОТНОШЕНИЯ энергий, и низ спектра, где живут
+     * линии сцинтиллятора, получает свою долю строк. [LINEAR] — равные доли
+     * высоты это равные кэВ: по такой оси можно линейкой мерить расстояние
+     * между линиями, зато вся область ниже 300 кэВ сжимается в десятую часть
+     * поля.
+     *
+     * Выбор ВИДЕН на экране и записан в подписи оси: нелинейная ось без
+     * объявления читалась бы как линейная и врала бы про расстояния.
      */
-    fun fractionOfEnergy(keV: Float): Float? {
+    enum class EnergyScale { LOG, LINEAR }
+
+    /**
+     * Vertical position of an energy on the waterfall, 0 (=[MIN_KEV]) .. 1
+     * (=[MAX_KEV]); null outside the plotted range.
+     */
+    fun fractionOfEnergy(keV: Float, scale: EnergyScale = EnergyScale.LOG): Float? {
         if (keV < MIN_KEV || keV > MAX_KEV) return null
-        return (ln(keV / MIN_KEV) / LOG_SPAN)
+        return when (scale) {
+            EnergyScale.LOG -> ln(keV / MIN_KEV) / LOG_SPAN
+            EnergyScale.LINEAR -> (keV - MIN_KEV) / (MAX_KEV - MIN_KEV)
+        }
     }
+
+    /** Обратное преобразование: доля высоты поля → энергия, кэВ. */
+    fun energyAtFraction(fraction: Float, scale: EnergyScale = EnergyScale.LOG): Float {
+        val f = fraction.coerceIn(0f, 1f)
+        val keV = when (scale) {
+            EnergyScale.LOG -> MIN_KEV * kotlin.math.exp(f * LOG_SPAN)
+            EnergyScale.LINEAR -> MIN_KEV + f * (MAX_KEV - MIN_KEV)
+        }
+        // Края диапазона возвращаются РОВНО краями: на доле 1 exp даёт
+        // 3000,0002, и обратное преобразование выпадало из шкалы — верхняя
+        // строка растра оставалась без полосы.
+        return keV.coerceIn(MIN_KEV, MAX_KEV)
+    }
+
+    /**
+     * Полоса, которая приходится на строку растра.
+     *
+     * Растр строится по ДОЛЯМ ВЫСОТЫ, а не по полосам: тогда обе шкалы рисуются
+     * одним кодом, а линейная ось не требует другой сетки полос. Это выборка
+     * существующих полос, а не интерполяция — одна полоса просто занимает
+     * столько строк, сколько ей отводит выбранная ось.
+     */
+    fun bandOfFraction(fraction: Float, scale: EnergyScale = EnergyScale.LOG): Int? =
+        bandOfEnergy(energyAtFraction(fraction, scale))
 
     /** Band row (0-based from [MIN_KEV]) for an energy; null out of range. */
     fun bandOfEnergy(keV: Float): Int? {
@@ -332,6 +372,19 @@ object Spectrogram {
 
     /** Energy gridlines for the waterfall y-axis (fraction 0..1 → keV label). */
     val ENERGY_TICKS_KEV = listOf(50f, 100f, 300f, 600f, 1000f, 2000f)
+
+    /**
+     * Засечки линейной оси. Отдельный ряд, потому что геометрический (50, 100,
+     * 300…) на линейной оси слипся бы в нижнюю четверть поля: на равномерной
+     * шкале засечки обязаны стоять равномерно, иначе ось выглядит нелинейной.
+     */
+    val LINEAR_ENERGY_TICKS_KEV = listOf(500f, 1000f, 1500f, 2000f, 2500f)
+
+    /** Засечки той оси, которую выбрал человек. */
+    fun ticksKeV(scale: EnergyScale): List<Float> = when (scale) {
+        EnergyScale.LOG -> ENERGY_TICKS_KEV
+        EnergyScale.LINEAR -> LINEAR_ENERGY_TICKS_KEV
+    }
 
 }
 

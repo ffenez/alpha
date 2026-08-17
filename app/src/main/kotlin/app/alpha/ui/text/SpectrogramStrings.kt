@@ -60,6 +60,11 @@ interface SpectrogramStrings {
      */
     val recordNote: String
 
+    /** Стереть записанную спектрограмму — явная команда человека. */
+    val clearHistory: String
+    val clearConfirmTitle: String
+    val clearConfirmBody: String
+
     // --- частота записи (ADR 007) ---
 
     /**
@@ -92,10 +97,39 @@ interface SpectrogramStrings {
     /** Подпись полосы под картинкой: величина и её единица. */
     fun doseStripLabel(unit: String): String
 
-    /** Единица оси энергии внутри поля картинки. */
-    val energyUnit: String
+    /**
+     * Подпись оси энергии НАЗЫВАЕТ ШКАЛУ.
+     *
+     * Геометрическая ось так же нелинейна, как логарифмическая ось спектра: без
+     * пометки расстояние между засечками читалось бы как расстояние в кэВ, и
+     * человек мерил бы им линии.
+     */
+    val energyAxisLog: String
+    val energyAxisLinear: String
+
+    /** Пункты «⋮»: действие названо тем, что получится после нажатия. */
+    val energyScaleToLinear: String
+    val energyScaleToLog: String
+
+    /** Чем одна ось отличается от другой — в технических подробностях. */
+    val energyScaleLogNote: String
+    val energyScaleLinearNote: String
+
+    /** «146 кэВ» — энергия как значение, одинаково в прицеле и в карточке. */
+    fun energyValue(keV: Int): String
 
     val legendZero: String
+
+    /** Заголовок шкалы цвета: величина и единица. */
+    val legendIntensityTitle: String
+
+    /** В режиме формы величины нет — и подпись говорит именно это. */
+    val legendShapeTitle: String
+
+    /** Верх шкалы пересчитывается по видимому окну или держится. */
+    val scaleAuto: String
+    val scaleFixed: String
+    val scaleModeNote: String
 
     /** Верх шкалы в режиме формы: доля внутри столбца, а не количество. */
     val legendColumnMax: String
@@ -104,13 +138,43 @@ interface SpectrogramStrings {
     fun legendRate(value: String): String
 
     // --- карточка выбранного момента ---
-    fun measuredSeconds(seconds: Long): String
-    fun countsPerSecond(value: String): String
-    fun countsInColumn(counts: Int): String
-    fun meanEnergy(keV: Int): String
 
-    // --- «Как построена картинка» ---
-    val infoTitle: String
+    /** Реально измеренное время колонки, а не ширина ячейки сетки. */
+    fun windowSeconds(seconds: Long): String
+    fun countsPerSecond(value: String): String
+
+    /** Подписи под числами карточки: величина, а не её единица. */
+    val keyDoseRate: String
+    val keyCount: String
+    val keyMeanEnergy: String
+
+    // --- подробности момента ---
+    val statColumnCounts: String
+    val statMeasured: String
+
+    /** Ячейка покрыта не полностью: пропуск записи, а не спад интенсивности. */
+    fun partialColumn(measured: Long, step: Long): String
+
+    /** На каком энергетическом разрешении нарисована эта колонка. */
+    fun groupResolution(perGroup: Int, groups: Int): String
+
+    /**
+     * Почему из момента нельзя открыть полный спектр: в истории лежат полосы,
+     * а не каналы. Восстанавливать спектр из агрегата приложение не станет.
+     */
+    val noStoredSpectrum: String
+
+    // --- справка ---
+
+    /** Заголовок первого уровня: как читать картинку. */
+    val helpTitle: String
+
+    /** Правила чтения — по одному на строку, без вложенных оговорок. */
+    val howToRead: List<String>
+
+    /** Строка раскрытия: всё, что нужно редко. */
+    val technicalTitle: String
+
     val statIntervals: String
     /** Сколько срезов лежит в базе — видимое доказательство, что история цела. */
     val statStored: String
@@ -146,6 +210,12 @@ object SpectrogramRu : SpectrogramStrings {
     override val warmingUp = "накапливаем первые интервалы… столбцы появятся через ~10 с"
     override val offlineHistory = "нет соединения — показана записанная история"
     override val offlineTag = "нет связи · история"
+    override val clearHistory = "Очистить спектрограмму"
+    override val clearConfirmTitle = "Стереть записанную спектрограмму?"
+    override val clearConfirmBody =
+        "Уйдут все записанные срезы — и то, что на экране, и сохранённое в приложении. " +
+            "Измерения, снимки спектра и маршруты не затрагиваются."
+
     override val recordNote =
         "Спектрограмма — запись измеренного: каждая полоса это интервал между опросами. " +
             "Сброс накопления в Спектре обнуляет сумму прибора, а записанное здесь остаётся."
@@ -175,19 +245,67 @@ object SpectrogramRu : SpectrogramStrings {
     override val modeIntensity = "Интенсивность"
     override val modeShape = "Форма"
 
-    override fun doseStripLabel(unit: String) = "мощность дозы, $unit"
-    override val energyUnit = "кэВ"
+    override fun doseStripLabel(unit: String) = "Мощность дозы · $unit"
+    override val energyAxisLog = "кэВ · лог"
+    override val energyAxisLinear = "кэВ · лин"
+    override val energyScaleToLinear = "Показать энергию линейно"
+    override val energyScaleToLog = "Показать энергию логарифмически"
+    override val energyScaleLogNote =
+        "Ось энергии геометрическая: равная высота — равное отношение энергий, и низ " +
+            "спектра получает свою долю строк. Расстояние по вертикали не равно разнице в кэВ."
+    override val energyScaleLinearNote =
+        "Ось энергии равномерная: равная высота — равные кэВ, расстояния можно сравнивать " +
+            "линейкой. Всё, что ниже 300 кэВ, при этом умещается в десятую часть поля."
+    override fun energyValue(keV: Int) = "$keV кэВ"
 
     override val legendZero = "0"
+    override val legendIntensityTitle = "Интенсивность · имп/с"
+    override val legendShapeTitle = "Форма · доля от максимума столбца"
+    override val scaleAuto = "Авто"
+    override val scaleFixed = "Фикс"
+    override val scaleModeNote =
+        "Верх цветовой шкалы: «Авто» пересчитывается по видимому окну, поэтому один и тот же " +
+            "цвет при разных окнах означает разную интенсивность. «Фикс» держит верх таким, " +
+            "каким он был при нажатии, и цвета становятся сравнимы между окнами."
     override val legendColumnMax = "макс. столбца"
     override fun legendRate(value: String) = "$value имп/с"
 
-    override fun measuredSeconds(seconds: Long) = "измерено $seconds с"
-    override fun countsPerSecond(value: String) = "$value с⁻¹"
-    override fun countsInColumn(counts: Int) = "$counts имп в колонке"
-    override fun meanEnergy(keV: Int) = "ср. энергия $keV кэВ"
+    override fun windowSeconds(seconds: Long) = "окно $seconds с"
+    override fun countsPerSecond(value: String) = "$value имп/с"
 
-    override val infoTitle = "Как построена картинка"
+    override val keyDoseRate = "мощность"
+    override val keyCount = "счёт"
+    override val keyMeanEnergy = "ср. энергия"
+
+    override val statColumnCounts = "имп в колонке"
+    override val statMeasured = "измерено"
+
+    override fun partialColumn(measured: Long, step: Long) =
+        "Измерено $measured с из $step с шага: остальное время прибор не писал. Скорость " +
+            "считается по измеренному, поэтому неполная колонка не выглядит спадом."
+
+    override fun groupResolution(perGroup: Int, groups: Int) =
+        "Колонка нарисована на $groups энергетических группах по $perGroup полос: столько " +
+            "нужно, чтобы в группе набралась статистика."
+
+    override val noStoredSpectrum =
+        "Полный спектр этого момента не открыть: в истории спектрограммы лежат " +
+            "энергетические полосы, а не каналы. Восстанавливать спектр из них приложение " +
+            "не станет — это была бы придуманная кривая. Полные спектры сохраняются " +
+            "снимками на экране Спектра."
+
+    override val helpTitle = "Как читать спектрограмму"
+
+    override val howToRead = listOf(
+        "По горизонтали — время, слева старое.",
+        "По вертикали — энергия зарегистрированных импульсов.",
+        "Насыщенный цвет — выше интенсивность; пустая колонка означает, что измерений не было.",
+        "Нижний график — мощность дозы на той же оси времени.",
+        "Проведите пальцем по картинке, чтобы разобрать конкретный момент.",
+    )
+
+    override val technicalTitle = "Технические подробности →"
+
     override val statIntervals = "интервалов"
     override val statStored = "в базе"
     override val statRecorded = "записи"
@@ -241,6 +359,12 @@ object SpectrogramEn : SpectrogramStrings {
     override val offlineTag = "no link · history"
     // «переживает перезапуск» — теперь это обещание можно давать: срезы лежат в
     // базе. «Kept on the device», а не «cached» — кэш можно потерять молча.
+    override val clearHistory = "Clear the spectrogram"
+    override val clearConfirmTitle = "Erase the recorded spectrogram?"
+    override val clearConfirmBody =
+        "Every recorded stripe goes — both what is on the screen and what is stored in the " +
+            "app. Measurements, spectrum snapshots and routes are left untouched."
+
     override val recordNote =
         "The spectrogram is a record of what was measured: each stripe is one interval " +
             "between polls. Resetting the accumulation on the Spectrum zeroes the instrument's " +
@@ -275,21 +399,70 @@ object SpectrogramEn : SpectrogramStrings {
     override val modeIntensity = "Intensity"
     override val modeShape = "Shape"
 
-    override fun doseStripLabel(unit: String) = "dose rate, $unit"
-    override val energyUnit = "keV"
+    override fun doseStripLabel(unit: String) = "Dose rate · $unit"
+    override val energyAxisLog = "keV · log"
+    override val energyAxisLinear = "keV · lin"
+    override val energyScaleToLinear = "Show energy linearly"
+    override val energyScaleToLog = "Show energy logarithmically"
+    override val energyScaleLogNote =
+        "The energy axis is geometric: equal heights are equal energy ratios, so the low end " +
+            "of the spectrum gets its share of rows. Vertical distance is not a difference in keV."
+    override val energyScaleLinearNote =
+        "The energy axis is uniform: equal heights are equal keV, so distances can be " +
+            "compared directly. Everything below 300 keV then fits into a tenth of the plot."
+    override fun energyValue(keV: Int) = "$keV keV"
 
     override val legendZero = "0"
+    override val legendIntensityTitle = "Intensity · counts/s"
+    override val legendShapeTitle = "Shape · fraction of the column maximum"
+    override val scaleAuto = "Auto"
+    override val scaleFixed = "Held"
+    override val scaleModeNote =
+        "Top of the colour scale: «Auto» is recomputed for the visible window, so the same " +
+            "colour means a different intensity in a different window. «Held» keeps the top " +
+            "it had when you tapped it, which makes colours comparable across windows."
     // Верх шкалы формы — максимум ВНУТРИ столбца, а не «больше излучения»:
     // «column max» удерживает это, «high» уже утверждало бы количество.
     override val legendColumnMax = "column max"
     override fun legendRate(value: String) = "$value counts/s"
 
-    override fun measuredSeconds(seconds: Long) = "measured $seconds s"
-    override fun countsPerSecond(value: String) = "$value s⁻¹"
-    override fun countsInColumn(counts: Int) = "$counts counts in the column"
-    override fun meanEnergy(keV: Int) = "mean energy $keV keV"
+    override fun windowSeconds(seconds: Long) = "window $seconds s"
+    override fun countsPerSecond(value: String) = "$value counts/s"
 
-    override val infoTitle = "How this image is built"
+    override val keyDoseRate = "dose rate"
+    override val keyCount = "count rate"
+    override val keyMeanEnergy = "mean energy"
+
+    override val statColumnCounts = "counts in the column"
+    override val statMeasured = "measured"
+
+    override fun partialColumn(measured: Long, step: Long) =
+        "Measured $measured s out of the $step s step: the rest of the time the instrument " +
+            "was not writing. The rate is computed from the measured time, so a partial " +
+            "column does not look like a drop."
+
+    override fun groupResolution(perGroup: Int, groups: Int) =
+        "This column is drawn on $groups energy groups of $perGroup bands each — that is " +
+            "what it takes for a group to hold statistics."
+
+    override val noStoredSpectrum =
+        "The full spectrum of this moment cannot be opened: the spectrogram history holds " +
+            "energy bands, not channels. The app will not rebuild a spectrum from them — " +
+            "that would be an invented curve. Full spectra are kept as snapshots on the " +
+            "Spectrum screen."
+
+    override val helpTitle = "How to read the spectrogram"
+
+    override val howToRead = listOf(
+        "Horizontally — time, oldest on the left.",
+        "Vertically — the energy of the registered counts.",
+        "Deeper colour means higher intensity; an empty column means there were no measurements.",
+        "The plot below is the dose rate on the very same time axis.",
+        "Drag a finger across the image to examine a particular moment.",
+    )
+
+    override val technicalTitle = "Technical details →"
+
     override val statIntervals = "intervals"
     override val statStored = "stored"
     override val statRecorded = "recorded"
@@ -348,17 +521,23 @@ val SpectrogramCatalogue = AreaCatalogue(ru = SpectrogramRu, en = SpectrogramEn)
  * означала бы непроверенный текст.
  */
 fun SpectrogramStrings.allTexts(): List<String> = listOf(
-    recordNote,
+    recordNote, clearHistory, clearConfirmTitle, clearConfirmBody,
     title, paused, pausedTag, noLink, warmingUp, offlineHistory, offlineTag, backgroundNote,
     windowMinutes(15), windowHours(2),
-    modeIntensity, modeShape, doseStripLabel("µSv/h"), energyUnit,
+    modeIntensity, modeShape, doseStripLabel("µSv/h"),
+    energyAxisLog, energyAxisLinear, energyScaleToLinear, energyScaleToLog,
+    energyScaleLogNote, energyScaleLinearNote, energyValue(146),
     legendZero, legendColumnMax, legendRate("1,2"),
-    measuredSeconds(5), countsPerSecond("24,3"), countsInColumn(120), meanEnergy(310),
+    legendIntensityTitle, legendShapeTitle, scaleAuto, scaleFixed, scaleModeNote,
+    windowSeconds(26), countsPerSecond("24,3"),
+    keyDoseRate, keyCount, keyMeanEnergy,
+    statColumnCounts, statMeasured, partialColumn(12, 30), groupResolution(4, 24),
+    noStoredSpectrum, helpTitle, technicalTitle,
     rateTitle, rateDetailed, rateBalanced, rateEconomy, rateVolume("1,3"), rateThinning(7, 5),
-    infoTitle, statIntervals, statStored, statRecorded, statColumnStep, statBands,
+    statIntervals, statStored, statRecorded, statColumnStep, statBands,
     secondsValue(10), coverageNote("02:30", "05:00"),
     stepNote(stepPerBand("1,4")), stepCollecting,
     stepPerBand("1,4"), stepPerBandInstead("1,4", "0,3"),
     bandsMerged(4, 64, 12),
     intensityNote, shapeNote, energyRangeNote(20, 3000),
-)
+) + howToRead

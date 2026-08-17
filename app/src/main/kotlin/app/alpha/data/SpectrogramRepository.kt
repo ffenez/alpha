@@ -49,6 +49,15 @@ class SpectrogramRepository(private val dao: SpectrogramDao) {
      * не оставляет полуслитого куска — корзины выровнены по эпохе, поэтому
      * повторный проход по уже прорежённому часу ничего не меняет.
      */
+    /**
+     * Стереть всю записанную спектрограмму.
+     *
+     * Явная команда человека — единственный способ, которым данные исчезают.
+     * Сброс накопления сюда не заходит: он обнуляет сумму прибора, а не
+     * запись того, что уже измерено.
+     */
+    suspend fun clear() = dao.clear()
+
     suspend fun compact(nowMillis: Long): Int {
         val boundary = nowMillis - SpectrogramHistory.AS_RECORDED_MILLIS
         var cursor = dao.earliestStart() ?: return 0

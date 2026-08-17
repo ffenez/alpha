@@ -56,6 +56,39 @@ object SpectrumPlot {
         heightPx: Float,
     ): Float = topPx + (1f - scale.fraction(value, top)) * heightPx
 
+    /**
+     * Непрерывные куски кривой: индексы колонок, которые можно соединять.
+     *
+     * Колонка бывает трёх видов, и смешивать их нельзя:
+     *
+     *  - число больше нуля — точка кривой;
+     *  - `NaN` — в колонку не попал ни один канал: данных нет;
+     *  - ноль или меньше — измеренный ноль, у которого на логарифмической оси
+     *    нет места (log 0 не существует).
+     *
+     * Разрыв в обоих последних случаях — единственный честный способ показать
+     * отсутствие: попытка нарисовать их у нижней границы соединяла пустое
+     * место с соседними каналами, и при увеличении спектр превращался в
+     * частокол вертикальных линий до низа поля. Увеличение обязано менять
+     * только горизонтальную подробность, а не топологию кривой.
+     */
+    fun segments(values: List<Float>, logScale: Boolean): List<List<Int>> {
+        val out = mutableListOf<List<Int>>()
+        var current = mutableListOf<Int>()
+        for (index in values.indices) {
+            val value = values[index]
+            val drawable = !value.isNaN() && (!logScale || value > 0f)
+            if (drawable) {
+                current.add(index)
+            } else if (current.isNotEmpty()) {
+                out += current
+                current = mutableListOf()
+            }
+        }
+        if (current.isNotEmpty()) out += current
+        return out
+    }
+
     /** X-пиксель колонки: первая — у левого края поля, последняя — у правого. */
     fun columnXPx(index: Int, columnCount: Int, leftPx: Float, widthPx: Float): Float =
         leftPx + if (columnCount <= 1) 0f else index.toFloat() * widthPx / (columnCount - 1)

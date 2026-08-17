@@ -2,6 +2,7 @@ package app.alpha.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -24,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,13 +42,17 @@ import app.alpha.device.ConnectionState
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.Chip
+import app.alpha.ui.components.ConfirmDialog
+import app.alpha.ui.components.DisclosureRow
+import app.alpha.ui.components.EntityHeader
+import app.alpha.ui.components.EntityMenuItem
 import app.alpha.ui.components.StatCell
 import app.alpha.ui.components.Segmented
 import app.alpha.ui.components.StatGrid
 import app.alpha.ui.components.WaterfallChart
+import app.alpha.ui.components.WaterfallProbe
 import app.alpha.ui.components.WaterfallSpec
 import app.alpha.ui.components.waterfallLegendColors
-import app.alpha.ui.components.AppButton
 import app.alpha.ui.logic.DoseFormat
 import app.alpha.ui.logic.SpectrumFormat
 import app.alpha.ui.logic.TimeAxis
@@ -58,9 +64,7 @@ import app.alpha.ui.text.SpectrogramStrings
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 /** Rendered column cap: slices merge beyond this (bitmap stays legible). */
 private const val MAX_COLUMNS = 240
@@ -90,15 +94,12 @@ private val WINDOWS: List<Window> = listOf(
 private fun Window.label(t: SpectrogramStrings): String =
     if (hours) t.windowHours(amount) else t.windowMinutes(amount)
 
-private val HH_MM_SS = DateTimeFormatter.ofPattern("HH:mm:ss")
-
 /**
  * Спектрограмма (SPEC «Spectrogram», Advanced): Energy × Time × Intensity —
  * когда во время прогулки или измерения появился спектральный компонент.
- * Столбец = интервальный спектр одного опроса (накопление минус предыдущее,
- * 5 с), строки — энергия 20–3000 кэВ на геометрической шкале, яркость —
- * лог-нормировка внутри столбца. Внизу — синхронная полоса мощности дозы;
- * нажатие на столбец показывает дозу/CPS того момента.
+ * Столбец = сумма опросов, попавших в ячейку сетки времени; строки — энергия
+ * 20–3000 кэВ на выбранной оси, яркость — интенсивность. Под картинкой —
+ * своя полоса мощности дозы на той же оси времени; курсор один на обе.
  */
 @Composable
 fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
@@ -109,6 +110,20 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     val hub = graph.spectrumHub
 
     BackHandler { onBack() }
+    var confirmClear by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    if (confirmClear) {
+        ConfirmDialog(
+            title = t.clearConfirmTitle,
+            body = t.clearConfirmBody,
+            confirmText = strings.delete,
+            onConfirm = {
+                confirmClear = false
+                scope.launch { graph.spectrogramStore.clearHistory() }
+            },
+            onDismiss = { confirmClear = false },
+        )
+    }
 
     // The waterfall needs the 5 s spectrum poll: attach as a hub watcher.
     DisposableEffect(hub) {
@@ -119,6 +134,12 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     val connection by graph.serviceStatus.connection.collectAsState()
     val connected = connection is ConnectionState.Connected
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
+    val energyScaleId by graph.settings.spectrogramEnergyScale.collectAsState(initial = "log")
+    val energyScale = if (energyScaleId == "linear") {
+        Spectrogram.EnergyScale.LINEAR
+    } else {
+        Spectrogram.EnergyScale.LOG
+    }
 
     val liveSlices by graph.spectrogramStore.slices.collectAsState()
     // История переживает процесс: если служба ещё не поднимала окно из базы
@@ -135,11 +156,19 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     val slices = if (paused) frozen ?: liveSlices else liveSlices
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    // Прицел по энергии живёт только под пальцем: постоянный маркер означал бы
+    // выбранную энергию, а её никто не выбирал.
+    var probeFraction by remember { mutableStateOf<Float?>(null) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
+    var detailsOpen by remember { mutableStateOf(false) }
 
     // Режим «форма» — нормировка внутри колонки. По умолчанию выключен: он
     // показывает состав, но уравнивает слабый спектр с сильным.
     var shapeMode by rememberSaveable { mutableStateOf(false) }
+    // Верх цветовой шкалы, зафиксированный человеком: пока он задан, одинаковая
+    // интенсивность красится одинаково при любом окне. null = «Авто», верх
+    // считается по видимым данным и меняется вместе с ними.
+    var fixedTop by rememberSaveable { mutableStateOf<Float?>(null) }
 
     // Колонки строятся по СЕТКЕ ВРЕМЕНИ с шагом, который выбирается по
     // статистике: при фоне пятисекундная колонка это ≈1 импульс на полосу, то
@@ -186,9 +215,10 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     // читает их как спектральную структуру. Нарезка одна на всё окно, иначе
     // она прыгала бы от столбца к столбцу.
     val bandGroups = remember(columnsData) { Spectrogram.bandGroups(columnsData) }
-    val scaleTop = remember(columnsData, bandGroups) {
+    val autoTop = remember(columnsData, bandGroups) {
         Spectrogram.scaleTop(columnsData, bandGroups)
     }
+    val scaleTop = fixedTop ?: autoTop
     // Курсор указывает на НОМЕР колонки; после смены окна номер означает
     // другой момент времени, поэтому выбор снимается.
     LaunchedEffect(windowMillis) { selectedIndex = null }
@@ -204,24 +234,49 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
             .padding(Dimens.space3),
         verticalArrangement = Arrangement.spacedBy(Dimens.space2),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
-        ) {
-            AppButton(text = "← ${strings.back}", onClick = onBack)
-            Spacer(Modifier.weight(1f))
-            // Состояние связи — чип, а не строка под картинкой: это статус
-            // экрана, и он не должен отнимать высоту у поля.
-            if (!connected && slices.isNotEmpty()) {
-                Chip(text = t.offlineTag, color = colors.ink2)
-            }
-            Chip(text = "i", color = colors.ink2, onClick = { infoOpen = true })
-        }
+        // Шапка записи — как у остальных записей: имя, «⋮» с редкими
+        // действиями. Состояние связи остаётся чипом рядом: это статус
+        // экрана, и он не должен отнимать высоту у поля.
+        EntityHeader(
+            title = t.title,
+            onBack = onBack,
+            trailing = {
+                if (!connected && slices.isNotEmpty()) {
+                    Chip(text = t.offlineTag, color = colors.ink2)
+                }
+            },
+            menu = listOf(
+                EntityMenuItem(t.helpTitle, onClick = { infoOpen = true }),
+                EntityMenuItem(
+                    title = if (energyScale == Spectrogram.EnergyScale.LOG) {
+                        t.energyScaleToLinear
+                    } else {
+                        t.energyScaleToLog
+                    },
+                    onClick = {
+                        scope.launch {
+                            graph.settings.setSpectrogramEnergyScale(
+                                if (energyScale == Spectrogram.EnergyScale.LOG) {
+                                    "linear"
+                                } else {
+                                    "log"
+                                },
+                            )
+                        }
+                    },
+                ),
+                EntityMenuItem(
+                    title = t.clearHistory,
+                    enabled = slices.isNotEmpty(),
+                    onClick = { confirmClear = true },
+                ),
+            ),
+        )
 
         when {
             // Пустые состояния — одна строка о том, что происходит сейчас.
             // Как устроена запись и где выбирается её частота, рассказывает
-            // «i»: объяснение не становится содержимым экрана.
+            // справка: объяснение не становится содержимым экрана.
             slices.isEmpty() && !connected -> Card(modifier = Modifier.fillMaxWidth()) {
                 Text(text = t.noLink, style = type.bodySmall, color = colors.ink2)
             }
@@ -277,46 +332,95 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
                         BoxWithConstraints(
                             modifier = Modifier.fillMaxWidth().weight(1f),
                         ) {
+                            val stripMax = columnsData.mapNotNull { it?.doseMicroSvH }.maxOrNull()
                             WaterfallChart(
                                 spec = WaterfallSpec(
                                     columns = columnsData,
                                     scaleTop = scaleTop,
                                     shapeMode = shapeMode,
                                     bandGroups = bandGroups,
+                                    energyScale = energyScale,
                                     selectedIndex = selectedIndex,
                                     timeLabels = TimeAxis.labels(
                                         fromMillis ?: 0L,
                                         toMillis ?: 0L,
                                     ),
                                     stripValues = columnsData.map { it?.doseMicroSvH },
-                                    stripLabel = t.doseStripLabel(
+                                    stripTitle = t.doseStripLabel(
                                         DoseFormat.rateUnitLabel(unit, s = strings),
                                     ),
-                                    energyUnit = t.energyUnit,
+                                    // Справа в шапке полосы — то, что под
+                                    // курсором; без курсора последнее, что
+                                    // измерено: у линии всегда есть число.
+                                    stripValue = (
+                                        selected?.doseMicroSvH
+                                            ?: columnsData.lastOrNull { it?.doseMicroSvH != null }
+                                                ?.doseMicroSvH
+                                        )?.let { DoseFormat.rate(it, unit) },
+                                    stripMaxLabel = stripMax?.let { DoseFormat.rate(it, unit) },
+                                    energyUnit = if (energyScale == Spectrogram.EnergyScale.LOG) {
+                                        t.energyAxisLog
+                                    } else {
+                                        t.energyAxisLinear
+                                    },
+                                    probe = probeFraction?.let { fraction ->
+                                        WaterfallProbe(
+                                            energyFraction = fraction,
+                                            lines = probeLines(
+                                                column = selected,
+                                                fraction = fraction,
+                                                scale = energyScale,
+                                                bandGroups = bandGroups,
+                                                t = t,
+                                            ),
+                                        )
+                                    },
                                 ),
                                 height = maxHeight,
-                                onTapColumn = { index ->
-                                    selectedIndex = if (selectedIndex == index) null else index
+                                onCursor = { index, fraction ->
+                                    // Нажатие в ту же колонку снимает курсор;
+                                    // ведение пальцем — всегда выбор.
+                                    selectedIndex = if (fraction == null && selectedIndex == index) {
+                                        null
+                                    } else {
+                                        index
+                                    }
+                                    probeFraction = fraction
                                 },
+                                onCursorEnd = { probeFraction = null },
                             )
                         }
                         // Режим — это РЕЖИМ, а не действие: два физически
                         // разных вопроса к одним данным, «сколько» и «какого
-                        // состава».
+                        // состава». Переключатель компактный: он не имеет
+                        // права спорить с картинкой по весу.
                         Segmented(
                             options = listOf(t.modeIntensity, t.modeShape),
                             selectedIndex = if (shapeMode) 1 else 0,
                             onSelect = { shapeMode = it == 1 },
-                            modifier = Modifier.fillMaxWidth(),
+                            scrollable = true,
                         )
                         // Шкала количественная: подписанные концы — это и есть
                         // объяснение цвета, отдельная фраза под ней была бы
                         // третьим повторением одного и того же.
-                        LegendRamp(shapeMode, scaleTop, t)
+                        LegendRamp(
+                            shapeMode = shapeMode,
+                            scaleTop = scaleTop,
+                            fixed = fixedTop != null,
+                            onToggleFixed = {
+                                fixedTop = if (fixedTop == null) autoTop else null
+                            },
+                            t = t,
+                        )
                     }
                 }
 
-                SelectedMomentCard(selected, unit, t)
+                SelectedMomentCard(
+                    selected = selected,
+                    unit = unit,
+                    t = t,
+                    onDetails = { detailsOpen = true },
+                )
             }
         }
 
@@ -328,7 +432,7 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
     // Справка лежит ПОВЕРХ экрана и доступна в любом состоянии: диалог не
     // двигает картинку, а объяснения на самом экране больше не живут.
     if (infoOpen) {
-        InfoDialog(
+        HelpDialog(
             slices = slices,
             stepSeconds = stepSeconds,
             bandGroups = bandGroups,
@@ -337,13 +441,44 @@ fun SpectrogramScreen(graph: AppGraph, onBack: () -> Unit) {
             storedSlices = storedSlices,
             connected = connected,
             paused = paused,
+            energyScale = energyScale,
             onClose = { infoOpen = false },
+            t = t,
+        )
+    }
+    if (detailsOpen && selected != null) {
+        MomentDetailsDialog(
+            column = selected,
+            stepSeconds = stepSeconds,
+            bandGroups = bandGroups,
+            onClose = { detailsOpen = false },
             t = t,
         )
     }
 }
 
-
+/**
+ * Что показывает прицел: момент и энергия под пальцем, а под ними — скорость
+ * счёта в той энергетической группе, в которую он попал.
+ *
+ * Именно ГРУППЫ, а не одной полосы: картинка красит группу целиком, и число
+ * обязано относиться к тому, что человек видит под маркером.
+ */
+private fun probeLines(
+    column: SpectrogramColumn?,
+    fraction: Float,
+    scale: Spectrogram.EnergyScale,
+    bandGroups: List<IntRange>,
+    t: SpectrogramStrings,
+): List<String> {
+    val keV = Spectrogram.energyAtFraction(fraction, scale)
+    val time = column?.let { timeOfDay(it.startMillis) }
+    val head = listOfNotNull(time, t.energyValue(keV.toInt())).joinToString(" · ")
+    val band = Spectrogram.bandOfEnergy(keV)
+    val group = band?.let { b -> bandGroups.firstOrNull { b in it } }
+    val rate = if (column != null && group != null) column.groupRate(group) else null
+    return listOfNotNull(head, rate?.let { t.legendRate(Uncertainty.num2(it)) })
+}
 
 /**
  * Почему шаг именно такой — одной фразой и с числом, на котором он стоит.
@@ -370,11 +505,20 @@ private fun stepReason(
     }
 }
 
+/**
+ * Карточка выбранного момента: время, реально измеренное окно и физические
+ * величины с подписями.
+ *
+ * «Импульсов в колонке» здесь нет: это техническая величина отображения, и на
+ * основном уровне она конкурировала с мощностью дозы, которую человек как раз
+ * и ищет. Она осталась в подробностях — карточка нажимается.
+ */
 @Composable
 private fun SelectedMomentCard(
     selected: SpectrogramColumn?,
     unit: DoseUnitSetting,
     t: SpectrogramStrings,
+    onDetails: () -> Unit,
 ) {
     val strings = LocalStrings.current
     val colors = LocalAppColors.current
@@ -382,8 +526,10 @@ private fun SelectedMomentCard(
     // Курсора нет — карточки нет: пустая карточка с инструкцией занимала место
     // постоянно ради подсказки, которую читают один раз.
     if (selected == null) return
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onDetails),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = timeOfDay(selected.startMillis),
@@ -391,35 +537,101 @@ private fun SelectedMomentCard(
                     color = colors.ink,
                 )
                 Spacer(Modifier.weight(1f))
+                // Окно — это реально измеренное время, а не ширина ячейки:
+                // ячейка бывает покрыта не полностью, и делить счёт надо на
+                // измеренное.
                 Text(
-                    text = t.measuredSeconds(selected.seconds),
+                    text = t.windowSeconds(selected.seconds),
                     style = type.footnote,
                     color = colors.ink2,
                 )
             }
-            Text(
-                text = listOfNotNull(
-                    selected.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit, s = strings) },
-                    selected.cps?.let { t.countsPerSecond(Uncertainty.num1(it)) },
-                    t.countsInColumn(selected.totalCounts.toInt()),
-                    selected.meanEnergyKeV?.let { t.meanEnergy(it.toInt()) },
-                ).joinToString(" · "),
-                style = type.valueSmall,
-                color = colors.ink2,
+            StatGrid(
+                cells = listOf(
+                    StatCell(
+                        value = selected.doseMicroSvH
+                            ?.let { DoseFormat.rateWithUnit(it, unit, s = strings) }
+                            ?: "—",
+                        key = t.keyDoseRate,
+                    ),
+                    StatCell(
+                        value = selected.cps?.let { t.countsPerSecond(Uncertainty.num1(it)) }
+                            ?: "—",
+                        key = t.keyCount,
+                    ),
+                    StatCell(
+                        value = selected.meanEnergyKeV?.let { t.energyValue(it.toInt()) } ?: "—",
+                        key = t.keyMeanEnergy,
+                    ),
+                ),
             )
         }
     }
 }
 
 /**
- * «Как это устроено» — под кнопкой «i», а не полосой мелкого текста под
- * картинкой: параметры агрегации нужны один раз, а высоту отнимали всегда.
- *
- * Диалог, а не карточка в потоке: картинка занимает весь экран, и объяснение
- * не имеет права её двигать.
+ * Подробности момента: техническое, которое нужно редко и не имеет права
+ * занимать основной уровень.
  */
 @Composable
-private fun InfoDialog(
+private fun MomentDetailsDialog(
+    column: SpectrogramColumn,
+    stepSeconds: Long,
+    bandGroups: List<IntRange>,
+    onClose: () -> Unit,
+    t: SpectrogramStrings,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val bandsPerGroup = if (bandGroups.isEmpty()) 1 else Spectrogram.BAND_COUNT / bandGroups.size
+    Dialog(onDismissRequest = onClose) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = timeOfDayWithSeconds(column.startMillis),
+                        style = type.value,
+                        color = colors.ink,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Chip(text = "✕", color = colors.ink2, onClick = onClose)
+                }
+                StatGrid(
+                    cells = listOf(
+                        StatCell("${column.totalCounts.toInt()}", t.statColumnCounts),
+                        StatCell(t.secondsValue(column.seconds), t.statMeasured),
+                        StatCell(t.secondsValue(stepSeconds), t.statColumnStep),
+                    ),
+                )
+                if (column.seconds < stepSeconds) {
+                    Text(
+                        text = t.partialColumn(column.seconds, stepSeconds),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+                Text(
+                    text = t.groupResolution(bandsPerGroup, bandGroups.size),
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+                // Почему отсюда нельзя открыть полный спектр момента: его
+                // просто нет — в истории лежат полосы, а не каналы.
+                Hint(text = t.noStoredSpectrum)
+            }
+        }
+    }
+}
+
+/**
+ * Справка: сначала как читать картинку, потом — по желанию — как она устроена.
+ *
+ * Первый уровень отвечает на вопрос человека, который открыл экран впервые;
+ * параметры агрегации, нормировки и хранения нужны редко и потому спрятаны за
+ * одну строку раскрытия, а не вываливаются списком.
+ */
+@Composable
+private fun HelpDialog(
     slices: List<SpectrogramSlice>,
     stepSeconds: Long,
     bandGroups: List<IntRange>,
@@ -431,11 +643,13 @@ private fun InfoDialog(
     connected: Boolean,
     /** Показ остановлен — но запись при этом продолжается. */
     paused: Boolean,
+    energyScale: Spectrogram.EnergyScale,
     onClose: () -> Unit,
     t: SpectrogramStrings,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
+    var technical by rememberSaveable { mutableStateOf(false) }
     val measuredSeconds = slices.sumOf { it.intervalSeconds }
     val windowSeconds = ((toMillis ?: 0L) - (fromMillis ?: 0L)) / 1000L
     val bandsPerGroup = if (bandGroups.isEmpty()) {
@@ -453,7 +667,7 @@ private fun InfoDialog(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = t.infoTitle.uppercase(),
+                    text = t.helpTitle.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
@@ -466,94 +680,140 @@ private fun InfoDialog(
             if (paused) {
                 Text(text = t.paused, style = type.bodySmall, color = colors.ink2)
             }
-            StatGrid(
-                cells = listOfNotNull(
-                    StatCell("${slices.size}", t.statIntervals),
-                    // Строки в базе — видимое доказательство, что история не
-                    // исчезает вместе с процессом.
-                    storedSlices?.let { StatCell("$it", t.statStored) },
-                    StatCell(SpectrumFormat.accumulationClock(measuredSeconds), t.statRecorded),
-                    StatCell(t.secondsValue(stepSeconds), t.statColumnStep),
-                    StatCell("${bandGroups.size}", t.statBands),
-                ),
-            )
-            if (windowSeconds > 0 && measuredSeconds < windowSeconds * 95 / 100) {
+            // Первый уровень: как читать. Одно правило — одна строка.
+            for (line in t.howToRead) {
+                Text(text = "· $line", style = type.bodySmall, color = colors.ink)
+            }
+            DisclosureRow(
+                title = t.technicalTitle,
+                expanded = technical,
+                onToggle = { technical = !technical },
+            ) {
+                StatGrid(
+                    cells = listOfNotNull(
+                        StatCell("${slices.size}", t.statIntervals),
+                        // Строки в базе — видимое доказательство, что история
+                        // не исчезает вместе с процессом.
+                        storedSlices?.let { StatCell("$it", t.statStored) },
+                        StatCell(
+                            SpectrumFormat.accumulationClock(measuredSeconds),
+                            t.statRecorded,
+                        ),
+                        StatCell(t.secondsValue(stepSeconds), t.statColumnStep),
+                        StatCell("${bandGroups.size}", t.statBands),
+                    ),
+                )
+                if (windowSeconds > 0 && measuredSeconds < windowSeconds * 95 / 100) {
+                    Text(
+                        text = t.coverageNote(
+                            SpectrumFormat.accumulationClock(measuredSeconds),
+                            SpectrumFormat.accumulationClock(windowSeconds),
+                        ),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+                Hint(text = t.stepNote(stepReason(slices, stepSeconds, t)))
+                if (bandsPerGroup > 1) {
+                    Text(
+                        text = t.bandsMerged(
+                            bandsPerGroup,
+                            Spectrogram.BAND_COUNT,
+                            Spectrogram.MIN_BAND_COUNTS.toInt(),
+                        ),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+                Hint(text = t.intensityNote)
+                Hint(text = t.shapeNote)
+                Hint(text = t.scaleModeNote)
                 Text(
-                    text = t.coverageNote(
-                        SpectrumFormat.accumulationClock(measuredSeconds),
-                        SpectrumFormat.accumulationClock(windowSeconds),
+                    text = t.energyRangeNote(
+                        Spectrogram.MIN_KEV.toInt(),
+                        Spectrogram.MAX_KEV.toInt(),
                     ),
                     style = type.footnote,
                     color = colors.muted,
                 )
-            }
-            Hint(
-                text = t.stepNote(stepReason(slices, stepSeconds, t)),
-            )
-            if (bandsPerGroup > 1) {
                 Text(
-                    text = t.bandsMerged(
-                        bandsPerGroup,
-                        Spectrogram.BAND_COUNT,
-                        Spectrogram.MIN_BAND_COUNTS.toInt(),
-                    ),
+                    text = if (energyScale == Spectrogram.EnergyScale.LOG) {
+                        t.energyScaleLogNote
+                    } else {
+                        t.energyScaleLinearNote
+                    },
                     style = type.footnote,
                     color = colors.muted,
                 )
+                Hint(text = t.noStoredSpectrum)
+                // Почему сброс накопления не стирает эту картинку:
+                // спектрограмма — запись прошедшего, а не сумма, которую
+                // держит прибор.
+                Hint(text = t.recordNote)
+                Hint(text = t.backgroundNote)
             }
-            Hint(
-                text = t.intensityNote,
-            )
-            Hint(
-                text = t.shapeNote,
-            )
-            Text(
-                text = t.energyRangeNote(
-                    Spectrogram.MIN_KEV.toInt(),
-                    Spectrogram.MAX_KEV.toInt(),
-                ),
-                style = type.footnote,
-                color = colors.muted,
-            )
-            // Почему сброс накопления не стирает эту картинку: спектрограмма
-            // — запись прошедшего, а не сумма, которую держит прибор.
-            Hint(text = t.recordNote)
-            Hint(text = t.backgroundNote)
         }
         }
     }
 }
 
 @Composable
-private fun LegendRamp(shapeMode: Boolean, scaleTop: Float, t: SpectrogramStrings) {
+private fun LegendRamp(
+    shapeMode: Boolean,
+    scaleTop: Float,
+    fixed: Boolean,
+    onToggleFixed: () -> Unit,
+    t: SpectrogramStrings,
+) {
     val type = LocalAppTypography.current
     val colors = LocalAppColors.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        // Шкала называет ВЕЛИЧИНУ и её концы. «Меньше ■■■ больше» в режиме
-        // формы означало бы «меньше излучения», хотя это доля внутри столбца.
-        Text(text = t.legendZero, style = type.axis, color = colors.muted)
-        // Непрерывная полоса вместо отдельных квадратиков: шкала интенсивности
-        // непрерывна, и разрывы в легенде подсказывали бы ступени, которых нет.
-        Box(
-            Modifier
-                .size(width = 72.dp, height = 8.dp)
-                .background(
-                    Brush.horizontalGradient(waterfallLegendColors()),
-                    RoundedCornerShape(2.dp),
-                ),
-        )
-        Text(
-            text = if (shapeMode) {
-                t.legendColumnMax
-            } else {
-                t.legendRate(Uncertainty.num1(scaleTop))
-            },
-            style = type.axis,
-            color = colors.muted,
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Шкала называет ВЕЛИЧИНУ и единицу; в режиме формы величины нет,
+            // и подпись говорит именно это, а не «имп/с».
+            Text(
+                text = if (shapeMode) t.legendShapeTitle else t.legendIntensityTitle,
+                style = type.axis,
+                color = colors.muted,
+                modifier = Modifier.weight(1f),
+            )
+            // Верх шкалы: «Авто» пересчитывается по видимому окну, «Фикс»
+            // держит его, чтобы одинаковый цвет означал одинаковую
+            // интенсивность и после смены окна.
+            if (!shapeMode) {
+                Chip(
+                    text = if (fixed) t.scaleFixed else t.scaleAuto,
+                    color = if (fixed) colors.dataText else colors.ink2,
+                    selected = fixed,
+                    onClick = onToggleFixed,
+                )
+            }
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(text = t.legendZero, style = type.axis, color = colors.muted)
+            // Непрерывная полоса вместо отдельных квадратиков: шкала
+            // интенсивности непрерывна, и разрывы в легенде подсказывали бы
+            // ступени, которых нет.
+            Box(
+                Modifier
+                    .size(width = 72.dp, height = 8.dp)
+                    .background(
+                        Brush.horizontalGradient(waterfallLegendColors()),
+                        RoundedCornerShape(2.dp),
+                    ),
+            )
+            Text(
+                text = if (shapeMode) {
+                    t.legendColumnMax
+                } else {
+                    t.legendRate(Uncertainty.num1(scaleTop))
+                },
+                style = type.axis,
+                color = colors.muted,
+            )
+        }
     }
 }
-

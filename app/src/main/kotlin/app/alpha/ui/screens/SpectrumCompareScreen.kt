@@ -284,7 +284,7 @@ private fun IntervalSection(
                     COLUMN_COUNT,
                 )
             }
-            val dataMax = columns.maxOrNull() ?: 0f
+            val dataMax = SpectrumDisplay.columnsMax(columns)
             Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     SpectrumChart(
@@ -437,7 +437,10 @@ private fun RatesSection(first: SpectrumSnapshotEntity, second: SpectrumSnapshot
                     COLUMN_COUNT,
                 )
             }
-            val dataMax = maxOf(columnsA.maxOrNull() ?: 0f, columnsB.maxOrNull() ?: 0f)
+            val dataMax = maxOf(
+                SpectrumDisplay.columnsMax(columnsA),
+                SpectrumDisplay.columnsMax(columnsB),
+            )
 
             // Подписи графиков переехали под «i»: каждая объясняет, КАК
             // построена картинка (какая линия чья, что означают полосы), и

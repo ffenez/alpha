@@ -117,16 +117,36 @@ object SpectrumDisplay {
      * what a spectrum reading is about (an average would flatten them).
      */
     fun aggregateMax(values: List<Float>, range: IntRange, columnCount: Int): List<Float> {
-        val columns = FloatArray(columnCount)
+        // Колонка без единого канала — НЕ ноль импульсов, а отсутствие данных.
+        //
+        // Пока пустая колонка приходила нулём, увеличение превращало спектр в
+        // частокол: при десятке видимых каналов на двести сорок колонок между
+        // соседними каналами оставались пустые колонки, и на логарифмической
+        // оси каждая из них рисовалась у самого низа — линия падала на пол и
+        // возвращалась обратно на каждом канале. Значение NaN отличает «здесь
+        // нечего рисовать» от «здесь измерен ноль», и рисование разрывает
+        // линию, а не тянет её вниз.
+        val columns = FloatArray(columnCount) { Float.NaN }
         val span = (range.last - range.first + 1).coerceAtLeast(1)
         for (channel in range) {
             if (channel !in values.indices) continue
             val column = ((channel - range.first).toLong() * columnCount / span).toInt()
                 .coerceIn(0, columnCount - 1)
-            if (values[channel] > columns[column]) columns[column] = values[channel]
+            val current = columns[column]
+            if (current.isNaN() || values[channel] > current) columns[column] = values[channel]
         }
         return columns.toList()
     }
+
+    /**
+     * Максимум колонок, где «нет данных» ([Float.NaN]) не участвует.
+     *
+     * Обычный `maxOrNull` на списке с NaN возвращает NaN, и верх оси
+     * превращался бы в NaN вместе с ним — а это уже не картинка, а пустое
+     * поле.
+     */
+    fun columnsMax(columns: List<Float>): Float =
+        columns.filter { !it.isNaN() }.maxOrNull() ?: 0f
 
     /** Column index for a channel under the same bucketing as [aggregateMax]. */
     fun columnForChannel(channel: Int, range: IntRange, columnCount: Int): Int? {

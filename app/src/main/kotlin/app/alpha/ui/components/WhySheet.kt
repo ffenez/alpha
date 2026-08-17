@@ -154,7 +154,7 @@ fun WhySheet(
                     // «Скрыть …»: по умолчанию они закрыты, а шеврон говорит
                     // сам за себя.
                     if (report.hasAdvanced) {
-                        DisclosureSection(
+                        DisclosureRow(
                             title = t.howDeviationTitle,
                             expanded = expanded,
                             onToggle = { onExpandedChange(!expanded) },
@@ -164,7 +164,7 @@ fun WhySheet(
                         }
                     }
                     if (report.hasExpert) {
-                        DisclosureSection(
+                        DisclosureRow(
                             title = t.technicalTitle,
                             expanded = expert,
                             onToggle = { expert = !expert },
@@ -220,36 +220,6 @@ private fun ProgressBar(fraction: Float) {
                 .clip(RoundedCornerShape(3.dp))
                 .background(colors.dataText),
         )
-    }
-}
-
-/** Строка раскрытия: название и шеврон; содержимое приезжает по нажатию. */
-@Composable
-private fun DisclosureSection(
-    title: String,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = Dimens.touchTarget)
-                .clickable(onClick = onToggle),
-        ) {
-            Text(
-                text = title,
-                style = type.bodySmall,
-                color = colors.ink,
-                modifier = Modifier.weight(1f),
-            )
-            DisclosureArrow(expanded = expanded)
-        }
-        if (expanded) content()
     }
 }
 

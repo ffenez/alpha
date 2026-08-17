@@ -60,6 +60,8 @@ object ReleaseNotes {
      * Номера версий и их порядок живут здесь, в одном месте на все языки.
      */
     fun notes(s: ReleaseStrings = ReleaseRu): List<ReleaseNote> = listOf(
+        ReleaseNote("0.10.0", s.v0100Title, s.v0100Summary),
+        ReleaseNote("0.9.9", s.v099Title, s.v099Summary),
         ReleaseNote("0.9.8", s.v098Title, s.v098Summary),
         ReleaseNote("0.9.7", s.v097Title, s.v097Summary),
         ReleaseNote("0.9.6", s.v096Title, s.v096Summary),

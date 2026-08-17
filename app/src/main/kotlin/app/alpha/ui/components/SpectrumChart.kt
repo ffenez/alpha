@@ -284,13 +284,29 @@ fun SpectrumChart(
                 )
             }
 
+            // Линия рисуется ОТРЕЗКАМИ, а не одним путём через все колонки.
+            //
+            // Колонка бывает двух видов, которые нельзя смешивать: «нет
+            // данных» (NaN — в колонку не попал ни один канал) и «измерен
+            // ноль». На логарифмической оси ноль не имеет места на шкале, и
+            // рисовать его у нижней границы значит соединять пустой канал с
+            // соседними — именно так спектр превращался в частокол до низа
+            // поля. Оба случая рвут линию: между соседними каналами с данными
+            // она остаётся непрерывной, а на месте пустых появляется разрыв.
+            val logScale = spec.scale is SpectrumScale.Log
+            fun segmentsOf(values: List<Float>): List<List<Int>> =
+                SpectrumPlot.segments(values.take(n), logScale)
+
             // 3. Background overlay: dimmed muted line.
             spec.overlay?.let { overlay ->
                 val path = Path()
-                overlay.forEachIndexed { index, value ->
-                    if (index >= n) return@forEachIndexed
-                    val point = Offset(x(index), y(value))
-                    if (index == 0) path.moveTo(point.x, point.y) else path.lineTo(point.x, point.y)
+                for (segment in segmentsOf(overlay)) {
+                    segment.forEachIndexed { position, index ->
+                        val point = Offset(x(index), y(overlay[index]))
+                        if (position == 0) path.moveTo(point.x, point.y) else {
+                            path.lineTo(point.x, point.y)
+                        }
+                    }
                 }
                 drawPath(
                     path = path,
@@ -301,15 +317,20 @@ fun SpectrumChart(
 
             // 4. Data line + area fill.
             val line = Path()
-            spec.columns.forEachIndexed { index, value ->
-                val point = Offset(x(index), y(value))
-                if (index == 0) line.moveTo(point.x, point.y) else line.lineTo(point.x, point.y)
-            }
-            val area = Path().apply {
-                addPath(line)
-                lineTo(x(n - 1), bottom)
-                lineTo(x(0), bottom)
-                close()
+            val area = Path()
+            for (segment in segmentsOf(spec.columns)) {
+                segment.forEachIndexed { position, index ->
+                    val point = Offset(x(index), y(spec.columns[index]))
+                    if (position == 0) line.moveTo(point.x, point.y) else {
+                        line.lineTo(point.x, point.y)
+                    }
+                }
+                // Заливка тоже посегментная: один общий путь соединил бы концы
+                // разрывов по низу поля и вернул бы тот же частокол.
+                area.moveTo(x(segment.first()), bottom)
+                for (index in segment) area.lineTo(x(index), y(spec.columns[index]))
+                area.lineTo(x(segment.last()), bottom)
+                area.close()
             }
             drawPath(path = area, color = colors.data.copy(alpha = 0.16f))
             drawPath(
@@ -325,6 +346,9 @@ fun SpectrumChart(
                 var top = Float.MAX_VALUE
                 for (j in (peak.columnIndex - 3)..(peak.columnIndex + 3)) {
                     val v = spec.columns.getOrNull(j) ?: continue
+                    // Колонка без данных не участвует в поиске вершины: иначе
+                    // NaN отравил бы сравнение и метка уехала бы за поле.
+                    if (v.isNaN()) continue
                     top = minOf(top, y(v))
                 }
                 if (top == Float.MAX_VALUE) continue

@@ -377,7 +377,7 @@ internal fun BoundsEditorDialog(
         val range = SpectrumDisplay.channelRange(full, calibration, counts.size)
         SpectrumDisplay.aggregateMax(counts.map { it.toFloat() }, range, EDITOR_COLUMNS)
     }
-    val yTop = remember(columns) { SpectrumDisplay.logTop(columns.maxOrNull() ?: 0f) }
+    val yTop = remember(columns) { SpectrumDisplay.logTop(SpectrumDisplay.columnsMax(columns)) }
 
     var bounds by remember(specs) { mutableStateOf(EnergyBounds.boundsOf(specs)) }
     var active by remember { mutableStateOf<Int?>(null) }

@@ -13,4 +13,9 @@ import java.time.format.DateTimeFormatter
 internal fun timeOfDay(millis: Long): String =
     Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(TIME_OF_DAY)
 
+/** «14:03:25» — там, где секунда сама по себе факт: начало интервала записи. */
+internal fun timeOfDayWithSeconds(millis: Long): String =
+    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(TIME_WITH_SECONDS)
+
 private val TIME_OF_DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val TIME_WITH_SECONDS: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")

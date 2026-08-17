@@ -211,15 +211,15 @@ fun SpectrumFullScreen(
             energyKeV = mark.energyKeV,
             calibration = calibration,
             channels = frame.channels,
-            columnCount = SpectrumFrames.COLUMN_COUNT,
+            columnCount = frame.columnCount,
         )
     }
-    val peakMarks = remember(peaks, frame.channels) {
+    val peakMarks = remember(peaks, frame.channels, frame.columnCount) {
         peaks.mapNotNull { peak ->
             val column = SpectrumDisplay.columnForChannel(
                 peak.channel,
                 frame.channels,
-                SpectrumFrames.COLUMN_COUNT,
+                frame.columnCount,
             ) ?: return@mapNotNull null
             SpectrumPeakMark(columnIndex = column, label = "${peak.energyKeV.roundToInt()}")
         }
@@ -449,7 +449,7 @@ private fun BoxScope.CursorCard(
     val readout = SpectrumPlot.readout(
         fraction = fraction,
         range = frame.channels,
-        columnCount = SpectrumFrames.COLUMN_COUNT,
+        columnCount = frame.columnCount,
         counts = counts,
         calibration = calibration,
         peaks = peaks,

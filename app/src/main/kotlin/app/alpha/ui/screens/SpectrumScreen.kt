@@ -1122,12 +1122,12 @@ private fun SpectrumContent(
             (row.match as? PeakMatch.Candidate)?.takeIf { !it.natural }?.nuclide
         }
         ?: peakVerdict.rows.firstNotNullOfOrNull { it.match.primaryNuclide }
-    val peakMarks = remember(peakVerdict, highlightedNuclide, range) {
+    val peakMarks = remember(peakVerdict, highlightedNuclide, range, frame.columnCount) {
         peakVerdict.rows.mapNotNull { row ->
             val column = SpectrumDisplay.columnForChannel(
                 row.peak.channel,
                 range,
-                SpectrumFrames.COLUMN_COUNT,
+                frame.columnCount,
             ) ?: return@mapNotNull null
             SpectrumPeakMark(
                 columnIndex = column,
@@ -1162,7 +1162,7 @@ private fun SpectrumContent(
                             energyKeV = mark.energyKeV,
                             calibration = calibration,
                             channels = range,
-                            columnCount = SpectrumFrames.COLUMN_COUNT,
+                            columnCount = frame.columnCount,
                         )?.let { fraction ->
                             SpectrumLineMark(
                                 fraction = fraction,
