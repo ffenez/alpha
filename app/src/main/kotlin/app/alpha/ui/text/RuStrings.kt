@@ -76,14 +76,21 @@ object RuStrings : Strings {
     // понятно, с чем сравнили. «Порог тревоги» назван ВАШИМ, потому что его
     // задал человек, а не приложение.
     override val statusNoData = "Нет измерений"
+    override val statusMeasuring = "Идут измерения"
     override val statusAboveL1 = "Выше вашего порога"
-    override val statusBelowL1 = "Ниже вашего порога"
     override val statusUsual = "Обычно здесь"
     override val statusUsualShort = "Обычно здесь"
     override val statusAboveUsual = "Выше обычного"
-    override val statusAboveThreshold = "Выше вашего порога"
+    // Величина И длительность — два условия тревоги; пока идёт вторая, вывод
+    // говорит именно это, а не молчит и не тревожит раньше времени.
+    override val statusAboveThreshold = "Выше порога, проверяю"
     override val statusAboveThresholdShort = "Выше порога"
-    override val statusAlert = "Уровень изменился"
+    // «Уровень изменился» не называло, ОТНОСИТЕЛЬНО ЧЕГО он изменился, —
+    // а вывод обязан называть, с чем сравнили.
+    override val statusAlert = "Держится выше порога"
+
+    override fun explainMeasuring(threshold: String) =
+        "ниже вашего порога $threshold; обычный фон этого места ещё изучается"
 
     // Вторая строка называет, С ЧЕМ сравнили, — и только это. «P10–P90»,
     // «L1» и «наблюдений» — внутренние имена: человек их не заказывал, а

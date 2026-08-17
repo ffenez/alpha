@@ -6,6 +6,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
 
@@ -37,7 +38,14 @@ fun Hint(
     modifier: Modifier = Modifier,
     style: TextStyle = LocalAppTypography.current.footnote,
     color: Color = LocalAppColors.current.muted,
+    textAlign: TextAlign? = null,
 ) {
     if (!LocalHintsVisible.current) return
-    Text(text = text, style = style, color = color, modifier = modifier)
+    Text(
+        text = text,
+        style = style,
+        color = color,
+        textAlign = textAlign,
+        modifier = modifier,
+    )
 }

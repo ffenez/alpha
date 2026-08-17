@@ -72,4 +72,47 @@ class SettingsSearchTest {
     fun `второй язык ищется своими словами`() {
         assertEquals("view", SettingsSearch.find("language", index).single().categoryId)
     }
+
+    @Test
+    fun `точное слово стоит выше того, где оно лишь одно из многих`() {
+        val wide = index + SettingsSearch.Entry(
+            categoryId = "data",
+            title = "Данные и диагностика",
+            section = "Система",
+            keywords = listOf("отчёт", "память", "язык"),
+        )
+        // «Язык» — это раздел про язык, а не раздел, где слово «язык»
+        // оказалось десятым синонимом.
+        assertEquals("view", SettingsSearch.find("язык", wide).first().categoryId)
+    }
+
+    @Test
+    fun `несколько слов сужают поиск, а не расширяют`() {
+        assertEquals("sound", SettingsSearch.find("звук сигнал", index).single().categoryId)
+        assertTrue(SettingsSearch.find("звук язык", index).isEmpty())
+    }
+
+    @Test
+    fun `опечатка в одну букву не мешает найти`() {
+        assertEquals("sound", SettingsSearch.find("вибро", index).single().categoryId)
+        assertEquals("profiles", SettingsSearch.find("профыль", index).single().categoryId)
+        // На коротком слове поблажки нет: там одна буква меняет смысл.
+        assertTrue(SettingsSearch.find("фот", index).isEmpty())
+    }
+
+    @Test
+    fun `слово в чужой раскладке — то же слово`() {
+        // «pder» на латинской клавиатуре — это «звук».
+        assertEquals("sound", SettingsSearch.find("pder", index).single().categoryId)
+    }
+
+    @Test
+    fun `середина слова ищется, начало — точнее`() {
+        val hits = SettingsSearch.find("бновлять", index)
+        assertEquals("profiles", hits.single().categoryId)
+        assertTrue(
+            SettingsSearch.find("обновлять", index).single().score >
+                hits.single().score,
+        )
+    }
 }

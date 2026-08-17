@@ -107,6 +107,7 @@ import app.alpha.ui.logic.TrendFit
 import app.alpha.ui.logic.Uncertainty
 import app.alpha.ui.logic.WhyInput
 import app.alpha.ui.logic.learningWording
+import app.alpha.ui.logic.statusExplanation
 import app.alpha.ui.logic.statusHeadline
 import app.alpha.ui.text.HistoryCatalogue
 import app.alpha.ui.text.HistoryRu
@@ -1182,6 +1183,17 @@ private fun HeroCard(
                     // Что вывод опирается на статистику места, а не на одно
                     // показание, сказано словами в «Почему такой вывод» —
                     // метка «стат.» рядом со строкой этого не объясняла.
+                }
+                // Сравнение с порогом, пока обычный фон места не собран, —
+                // пояснение, а не вывод: оно верно почти всегда, и заголовком
+                // приучало не читать строку вывода вовсе.
+                statusExplanation(status, unit, strings)?.let { explanation ->
+                    Hint(
+                        text = explanation,
+                        style = type.footnote,
+                        color = colors.muted,
+                        textAlign = TextAlign.Center,
+                    )
                 }
                 // Эталон вывода (P10–P90 и объём истории) переехал в «Почему
                 // такой вывод»: там он стоит на первом уровне вместе со шкалой

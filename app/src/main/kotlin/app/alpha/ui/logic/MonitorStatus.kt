@@ -122,7 +122,7 @@ sealed interface MonitorStatus {
  */
 fun statusHeadline(status: MonitorStatus, s: Strings = RuStrings): String = when (status) {
     MonitorStatus.Unknown -> s.statusNoData
-    is MonitorStatus.Fixed -> if (status.above) s.statusAboveL1 else s.statusBelowL1
+    is MonitorStatus.Fixed -> if (status.above) s.statusAboveL1 else s.statusMeasuring
     is MonitorStatus.Usual -> s.statusUsual
     is MonitorStatus.AboveUsual -> s.statusAboveUsual
     is MonitorStatus.AboveThreshold -> s.statusAboveThreshold
@@ -134,6 +134,33 @@ fun statusHeadlineShort(status: MonitorStatus, s: Strings = RuStrings): String =
     is MonitorStatus.Usual -> s.statusUsualShort
     is MonitorStatus.AboveThreshold -> s.statusAboveThresholdShort
     else -> statusHeadline(status, s)
+}
+
+/**
+ * Пояснение к выводу — то, что показывается только при включённых
+ * «Пояснениях на экранах».
+ *
+ * Здесь живёт сравнение, которое раньше стояло ЗАГОЛОВКОМ: «ниже вашего
+ * порога». Как вывод оно не работало — оно верно почти всегда и потому не
+ * сообщает ничего; как пояснение оно на месте, потому что отвечает на
+ * единственный вопрос этого состояния: «а с чем вы вообще сравниваете, пока
+ * обычный фон не собран».
+ *
+ * У остальных состояний пояснения нет: их эталон и числа стоят в «Почему
+ * такой вывод», и повторять их серой строкой под каждым показанием значит
+ * приучить не читать ни ту, ни другую.
+ */
+fun statusExplanation(
+    status: MonitorStatus,
+    unit: DoseUnitSetting,
+    s: Strings = RuStrings,
+): String? = when (status) {
+    is MonitorStatus.Fixed -> if (status.above) {
+        null
+    } else {
+        s.explainMeasuring(DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit, s = s))
+    }
+    else -> null
 }
 
 /**

@@ -144,14 +144,27 @@ interface Strings {
 
     // --- статус Монитора ---
     val statusNoData: String
+
+    /**
+     * Тихое состояние до того, как собран обычный фон места.
+     *
+     * Раньше здесь стояло «Ниже вашего порога». Это не наблюдение, а
+     * сравнение с ЧИСЛОМ ИЗ НАСТРОЕК, и как вывод оно не работало: оно верно
+     * почти всегда, а значит не сообщает ничего и приучает не читать строку
+     * вывода вовсе. Сравнение с порогом никуда не делось — оно уехало в
+     * пояснение, которое видно при включённых «Пояснениях на экранах».
+     */
+    val statusMeasuring: String
     val statusAboveL1: String
-    val statusBelowL1: String
     val statusUsual: String
     val statusUsualShort: String
     val statusAboveUsual: String
     val statusAboveThreshold: String
     val statusAboveThresholdShort: String
     val statusAlert: String
+
+    /** Пояснение к тихому состоянию: с чем сравнивали и чего ещё нет. */
+    fun explainMeasuring(threshold: String): String
 
     /** «порог L1 0,30 мкЗв/ч · обычный диапазон профиля ещё не собран». */
     fun detailNoBaseline(threshold: String): String
@@ -666,7 +679,8 @@ fun Strings.allTexts(): List<String> = listOf(
     settingsNotifications, settingsNotificationsSub, settingsView, settingsViewSub,
     settingsDevice, settingsDeviceSub, settingsAbout, settingsAboutSub,
     languageTitle, languageSystem,
-    statusNoData, statusAboveL1, statusBelowL1, statusUsual, statusUsualShort,
+    statusNoData, statusMeasuring, statusAboveL1, statusUsual, statusUsualShort,
+    explainMeasuring("0,30 мкЗв/ч"),
     statusAboveUsual, statusAboveThreshold, statusAboveThresholdShort,
     statusAlert, streamRunning, streamInterruptedFor,
     detailNoBaseline("0,30"), detailUsual("0,09–0,14", "мкЗв/ч", "26 ч"),

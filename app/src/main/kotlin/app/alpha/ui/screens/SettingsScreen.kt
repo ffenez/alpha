@@ -118,6 +118,7 @@ import app.alpha.ui.logic.freshnessLabel
 import app.alpha.ui.logic.heldWording
 import app.alpha.ui.logic.learningWording
 import app.alpha.ui.text.AppLanguage
+import app.alpha.ui.text.BackupCatalogue
 import app.alpha.ui.text.LocalStrings
 import app.alpha.ui.text.CalibrationCatalogue
 import app.alpha.ui.text.NotificationCatalogue
@@ -517,7 +518,79 @@ private fun settingsSearchIndex(strings: Strings): List<SettingsSearch.Entry> = 
         section = strings.groupSystem,
         keywords = strings.searchWordsAbout,
     ),
-)
+) + leafSearchIndex(strings)
+
+/**
+ * Отдельные настройки, а не только разделы.
+ *
+ * Человек ищет «тему», «единицы», «язык» — то, что он собирается ПОМЕНЯТЬ, а
+ * не раздел, в котором это лежит. Пока индекс знал только разделы, запрос
+ * «тема» приводил в «Интерфейс» и оставлял искать глазами дальше; теперь
+ * находка называет саму настройку, а раздел стоит подписью рядом.
+ *
+ * Список именно такой длины: сюда попадает то, что меняют осознанно и ищут
+ * словом. Складывать в него каждую строку настроек незачем — поиск, который
+ * находит всё, не помогает выбрать.
+ */
+private fun leafSearchIndex(strings: Strings): List<SettingsSearch.Entry> {
+    val backup = BackupCatalogue.of(strings.language)
+    return listOf(
+        SettingsSearch.Entry(
+            categoryId = SettingsCategory.VIEW.name,
+            title = strings.languageTitle,
+            section = strings.settingsView,
+            keywords = listOf("язык", "language", "русский", "english", "перевод"),
+        ),
+        SettingsSearch.Entry(
+            categoryId = SettingsCategory.VIEW.name,
+            title = strings.themeTitle,
+            section = strings.settingsView,
+            keywords = listOf("тема", "тёмная", "светлая", "theme", "dark", "light", "оформление"),
+        ),
+        SettingsSearch.Entry(
+            categoryId = SettingsCategory.VIEW.name,
+            title = strings.unitsTitle,
+            section = strings.settingsView,
+            keywords = listOf("единицы", "зиверт", "рентген", "мкзв", "мкр", "units", "sievert"),
+        ),
+        SettingsSearch.Entry(
+            categoryId = SettingsCategory.VIEW.name,
+            title = strings.scaleTitle,
+            section = strings.settingsView,
+            keywords = listOf("шрифт", "масштаб", "крупнее", "мельче", "font", "size"),
+        ),
+        SettingsSearch.Entry(
+            categoryId = SettingsCategory.VIEW.name,
+            title = strings.homeLayoutTitle,
+            section = strings.settingsView,
+            keywords = listOf("вкладки", "порядок", "главная", "плитки", "tabs", "layout"),
+        ),
+        SettingsSearch.Entry(
+            categoryId = SettingsCategory.ALARMS.name,
+            title = strings.thresholdNow,
+            section = strings.settingsAlarms,
+            keywords = listOf("порог", "тревога", "чувствительность", "threshold", "alarm"),
+        ),
+        SettingsSearch.Entry(
+            categoryId = SettingsCategory.BACKUP.name,
+            title = backup.createBackup,
+            section = strings.settingsBackup,
+            keywords = listOf("копия", "резервная", "бэкап", "backup", "перенос", "сохранить"),
+        ),
+        SettingsSearch.Entry(
+            categoryId = SettingsCategory.BACKUP.name,
+            title = backup.restoreBackup,
+            section = strings.settingsBackup,
+            keywords = listOf("восстановить", "restore", "вернуть", "импорт"),
+        ),
+        SettingsSearch.Entry(
+            categoryId = SettingsCategory.DATA.name,
+            title = strings.retentionTitle,
+            section = strings.settingsData,
+            keywords = listOf("хранение", "история", "удаление", "срок", "память", "retention"),
+        ),
+    )
+}
 
 /** Текущее состояние каждой категории — то, что видно до входа в неё. */
 @Composable

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v091Title: String
+    val v091Summary: String
+
     val v090Title: String
     val v090Summary: String
 
@@ -213,6 +216,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v091Title = "Вывод говорит о наблюдении, а поиск прощает опечатки"
+    override val v091Summary =
+        "«Ниже вашего порога» больше не занимает строку вывода: пока обычный фон места " +
+        "изучается, там стоит «Идут измерения», а сравнение с порогом ушло в пояснение. " +
+        "Поиск по настройкам находит отдельные настройки, понимает несколько слов, опечатку " +
+        "в одну букву и слово, набранное не в той раскладке."
 
     override val v090Title = "Приложение называется Alpha"
     override val v090Summary =
@@ -662,6 +672,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v091Title = "The verdict speaks of the reading, and search forgives typos"
+    override val v091Summary =
+        "«Below your threshold» no longer occupies the verdict line: while the usual " +
+        "background of a place is being learnt it says «Measuring», and the threshold " +
+        "comparison moved into the explanation. Settings search now finds individual " +
+        "settings and copes with several words, a one-letter typo and the wrong keyboard."
 
     override val v090Title = "The app is called Alpha"
     override val v090Summary =

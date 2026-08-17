@@ -33,7 +33,7 @@ class WhyExplainTest {
             statusHeadline(MonitorStatus.Usual(baseline)),
         )
         assertEquals(
-            "Уровень изменился",
+            "Держится выше порога",
             statusHeadline(MonitorStatus.Alert(baseline, 300, 0.3f)),
         )
     }

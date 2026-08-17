@@ -81,14 +81,17 @@ object EnStrings : Strings {
     override val languageSystem = "System"
 
     override val statusNoData = "No measurements"
+    override val statusMeasuring = "Measuring"
     override val statusAboveL1 = "Above your threshold"
-    override val statusBelowL1 = "Below your threshold"
     override val statusUsual = "Usual here"
     override val statusUsualShort = "Usual here"
     override val statusAboveUsual = "Above usual"
-    override val statusAboveThreshold = "Above your threshold"
+    override val statusAboveThreshold = "Above the threshold, checking"
     override val statusAboveThresholdShort = "Above threshold"
-    override val statusAlert = "The level has changed"
+    override val statusAlert = "Holding above the threshold"
+
+    override fun explainMeasuring(threshold: String) =
+        "below your threshold $threshold; the usual background of this place is still being learnt"
 
     override fun detailNoBaseline(threshold: String) =
         "your threshold $threshold · not much measured here yet"

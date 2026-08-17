@@ -10,6 +10,7 @@ import app.alpha.data.DoseUnitSetting
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -45,7 +46,15 @@ class MonitorStatusTest {
     fun `no baseline - fixed threshold fallback`() {
         val below = MonitorStatus.of(0.12f, null, calm, thresholds, 0)
         assertEquals(MonitorStatus.Fixed(above = false, thresholdMicroSvH = 0.30f), below)
-        assertEquals("Ниже вашего порога", statusHeadline(below))
+        // Вывод называет НАБЛЮДЕНИЕ, а не сравнение с числом из настроек:
+        // «ниже вашего порога» верно почти всегда и потому не сообщает ничего.
+        assertEquals("Идут измерения", statusHeadline(below))
+        // Само сравнение никуда не делось — оно стало пояснением и видно при
+        // включённых «Пояснениях на экранах».
+        assertEquals(
+            "ниже вашего порога 0,30 мкЗв/ч; обычный фон этого места ещё изучается",
+            statusExplanation(below, DoseUnitSetting.MICRO_SIEVERT),
+        )
         // The reference is shown even before a baseline exists (spec §18).
         assertEquals(
             "ваш порог 0,30 мкЗв/ч · здесь пока мало измерений",
@@ -111,7 +120,7 @@ class MonitorStatusTest {
             MonitorStatus.Alert(baseline, heldSeconds = 240, thresholdMicroSvH = 0.30f),
             status,
         )
-        assertEquals("Уровень изменился", statusHeadline(status))
+        assertEquals("Держится выше порога", statusHeadline(status))
         assertEquals(
             "обычно здесь 0,09–0,14 мкЗв/ч · уже 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
@@ -251,5 +260,45 @@ class MonitorStatusTest {
             statusDetail(quiet, DoseUnitSetting.MICRO_SIEVERT),
             statusDetail(quiet, DoseUnitSetting.MICRO_SIEVERT),
         )
+    }
+
+    /**
+     * Пояснение — только там, где без него вывод непонятен.
+     *
+     * У состояний с эталоном числа стоят в «Почему такой вывод»; серая строка
+     * под каждым показанием приучила бы не читать ни ту, ни другую.
+     */
+    @Test
+    fun `пояснение есть только у тихого состояния до сбора фона`() {
+        val quiet = MonitorStatus.Fixed(above = false, thresholdMicroSvH = 0.30f)
+        assertNotNull(statusExplanation(quiet, DoseUnitSetting.MICRO_SIEVERT))
+        for (status in listOf(
+            MonitorStatus.Unknown,
+            MonitorStatus.Fixed(above = true, thresholdMicroSvH = 0.30f),
+            MonitorStatus.Usual(baseline),
+            MonitorStatus.AboveUsual(baseline, heldSeconds = 240),
+            MonitorStatus.AboveThreshold(baseline, 45, 120, 0.30f),
+            MonitorStatus.Alert(baseline, heldSeconds = 300, thresholdMicroSvH = 0.30f),
+        )) {
+            assertNull(statusExplanation(status, DoseUnitSetting.MICRO_SIEVERT), "$status")
+        }
+    }
+
+    /** Ни один статус не называет порог тревоги выводом о самом измерении. */
+    @Test
+    fun `каждый статус называет, с чем сравнил`() {
+        val statuses = listOf(
+            MonitorStatus.Unknown,
+            MonitorStatus.Fixed(above = false, thresholdMicroSvH = 0.30f),
+            MonitorStatus.Fixed(above = true, thresholdMicroSvH = 0.30f),
+            MonitorStatus.Usual(baseline),
+            MonitorStatus.AboveUsual(baseline, heldSeconds = 240),
+            MonitorStatus.AboveThreshold(baseline, 45, 120, 0.30f),
+            MonitorStatus.Alert(baseline, heldSeconds = 300, thresholdMicroSvH = 0.30f),
+        )
+        // Заголовки не повторяются: два состояния с одним словом означали бы,
+        // что человек не видит разницы между ожиданием и подтверждением.
+        val headlines = statuses.map { statusHeadline(it) }
+        assertEquals(headlines.size, headlines.toSet().size, "$headlines")
     }
 }
