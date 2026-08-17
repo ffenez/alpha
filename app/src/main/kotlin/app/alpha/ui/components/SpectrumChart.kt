@@ -234,7 +234,6 @@ fun SpectrumChart(
                 }
             }
 
-            // 1. Horizontal gridlines + y labels.
             for ((value, label) in yLabels) {
                 val yy = y(value)
                 drawLine(grid, Offset(padL, yy), Offset(size.width - padR, yy), 1f)
@@ -249,7 +248,6 @@ fun SpectrumChart(
                 )
             }
 
-            // 2. Energy ticks: vertical gridlines + keV labels below.
             for (tick in spec.energyTicks) {
                 val xx = padL + tick.fraction * plotW
                 drawLine(grid, Offset(xx, padT), Offset(xx, bottom), 1f)
@@ -274,7 +272,6 @@ fun SpectrumChart(
             fun segmentsOf(values: List<Float>): List<List<Int>> =
                 SpectrumPlot.segments(values.take(n), logScale)
 
-            // 3. Background overlay: dimmed muted line.
             spec.overlay?.let { overlay ->
                 val path = Path()
                 for (segment in segmentsOf(overlay)) {
@@ -292,7 +289,6 @@ fun SpectrumChart(
                 )
             }
 
-            // 4. Data line + area fill.
             val line = Path()
             val area = Path()
             for (segment in segmentsOf(spec.columns)) {

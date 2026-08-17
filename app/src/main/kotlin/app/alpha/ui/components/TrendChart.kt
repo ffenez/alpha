@@ -127,7 +127,6 @@ fun TrendChart(
         fun y(value: Float): Float =
             padT + (1f - (value / spec.yMax).coerceIn(0f, 1f)) * plotH
 
-        // 1. Usual-range band.
         spec.band?.let { band ->
             val top = y(band.endInclusive)
             val bottom = y(band.start)
@@ -158,7 +157,6 @@ fun TrendChart(
             )
         }
 
-        // 3. Time labels.
         for ((fraction, label) in spec.xLabels) {
             val measured = textMeasurer.measure(label, axisStyle)
             val xx = (padL + fraction * plotW - measured.size.width / 2f)
@@ -170,7 +168,6 @@ fun TrendChart(
             )
         }
 
-        // 4. Named alarm line.
         val alarm = spec.alarmLevel
         if (alarm != null && alarm <= spec.yMax) {
             val yy = y(alarm)

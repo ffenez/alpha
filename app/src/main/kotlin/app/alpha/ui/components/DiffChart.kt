@@ -139,7 +139,6 @@ fun DiffChart(
             )
         }
 
-        // 4. Difference line.
         val line = Path()
         spec.diff.forEachIndexed { index, value ->
             val point = Offset(x(index), y(value))
