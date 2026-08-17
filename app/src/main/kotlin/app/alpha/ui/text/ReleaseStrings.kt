@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0102Title: String
+    val v0102Summary: String
+
     val v0101Title: String
     val v0101Summary: String
 
@@ -246,6 +249,11 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0102Title = "В углу спектрограммы осталась только единица"
+    override val v0102Summary =
+        "Пометка шкалы у оси энергии убрана: какая ось выбрана, видно по её засечкам и " +
+        "сказано словами в «⋮» и в справке."
 
     override val v0101Title = "Спектрограмма открывается во весь экран"
     override val v0101Summary =
@@ -768,6 +776,11 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0102Title = "Only the unit is left in the spectrogram corner"
+    override val v0102Summary =
+        "The scale marker next to the energy axis is gone: which axis is drawn shows in its " +
+        "own ticks and is said in words in «⋮» and in the help."
 
     override val v0101Title = "The spectrogram opens full screen"
     override val v0101Summary =

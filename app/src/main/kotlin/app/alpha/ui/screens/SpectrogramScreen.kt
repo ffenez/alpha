@@ -305,11 +305,7 @@ fun SpectrogramScreen(
                 ?: columnsData.lastOrNull { it?.doseMicroSvH != null }?.doseMicroSvH
             )?.let { DoseFormat.rate(it, unit) },
         stripMaxLabel = stripMax?.let { DoseFormat.rate(it, unit) },
-        energyUnit = if (energyScale == Spectrogram.EnergyScale.LOG) {
-            t.energyAxisLog
-        } else {
-            t.energyAxisLinear
-        },
+        energyUnit = t.energyUnit,
         probe = probeFraction?.let { fraction ->
             WaterfallProbe(
                 energyFraction = fraction,

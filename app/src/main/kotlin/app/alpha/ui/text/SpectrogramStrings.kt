@@ -98,14 +98,13 @@ interface SpectrogramStrings {
     fun doseStripLabel(unit: String): String
 
     /**
-     * Подпись оси энергии НАЗЫВАЕТ ШКАЛУ.
+     * Единица оси энергии внутри поля — только единица.
      *
-     * Геометрическая ось так же нелинейна, как логарифмическая ось спектра: без
-     * пометки расстояние между засечками читалось бы как расстояние в кэВ, и
-     * человек мерил бы им линии.
+     * Какая шкала выбрана, видно по самим засечкам (50/100/300… против
+     * 500/1000/1500…) и сказано словами в «⋮» и в справке; пометка «лог» в
+     * углу поля повторяла это третий раз и мозолила глаза.
      */
-    val energyAxisLog: String
-    val energyAxisLinear: String
+    val energyUnit: String
 
     /** Пункты «⋮»: действие названо тем, что получится после нажатия. */
     val energyScaleToLinear: String
@@ -246,8 +245,7 @@ object SpectrogramRu : SpectrogramStrings {
     override val modeShape = "Форма"
 
     override fun doseStripLabel(unit: String) = "Мощность дозы · $unit"
-    override val energyAxisLog = "кэВ · лог"
-    override val energyAxisLinear = "кэВ · лин"
+    override val energyUnit = "кэВ"
     override val energyScaleToLinear = "Показать энергию линейно"
     override val energyScaleToLog = "Показать энергию логарифмически"
     override val energyScaleLogNote =
@@ -400,8 +398,7 @@ object SpectrogramEn : SpectrogramStrings {
     override val modeShape = "Shape"
 
     override fun doseStripLabel(unit: String) = "Dose rate · $unit"
-    override val energyAxisLog = "keV · log"
-    override val energyAxisLinear = "keV · lin"
+    override val energyUnit = "keV"
     override val energyScaleToLinear = "Show energy linearly"
     override val energyScaleToLog = "Show energy logarithmically"
     override val energyScaleLogNote =
@@ -525,7 +522,7 @@ fun SpectrogramStrings.allTexts(): List<String> = listOf(
     title, paused, pausedTag, noLink, warmingUp, offlineHistory, offlineTag, backgroundNote,
     windowMinutes(15), windowHours(2),
     modeIntensity, modeShape, doseStripLabel("µSv/h"),
-    energyAxisLog, energyAxisLinear, energyScaleToLinear, energyScaleToLog,
+    energyUnit, energyScaleToLinear, energyScaleToLog,
     energyScaleLogNote, energyScaleLinearNote, energyValue(146),
     legendZero, legendColumnMax, legendRate("1,2"),
     legendIntensityTitle, legendShapeTitle, scaleAuto, scaleFixed, scaleModeNote,
