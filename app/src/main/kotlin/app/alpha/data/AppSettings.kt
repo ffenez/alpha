@@ -154,9 +154,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
 
     /**
      * Пользовательский масштаб интерфейса, %: отдельно текст, отдельно
-     * элементы (см. [app.alpha.ui.theme.UiScale]). Значение с диска
-     * зажимается в допустимые границы при чтении: настройка на диске — не
-     * гарантия, а версия приложения могла границы изменить.
+     * элементы (см. [app.alpha.ui.theme.UiScale]). Значение с диска зажимается
+     * в допустимые границы при чтении: границы могли измениться в новой версии.
      */
     val fontScalePercent: Flow<Int> =
         dataStore.data.map { UiScale.clampFont(it[FONT_SCALE] ?: UiScale.DEFAULT_PERCENT) }
@@ -220,7 +219,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     val measuredResolutionRaw: Flow<String?> =
         dataStore.data.map { it[MEASURED_RESOLUTION] }
 
-    /** `null` — вернуть приближение (человек нажал «Вернуть приближение»). */
+    /** `null` — вернуться к √E-приближению. */
     suspend fun setMeasuredResolutionRaw(encoded: String?) {
         dataStore.edit { prefs ->
             if (encoded == null) prefs.remove(MEASURED_RESOLUTION) else {
@@ -282,12 +281,9 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Идущая запись маршрута — чтобы пережить гибель процесса.
-     *
-     * Нажатие «Начать маршрут» — намерение человека, а не состояние экрана:
-     * система вправе убить процесс в любой момент, и после перезапуска службы
-     * запись обязана продолжиться в ту же строку журнала, а не оборваться и не
-     * начаться заново второй.
+     * Идущая запись маршрута — чтобы пережить гибель процесса: после
+     * перезапуска службы запись продолжается в ту же строку журнала, а не
+     * обрывается и не начинается второй.
      */
     val activeTrackSessionId: Flow<Long?> = dataStore.data.map { it[ACTIVE_TRACK] }
 
@@ -660,10 +656,9 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         /**
          * Настройки, которые нельзя переносить между телефонами и базами.
          *
-         * Адрес прибора — это пара Bluetooth конкретного телефона; остальные
-         * четыре — номера строк В ЭТОЙ базе, а в другой они указывают на чужие
-         * записи или в пустоту. Оценка разрешения относится к конкретному
-         * экземпляру прибора и на другом была бы неправдой.
+         * Адрес прибора — пара Bluetooth конкретного телефона; остальные
+         * четыре — номера строк В ЭТОЙ базе. Оценка разрешения относится к
+         * конкретному экземпляру прибора.
          */
         val NOT_PORTABLE = setOf(
             "last_device_address",
@@ -797,8 +792,7 @@ enum class MapTrackScope {
 
 /** Stored dose display unit. */
 /**
- * Тема оформления. «Системная» — значение по умолчанию: приложение не спорит с
- * телефоном, пока человек не попросил обратного.
+ * Тема оформления. «Системная» — значение по умолчанию.
  */
 enum class ThemeSetting(val id: String, val label: String) {
     SYSTEM("system", "Системная"),

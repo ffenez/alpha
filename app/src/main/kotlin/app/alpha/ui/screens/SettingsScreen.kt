@@ -325,7 +325,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
 /**
  * Ширина, с которой список разделов и открытый раздел помещаются рядом.
  * **Инженерный параметр**: 720 dp — планшет и телефон в ландшафте; уже неё
- * колонка раздела становится теснее телефонной, и делить экран незачем.
+ * колонка раздела становится теснее телефонной.
  */
 private val LIST_DETAIL_MIN_WIDTH = 720.dp
 
@@ -440,9 +440,8 @@ private fun SettingsRoot(
 }
 
 /**
- * Индекс поиска по настройкам: слово, с которым приходит человек, ведёт в
- * раздел. Подписи берутся из каталога строк, слова поиска — свои для каждого
- * языка.
+ * Индекс поиска по настройкам: слово запроса ведёт в раздел. Подписи берутся
+ * из каталога строк, слова поиска — свои для каждого языка.
  */
 private fun settingsSearchIndex(strings: Strings): List<SettingsSearch.Entry> = listOf(
     SettingsSearch.Entry(
@@ -708,7 +707,7 @@ private fun DebugSection(graph: AppGraph) {
     val enabled by graph.settings.debugReportEnabled.collectAsState(initial = false)
     var pending by remember { mutableStateOf<ByteArray?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
-    // Что человек делал и что ожидал увидеть, из отчёта не восстанавливается.
+    // Описание действий и ожидаемого результата из отчёта не восстанавливается.
     var problem by rememberSaveable { mutableStateOf("") }
 
     val saveLauncher = rememberLauncherForActivityResult(
@@ -781,8 +780,8 @@ private fun DebugSection(graph: AppGraph) {
  * рисуют экран.
  */
 /**
- * Архив отладки: опись, отчёт о состоянии, описание проблемы словами человека
- * и спектры в собственном формате.
+ * Архив отладки: опись, отчёт о состоянии, описание проблемы и спектры в
+ * собственном формате.
  */
 private suspend fun buildDebugBundle(
     graph: AppGraph,
@@ -1473,8 +1472,8 @@ private fun SpectralAnalysisSection(graph: AppGraph, onOpenCalibration: () -> Un
 
 /**
  * Строка сигнала прибора: вкл, выкл, «неизвестно» и «прибор не принял».
- * Переключатель стоит там, куда его поставил человек ([asked]), подпись под
- * ним говорит, чем это кончилось.
+ * Переключатель показывает запрошенное состояние ([asked]), подпись под ним —
+ * исход команды.
  */
 @Composable
 private fun DeviceSignalRow(

@@ -304,7 +304,7 @@ fun MonitorScreen(
                             ?.window()
                             ?: ChartMetrics.startWindow(metric, savedSpans, now)
                         // Подтяжка к началу истории — только у живого края:
-                        // окно, уведённое в прошлое, принадлежит человеку.
+                        // окно, уведённое в прошлое, не двигается.
                         val window = if (viewport == null || viewport.followLiveEdge) {
                             ChartWindows.limitedByHistory(chosen, earliest)
                         } else {
@@ -859,8 +859,7 @@ private fun HeroCard(
                     color = colors.ink2,
                 )
                 // Цвет числа — отношение к обычному фону МЕСТА: от обычного до
-                // порога, заданного человеком. За порогом цвет не меняется:
-                // вывод даёт текст, а не шкала.
+                // заданного порога. За порогом цвет не меняется.
                 val tintFraction = if (tintEnabled) {
                     DoseTint.fraction(
                         doseMicroSvH,
@@ -983,13 +982,12 @@ private fun HeroCard(
             // Заголовков на Главной три:
             //
             //  1. «Держится выше порога» — выполнены и величина, и длительность
-            //     собственного порога человека;
+            //     заданного порога;
             //  2. «Повышенный уровень» — абсолютный уровень выше природного
             //     фона, независимо от места и настроек;
             //  3. «Уходите отсюда» — за час набирается годовая доза.
             //
-            // Сравнение с местом («обычно здесь», «выше обычного», ход сбора
-            // фона) живёт в справке по нажатию на числа.
+            // Сравнение с местом живёт в справке по нажатию на числа.
             val alarmLevel = DoseAlarm.of(doseMicroSvH)
             val ownThreshold = status is MonitorStatus.Alert
             val headline = when {
@@ -1199,9 +1197,8 @@ private fun MetricChartCard(
 private fun BluetoothBanner() {
     val context = LocalContext.current
     var enabled by remember { mutableStateOf(BluetoothState.isEnabled(context)) }
-    // Состояние адаптера меняется снаружи приложения, поэтому оно слушается, а
-    // не спрашивается один раз: включив Bluetooth в шторке, человек ждёт, что
-    // предупреждение исчезнет само.
+    // Состояние адаптера меняется снаружи приложения, поэтому оно слушается,
+    // а не спрашивается один раз.
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ignored: Context?, intent: Intent?) {
