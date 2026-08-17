@@ -140,25 +140,18 @@ fun SpectrumScreen(
     continueSnapshotId: Long? = null,
     onStopContinuation: () -> Unit = {},
     /**
-     * Снимок из Истории, открытый на просмотр: экран показывает ЕГО вместо
-     * живого накопления.
-     *
-     * Второго экрана спектра не существует намеренно — кривая, три масштаба,
-     * энергетические диапазоны, таблица пиков со значимостью, подсказки
-     * нуклидов и их карточки обязаны быть теми же самыми, иначе снимок
-     * разбирался бы по другим правилам, чем то, что видно вживую.
+     * Снимок из Истории, открытый на просмотр: экран показывает его вместо
+     * живого накопления. Второго экрана спектра нет — кривая, масштабы,
+     * энергетические диапазоны, таблица пиков и карточки нуклидов общие.
      */
     snapshotId: Long? = null,
     onBack: (() -> Unit)? = null,
     /** Продолжить накопление поверх открытого снимка (действие из «⋮»). */
     onContinueSnapshot: ((Long) -> Unit)? = null,
     /**
-     * Не null — экран показывает ТОЛЬКО спектр во весь экран, в том виде, в
-     * каком по нему тапнули (режим, сглаживание, окно зума).
-     *
-     * Второго экрана спектра снова не заводится: источник данных (живое
-     * накопление, продолженное накопление, снимок из Истории) выбирается
-     * здесь одним правилом, а полноэкранный режим — способ на него смотреть.
+     * Не null — экран показывает только спектр во весь экран, в том виде, в
+     * каком по нему тапнули (режим, сглаживание, окно зума). Источник данных
+     * выбирается здесь одним правилом ([SpectrumSources]).
      */
     fullscreenOptions: SpectrumViewOptions? = null,
     /** Тап по графику: открыть его во весь экран поверх таб-бара. */
@@ -177,8 +170,7 @@ fun SpectrumScreen(
 
     // Acquisition runs only while this tab is composed (watcher refcount).
     // У открытого снимка опрашивать нечего: частый запрос спектра делит
-    // однозапросный канал с секундными показаниями, и тратить его ради
-    // картинки из прошлого нельзя.
+    // однозапросный канал с секундными показаниями.
     DisposableEffect(hub, viewing) {
         if (!viewing) hub.attach()
         onDispose { if (!viewing) hub.detach() }
@@ -191,8 +183,7 @@ fun SpectrumScreen(
         snapshotEntity = loaded
         snapshotMissing = snapshotId != null && loaded == null
     }
-    // Действия живого спектра: всё, что раньше стояло кнопками и полосами
-    // переключателей, теперь открывается из «⋮» шапки.
+    // Действия живого спектра открываются из «⋮» шапки.
     var exportingLive by remember { mutableStateOf(false) }
     var importingLive by remember { mutableStateOf(false) }
     var scaleMenuOpen by remember { mutableStateOf(false) }
@@ -230,9 +221,9 @@ fun SpectrumScreen(
     val hubState by hub.state.collectAsState()
     val connection by graph.serviceStatus.connection.collectAsState()
 
-    // --- «продолжить накопление»: saved snapshot + live stream, channel-wise.
-    // The device keeps accumulating on its own regardless; the sum exists for
-    // display and saving only (documented in the banner below).
+    // «Продолжить накопление»: сохранённый снимок плюс живой поток,
+    // поканально. Прибор продолжает накапливать сам; сумма существует для
+    // показа и сохранения.
     var continuationEntity by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }
     LaunchedEffect(continueSnapshotId) {
         continuationEntity = continueSnapshotId?.let { graph.measurementRepository.spectrumById(it) }
@@ -296,9 +287,8 @@ fun SpectrumScreen(
     }
     val connected = connection is ConnectionState.Connected
 
-    // Полноэкранный режим: поле владеет экраном, всё остальное — панелями
-    // поверх. Показывать нечего — режим сам себя закрывает, а не остаётся
-    // пустым чёрным полем без выхода.
+    // Полноэкранный режим: поле владеет экраном, остальное — панелями поверх.
+    // Показывать нечего — режим закрывает сам себя.
     if (fullscreenOptions != null) {
         if (spectrum != null && spectrum.counts.isNotEmpty()) {
             SpectrumFullScreen(
@@ -473,17 +463,12 @@ fun SpectrumScreen(
             .verticalScroll(rememberScrollState())
             .padding(Dimens.space3)
             .padding(top = 0.dp),
-        // Плотнее: главный вес на экране — у графика, а не у промежутков между
-        // разделами. Шаг между блоками уменьшен на ступень.
+        // Шаг между блоками уменьшен на ступень: главный вес у графика.
         verticalArrangement = Arrangement.spacedBy(Dimens.space2),
     ) {
-        // Открытый снимок — такая же запись, как сессия и маршрут, и шапка у
-        // него та же: имя, время съёмки с накоплением и «⋮» с действиями.
-        // Живой спектр — не запись, у него шапки нет: он всегда «сейчас».
         // Одна шапка на снимок и на живой спектр: имя, сводка одной строкой и
-        // «⋮». Сводка отвечает на вопросы, которые задают о спектре в первую
-        // очередь — ЧЕЙ он, СКОЛЬКО копился и сколько в нём импульсов, — а
-        // переключатели вида уехали туда, где их ищут по надобности.
+        // «⋮». Сводка отвечает, чей это спектр, сколько он копился и сколько в
+        // нём импульсов.
         val entity = snapshotEntity
         if (entity != null) {
             EntityHeader(
@@ -575,8 +560,8 @@ fun SpectrumScreen(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     if (viewing) {
-                        // Снимок либо ещё читается, либо его нет — про прибор
-                        // здесь говорить нечего.
+                        // Снимок ещё читается или его нет: про прибор здесь
+                        // говорить нечего.
                         Text(
                             text = if (snapshotMissing) strings.noData else t.spectrumLoading,
                             style = type.bodySmall,
@@ -619,11 +604,9 @@ fun SpectrumScreen(
             )
         }
 
-        // Нижние действия живут ВНЕ содержимого спектра: импорт чужого файла
-        // должен работать и тогда, когда прибора рядом нет и показывать нечего.
-        // У открытого снимка своих кнопок внизу нет: сохранять его второй раз
-        // незачем, а всё остальное — сравнение, экспорт, имя, удаление —
-        // живёт в «⋮» шапки, как у любой другой записи журнала.
+        // Нижние действия живут вне содержимого спектра: импорт чужого файла
+        // работает и без прибора. У открытого снимка своих кнопок внизу нет —
+        // сравнение, экспорт, имя и удаление живут в «⋮» шапки.
         if (!viewing) {
             SpectrumActionsBar(
                 graph = graph,
@@ -641,14 +624,9 @@ fun SpectrumScreen(
 }
 
 /**
- * «Дополнительный анализ» — переходы к отдельным инструментам.
- *
- * Раньше это были три мелких чипа в самом верху, между переключателями
- * текущего графика: сверху экрана человек читает, КАК показан спектр, и
- * «Радон» среди «Лин · Степень · Лог» выглядел таким же переключателем вида.
- * Инструменты отвечают на свои вопросы и стоят после результатов анализа —
- * строкой с названием, одной фразой о том, что она делает, и шевроном; вся
- * строка нажимается.
+ * «Дополнительный анализ» — переходы к отдельным инструментам: строка с
+ * названием, фразой о том, что она делает, и шевроном; нажимается вся строка.
+ * Стоит после результатов анализа, а не среди переключателей вида.
  */
 @Composable
 private fun AnalysisToolsSheet(
@@ -694,8 +672,8 @@ private fun AnalysisToolRow(title: String, subtitle: String, onClick: () -> Unit
     ) {
         Column(Modifier.weight(1f)) {
             Text(text = title, style = type.label, color = colors.ink)
-            // Подпись инструмента объясняет, что он делает; название и так
-            // называет его, поэтому подпись уходит вместе с пояснениями.
+            // Подпись объясняет, что делает инструмент, и уходит вместе с
+            // пояснениями.
             Hint(text = subtitle)
         }
         NavArrow()
@@ -703,12 +681,8 @@ private fun AnalysisToolRow(title: String, subtitle: String, onClick: () -> Unit
 }
 
 /**
- * «Как читать спектр» — методика по требованию.
- *
- * Абзацы про край шкалы, агрегацию колонок, жесты, калибровку и правила
- * идентификации объясняли всё верно, но занимали место постоянно и читались
- * один раз. Научность обеспечивают однозначные величины и доступность
- * методики, а не её присутствие на экране в каждый момент.
+ * «Как читать спектр» — методика по требованию: край шкалы, агрегация
+ * колонок, жесты, калибровка и правила идентификации.
  */
 @Composable
 private fun SpectrumInfoCard(
@@ -738,9 +712,8 @@ private fun SpectrumInfoCard(
                 fullscreenEntry = true,
                 subtracted = subtracted,
             )
-            // Кнопка внизу — как в справке Поиска: длинный текст прокручен до
-            // конца, и закрывать его крестиком наверху значит возвращаться
-            // пальцем через весь экран.
+            // Кнопка внизу: длинный текст прокручен до конца, и крестик
+            // наверху означал бы возврат пальцем через весь экран.
             AppButton(
                 text = strings.close,
                 onClick = onClose,
@@ -753,8 +726,7 @@ private fun SpectrumInfoCard(
 /**
  * Содержание справки «Как читать спектр» — один текст на оба места, где её
  * открывают: карточка под кнопкой «i» на вкладке и панель поверх поля в
- * полноэкранном режиме. Второй копии этих объяснений не существует
- * намеренно: разойдясь, они рассказали бы об одной картинке разное.
+ * полноэкранном режиме.
  */
 @Composable
 internal fun ColumnScope.SpectrumInfoLines(
@@ -782,8 +754,7 @@ internal fun ColumnScope.SpectrumInfoLines(
         )
     }
     // Третий уровень свёрнут: «как посчитано» отвечает на вопрос, который
-    // возникает после первых двух, и открытым он стоит между человеком и
-    // ответом «что это за горб».
+    // возникает после первых двух.
     var technicalOpen by rememberSaveable { mutableStateOf(false) }
 
     @Composable
@@ -805,8 +776,7 @@ internal fun ColumnScope.SpectrumInfoLines(
     for (s in sections) {
         if (s.level != SpectrumInfoLevel.HOW) section(s)
     }
-    // Кнопка стоит НАД третьим уровнем: раскрытие добавляет текст под ней, а
-    // не уводит саму кнопку вниз из-под пальца.
+    // Кнопка стоит над третьим уровнем: раскрытие добавляет текст под ней.
     Chip(
         text = if (technicalOpen) "${t.infoHowToggle} ▴" else "${t.infoHowToggle} ▾",
         color = colors.ink2,
@@ -845,29 +815,23 @@ private fun SpectrumContent(
     val t = SpectrumCatalogue.of(strings.language)
     val type = LocalAppTypography.current
 
-    // Масштаб оси — настройка ПРОСМОТРА, и она запоминается: человек выбирает
-    // её под задачу (искать пик, смотреть форму континуума), а не заново при
-    // каждом открытии.
+    // Масштаб оси — настройка просмотра и запоминается.
     val scaleId by graph.settings.spectrumScaleId.collectAsState(initial = SpectrumScale.Log.id)
     val scaleRoot by graph.settings.spectrumScaleRoot.collectAsState(initial = 2)
     val scale = remember(scaleId, scaleRoot) { SpectrumScale.of(scaleId, scaleRoot) }
     val settingsScope = rememberCoroutineScope()
     var minusBackground by rememberSaveable { mutableStateOf(false) }
 
-    // Серая кривая записанного фона — по просьбе, а не всегда: наложение это
-    // СРАВНЕНИЕ, и начинает его человек, когда оно ему нужно. Постоянная
-    // вторая кривая поверх данных читается как часть измерения.
+    // Серая кривая записанного фона показывается по просьбе: наложение —
+    // сравнение, а постоянная вторая кривая читается как часть измерения.
     var showBackground by rememberSaveable { mutableStateOf(false) }
 
     // Что именно нажали без записанного фона; null — ничего не нажимали.
-    // Выключенная кнопка молчала, и «почему не работает» человеку было
-    // неоткуда узнать.
     var needBackground by remember { mutableStateOf<String?>(null) }
     needBackground?.let { what ->
         NeedBackgroundDialog(
             what = what,
-            // Записать фон можно только живым прибором: у снимка из Истории и
-            // без соединения предлагать это действие было бы обманом.
+            // Записать фон можно только живым прибором.
             onRecord = if (connected && !viewingSnapshot) {
                 { graph.spectrumHub.request(SpectrumHub.Command.RECORD_BACKGROUND) }
             } else {
@@ -888,27 +852,21 @@ private fun SpectrumContent(
     val calibration = remember(spectrum.a0, spectrum.a1, spectrum.a2) {
         EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2)
     }
-    // Разрешение — свойство КРИСТАЛЛА этого прибора: у 103G оно 7,4 %, у 103
-    // и 110 — 8,4 %. Ширина окна поиска пиков и допуск на совпадение линии
+    // Разрешение — свойство кристалла прибора: у 103G 7,4 %, у 103 и 110
+    // 8,4 %. Ширина окна поиска пиков и допуск на совпадение линии
     // пропорциональны ему.
     val connection by graph.serviceStatus.connection.collectAsState()
-    // У снимка прибор не хранится, а подключённый сейчас ничего о нём не
-    // говорит: снимок разбирается как НЕОПОЗНАННЫЙ прибор (правило и его
-    // причина — в `SpectrumSources.analysisModel`), и это сказано словами
-    // ниже, а не подставлено молча.
+    // У снимка прибор не хранится, подключённый сейчас о нём ничего не
+    // говорит: снимок разбирается как неопознанный прибор
+    // (`SpectrumSources.analysisModel`), и это сказано словами ниже.
     val model = SpectrumSources.analysisModel(
         connectedModel = (connection as? ConnectionState.Connected)?.info?.model,
         viewingSnapshot = viewingSnapshot,
     )
     val resolution662 = model.peakResolution662
 
-    // --- две кнопки вместо двух рядов переключателей ---
-    //
-    // Раньше здесь стояли шесть сегментов («Спектр | − фон» и «Лин | Степень |
-    // Лог») плюс «i». Лин/Степень/Лог — выбор ВИДА, который делают один раз
-    // под задачу, и держать его постоянной панелью над графиком значит
-    // отбирать высоту у самого графика: масштаб уехал в «⋮ → Масштаб Y», а
-    // здесь остался чип с текущим видом (он же открывает выбор) и «− фон».
+    // Вид оси (лин/степень/лог) выбирают один раз под задачу, поэтому он
+    // уехал в «⋮ → Масштаб Y»; здесь остались чип текущего вида и «− фон».
     Row(
         horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
         verticalAlignment = Alignment.CenterVertically,
@@ -938,9 +896,8 @@ private fun SpectrumContent(
     if (scalePicker) {
         SpectrumScaleDialog(graph = graph, onDismiss = { scalePicker = false })
     }
-    // Ползунок степени: 1/1 совпадает с линейным, 1/2 — привычный в
-    // гамма-спектрометрии корень, дальше вид приближается к логарифму, не
-    // становясь им. Показывается только в своём режиме.
+    // Ползунок степени: 1/1 совпадает с линейным, 1/2 — корень, дальше вид
+    // приближается к логарифму, не становясь им. Только в своём режиме.
     if (scale is SpectrumScale.Power) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -966,9 +923,8 @@ private fun SpectrumContent(
         }
     }
     // Крайний канал — граница шкалы, а не точка спектра. Число всегда лежит в
-    // технических данных справки, а под графиком появляется ТОЛЬКО когда за
-    // краем оказалась заметная доля импульсов: у RC-110 там почти всегда
-    // что-то есть, и постоянная строка перестала читаться.
+    // технических данных справки, под графиком появляется только при заметной
+    // доле импульсов за краем.
     val edgeCounts = remember(spectrum) { SpectrumEdge.edgeCounts(spectrum.counts) }
     val totalCounts = remember(spectrum) { spectrum.counts.sumOf { it.toLong() } }
     val edgeLine = if (edgeCounts > 0) {
@@ -978,8 +934,7 @@ private fun SpectrumContent(
     } else {
         null
     }
-    // Справка раскрывается тем же движением, что на Поиске: одно и то же
-    // действие обязано выглядеть одинаково на всех экранах.
+    // Справка раскрывается тем же движением, что на Поиске.
     AnimatedVisibility(
         visible = helpOpen,
         enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
@@ -999,11 +954,10 @@ private fun SpectrumContent(
         )
     }
 
-    // --- display pipeline (raw counts never change): optional «минус фон»
-    // with time-ratio normalization, then optional display-only smoothing ---
-    // Кадр — та же чистая сборка, что и на полном экране ([SpectrumFrames]):
-    // окно, каналы, колонки, наложение фона и верх оси. Две картинки одного
-    // спектра обязаны считаться одним кодом.
+    // Кадр — та же чистая сборка, что на полном экране ([SpectrumFrames]):
+    // окно, каналы, колонки, наложение фона и верх оси. Сырые импульсы не
+    // меняются: «минус фон» с нормировкой по времени и сглаживание —
+    // преобразования показа.
     val frame = remember(
         spectrum, background, subtractOn, smoothing, window, scale, showBackground,
     ) {
@@ -1023,8 +977,8 @@ private fun SpectrumContent(
     val full = frame.full
     val visible = frame.visible
     val range = frame.channels
-    // Отметка энергии из справки о нуклиде: временный указатель «вот где эта
-    // линия по калибровке», привязанный к КАДРУ (см. `SpectrumHighlight`).
+    // Отметка энергии из справки о нуклиде: временный указатель линии по
+    // калибровке, привязанный к кадру (`SpectrumHighlight`).
     var lineMark by remember { mutableStateOf<SpectrumHighlight.Mark?>(null) }
     val markAnchor = SpectrumHighlight.anchor(
         spectrumKey = SpectrumHighlight.spectrumKey(calibration, spectrum.counts.size),
@@ -1066,8 +1020,7 @@ private fun SpectrumContent(
         }
     }
     // Единственный источник вердиктов о кандидатах — движок доказательств
-    // (ADR 006) через мост: и колонка таблицы, и справка нуклида читают ЭТОТ
-    // результат, поэтому два ответа на один вопрос разойтись не могут.
+    // (ADR 006) через мост: таблица и справка нуклида читают один результат.
     val peakVerdict = remember(peaks, spectrum, calibration) {
         PeakEvidenceBridge.analyse(
             peaks = peaks,
@@ -1080,17 +1033,17 @@ private fun SpectrumContent(
     // Tapping a candidate row opens its offline reference card (спец §12).
     var infoIsotope by remember { mutableStateOf<String?>(null) }
     infoIsotope?.let { symbol ->
-        // Справка о нуклиде — тексты области, поэтому карточка собирается на
-        // языке интерфейса; символ, энергии и выходы от языка не зависят.
+        // Карточка собирается на языке интерфейса; символ, энергии и выходы
+        // от языка не зависят.
         val nuclideTexts = NuclideCatalogue.of(LocalStrings.current.language)
         NuclideInfoLibrary.of(symbol, nuclideTexts)?.let { nuclide ->
             NuclideInfoDialog(
                 nuclide = nuclide,
-                // Карточка печатает результат ТОГО ЖЕ разбора, что наполнил
-                // таблицу: ничего не пересчитывается.
+                // Карточка печатает результат того же разбора, что наполнил
+                // таблицу.
                 check = peakVerdict.checks[symbol],
-                // Тап по строке линии: лист закрывается, окно при необходимости
-                // доезжает до энергии, и на поле появляется отметка.
+                // Тап по строке линии: лист закрывается, окно доезжает до
+                // энергии, на поле появляется отметка.
                 onShowOnSpectrum = { energyKeV ->
                     val aiming = SpectrumHighlight.aim(energyKeV, visible, full)
                     window = aiming.window
@@ -1114,8 +1067,7 @@ private fun SpectrumContent(
         }
     }
     // Подсвеченный нуклид: выбранный тапом, иначе первый искусственный
-    // кандидат, иначе первый кандидат вообще — тот же порядок, что был у
-    // подсказок матчера.
+    // кандидат, иначе первый кандидат вообще.
     val highlightedNuclide = highlightedIsotope
         ?.takeIf { name -> peakVerdict.rows.any { it.match.involves(name) } }
         ?: peakVerdict.rows.firstNotNullOfOrNull { row ->
@@ -1138,10 +1090,8 @@ private fun SpectrumContent(
         }
     }
 
-    // --- chart card ---
-    // Поле — доля высоты экрана: спектр это главная картинка вкладки, и на
-    // телефоне ей положено больше, чем полоска в 170 dp. Границы зажима держат
-    // края (см. `SpectrumPlot.fieldHeightDp` и токены `Dimens`).
+    // Высота поля — доля высоты экрана; границы зажима держат края
+    // (`SpectrumPlot.fieldHeightDp`, токены `Dimens`).
     val fieldHeight = SpectrumPlot.fieldHeightDp(
         screenHeightDp = LocalConfiguration.current.screenHeightDp.toFloat(),
         minDp = Dimens.spectrumFieldMin.value,
@@ -1178,9 +1128,8 @@ private fun SpectrumContent(
                     next = SpectrumDisplay.pan(next, full, pan)
                     window = next
                 },
-                // Тап по графику открывает его во весь экран — ровно в том
-                // виде, в каком по нему тапнули: режим, сглаживание и окно
-                // уезжают вместе с ним, картинка не подменяется.
+                // Тап открывает график во весь экран в том же виде: режим,
+                // сглаживание и окно уезжают вместе с ним.
                 onTap = onOpenFullscreen?.let { open ->
                     {
                         open(
@@ -1188,8 +1137,7 @@ private fun SpectrumContent(
                                 minusBackground = subtractOn,
                                 smoothing = smoothing,
                                 window = visible,
-                                // Энергию вне шкалы прибора нести некуда:
-                                // на большом поле её место так же не существует.
+                                // Энергию вне шкалы прибора нести некуда.
                                 highlightKeV = aliveMark
                                     ?.takeIf { it.outcome != SpectrumHighlight.Aim.OUT_OF_SCALE }
                                     ?.energyKeV,
@@ -1198,15 +1146,11 @@ private fun SpectrumContent(
                     }
                 },
                 height = fieldHeight,
-                // Сглаживание — свойство КАРТИНКИ, поэтому переключатель живёт
-                // на самой картинке, компактной кнопкой в углу поля: строка
-                // кнопок под графиком отнимала у него высоту ради одного
-                // нажатия. Обведён = сглаживание включено (правило чипов).
+                // Сглаживание — свойство картинки, поэтому переключатель живёт
+                // на самой картинке, кнопкой в углу поля. Обведён = включено.
                 fieldControls = {
-                    // Оба переключателя — свойства КАРТИНКИ, поэтому живут на
-                    // ней: сглаживание и показ записанного фона. В строке над
-                    // графиком чип фона стоял среди сегментов режима и читался
-                    // как ещё один режим, хотя он про то, что нарисовано.
+                    // Оба переключателя — свойства картинки: сглаживание и
+                    // показ записанного фона.
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
                         modifier = Modifier
@@ -1236,17 +1180,13 @@ private fun SpectrumContent(
                     }
                 },
             )
-            // Легенды под полем нет: что нарисовано, названо переключателями
-            // НАД графиком («Спектр | − фон» и сам фон), а строка внизу
-            // повторяла их третий раз и забирала высоту у картинки.
-            // Полосы кнопок под графиком больше нет: масштаб меняется щипком —
-            // тем же жестом, что и везде, — а кнопки «−» и «+» дублировали его
-            // и забирали у поля высоту. Двойной тап на полном экране
-            // по-прежнему возвращает всю шкалу.
+            // Легенды под полем нет: нарисованное названо переключателями над
+            // графиком. Масштаб меняется щипком; двойной тап на полном экране
+            // возвращает всю шкалу.
             Column(modifier = Modifier.padding(horizontal = Dimens.space1)) {
-                // Отметка обязана объяснить себя: вертикальный пунктир на поле
-                // без подписи читался бы как вывод о спектре. Строка живёт
-                // ровно столько же, сколько сама отметка.
+                // Отметка объясняет себя строкой: пунктир без подписи читался
+                // бы как вывод о спектре. Строка живёт столько же, сколько
+                // отметка.
                 aliveMark?.let { mark ->
                     Text(
                         text = when (mark.outcome) {
@@ -1266,10 +1206,8 @@ private fun SpectrumContent(
                         color = colors.muted,
                     )
                 }
-                // Ни края шкалы, ни оговорки режима «− фон» под полем больше
-                // нет: оба живут в «i» — край в технических данных, кламп
-                // нулём в разделе «как построена картинка». Под графиком
-                // остаются только состояния, а не объяснения.
+                // Край шкалы и оговорка режима «− фон» живут в «i»: под
+                // графиком остаются только состояния.
             }
         }
     }
@@ -1279,8 +1217,8 @@ private fun SpectrumContent(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when {
                 // У прибора без энергетического разрешения (органический
-                // пластик, RadiaCode Zero) пики и совпадения линий не имеют
-                // смысла: спектр там не разделяет энергии.
+                // пластик, RadiaCode Zero) пики и совпадения линий смысла не
+                // имеют: спектр там не разделяет энергии.
                 !model.isSpectrometer -> Text(
                     text = t.noPeakAnalysis(
                         model.displayName,
@@ -1302,19 +1240,17 @@ private fun SpectrumContent(
                 else -> PeakTable(
                     rows = peakVerdict.rows,
                     highlightedNuclide = highlightedNuclide,
-                    // Тап по строке — справка о нуклиде, если он у строки
-                    // есть, и ничего, если нет: маленькое окно с площадью
-                    // открывалось на каждое нажатие и мешало.
+                    // Тап по строке открывает справку о нуклиде, если он у
+                    // строки есть.
                     onSelect = { symbol ->
                         highlightedIsotope = symbol
                         infoIsotope = symbol
                     },
                 )
             }
-            // Родство кандидатов: Pb-214 рядом с Bi-214 читается как две
-            // независимые находки, хотя это соседи по одному ряду и вместе они
-            // и встречаются. Строка появляется, только когда родня реально
-            // есть, и говорит РОВНО о родстве — ни родителя, ни активности.
+            // Родство кандидатов: Pb-214 и Bi-214 — соседи по одному ряду.
+            // Строка появляется только при наличии родни и говорит о родстве,
+            // ни о родителе, ни об активности.
             for (family in DecayFamilies.of(peakVerdict.evidence.candidates)) {
                 val members = family.members.joinToString(", ")
                 Text(
@@ -1335,16 +1271,13 @@ private fun SpectrumContent(
                     color = colors.muted,
                 )
             }
-            // Оговорка под таблицей убрана: она целиком есть в справке «i».
-            // Отказ остаётся НА КАРТИНКЕ — заголовком колонки: там написано
-            // «возможное совпадение», поэтому имя нуклида ни в одной строке не
-            // выглядит как найденный нуклид.
+            // Отказ остаётся на картинке — заголовком колонки «возможное
+            // совпадение»; полная оговорка живёт в справке «i».
         }
     }
 
-    // --- спектральные диапазоны (спец §7): состав спектра, не мера опасности.
-    // Карточка сама себя сворачивает и помнит состояние — блок открывает тот,
-    // кому нужны границы анализа, а не каждый, кто открыл спектр.
+    // Спектральные диапазоны (спец §7): состав спектра, не мера опасности.
+    // Карточка помнит своё состояние.
     SpectralRangesCard(
         graph = graph,
         counts = spectrum.counts,
@@ -1354,11 +1287,7 @@ private fun SpectrumContent(
         onCloseTechnical = onCloseTechnical,
     )
 
-    // --- анализ: одна строка вместо карточки-лаунчера ---
-    //
-    // Пять инструментов списком занимали пол-экрана под спектром, хотя
-    // открывают их редко и по конкретному поводу. Строка называет, что за
-    // ней, а сам список приезжает по нажатию.
+    // Анализ: строка называет, что за ней, список приезжает по нажатию.
     if (!viewingSnapshot) {
         var toolsOpen by remember { mutableStateOf(false) }
         Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
@@ -1393,12 +1322,9 @@ private fun SpectrumContent(
 
 
 /**
- * Выбор масштаба оси значений.
- *
- * Три вида смотрят на один спектр по-разному: линейный показывает, где счёт
- * действительно велик, степенной вытягивает середину, логарифм уравнивает
- * декады. Это выбор ПОД ЗАДАЧУ, который делают один раз, — поэтому он живёт в
- * «⋮», а не полосой сегментов над графиком.
+ * Выбор масштаба оси значений: линейный показывает, где счёт велик, степенной
+ * вытягивает середину, логарифм уравнивает декады. Выбор делают под задачу,
+ * поэтому он живёт в «⋮», а не полосой сегментов над графиком.
  */
 @Composable
 internal fun SpectrumScaleDialog(graph: AppGraph, onDismiss: () -> Unit) {
@@ -1436,7 +1362,7 @@ internal fun SpectrumScaleDialog(graph: AppGraph, onDismiss: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 )
                 // Степень — параметр выбранного вида, поэтому ползунок стоит
-                // рядом с ним и только тогда, когда вид выбран.
+                // рядом с ним и только в этом режиме.
                 if (scale is SpectrumScale.Power) {
                     Text(
                         text = strings.powerDegree(scaleRoot),
@@ -1467,9 +1393,8 @@ internal fun SpectrumScaleDialog(graph: AppGraph, onDismiss: () -> Unit) {
 }
 
 /**
- * «⋮» живого спектра: всё, что делают со спектром, в одном месте и в порядке
- * частоты. Сброс накопления стоит последним и спрашивает подтверждение —
- * разрушающее действие не должно быть первым, куда попадает палец.
+ * «⋮» живого спектра: действия над спектром в порядке частоты. Сброс
+ * накопления стоит последним и спрашивает подтверждение.
  */
 internal fun liveSpectrumMenu(
     t: SpectrumStrings,

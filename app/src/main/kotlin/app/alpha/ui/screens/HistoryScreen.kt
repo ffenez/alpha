@@ -200,13 +200,9 @@ private data class HistoryModel(
     val items: List<HistoryItem>,
     val totalSessions: Long,
     /**
-     * Сколько записей журнала УЖЕ прочитано — не строк на экране.
-     *
-     * Разница не косметическая: подряд идущие записи одного места показываются
-     * одной строкой, и двадцать шесть записей превращаются в семь строк.
-     * Пока «показать ещё» сравнивала общее число с числом СТРОК, условие
-     * оставалось верным всегда: кнопка не исчезала, а следующая страница
-     * склеивалась в те же строки — «нажимаю, а данные те же».
+     * Сколько записей журнала уже прочитано — не строк на экране: подряд
+     * идущие записи одного места показываются одной строкой, и «показать ещё»
+     * обязана сравнивать общее число именно с числом ЗАПИСЕЙ.
      */
     val loadedSessions: Int,
 )
@@ -217,9 +213,8 @@ private data class HistoryModel(
  * X» context. Windowed pages keep months of data smooth; a session opens its
  * detail.
  *
- * Накопленной дозы здесь больше нет: её спрашивают с Главной и по конкретному
- * поводу, а верх Истории она занимала всегда — теперь у неё свой экран
- * ([DoseScreen]), вход на него с плитки «Набралось сегодня».
+ * Накопленная доза живёт на своём экране ([DoseScreen]), вход с плитки
+ * «Набралось сегодня».
  */
 @Composable
 fun HistoryScreen(
@@ -238,9 +233,8 @@ fun HistoryScreen(
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
     val scope = rememberCoroutineScope()
-    // Что показывает журнал. Сессия, маршрут и снимок спектра — три разные
-    // вещи, и искать одну среди трёх перемешанных списков тяжело; фильтр не
-    // прячет данные, а отвечает на вопрос «мне сейчас нужно вот это».
+    // Что показывает журнал: сессия, маршрут и снимок спектра — разные вещи,
+    // и фильтр отвечает на вопрос «нужно вот это».
     var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
     var pages by remember { mutableIntStateOf(1) }
     var model by remember { mutableStateOf<HistoryModel?>(null) }
@@ -252,9 +246,7 @@ fun HistoryScreen(
         }
     }
 
-    // Маршруты: список строк журнала со своими числами. Перечитывается вместе
-    // с остальным журналом — запись маршрута идёт как раз тогда, когда человек
-    // сюда заглядывает.
+    // Маршруты перечитываются вместе с остальным журналом.
     var routes by remember { mutableStateOf<List<RouteSummary>>(emptyList()) }
     LaunchedEffect(reload, filter) {
         while (true) {
@@ -266,8 +258,8 @@ fun HistoryScreen(
             delay(REFRESH_MILLIS)
         }
     }
-    // Измерения продуктов: сама запись — опыт, а итог считает репозиторий,
-    // тот же, что показывает экран измерения. Второго расчёта нет.
+    // Итог измерения продукта считает репозиторий — тот же, что показывает
+    // экран измерения. Второго расчёта нет.
     val foodExperiments by graph.experimentRepository.foodMeasurements()
         .collectAsState(initial = emptyList())
     var foodResults by remember { mutableStateOf(mapOf<Long, FoodScreening.Result?>()) }
@@ -289,12 +281,11 @@ fun HistoryScreen(
     var pickedRoutes by remember { mutableStateOf(setOf<Long>()) }
     var exportingRoute by remember { mutableStateOf<RouteSummary?>(null) }
     val context = LocalContext.current
-    // Удаление откладывается: строка исчезает сразу, а из базы уходит через
-    // несколько секунд — за это время «Отменить» возвращает её целиком.
+    // Удаление откладывается: строка исчезает сразу, из базы уходит через
+    // несколько секунд, и «Отменить» возвращает её целиком.
     var deletingRoutes by remember { mutableStateOf(setOf<Long>()) }
     var confirmingDelete by remember { mutableStateOf<List<RouteSummary>?>(null) }
-    // Шкала миниатюр — та же, что у следа на карте, иначе цвет означал бы в
-    // списке одно, а внутри маршрута другое.
+    // Шкала миниатюр — та же, что у следа на карте.
     val routeScaleMode by graph.settings.mapColorScale
         .collectAsState(initial = MapColorScale.ABSOLUTE)
     val routeTintFactor by graph.settings.doseTintFactor
@@ -320,8 +311,8 @@ fun HistoryScreen(
         reload += 1
     }
 
-    // Маршрут уезжает в любом из четырёх форматов, и любой из них несёт
-    // координаты — поэтому после формата задаётся вопрос о них.
+    // Маршрут уезжает в одном из четырёх форматов, и любой несёт координаты —
+    // поэтому после формата задаётся вопрос о них.
     var routeFormat by remember { mutableStateOf<ExportFile?>(null) }
     var exportNote by remember { mutableStateOf<String?>(null) }
     var exportingSelection by remember { mutableStateOf(false) }
@@ -400,8 +391,8 @@ fun HistoryScreen(
             onDismiss = { renamingSpectrum = null },
         )
     }
-    // Профиль снимка правится задним числом: меняется только запись о том, где
-    // снимали, — отсчёты, время и калибровка остаются прежними.
+    // Профиль снимка правится задним числом: меняется запись о месте съёмки,
+    // отсчёты, время и калибровка остаются прежними.
     profileForSpectrum?.let { entity ->
         val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
         SessionProfileDialog(
@@ -437,8 +428,6 @@ fun HistoryScreen(
     }
 
     // Исследование продукта: то же обращение, что и с остальными записями.
-    // Раньше его нельзя было ни переименовать, ни удалить — случайная проба
-    // оставалась в журнале навсегда.
     exportingStudy?.let { study ->
         EntityExportSheet(
             title = e.export,
@@ -607,8 +596,7 @@ fun HistoryScreen(
         }
     }
 
-    // Профиль записи правится и из списка: раньше для этого нужно было войти
-    // в сессию и найти чип рядом с заголовком.
+    // Профиль записи правится и из списка.
     profileForSession?.let { id ->
         var summary by remember(id) { mutableStateOf<SessionSummary?>(null) }
         val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
@@ -630,8 +618,7 @@ fun HistoryScreen(
         }
     }
 
-    // Формат → координаты → системный диалог: три вопроса подряд, но каждый
-    // задаётся один раз и только про то, что человек уже начал делать.
+    // Формат → координаты → системный диалог: каждый вопрос задаётся один раз.
     exportingRoute?.let { route ->
         if (routeFormat == null) {
             EntityExportSheet(
@@ -713,10 +700,10 @@ fun HistoryScreen(
     }
 
     // Уборка журнала: один режим выбора на сессии и спектры — они лежат в
-    // одном списке, и «убрать лишнее» это одна задача, а не две.
+    // одном списке.
     var selection by remember { mutableStateOf(HistorySelection()) }
-    // «Выбрать всё» обязано знать, что такое «всё»: id снимков живут в
-    // карточке спектров, поэтому список поднят сюда и передаётся вниз.
+    // «Выбрать всё» обязано знать, что такое «всё»: список id снимков поднят
+    // сюда и передаётся вниз.
     val savedSpectra by graph.measurementRepository.savedSpectra(SPECTRA_LIMIT)
         .collectAsState(initial = emptyList())
     var confirming by remember { mutableStateOf<PendingDeletion?>(null) }
@@ -740,9 +727,7 @@ fun HistoryScreen(
         )
     }
 
-    // Правка профиля сессии переехала в саму сессию (spec §20): чип «профиль…»
-    // повторялся в КАЖДОЙ строке журнала и обрезался многоточием, хотя нужен
-    // он редко и относится к одной конкретной записи.
+    // Правка профиля сессии живёт в самой сессии (spec §20).
     // Comparator flow is self-contained in История: picking two snapshots
     // swaps the screen for the comparator; back returns to the list.
     var comparePair by remember { mutableStateOf<Pair<Long, Long>?>(null) }
@@ -760,8 +745,7 @@ fun HistoryScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            // Сверху — половина шага: пустая полоса над вкладками съедала
-            // первую запись, а название экрана и так подписано во вкладке снизу.
+            // Сверху половина шага: название экрана подписано во вкладке снизу.
             .padding(start = Dimens.space3, end = Dimens.space3, bottom = Dimens.space3)
             .padding(top = Dimens.space2),
         verticalArrangement = Arrangement.spacedBy(Dimens.space2),
@@ -775,12 +759,8 @@ fun HistoryScreen(
                     onClick = { selection = selection.cancel() },
                 )
             } else {
-                // The counter is the way in: tapping «12 сессий» is asking to
-                // do something with them.
-                // Счётчик считает ТО, ЧТО НА ЭКРАНЕ: «37 сессий» на вкладке
-                // «Все», где рядом лежат маршруты, снимки и исследования, —
-                // счёт не того, что видно. Число, а не кнопка: в режим выбора
-                // везде в журнале входят долгим нажатием на запись.
+                // Счётчик считает то, что на экране, и служит входом в режим
+                // выбора: в него везде входят долгим нажатием на запись.
                 model?.let { m ->
                     val total = when (filter) {
                         HistoryFilter.ALL -> h.records(
@@ -797,8 +777,7 @@ fun HistoryScreen(
             }
         }
         if (selection.active) {
-            // Идущая сессия не удаляется, поэтому и в «всё» не входит:
-            // «выбрано 13» при двенадцати удаляемых было бы неправдой.
+            // Идущая сессия не удаляется и в «всё» не входит.
             val selectableSessions = model?.items.orEmpty()
                 .filterIsInstance<HistoryItem.Session>()
                 .filter { !it.group.running }
@@ -829,9 +808,7 @@ fun HistoryScreen(
             }
         }
 
-        // Пять вкладок вместо четырёх: «Продукты» существовали в фильтре, но
-        // нажать на них было негде — исследования показывались только внутри
-        // «Все». Ряд прокручивается: пять равных долей на узком экране
+        // Пять вкладок; ряд прокручивается: пять равных долей на узком экране
         // превращают подписи в огрызки.
         Segmented(
             options = listOf(
@@ -856,9 +833,8 @@ fun HistoryScreen(
             val now = System.currentTimeMillis()
             val visibleRoutes = routes.filter { it.id !in deletingRoutes }
             val showSessions = filter == HistoryFilter.ALL || filter == HistoryFilter.SESSIONS
-            // Одна лента вместо четырёх разделов: сессии, маршруты, снимки и
-            // исследования стоят в том порядке, в каком произошли, и
-            // различаются содержанием строки, а не устройством списка.
+            // Одна лента: сессии, маршруты, снимки и исследования стоят в том
+            // порядке, в каком произошли, и различаются содержанием строки.
             val entries = buildList {
                 if (showSessions) {
                     m.items.forEach { item ->
@@ -915,11 +891,10 @@ fun HistoryScreen(
                                                 unit = unit,
                                                 strings = strings,
                                                 h = h,
-                                                // Качество записи — пояснение, а
-                                                // не результат: строка о
-                                                // пропусках появляется, когда
-                                                // человек попросил пояснения, и
-                                                // только если пропуски заметны.
+                                                // Качество записи — пояснение:
+                                                // строка о пропусках появляется
+                                                // при включённых пояснениях и
+                                                // заметных пропусках.
                                                 withGaps = LocalHintsVisible.current,
                                             ),
                                             check = if (selection.active && !group.running) {
@@ -1030,9 +1005,8 @@ fun HistoryScreen(
                                     is FeedEntry.Spectrum -> {
                                         val entity = entry.entity
                                         HistoryRow(
-                                            // Дата стоит в заголовке дня, время
-                                            // — во второй строке: повторять их
-                                            // в названии незачем.
+                                            // Дата стоит в заголовке дня,
+                                            // время — во второй строке.
                                             title = entity.label ?: strings.spectrum,
                                             subtitle = HistoryFormat.dayTime(
                                                 entity.timestamp,
@@ -1151,8 +1125,8 @@ fun HistoryScreen(
             }
 
             if (showSessions && m.loadedSessions < m.totalSessions) {
-                // Компактный чип вместо кнопки во всю ширину: догрузка — не
-                // главное действие экрана, а продолжение списка.
+                // Компактный чип: догрузка — продолжение списка, а не главное
+                // действие экрана.
                 Chip(
                     text = strings.showMore,
                     color = colors.ink2,
@@ -1161,9 +1135,8 @@ fun HistoryScreen(
                 )
             }
 
-            // Действия выбранного — одной строкой внизу, как у маршрутов:
-            // сравнить и объединить появляются, когда выбрано столько, сколько
-            // им нужно, и не занимают места, пока выбирать нечего.
+            // Действия выбранного — одной строкой внизу: «сравнить» и
+            // «объединить» появляются, когда выбрано столько, сколько им нужно.
             AnimatedVisibility(
                 visible = selection.active,
                 enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
@@ -1203,10 +1176,9 @@ fun HistoryScreen(
                                 )
                             }
                         }
-                        // Выгрузка выбранного: либо один общий отчёт, либо по
-                        // файлу на запись в выбранную папку. Больше форматов
-                        // здесь нет намеренно — таблица и данные снимаются с
-                        // самой записи, где видно, что именно уезжает.
+                        // Выгрузка выбранного: общий отчёт или по файлу на
+                        // запись в выбранную папку. Таблица и данные снимаются
+                        // с самой записи.
                         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                             AppButton(
                                 text = e.export,
@@ -1311,12 +1283,8 @@ fun HistoryScreen(
 
 
 /**
- * Измерения продуктов в журнале.
- *
- * Строка отвечает на то, ради чего измерение и делалось: что за продукт, когда,
- * сколько копили и что вышло. Числа фона и образца — вторичны и стоят тусклой
- * строкой: они нужны, чтобы вывод можно было проверить, а не чтобы читать их
- * первыми.
+ * Измерения продуктов в журнале: что за продукт, когда, сколько копили и что
+ * вышло. Числа фона и образца стоят тусклой строкой — по ним проверяют вывод.
  */
 @Composable
 private fun RouteDeleteDialog(
@@ -1356,8 +1324,8 @@ private fun RouteDeleteDialog(
 }
 
 /**
- * Имя маршрута спрашивается ПОСЛЕ прогулки и не обязательно: пока его нет,
- * список подписывает маршрут датой, и это тоже различает записи.
+ * Имя маршрута задаётся после прогулки и не обязательно: пока его нет, список
+ * подписывает маршрут датой.
  */
 @Composable
 private fun RouteRenameDialog(
@@ -1492,9 +1460,7 @@ private suspend fun mergeSnapshots(
     return when (val outcome = SpectrumMerge.merge(inputs)) {
         is SpectrumMerge.Outcome.Invalid -> MergeResult.Refused(outcome.reason)
         is SpectrumMerge.Outcome.Ok -> {
-            // Метка ХРАНИТСЯ в базе, поэтому она не зависит от языка
-            // интерфейса: иначе снимок, объединённый по-русски, так и остался
-            // бы русским после переключения языка.
+            // Метка хранится в базе и не зависит от языка интерфейса.
             val label = "merge · ${chosen.size}"
             graph.measurementRepository.saveSpectrum(
                 Spectrum(
@@ -1535,9 +1501,9 @@ private suspend fun loadHistory(graph: AppGraph, sessionLimit: Int): HistoryMode
     val eventsFrom = sessions.lastOrNull()?.startedAt ?: (now - 24L * 3600_000)
     val events = repo.deviationEvents(from = eventsFrom, to = now)
 
-    // Подряд идущие записи одного места показываются одной строкой: рвали их
-    // разрывы связи и перезапуски службы, а не решение человека. Журнал в базе
-    // при этом не переписывается — склейка живёт только в показе.
+    // Подряд идущие записи одного места показываются одной строкой: их рвали
+    // разрывы связи и перезапуски службы. Журнал в базе не переписывается —
+    // склейка живёт в показе.
     val groups = SessionGroups.merge(
         sessions = sessions,
         graceMillis = SessionGate.DEFAULT_GRACE_MILLIS,
@@ -1597,10 +1563,8 @@ private fun DeleteConfirmDialog(
 }
 
 /**
- * Измерения сессии для отчёта.
- *
- * У идущей записи конца нет, поэтому границей служит текущий момент: отчёт о
- * ней описывает то, что записано К ЭТОЙ МИНУТЕ, и подписан этим временем.
+ * Измерения сессии для отчёта. У идущей записи конца нет, поэтому границей
+ * служит текущий момент, и отчёт подписан этим временем.
  */
 private suspend fun samplesOf(graph: AppGraph, summary: SessionSummary) =
     graph.measurementRepository.samplesList(
@@ -1609,10 +1573,8 @@ private suspend fun samplesOf(graph: AppGraph, summary: SessionSummary) =
     )
 
 /**
- * Пакет отчётов: по файлу на выбранную запись.
- *
- * Имена файлов различаются временем записи, а не порядковым номером: папка с
- * «report-1…report-9» через месяц не говорит ни о чём.
+ * Пакет отчётов: по файлу на выбранную запись. Имена файлов различаются
+ * временем записи, а не порядковым номером.
  */
 private suspend fun reportsFor(
     graph: AppGraph,
@@ -1676,11 +1638,7 @@ private suspend fun reportsFor(
 
 /**
  * Форматы снимка спектра: отчёт для чтения, N42 и XML для программ, CSV для
- * таблицы.
- *
- * Собрано в одном месте, потому что список одинаков и в Журнале, и на экране
- * спектра: расходиться им незачем, а раньше они расходились — в Журнале не
- * было ни отчёта, ни таблицы.
+ * таблицы. Один список на Журнал и на экран спектра.
  */
 @Composable
 internal fun spectrumExportGroups(
@@ -1763,11 +1721,9 @@ internal fun spectrumExportGroups(
 
 
 /**
- * Запись ленты журнала.
- *
- * Виды перечислены здесь, а не выводятся из типов данных, потому что лента —
- * это решение о показе: сессия попадает в неё строкой, а её события —
- * отдельными пометками времени.
+ * Запись ленты журнала. Виды перечислены здесь, а не выводятся из типов
+ * данных: лента — решение о показе, сессия попадает в неё строкой, а её
+ * события — отдельными пометками времени.
  */
 private sealed interface FeedEntry {
     val timestamp: Long
@@ -1808,10 +1764,8 @@ private fun sessionSubtitle(group: SessionGroup, now: Long, h: HistoryStrings): 
 }
 
 /**
- * Третья строка сессии: средняя мощность и накопленная доза.
- *
- * Пустая запись говорит об этом прямо и коротко: рабочий список отвечает, чем
- * запись была, а разбор пропусков и участия в обычном фоне живёт внутри неё.
+ * Третья строка сессии: средняя мощность и накопленная доза. Пустая запись
+ * говорит об этом прямо; разбор пропусков живёт внутри записи.
  */
 private fun sessionDetail(
     group: SessionGroup,
