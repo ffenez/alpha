@@ -106,7 +106,6 @@ import app.alpha.ui.logic.TrendAvailability
 import app.alpha.ui.logic.TrendFit
 import app.alpha.ui.logic.Uncertainty
 import app.alpha.ui.logic.WhyInput
-import app.alpha.ui.logic.learningWording
 import app.alpha.ui.logic.statusExplanation
 import app.alpha.ui.logic.statusHeadline
 import app.alpha.ui.text.HistoryCatalogue
@@ -1195,28 +1194,10 @@ private fun HeroCard(
                         textAlign = TextAlign.Center,
                     )
                 }
-                // Эталон вывода (P10–P90 и объём истории) переехал в «Почему
-                // такой вывод»: там он стоит на первом уровне вместе со шкалой
-                // P10 · медиана · P90 и строкой «использовано N ч». Требование
-                // «вывод должен быть проверяем» осталось — изменилось место:
-                // на Главной эта строка висела всегда, а читается один раз.
-                // `statusDetail` жив и используется шторкой и отчётом.
-                // «Изучаю обычный фон — 0 ч из 3» и «этот профиль не собирает
-                // обычный фон» стояли рядом и противоречили друг другу: у
-                // профиля с выключенным обучением прогресс не может идти. Об
-                // объёме говорит только тот, кто его набирает.
-                val learningOff = admission is Admission.Excluded &&
-                    admission.reason == BaselineExclusion.LEARNING_OFF
-                (baselineState as? BaselineState.Learning)
-                    ?.takeIf { !learningOff }
-                    ?.let { learning ->
-                        Text(
-                            text = learningWording(learning),
-                            style = type.footnote,
-                            color = colors.muted,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
+                // Ход сбора фона места («0,9 ч из 3») уехал в Справку: это
+                // состояние ФОНОВОЙ МОДЕЛИ, а не текущее измерение, и на
+                // Главной оно стояло под каждым показанием каждый день.
+                // Справка открывается нажатием на саму строку вывода.
                 // Подписи «почему такой вывод ›» нет: нажимается сама строка
                 // вывода, а приглашение к нажатию занимало место под каждым
                 // состоянием и повторяло то, что уже сообщает цвет ссылки.

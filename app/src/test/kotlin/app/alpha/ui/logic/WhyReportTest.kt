@@ -13,6 +13,8 @@ import app.alpha.baseline.alarmThresholds
 import app.alpha.baseline.AlarmSensitivity
 import app.alpha.data.DoseUnitSetting
 import app.alpha.data.ExclusionSummary
+import app.alpha.ui.text.MonitorRu
+import app.alpha.baseline.wording
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -532,5 +534,55 @@ class WhyReportTest {
         val legend = WhyReportBuilder.build(input()).legend
         assertTrue(legend.contains("статистической модели профиля"), legend)
         assertTrue(!legend.lowercase().contains("обучен"), legend)
+    }
+
+    // ------------------------------------------------- первый уровень справки
+
+    /**
+     * Справка отвечает на три вопроса раньше, чем начинает объяснять.
+     *
+     * Ход сбора фона ушёл сюда с Главной, и он обязан быть здесь: иначе строка
+     * просто исчезла бы из приложения. «Недостаточно данных» — это состояние
+     * СРАВНЕНИЯ, а не значение измерения, поэтому у него свой блок.
+     */
+    @Test
+    fun `справка показывает сбор фона места`() {
+        val report = WhyReportBuilder.build(
+            input(
+                status = MonitorStatus.Fixed(above = false, thresholdMicroSvH = 0.30f),
+                baselineState = BaselineState.Learning(5_400, 10_800),
+            ),
+        )
+        val learning = assertNotNull(report.learning)
+        assertEquals("1,5 ч", learning.collected)
+        assertEquals("3 ч", learning.required)
+        assertEquals(0.5f, learning.fraction)
+        // Пока фона нет, сравнение честно говорит, что его не с чем делать.
+        assertEquals(MonitorRu.comparisonNotEnough, report.comparison)
+    }
+
+    @Test
+    fun `с собранным фоном сравнение называет вывод, а не отсутствие данных`() {
+        val report = WhyReportBuilder.build(input())
+        assertNull(report.learning)
+        assertEquals(statusHeadline(MonitorStatus.Usual(baseline)), report.comparison)
+    }
+
+    @Test
+    fun `исключённое время — одна строка, а не три повтора`() {
+        val report = WhyReportBuilder.build(
+            input(
+                admission = Admission.Excluded(BaselineExclusion.EXPERIMENT),
+                exclusions = listOf(
+                    ExclusionSummary(BaselineExclusion.EXPERIMENT, seconds = 720),
+                ),
+            ),
+        )
+        val line = assertNotNull(report.excluded)
+        assertTrue(line.contains("12 мин"), line)
+        // Причина названа один раз: раньше она стояла и заголовком, и строкой,
+        // и значением.
+        val reason = BaselineExclusion.EXPERIMENT.wording(MonitorRu)
+        assertEquals(1, line.split(reason).size - 1, line)
     }
 }

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v095Title: String
+    val v095Summary: String
+
     val v094Title: String
     val v094Summary: String
 
@@ -225,6 +228,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v095Title = "Главная стала короче, «Информация» стала «Справкой»"
+    override val v095Summary =
+        "С Главной ушла строка о сборе фона — под показанием остался только короткий статус, " +
+        "а сбор фона места виден в справке полосой «0,9 ч из 3 ч». Сама справка начинается с " +
+        "четырёх ответов — сейчас, фон места, сравнение, исключённое время, — а методика и " +
+        "технические параметры лежат за двумя строками раскрытия."
 
     override val v094Title = "Строка пика ведёт прямо в справку"
     override val v094Summary =
@@ -700,6 +710,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v095Title = "The main screen got shorter, «Information» became «Help»"
+    override val v095Summary =
+        "The background-collection line left the main screen — only the short status stays " +
+        "under the reading, and the progress is in the help as «0,9 ч из 3 ч». The help now " +
+        "opens with four answers — now, the place's background, the comparison, the excluded " +
+        "time — with the method and technical parameters behind two disclosure rows."
 
     override val v094Title = "A peak row leads straight to the reference"
     override val v094Summary =

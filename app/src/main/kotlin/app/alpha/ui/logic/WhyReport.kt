@@ -99,6 +99,14 @@ data class WhySection(
  * переезде вглубь: MAD, число корзин, χ² и z по-прежнему на экране, но за
  * двумя раскрытиями, а не в первой же строке.
  */
+/** Сбор фона места: сколько уже собрано и сколько нужно. */
+data class WhyLearning(
+    val collected: String,
+    val required: String,
+    /** Доля от нуля до единицы — для полосы прогресса. */
+    val fraction: Float,
+)
+
 data class WhyReport(
     val status: String,
     val tone: WhyTone,
@@ -109,6 +117,14 @@ data class WhyReport(
     /** «Обычно здесь» — the historical band of this profile. */
     val usualValue: String?,
     val scale: WhyScale?,
+    /**
+     * Первый уровень справки (§4 ТЗ): что сейчас, сколько собрано фона, чем
+     * кончилось сравнение и сколько времени в фон не пошло. Это ответы на три
+     * вопроса человека, а не разбор методики — она уровнем ниже.
+     */
+    val learning: WhyLearning?,
+    val comparison: String,
+    val excluded: String?,
     val sections: List<WhySection>,
     val legend: String,
     /**
@@ -167,6 +183,25 @@ object WhyReportBuilder {
             } else {
                 null
             },
+            learning = (input.baselineState as? BaselineState.Learning)?.let {
+                WhyLearning(
+                    collected = m.hoursShort(hours(it.accumulatedSeconds)),
+                    required = m.hoursShort(hours(it.requiredSeconds)),
+                    fraction = if (it.requiredSeconds > 0) {
+                        (it.accumulatedSeconds.toFloat() / it.requiredSeconds).coerceIn(0f, 1f)
+                    } else {
+                        0f
+                    },
+                )
+            },
+            // Сравнение — отдельный блок со своим заголовком: «Недостаточно
+            // данных» в строке «Сейчас» читалось как ЗНАЧЕНИЕ измерения.
+            comparison = if (baseline == null) {
+                m.comparisonNotEnough
+            } else {
+                statusHeadline(input.status, s)
+            },
+            excluded = exclusionSummary(input),
             sections = buildList {
                 // Первый уровень: что сейчас, с чем сравнили, сколько данных,
                 // что со спектром — и в каком состоянии сама статистика.
@@ -185,6 +220,35 @@ object WhyReportBuilder {
             legend = legend(s),
             caveat = s.notASafetyConclusion,
         )
+    }
+
+    /**
+     * Одна строка вместо трёх повторов: «12 мин · Поиск или эксперимент».
+     *
+     * Раньше причина писалась трижды — заголовком «почему сейчас идёт …»,
+     * строкой «не пошло в обычный фон 12 мин» и строкой самой причины. Здесь
+     * названы ровно две вещи: сколько времени и по какому поводу.
+     */
+    private fun exclusionSummary(input: WhyInput): String? {
+        val exclusions = input.exclusions
+        val current = (input.admission as? Admission.Excluded)?.reason
+        val seconds = exclusions.sumOf { it.seconds }
+        val reason = exclusions.maxByOrNull { it.seconds }?.reason ?: current ?: return null
+        if (seconds <= 0L && current == null) return null
+        return m.excludedLine(
+            duration = durationWording(seconds.coerceAtLeast(0L), m),
+            reason = reason.wording(m),
+        )
+    }
+
+    /** «0,9» / «3» — часы для строки прогресса. */
+    private fun hours(seconds: Long): String {
+        val value = seconds / 3600.0
+        return if (value >= 10 || value == Math.floor(value)) {
+            "${value.toLong()}"
+        } else {
+            String.format(java.util.Locale.US, "%.1f", value).replace('.', ',')
+        }
     }
 
     /** §14: colour is the state of the comparison, never a safety verdict. */

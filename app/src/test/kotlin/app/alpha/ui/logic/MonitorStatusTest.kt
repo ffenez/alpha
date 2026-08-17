@@ -147,12 +147,14 @@ class MonitorStatusTest {
 
     @Test
     fun `learning and collected wording`() {
+        // «Изучаю обычный фон» — голос алгоритма о себе; человек спрашивает
+        // про фон ЭТОГО МЕСТА и сколько его ещё собирать.
         assertEquals(
-            "изучаю обычный фон — 1,5 ч из 3",
+            "фон этого места — 1,5 ч из 3 ч",
             learningWording(BaselineState.Learning(5400, 10800)),
         )
         assertEquals(
-            "изучаю обычный фон — 0 ч из 3",
+            "фон этого места — 0 ч из 3 ч",
             learningWording(BaselineState.Learning(0, 10800)),
         )
         // «baseline» — имя движка, а не название величины на экране (§2).

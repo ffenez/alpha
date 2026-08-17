@@ -115,6 +115,26 @@ interface MonitorStrings {
 
     // ------------------------------------------------------ «Почему»: шторка
     val whyTitle: String
+
+    // --- справка V2 ---
+
+    /** «Фон этого места» — вместо «изучаю обычный фон». */
+    val placeBackgroundTitle: String
+
+    /** Сколько собрано: «0,9 ч из 3 ч». */
+    fun collectedOf(collected: String, required: String): String
+
+    /** Заголовок блока сравнения и его значение, когда сравнивать не с чем. */
+    val comparisonTitle: String
+    val comparisonNotEnough: String
+
+    /** Что не пошло в фон места: одна строка вместо трёх повторов. */
+    val excludedTitle: String
+    fun excludedLine(duration: String, reason: String): String
+
+    /** Две строки второго уровня. */
+    val howDeviationTitle: String
+    val technicalTitle: String
     val bandNotCollected: String
 
     /** Второй уровень: методика и статистика профиля. */
@@ -254,8 +274,10 @@ object MonitorRu : MonitorStrings {
     override fun minutesShort(value: Long) = "$value мин"
     override fun hoursShort(hours: String) = "$hours ч"
 
+    // «Изучаю обычный фон» — голос алгоритма о себе. Человек спрашивает про
+    // фон ЭТОГО МЕСТА и про то, сколько ещё собирать.
     override fun collectingUsualBackground(collected: String, required: String) =
-        "изучаю обычный фон — $collected ч из $required"
+        "фон этого места — $collected ч из $required ч"
     override fun usualBackgroundCollected(hours: String) =
         "обычный фон собран за $hours ч наблюдений"
     override fun ofMinimumRequired(collected: String, required: String) =
@@ -279,7 +301,18 @@ object MonitorRu : MonitorStrings {
         "Превышение держится дольше заданного вами времени. Это сравнение с вашим " +
             "порогом L1 и с обычным диапазоном этого места, а не оценка опасности."
 
-    override val whyTitle = "Информация"
+    // Окно объясняет не только числа: что происходит, почему фона ещё нет,
+    // как идёт сравнение и по каким параметрам. Это справка, а не «информация».
+    override val whyTitle = "Справка"
+
+    override val placeBackgroundTitle = "Фон этого места"
+    override fun collectedOf(collected: String, required: String) = "$collected из $required"
+    override val comparisonTitle = "Сравнение"
+    override val comparisonNotEnough = "Недостаточно данных"
+    override val excludedTitle = "Исключено из фона"
+    override fun excludedLine(duration: String, reason: String) = "$duration · $reason"
+    override val howDeviationTitle = "Как определяется отклонение"
+    override val technicalTitle = "Технические параметры"
     override val bandNotCollected = "диапазон ещё не собран"
     override val showCalculations = "Показать методику и расчёты"
     override val hideCalculations = "Скрыть методику и расчёты"
@@ -435,7 +468,7 @@ object MonitorEn : MonitorStrings {
     override fun hoursShort(hours: String) = "$hours h"
 
     override fun collectingUsualBackground(collected: String, required: String) =
-        "collecting the usual background — $collected h of $required"
+        "background of this place — $collected h of $required h"
     // «baseline» — имя движка; на экране у величины есть человеческое имя.
     override fun usualBackgroundCollected(hours: String) =
         "the usual background is built from $hours h of observation"
@@ -459,7 +492,16 @@ object MonitorEn : MonitorStrings {
         "The excess has held longer than the time you set. This is a comparison with your " +
             "L1 threshold and with the usual range of this place, not an assessment of harm."
 
-    override val whyTitle = "Information"
+    override val whyTitle = "Help"
+
+    override val placeBackgroundTitle = "Background of this place"
+    override fun collectedOf(collected: String, required: String) = "$collected of $required"
+    override val comparisonTitle = "Comparison"
+    override val comparisonNotEnough = "Not enough data"
+    override val excludedTitle = "Left out of the background"
+    override fun excludedLine(duration: String, reason: String) = "$duration · $reason"
+    override val howDeviationTitle = "How a deviation is decided"
+    override val technicalTitle = "Technical parameters"
     override val bandNotCollected = "the range is not collected yet"
     override val showCalculations = "Show the method and the calculations"
     override val hideCalculations = "Hide the method and the calculations"
@@ -579,6 +621,9 @@ val MonitorCatalogue = AreaCatalogue(ru = MonitorRu, en = MonitorEn)
  * области не проверяют.
  */
 fun MonitorStrings.allTexts(): List<String> = listOf(
+    placeBackgroundTitle, collectedOf("0,9 ч", "3 ч"), comparisonTitle, comparisonNotEnough,
+    excludedTitle, excludedLine("12 мин", "Поиск или эксперимент"),
+    howDeviationTitle, technicalTitle,
     backToNow,
     byLastMeasurement,
     profileUnknown, modeAuto, modeManual, modeUnconfirmed,

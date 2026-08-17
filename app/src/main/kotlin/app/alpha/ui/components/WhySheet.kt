@@ -1,5 +1,12 @@
 package app.alpha.ui.components
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -81,58 +88,58 @@ fun WhySheet(
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = t.whyTitle, style = type.label, color = colors.ink2)
+                // Шапка: имя и «×». Кнопки «Понятно» внизу нет — справка не
+                // требует согласия, её закрывают касанием мимо, «назад» или
+                // крестиком, и место внизу она занимала всегда.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = t.whyTitle,
+                        style = type.title,
+                        color = colors.ink,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Chip(text = "×", color = colors.ink2, onClick = onDismiss)
+                }
 
-                // --- the answer, then the evidence for it (§2)
+                // Первый уровень отвечает на три вопроса: что происходит,
+                // есть ли отклонение, почему такой вывод. Ничего из методики
+                // здесь нет — она за строками раскрытия внизу.
                 StatusRow(text = report.status, color = toneColor(report.tone))
                 Hint(text = report.sentence, style = type.bodySmall, color = colors.ink2)
 
-                if (report.nowValue != null || report.usualValue != null) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = strings.nowSection,
-                                style = type.labelSmall,
-                                color = colors.muted,
-                            )
-                            Text(
-                                text = report.nowValue ?: "—",
-                                style = type.value,
-                                color = colors.ink,
-                            )
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = strings.usualRangeHere,
-                                style = type.labelSmall,
-                                color = colors.muted,
-                            )
-                            Text(
-                                text = report.usualValue ?: t.bandNotCollected,
-                                style = type.value,
-                                color = colors.ink,
-                            )
-                        }
-                    }
-                }
-                report.scale?.let { BandScale(it, toneColor(report.tone)) }
-
                 Column(
                     modifier = Modifier
-                        .heightIn(max = 420.dp)
+                        .heightIn(max = 460.dp)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(Dimens.space3),
                 ) {
-                    report.sections(WhyLevel.PLAIN).forEach { SectionBlock(it) }
+                    HelpBlock(strings.nowSection, report.nowValue ?: "—")
 
-                    // Оговорка стоит на ПЕРВОМ уровне и до кнопки «показать
-                    // методику»: она про смысл вывода, а не про его расчёт.
+                    // Фон места: сколько собрано из нужного и полоса под этим.
+                    // «Изучаю обычный фон» звучало голосом алгоритма; человек
+                    // спрашивает про фон ЭТОГО МЕСТА.
+                    report.learning?.let { learning ->
+                        HelpBlock(
+                            title = t.placeBackgroundTitle,
+                            value = t.collectedOf(learning.collected, learning.required),
+                        ) {
+                            ProgressBar(fraction = learning.fraction)
+                        }
+                    }
+                    if (report.learning == null && report.usualValue != null) {
+                        HelpBlock(strings.usualRangeHere, report.usualValue)
+                    }
+
+                    HelpBlock(t.comparisonTitle, report.comparison) {
+                        report.scale?.let { BandScale(it, toneColor(report.tone)) }
+                    }
+
+                    report.excluded?.let { HelpBlock(t.excludedTitle, it) }
+
+                    // Оговорка стоит на ПЕРВОМ уровне: она про смысл вывода, а
+                    // не про его расчёт.
                     if (report.caveat.isNotBlank()) {
-                        Hint(
-                            text = report.caveat,
-                            style = type.footnote,
-                            color = colors.ink2,
-                        )
+                        Hint(text = report.caveat, style = type.footnote, color = colors.ink2)
                     }
 
                     if (offerProfileShift) {
@@ -143,45 +150,106 @@ fun WhySheet(
                         )
                     }
 
-                    // Второй уровень — методика; выбор запоминается.
+                    // Второй уровень — двумя строками раскрытия, без кнопок
+                    // «Скрыть …»: по умолчанию они закрыты, а шеврон говорит
+                    // сам за себя.
                     if (report.hasAdvanced) {
-                        Chip(
-                            text = if (expanded) t.hideCalculations else t.showCalculations,
-                            color = colors.dataText,
-                            onClick = { onExpandedChange(!expanded) },
-                        )
-                        if (expanded) {
+                        DisclosureSection(
+                            title = t.howDeviationTitle,
+                            expanded = expanded,
+                            onToggle = { onExpandedChange(!expanded) },
+                        ) {
                             report.sections(WhyLevel.METHOD).forEach { SectionBlock(it) }
-                            // Легенда меток стоит там же, где сами метки: на
-                            // первом уровне их нет, и расшифровка отсутствующих
-                            // подписей была бы объяснением пустого места.
-                            Hint(
-                                text = report.legend,
-                            )
-                            // Третий уровень живёт ВНУТРИ второго: формулы,
-                            // MAD, χ² и z нужны реже, чем сама методика.
-                            if (report.hasExpert) {
-                                Chip(
-                                    text = if (expert) t.hideExpert else t.showExpert,
-                                    color = colors.ink2,
-                                    onClick = { expert = !expert },
-                                )
-                                if (expert) {
-                                    report.sections(WhyLevel.EXPERT).forEach { SectionBlock(it) }
-                                }
-                            }
+                            Hint(text = report.legend)
+                        }
+                    }
+                    if (report.hasExpert) {
+                        DisclosureSection(
+                            title = t.technicalTitle,
+                            expanded = expert,
+                            onToggle = { expert = !expert },
+                        ) {
+                            report.sections(WhyLevel.EXPERT).forEach { SectionBlock(it) }
                         }
                     }
                 }
-
-                AppDivider()
-                AppButton(
-                    text = t.gotIt,
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         }
+    }
+}
+
+/**
+ * Блок первого уровня: заголовок, значение и, при необходимости, что-то под
+ * ними — полоса прогресса или шкала диапазона.
+ */
+@Composable
+private fun HelpBlock(
+    title: String,
+    value: String,
+    content: (@Composable () -> Unit)? = null,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+        Text(text = title.uppercase(), style = type.labelSmall, color = colors.muted)
+        Text(text = value, style = type.value, color = colors.ink)
+        content?.invoke()
+    }
+}
+
+/**
+ * Полоса сбора фона.
+ *
+ * Число «0,9 ч из 3 ч» отвечает на вопрос точно, полоса — мгновенно: сколько
+ * осталось, видно, не читая.
+ */
+@Composable
+private fun ProgressBar(fraction: Float) {
+    val colors = LocalAppColors.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(colors.surface2),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(colors.dataText),
+        )
+    }
+}
+
+/** Строка раскрытия: название и шеврон; содержимое приезжает по нажатию. */
+@Composable
+private fun DisclosureSection(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = Dimens.touchTarget)
+                .clickable(onClick = onToggle),
+        ) {
+            Text(
+                text = title,
+                style = type.bodySmall,
+                color = colors.ink,
+                modifier = Modifier.weight(1f),
+            )
+            DisclosureArrow(expanded = expanded)
+        }
+        if (expanded) content()
     }
 }
 
