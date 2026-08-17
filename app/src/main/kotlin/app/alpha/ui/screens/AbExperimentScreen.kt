@@ -340,7 +340,7 @@ private fun CreateExperiment(
                             color = if (placement == code) colors.dataText else colors.ink2,
                             selected = placement == code,
                             // Повторное нажатие снимает выбор: условие может
-                            // быть и не задано, и это честнее подставленного.
+                            // быть и не задано.
                             onClick = { placement = if (placement == code) "" else code },
                         )
                     }
@@ -380,7 +380,7 @@ private fun CreateExperiment(
             AppButton(
                 text = t.create,
                 // Хотя бы одно условие названо: опыт без описанной постановки
-                // невоспроизводим, и обещать обратное нечестно.
+                // невоспроизводим.
                 enabled = !conditions.isEmpty,
                 onClick = {
                     scope.launch {
@@ -459,9 +459,8 @@ private fun ExperimentDetail(
     var pendingReport by remember { mutableStateOf<String?>(null) }
 
     val current = experiment
-    // Длительность прогона — ЧАСТЬ условий опыта, а не настройка момента:
-    // прогоны разной длины сравнимы по скорости счёта, но повторяют условия
-    // хуже, и человеку не приходится вспоминать, сколько шёл первый.
+    // Длительность прогона — часть условий опыта: прогоны разной длины
+    // сравнимы по скорости счёта, но повторяют условия хуже.
     LaunchedEffect(current?.plannedSeconds) {
         val stored = current?.plannedSeconds ?: 0L
         val index = RUN_DURATION_SECONDS.indexOf(stored)
@@ -743,8 +742,7 @@ private fun ExperimentDetail(
             }
         }
 
-        // --- comparison ---
-        // Каталог в ключе: после смены языка предупреждения обязаны пересобраться.
+        // Каталог в ключе: после смены языка предупреждения пересобираются.
         val comparison = remember(runData, windowSpecs, t) {
             val completed = runData.filter { it.endedAt != null }
             if (completed.size >= 2) {
