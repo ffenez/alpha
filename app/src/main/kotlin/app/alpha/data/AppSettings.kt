@@ -145,11 +145,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
      * (`ui/logic/SearchIndicator`): стрелкой или прямой шкалой. Пустое
      * значение = стрелка.
      */
-    val searchIndicator: Flow<String?> = dataStore.data.map { it[SEARCH_INDICATOR] }
 
-    suspend fun setSearchIndicator(id: String) {
-        dataStore.edit { it[SEARCH_INDICATOR] = id }
-    }
 
     /**
      * «Показать расчёты» in the «Почему такой вывод» sheet stays where the user
@@ -694,7 +690,6 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val SEARCH_SOUND_FLAVOUR = stringPreferencesKey("search_sound_flavour")
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")
         private val SEARCH_MODE = stringPreferencesKey("search_mode")
-        private val SEARCH_INDICATOR = stringPreferencesKey("search_indicator")
         private val WHY_EXPANDED = booleanPreferencesKey("why_calculations_expanded")
         private val FONT_SCALE = intPreferencesKey("ui_font_scale_pct")
         private val ELEMENT_SCALE = intPreferencesKey("ui_element_scale_pct")

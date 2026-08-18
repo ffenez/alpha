@@ -84,8 +84,16 @@ object NavigateArc {
     const val START_DEGREES = 160f
     const val SWEEP_DEGREES = 220f
 
-    /** Half-spans the frame may take, in factors of the reference. */
-    val LADDER = listOf(2.0, 4.0, 8.0, 16.0, 32.0)
+    /**
+     * Half-spans the frame may take, in factors of the reference.
+     *
+     * Начинается с ×4, а не с ×2: базовый кадр прибора — ×0,25…×4 (макет
+     * `docs/design/main-and-search.html`), и деления на нём 0,25× / 0,5× / 1× /
+     * 2× / 4×. На этом кадре положение считается ровно так, как в макете:
+     * `position = (log₂ ratio + 2) / 4`. Более широкие ступени остаются, потому
+     * что стрелка, упёртая в конец шкалы, врёт о величине превышения.
+     */
+    val LADDER = listOf(4.0, 8.0, 16.0, 32.0)
 
     /** Headroom before the frame has to grow. */
     const val HEADROOM = 1.15

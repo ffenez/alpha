@@ -28,7 +28,6 @@ import app.alpha.ui.components.BreathingAura
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.Chip
 import app.alpha.ui.components.NavigateGauge
-import app.alpha.ui.components.NavigateScale
 import app.alpha.ui.components.NavigateGaugeSpec
 import app.alpha.ui.components.NavigateTrace
 import app.alpha.ui.components.NavigateTraceSpec
@@ -37,7 +36,6 @@ import app.alpha.ui.components.StatusRow
 import app.alpha.ui.logic.NavigateArc
 import app.alpha.ui.logic.NavigateEngine
 import app.alpha.ui.logic.NavigateState
-import app.alpha.ui.logic.SearchIndicator
 import app.alpha.ui.logic.SearchPulse
 import app.alpha.ui.logic.NavigateTrend
 import app.alpha.ui.logic.NavigateVerdict
@@ -87,8 +85,6 @@ fun NavigateSection(
     onCancelMeasure: () -> Unit,
     onDismissMeasure: () -> Unit,
     onGoToVerify: () -> Unit,
-    /** Стрелка или прямая шкала — вид выбирается в Настройках. */
-    indicator: SearchIndicator = SearchIndicator.NEEDLE,
     /** Счёт держится ровно — предложить проверку здесь. */
     offerVerify: Boolean = false,
     onOfferAccept: () -> Unit = {},
@@ -188,7 +184,6 @@ fun NavigateSection(
                             // Шкала стоит и до отсчёта: пустой прибор — это прибор, а
                             // экран без него выглядел как экран без функции.
                             NavigateIndicator(
-                                indicator = indicator,
                                 spec = NavigateGaugeSpec(
                                     ratio = null,
                                     peakRatio = null,
@@ -223,27 +218,25 @@ fun NavigateSection(
                                 // Направление здесь считается ОТ ТОЧКИ ОТСЧЁТА, а
                                 // состояние над ним — от недавнего уровня:
                                 // знаменатели разные, и это не одна фраза дважды.
+                                // Ответ на главный вопрос экрана — сильнее или
+                                // слабее, чем в точке отсчёта.
                                 StatusRow(
                                     text = NavigateVerdict.referenceDirection(delta, t),
                                     color = deltaColor,
                                 )
-                                Text(
-                                    text = NavigateVerdict.ratioHeadline(state, t),
-                                    style = type.valueHero.copy(fontSize = 34.sp, lineHeight = 36.sp),
-                                    color = deltaColor,
-                                    textAlign = TextAlign.Center,
-                                )
-                                Text(
-                                    text = NavigateVerdict.deltaCaption(state, delta, t),
-                                    style = type.footnote,
-                                    color = colors.ink2,
-                                    textAlign = TextAlign.Center,
-                                )
+                                // Во сколько раз, от чего и насколько точно —
+                                // подписью, а не вторым крупным числом:
+                                // крупное число на экране одно.
+                                NavigateVerdict.referenceSummary(state, delta, t)?.let {
+                                    Text(
+                                        text = it,
+                                        style = type.footnote,
+                                        color = colors.ink2,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
                             }
-                            // Одно утверждение, два рисунка: спецификация общая, и
-                            // вид не может изменить показание.
                             NavigateIndicator(
-                                indicator = indicator,
                                 spec = NavigateGaugeSpec(
                                     ratio = referenceRatio,
                                     peakRatio = peakRatio,
@@ -261,13 +254,9 @@ fun NavigateSection(
                                         ?.ratioHigh?.takeIf { it.isFinite() },
                                 ),
                             )
-                            // Одна фраза о том, можно ли на вывод опереться, и
-                            // кнопка с числами. Интервал и порог сняты с рабочего
-                            // экрана: их разбирают, когда сомневаются, а не пока
-                            // несут прибор.
-                            NavigateVerdict.unresolvedNote(delta, t)?.let {
-                                Text(text = it, style = type.footnote, color = colors.muted)
-                            }
+                            // Почему вывод такой — по кнопке. На рабочем экране
+                            // разбор статистики не нужен: его читают, когда
+                            // сомневаются, а не пока несут прибор.
                             Chip(
                                 text = t.navWhy,
                                 color = colors.dataText,
@@ -464,16 +453,16 @@ fun NavigateSection(
 }
 
 /**
- * Один вид индикатора на все места, где стоит эта шкала: до отсчёта и после
- * него в «Наведении», и на «Проверке» — там знаменатель другой, а прибор тот
- * же, и выбор вида в Настройках обязан менять их вместе.
+ * Прибор «Поиска»: один рисунок на все места, где стоит эта шкала — до точки
+ * отсчёта и после неё в «Наведении», и на «Проверке», где знаменатель другой.
+ *
+ * Вида два не бывает: шкала — это прибор, а у прибора одно лицо. Прямая шкала,
+ * которая жила здесь вторым вариантом, укладывала ту же лестницу в строку и
+ * читалась как индикатор заряда, а не как измерение.
  */
 @Composable
-fun NavigateIndicator(indicator: SearchIndicator, spec: NavigateGaugeSpec) {
-    when (indicator) {
-        // Циферблат в 220° высок по построению: при меньшей высоте радиус
-        // считается по ней, и прибор снова съёживается в узкий сектор.
-        SearchIndicator.NEEDLE -> NavigateGauge(spec = spec, height = 210.dp)
-        SearchIndicator.SCALE -> NavigateScale(spec = spec, height = 96.dp)
-    }
+fun NavigateIndicator(spec: NavigateGaugeSpec) {
+    // Циферблат в 220° высок по построению: при меньшей высоте радиус
+    // считается по ней, и прибор снова съёживается в узкий сектор.
+    NavigateGauge(spec = spec, height = 210.dp)
 }

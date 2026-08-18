@@ -146,6 +146,44 @@ object NavigateVerdict {
     }
 
     /**
+     * Строка под главным числом: во сколько раз, ОТ ЧЕГО и насколько точно.
+     *
+     * Крупное число на экране одно — сама скорость счёта; отношение читается
+     * подписью под ним. Отдельным крупным числом оно спорило с показанием за
+     * внимание, а человек в этот момент несёт прибор и смотрит на одно место.
+     *
+     * Знаменатель назван всегда: отношение без знаменателя — отношение ни к
+     * чему. Интервал приписывается, когда он посчитан: без него «×2,1»
+     * читается как точное значение.
+     */
+    fun referenceSummary(
+        state: NavigateState,
+        delta: ReferenceDelta,
+        t: SearchStrings = SearchRu,
+    ): String? {
+        if (state.reference == null) return null
+        val parts = mutableListOf<String>()
+        val ratio = state.referenceRatio?.takeIf { it.isFinite() && it > 0.0 }
+        val base = state.reference?.ratePerSecond?.let { t.navRefBase(num1(it)) }
+        if (ratio != null && base != null) {
+            parts += "${num2(ratio)}× $base"
+        } else if (base != null) {
+            parts += base
+        }
+        val comparison = state.referenceComparison
+        if (comparison != null &&
+            comparison.ratioLow.isFinite() &&
+            comparison.ratioHigh.isFinite()
+        ) {
+            parts += t.navWhyInterval.lowercase() +
+                " ${num2(comparison.ratioLow)}–${num2(comparison.ratioHigh)}×"
+        } else if (delta == ReferenceDelta.Collecting) {
+            parts += t.navDeltaCaptionCollecting
+        }
+        return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+    }
+
+    /**
      * Что происходит, пока разница не подтверждена — одной фразой без чисел.
      *
      * Числа этой фразы (интервал и то, что он накрывает 1×) стоят в «Почему

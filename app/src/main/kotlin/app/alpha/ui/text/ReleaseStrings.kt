@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0320Title: String
+    val v0320Summary: String
+
     val v0310Title: String
     val v0310Summary: String
 
@@ -330,6 +333,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0320Title = "Поиск и Главная — по эталону"
+    override val v0320Summary =
+        "Прибор Поиска теперь один и полукруглый: шкала ×0,25…×4 с делениями, стрелка от оси " +
+        "и дуга от единицы до показания, а разбор статистики уехал в «Почему?» — на экране " +
+        "остался ответ «сильнее или слабее». Плитки Главной названы своими окнами (фон места, " +
+        "за час, за сутки), под числом вернулась погрешность прибора, а системное отключение " +
+        "анимации гасит дыхание."
 
     override val v0310Title = "Шкала стала прибором"
     override val v0310Summary =
@@ -1040,6 +1051,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0320Title = "Поиск and Главная follow the reference"
+    override val v0320Summary =
+        "The search instrument is one dial now: a ×0.25…×4 half-circle with labelled ticks, a " +
+        "needle from the axis and an arc from one to the reading, while the statistics moved " +
+        "into «Why?» — the screen answers «stronger or weaker». The tiles on Главная are named " +
+        "by their windows (place background, per hour, per day), the device error is back under " +
+        "the number, and the system animation switch stops the breathing."
 
     override val v0310Title = "The scale became an instrument"
     override val v0310Summary =

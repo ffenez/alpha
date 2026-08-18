@@ -79,6 +79,17 @@ interface Strings {
     val cpsUnit: String
     val hardness: String
     val trendPerHour: String
+
+    /**
+     * Подписи трёх плиток под главным числом.
+     *
+     * Каждая называет ОКНО или ЗНАМЕНАТЕЛЬ величины, а не саму величину:
+     * величина под ними одна и та же — доза, и плитки различаются именно тем,
+     * за какой срок и относительно чего она посчитана.
+     */
+    val tilePlaceBackground: String
+    val tilePerHour: String
+    val tilePerDay: String
     val doseToday: String
 
     /**
@@ -436,10 +447,6 @@ interface Strings {
     val searchFeedbackTitle: String
 
     /** Раздел выбора вида индикатора «Наведения». */
-    val searchIndicatorTitle: String
-    val searchIndicatorNeedle: String
-    val searchIndicatorScale: String
-    val searchIndicatorNote: String
     val feedbackOnScreenOnly: String
     val feedbackClicks: String
     val feedbackTone: String
@@ -750,8 +757,7 @@ fun Strings.allTexts(): List<String> = listOf(
     exclusionAfterEvent, fromEndOfDeviation, criteriaNote, notEvaluated,
     notEnoughStatistics, noChangeDetected, changeDetected, spectralNoReference,
     spectralComparison,
-    searchFeedbackTitle, searchIndicatorTitle, searchIndicatorNeedle,
-    searchIndicatorScale, searchIndicatorNote, feedbackOnScreenOnly, feedbackClicks,
+    searchFeedbackTitle, feedbackOnScreenOnly, feedbackClicks,
     feedbackTone, feedbackVibro, energyTone,
     energyToneNote, alarmTitle, archiveSaved,
     archiveFailed, debugTitle, stateReport,
