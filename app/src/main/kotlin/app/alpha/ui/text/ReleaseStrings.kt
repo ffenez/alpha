@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0351Title: String
+    val v0351Summary: String
+
     val v0350Title: String
     val v0350Summary: String
 
@@ -345,6 +348,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0351Title = "Шкала на выбор, без рамки"
+    override val v0351Summary =
+        "Циферблат стоял в квадрате поля графика — теперь он рисуется прямо на карточке, без " +
+        "подложки. В Настройках → Интерфейс появился вид шкалы: циферблат читается на " +
+        "вытянутой руке, прямая занимает строку и оставляет больше места графику; показание " +
+        "у них одно и то же."
 
     override val v0350Title = "Один прибор"
     override val v0350Summary =
@@ -1094,6 +1104,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0351Title = "Pick the scale, drop the frame"
+    override val v0351Summary =
+        "The dial sat inside the square chart field — it is drawn straight on the card now, " +
+        "with no backing. Settings → Interface gained the scale style: a dial reads at arm's " +
+        "length, a bar takes one row and leaves more of the screen to the chart, and the " +
+        "reading is the same in both."
 
     override val v0350Title = "One instrument"
     override val v0350Summary =

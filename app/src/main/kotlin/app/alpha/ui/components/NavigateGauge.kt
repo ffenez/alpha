@@ -27,7 +27,6 @@ import app.alpha.ui.logic.NavigateTrend
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppMetrics
 import app.alpha.ui.theme.LocalAppTypography
-import app.alpha.ui.theme.chartField
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -131,7 +130,11 @@ fun NavigateGauge(
         label = "needle",
     )
 
-    Canvas(modifier = modifier.fillMaxWidth().height(height).chartField()) {
+    // Без подложки: прибор — это шкала на самой карточке, а не картинка в
+    // рамке. Поле [chartField] принадлежит графикам, у которых есть площадь
+    // данных; у циферблата её нет, и квадрат вокруг круга читался как рамка,
+    // которую забыли убрать.
+    Canvas(modifier = modifier.fillMaxWidth().height(height)) {
         val border = metrics.border.toPx()
         val padding = 10.dp.toPx()
         // Циферблат в 220° занимает 2R по ширине и R·(1 + sin 20°) по высоте:

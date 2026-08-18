@@ -34,6 +34,12 @@ object EnStrings : Strings {
     override val hardness = "Hardness"
     override val trendPerHour = "Trend"
     override val scaleThresholdTick = "threshold"
+    override val indicatorTitle = "Instrument scale"
+    override val indicatorDial = "Dial"
+    override val indicatorBar = "Bar"
+    override val indicatorNote =
+        "The reading is the same: a dial reads at arm's length, a bar takes one row and " +
+            "leaves more of the screen to the chart."
     override val modeObserve = "Observe"
     override val modeSearchShort = "Search"
     override val modeVerifyShort = "Verify"

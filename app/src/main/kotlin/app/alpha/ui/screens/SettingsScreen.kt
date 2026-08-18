@@ -107,6 +107,7 @@ import app.alpha.ui.logic.MapAnchors
 import app.alpha.ui.logic.MapColorScale
 import app.alpha.ui.logic.TrackMap
 import app.alpha.ui.logic.DoseFormat
+import app.alpha.ui.logic.InstrumentIndicator
 import app.alpha.ui.logic.NavConfig
 import app.alpha.ui.logic.ProfileTree
 import app.alpha.ui.logic.ProfileDeletion
@@ -1020,12 +1021,37 @@ private fun InterfaceScreen(graph: AppGraph) {
     val strings = LocalStrings.current
     val scope = rememberCoroutineScope()
     val language by graph.settings.language.collectAsState(initial = AppLanguage.SYSTEM)
+    val indicatorId by graph.settings.instrumentIndicator.collectAsState(initial = null)
+    val indicator = InstrumentIndicator.of(indicatorId)
     val skin by graph.settings.skin.collectAsState(initial = AppSkin.TERMINAL)
     val theme by graph.settings.themeSetting.collectAsState(initial = ThemeSetting.SYSTEM)
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
 
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
         SettingsSection(title = strings.interfaceTitle) {
+            // Вид шкалы прибора: одно и то же показание двумя рисунками, и
+            // выбор — вопрос привычки, а не точности.
+            SettingsChoiceRowInline(
+                title = strings.indicatorTitle,
+                options = InstrumentIndicator.entries.map { it.title(strings) },
+                selectedIndex = InstrumentIndicator.entries.indexOf(indicator),
+                onSelect = { index ->
+                    scope.launch {
+                        graph.settings.setInstrumentIndicator(
+                            InstrumentIndicator.entries[index].id,
+                        )
+                    }
+                },
+            )
+            Hint(
+                text = strings.indicatorNote,
+                modifier = Modifier.padding(
+                    start = Dimens.space3,
+                    end = Dimens.space3,
+                    bottom = Dimens.space2,
+                ),
+            )
+            SettingsDivider()
             ChoiceSettingRow(
                 title = strings.languageTitle,
                 options = AppLanguage.entries,

@@ -101,6 +101,7 @@ import app.alpha.ui.components.StatusDot
 import app.alpha.ui.components.WhySheet
 import app.alpha.ui.logic.ArcScale
 import app.alpha.ui.logic.ChartMapping
+import app.alpha.ui.logic.InstrumentIndicator
 import app.alpha.ui.logic.ChartDetailMode
 import app.alpha.ui.logic.ChartMetric
 import app.alpha.ui.logic.DoseFormat
@@ -208,6 +209,8 @@ private const val TREND_WINDOW_MILLIS = 3_600_000L
 @Composable
 fun MonitorScreen(
     graph: AppGraph,
+    /** Вид шкалы прибора — общий для всех режимов, из Настроек. */
+    indicator: InstrumentIndicator = InstrumentIndicator.DIAL,
     onOpenMetricChart: (ChartMetric) -> Unit = {},
     onOpenChart: () -> Unit = {},
     /** Плитка накопленного открывает свой экран. */
@@ -505,6 +508,7 @@ fun MonitorScreen(
             }
 
             HeroCard(
+                indicator = indicator,
                 minContentHeight = heroContentMin,
                 doseMicroSvH = doseMicroSvH,
                 errPercent = live?.doseRateErr,
@@ -860,6 +864,8 @@ internal fun StreamChip(stream: StreamState) {
  */
 @Composable
 internal fun HeroCard(
+    /** Вид шкалы прибора — общий для всех режимов. */
+    indicator: InstrumentIndicator = InstrumentIndicator.DIAL,
     /**
      * Наименьшая высота СОДЕРЖИМОГО карточки, dp: свободная высота страницы,
      * которую карточка забирает себе. Ноль — карточка по своему содержимому.
@@ -982,6 +988,7 @@ internal fun HeroCard(
                 val median = band?.doseMedianMicroSvH?.takeIf { it > 0f }
                 val ratioToPlace = median?.let { m -> doseMicroSvH?.let { it / m } }
                 NavigateIndicator(
+                    indicator = indicator,
                     spec = NavigateGaugeSpec(
                         ratio = ratioToPlace?.toDouble(),
                         scale = ArcScale.PLACE,
