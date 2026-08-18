@@ -42,9 +42,9 @@ import kotlinx.coroutines.launch
  *
  * ## Почему один экран
  *
- * Наблюдение, Поиск и Проверка спрашивают «много ли здесь» и различаются
- * ровно ЗНАМЕНАТЕЛЕМ: медиана фона этого места, точка отсчёта, поставленная
- * рукой, и записанный эталон места. Раз вопрос один, прибор тоже один — у
+ * Наблюдение и Поиск спрашивают «много ли здесь» и различаются ровно
+ * ЗНАМЕНАТЕЛЕМ: медиана фона этого места — либо точка отсчёта, поставленная
+ * рукой (а без неё тот же фон места). Раз вопрос один, прибор тоже один — у
  * него переключается шкала, а не экран (макет
  * `docs/design/one-instrument.html`).
  *
@@ -170,18 +170,12 @@ fun InstrumentScreen(
                 onOpenDose = onOpenDose,
             )
 
-            InstrumentMode.SEARCH, InstrumentMode.VERIFY -> SearchScreen(
+            InstrumentMode.SEARCH -> SearchScreen(
                 graph = graph,
-                verifying = mode == InstrumentMode.VERIFY,
                 indicator = indicator,
                 onOpenSpectrum = onOpenSpectrum,
                 onOpenFingerprint = onOpenFingerprint,
                 onOpenChart = onOpenSearchChart,
-                onGoToVerify = {
-                    scope.launch {
-                        graph.settings.setInstrumentMode(InstrumentMode.VERIFY.id)
-                    }
-                },
             )
         }
     }

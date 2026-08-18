@@ -88,7 +88,6 @@ interface Strings {
 
     val modeObserve: String
     val modeSearchShort: String
-    val modeVerifyShort: String
 
     /**
      * Подпись риски порога на шкале места. Слово вместо числа: число порога
