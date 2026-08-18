@@ -1,10 +1,17 @@
 package app.alpha.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -13,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +53,7 @@ import app.alpha.ui.text.Strings
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
+import app.alpha.ui.theme.Motion
 import kotlin.math.roundToInt
 
 /**
@@ -106,20 +113,25 @@ fun NavigateSection(
     }
     val factor = state.scale?.factor ?: NavigateArc.LADDER.first()
     val referenceRatio = ui.ratioOrNull
-    val peakRatio = state.peak?.ratePerSecond?.let { peak ->
-        state.reference?.ratePerSecond?.takeIf { it > 0.0 }?.let { peak / it }
-    }
     val delta = NavigateEngine.referenceDelta(state)
-    // Цвет — вторичный код: знак несут число и подпись, цвет только помогает.
-    val deltaColor = when {
-        delta !is ReferenceDelta.Resolved -> colors.muted
-        delta.percent >= 0 -> colors.warn
-        else -> colors.ink2
+    // Цвет главного числа — СОСТОЯНИЕ ИЗМЕРЕНИЯ, и он один на число, дыхание
+    // и заливку прибора (эталон: один смысл — один цвет). Пока вывода нет,
+    // число нейтральное: цвет здесь — вердикт, а не признак «данные идут».
+    val numberColor = when {
+        !ui.live -> colors.muted
+        ui !is SearchUiState.ReferenceReady -> colors.ink
+        else -> when (ui.confidence) {
+            SearchConfidence.INSUFFICIENT -> colors.ink
+            SearchConfidence.NO_DIFFERENCE -> colors.ok
+            SearchConfidence.ABOVE -> colors.warn
+            SearchConfidence.BELOW -> colors.ink2
+        }
     }
-    // Уровень доверия называется числом только когда интервал вообще есть.
-    val bandLevel = state.referenceComparison
-        ?.takeIf { it.ratioLow.isFinite() && it.ratioHigh.isFinite() }
-        ?.let { (it.confidenceLevel * 100).roundToInt() }
+    val animatedNumberColor by animateColorAsState(
+        targetValue = numberColor,
+        animationSpec = Motion.normal(),
+        label = "searchNumber",
+    )
 
     if (whyOpen) {
         NavigateWhySheet(
@@ -136,9 +148,12 @@ fun NavigateSection(
     // одно и то же. Пока точки отсчёта нет, отношения тоже нет, и дыхание
     // остаётся спокойным — оно означает только «прибор жив».
     val breathPeriod = SearchPulse.periodMillis(referenceRatio)
-    val breathTint = when (state.trend) {
-        NavigateTrend.RISING -> colors.warn
-        else -> colors.data
+    // Без вердикта дыхание остаётся «цветом данных» — это признак жизни, а не
+    // окраска вывода; с вердиктом оно дышит цветом числа.
+    val breathTint = if (numberColor == colors.ink || numberColor == colors.muted) {
+        colors.data
+    } else {
+        numberColor
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
@@ -176,88 +191,93 @@ fun NavigateSection(
                             Text(
                                 text = cps?.let { Uncertainty.num1(it) } ?: "—",
                                 style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
-                                color = if (ui.live) colors.ink else colors.muted,
+                                color = animatedNumberColor,
                                 textAlign = TextAlign.Center,
                             )
-                            if (ui is SearchUiState.ReferenceReady) {
-                                // Измеренное отношение — всегда, как только
-                                // есть оба числа. Знаменатель назван в строке.
-                                Text(
-                                    text = t.navRatioToReference(
-                                        Uncertainty.num2(ui.ratio.toFloat()),
-                                    ),
-                                    style = type.value,
-                                    color = colors.ink,
-                                    textAlign = TextAlign.Center,
-                                )
-                                // Достоверность — ОТДЕЛЬНАЯ и вторичная
-                                // строка: нехватка статистики не отменяет
-                                // измеренного отношения и не командует экраном.
-                                Text(
-                                    text = confidenceLine(ui.confidence, t),
-                                    style = type.footnote,
-                                    color = confidenceColor(ui.confidence, colors),
-                                    textAlign = TextAlign.Center,
-                                )
-                            } else {
-                                // Пока отсчёта нет, сравнение идёт с недавним
-                                // уровнем, который приложение считает само, —
-                                // и строка называет этот знаменатель.
-                                StatusRow(
-                                    text = NavigateVerdict.trendLine(state, t),
-                                    color = trendColor,
-                                )
+                            // Под числом — одна тихая строка (эталон): после
+                            // отсчёта это отношение со знаменателем и
+                            // интервалом, до него — сравнение с недавним
+                            // уровнем. Смена строки — переход состояния
+                            // интерфейса, и ей можно ехать плавно.
+                            AnimatedContent(
+                                targetState = ui is SearchUiState.ReferenceReady,
+                                transitionSpec = {
+                                    fadeIn(Motion.normal()) togetherWith fadeOut(Motion.fast())
+                                },
+                                label = "footLine",
+                            ) { withReference ->
+                                if (withReference) {
+                                    Text(
+                                        text = NavigateVerdict.referenceSummary(state, delta, t)
+                                            ?: "",
+                                        style = type.footnote,
+                                        color = colors.ink2,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                } else {
+                                    StatusRow(
+                                        text = NavigateVerdict.trendLine(state, t),
+                                        color = trendColor,
+                                    )
+                                }
                             }
                         }
                         // Один прибор во всех состояниях: та же геометрия, тот
-                        // же кадр, разница только в наличии стрелки.
+                        // же кадр, разница только в наличии стрелки. Вердикт —
+                        // гравировкой под осью: он описывает показание.
                         NavigateIndicator(
                             spec = NavigateGaugeSpec(
                                 ratio = referenceRatio,
-                                peakRatio = peakRatio,
                                 factor = factor,
                                 trend = state.trend,
                                 referenceLabel = "1×",
-                                lowLabel = "${NavigateArc.factorLabel(1.0 / factor)}×",
-                                highLabel = "${NavigateArc.factorLabel(factor)}×",
-                                referenceCaption = if (ui.needleVisible) {
-                                    t.navScaleReference
+                                statusText = if (ui is SearchUiState.ReferenceReady) {
+                                    confidenceLine(ui.confidence, t)
                                 } else {
                                     t.navScaleNoReference
                                 },
-                                lowCaption = t.navScaleWeaker,
-                                highCaption = t.navScaleStronger,
-                                intervalLow = state.referenceComparison
-                                    ?.ratioLow?.takeIf { it.isFinite() },
-                                intervalHigh = state.referenceComparison
-                                    ?.ratioHigh?.takeIf { it.isFinite() },
                             ),
                         )
-                        if (ui.offersReference || state.reference == null) {
-                            // Большое действие живёт ровно в одном состоянии —
-                            // пока точки отсчёта нет. После сохранения оно
-                            // исчезает, а действия над точкой уходят в строку
-                            // под графиком.
-                            Hint(
-                                text = t.navSetupBody,
-                                style = type.bodySmall,
-                                color = colors.ink2,
-                            )
-                            AppButton(
-                                text = t.navMark,
-                                onClick = onMark,
-                                primary = true,
-                                enabled = ui.live,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        } else {
-                            // Почему вывод такой — по кнопке: разбор статистики
-                            // читают, когда сомневаются, а не пока несут прибор.
-                            Chip(
-                                text = t.navWhy,
-                                color = colors.dataText,
-                                onClick = { whyOpen = true },
-                            )
+                        // Большое действие живёт ровно в одном состоянии —
+                        // пока точки отсчёта нет; после сохранения на его
+                        // месте кнопка разбора. Смена — переход состояния
+                        // интерфейса, и она едет плавно, чтобы карточка не
+                        // прыгала в момент сохранения.
+                        AnimatedContent(
+                            targetState = state.reference == null,
+                            transitionSpec = {
+                                (fadeIn(Motion.normal()) + expandVertically(Motion.springy()))
+                                    .togetherWith(
+                                        fadeOut(Motion.fast()) +
+                                            shrinkVertically(Motion.springy()),
+                                    )
+                            },
+                            label = "primaryAction",
+                        ) { noReference ->
+                            if (noReference) {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+                                ) {
+                                    Hint(
+                                        text = t.navSetupBody,
+                                        style = type.bodySmall,
+                                        color = colors.ink2,
+                                    )
+                                    AppButton(
+                                        text = t.navMark,
+                                        onClick = onMark,
+                                        primary = true,
+                                        enabled = ui.live,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            } else {
+                                Chip(
+                                    text = t.navWhy,
+                                    color = colors.dataText,
+                                    onClick = { whyOpen = true },
+                                )
+                            }
                         }
                     }
                 }
@@ -474,13 +494,3 @@ private fun confidenceLine(confidence: SearchConfidence, t: SearchStrings): Stri
         SearchConfidence.BELOW -> t.navConfidenceBelow
     }
 
-/** Цвет — вторичный код: смысл несёт сама строка. */
-private fun confidenceColor(
-    confidence: SearchConfidence,
-    colors: app.alpha.ui.theme.AppColors,
-): Color = when (confidence) {
-    SearchConfidence.INSUFFICIENT -> colors.muted
-    SearchConfidence.NO_DIFFERENCE -> colors.ink2
-    SearchConfidence.ABOVE -> colors.warn
-    SearchConfidence.BELOW -> colors.ink2
-}

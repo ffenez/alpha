@@ -207,7 +207,7 @@ class ScreenStatesTest {
         // Прибор стоит пустым, и рядом — единственное действие этого состояния.
         assertShown(SearchRu.navMark)
         // Отношения ещё нет, поэтому его подписи тоже нет.
-        assertAbsent("к отсчёту")
+        assertAbsent("к точке отсчёта")
     }
 
     @Test
@@ -222,7 +222,7 @@ class ScreenStatesTest {
     fun `search well above the reference names the ratio in one caption`() {
         show(UiVariant.ALL[0]) { search(navigateAt(reference = 17.4f, current = 74.5f), cps = 74.5f) }
         // Отношение — подписью под числом, и знаменатель назван в ней же.
-        assertShown("к отсчёту")
+        assertShown("к точке отсчёта")
         // Большое действие ушло: точка отсчёта уже стоит.
         assertAbsent(SearchRu.navMark)
         assertAbsent(SearchRu.navUnresolvedNote)

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0340Title: String
+    val v0340Summary: String
+
     val v0330Title: String
     val v0330Summary: String
 
@@ -336,6 +339,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0340Title = "Прибор ожил"
+    override val v0340Summary =
+        "Стрелка теперь подходит к значению, как у настоящего стрелочного прибора, и вместе с " +
+        "ней едет цветная дуга от единицы; деления подписаны внутри шкалы, вердикт выгравирован " +
+        "под осью, а дыхание стало глубже и не сбивается при смене ритма. На шкале места " +
+        "риска порога подписана словом, след скользит плавно, и цвет числа в Поиске несёт " +
+        "вывод, а не факт прихода данных."
 
     override val v0330Title = "Поиск больше не спорит сам с собой"
     override val v0330Summary =
@@ -1062,6 +1073,15 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0340Title = "The instrument came alive"
+    override val v0340Summary =
+        "The needle now settles onto its value like a real dial and the coloured arc from one " +
+        "rides with it; the ticks are labelled inside the scale, the verdict is engraved under " +
+        "the pivot, and the breathing is deeper and no longer stumbles when its rhythm " +
+        "changes. On the place scale the threshold tick is labelled with a word, the trail " +
+        "glides, and the colour of the Поиск reading carries the verdict, not the mere fact " +
+        "that data arrives."
 
     override val v0330Title = "Поиск stopped contradicting itself"
     override val v0330Summary =
