@@ -45,6 +45,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import app.alpha.AppGraph
 import app.alpha.device.ConnectionState
+import app.alpha.ui.components.FingerprintDimensionRows
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.BackgroundCard
@@ -65,6 +66,8 @@ import app.alpha.ui.components.StatGrid
 import app.alpha.ui.components.StatusRow
 import app.alpha.ui.feedback.Feedback
 import app.alpha.ui.feedback.GeigerClicker
+import app.alpha.analysis.Fingerprint
+import app.alpha.analysis.FingerprintComparison
 import app.alpha.baseline.BaselineState
 import app.alpha.ui.logic.AdaptiveBackground
 import app.alpha.ui.logic.BackgroundCheck
@@ -105,6 +108,7 @@ import app.alpha.ui.logic.SearchWhyInput
 import app.alpha.ui.logic.Uncertainty
 import app.alpha.ui.logic.backgroundBand
 import app.alpha.ui.logic.ledLevel
+import app.alpha.ui.text.FingerprintCatalogue
 import app.alpha.ui.text.LocalStrings
 import app.alpha.ui.text.SearchCatalogue
 import app.alpha.ui.theme.Dimens
@@ -114,7 +118,9 @@ import app.alpha.ui.theme.LocalAppTypography
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 private val HH_MM = DateTimeFormatter.ofPattern("HH:mm")
@@ -124,6 +130,14 @@ private const val FEEDBACK_STALE_MILLIS = 5_000L
 
 /** How often the verdict is re-evaluated without a new reading. */
 private const val TICK_MILLIS = 500L
+
+/**
+ * Как часто пересчитывается сводка отпечатка, мс.
+ *
+ * **Инженерный параметр**: сравнение идёт по окну в минуты, и чаще, чем раз в
+ * пять секунд, его результат меняться не может — а запрос тяжёлый.
+ */
+private const val FINGERPRINT_REFRESH_MILLIS = 5_000L
 
 /** A new maximum has to beat the last announced one by this much to buzz. */
 private const val PEAK_PULSE_FACTOR = 1.10
@@ -435,6 +449,31 @@ fun SearchScreen(
     }
 
     val cps = sample?.countRate
+    // Сводка отпечатка места: тот же расчёт, что на его экране, — «Проверка»
+    // отвечает ровно на этот вопрос, и считать его вторым способом было бы
+    // вторым источником истины.
+    val fingerprintStrings = FingerprintCatalogue.of(strings.language)
+    var fingerprint by remember { mutableStateOf<FingerprintComparison?>(null) }
+    LaunchedEffect(activeProfileId, resumed, screenMode, fingerprintStrings) {
+        while (resumed && screenMode == SearchMode.VERIFY) {
+            val profileId = activeProfileId
+            fingerprint = if (profileId == null) {
+                null
+            } else {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        Fingerprint.compare(
+                            window = graph.fingerprintRepository.window(profileId),
+                            reference = graph.fingerprintRepository.reference(profileId),
+                            s = fingerprintStrings,
+                        )
+                    }.getOrNull()
+                }
+            }
+            delay(FINGERPRINT_REFRESH_MILLIS)
+        }
+    }
+
     // Одно состояние на весь экран: «ждём данные», стрелка, отношение и
     // видимость действия выводятся из него, а не из отдельных условий по месту.
     val searchUi = SearchUiStates.of(
@@ -713,29 +752,12 @@ fun SearchScreen(
                         // Полный разбор открывается нажатием на сам вывод.
                     }
 
-                    // Та же шкала прибора, что в «Наведении», но знаменатель
-                    // другой — записанный фон места, и он назван подписью под
-                    // ×1. Интервал нарисован сектором: одна стрелка без него
-                    // показывала бы отношение точнее, чем оно измерено. Пока
-                    // фона нет, шкала стоит пустой — прибор без показания это
-                    // всё ещё прибор.
-                    val comparison = search.comparison
-                    NavigateIndicator(
-                        spec = NavigateGaugeSpec(
-                            ratio = comparison?.ratio,
-                            peakRatio = null,
-                            intervalLow = comparison?.ratioLow?.takeIf { it.isFinite() },
-                            intervalHigh = comparison?.ratioHigh?.takeIf { it.isFinite() },
-                            factor = verifyFactor,
-                            trend = VerifyScale.trend(level),
-                            referenceLabel = "1×",
-                            lowLabel = "${NavigateArc.factorLabel(1.0 / verifyFactor)}×",
-                            highLabel = "${NavigateArc.factorLabel(verifyFactor)}×",
-                            referenceCaption = strings.backgroundTag,
-                            lowCaption = t.navScaleWeaker,
-                            highCaption = t.navScaleStronger,
-                        ),
-                    )
+                    // Прибора «Наведения» здесь нет намеренно: Проверка
+                    // отвечает на другой вопрос — «отличается ли это место от
+                    // сохранённого профиля», — и ответ на него не «теплее или
+                    // холоднее», а сравнение по составляющим. Копия чужой
+                    // картинки заставляла бы искать в ней смысл, которого у
+                    // неё в этом режиме нет.
 
                     // Полоска показывает НАБОР ПОДТВЕРЖДЕНИЯ, а не уровень: она
                     // отвечает, сколько ещё держать прибор здесь. Отличия нет —
@@ -950,14 +972,50 @@ fun SearchScreen(
             }
         }
 
-        // Отпечаток места живёт здесь, а не на Главной: это тот же вопрос,
-        // с которым открывают Поиск — «здесь не так, как обычно?» — только
-        // заданный не про сейчас, а про место целиком.
-        AppButton(
-            text = strings.placeFingerprint,
-            onClick = onOpenFingerprint,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // Отпечаток места живёт здесь, а не на Главной: это тот же вопрос, с
+        // которым открывают Проверку — «здесь не так, как обычно?» — только
+        // заданный про место целиком. Не кнопка во всю ширину, а сам ответ:
+        // общий вывод и три составляющие, каждая со своей готовностью. Тап
+        // открывает подробности.
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onOpenFingerprint,
+                ),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = strings.placeFingerprint.uppercase(),
+                        style = type.labelSmall,
+                        color = colors.ink2,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(text = "›", style = type.label, color = colors.muted)
+                }
+                val comparison = fingerprint
+                if (comparison == null) {
+                    Text(
+                        text = t.waitingStream,
+                        style = type.bodySmall,
+                        color = colors.muted,
+                    )
+                } else {
+                    StatusRow(
+                        text = Fingerprint.headline(comparison, fingerprintStrings),
+                        color = if (comparison.anyChanged) colors.warn else colors.ink,
+                    )
+                    FingerprintDimensionRows(
+                        comparison = comparison,
+                        t = fingerprintStrings,
+                        detailed = false,
+                    )
+                }
+            }
+        }
 
         // «Тон по энергии» is a research toggle on top of the *clicks*: it
         // steers their pitch, so it only appears in that mode.

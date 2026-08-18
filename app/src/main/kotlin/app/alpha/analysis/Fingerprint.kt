@@ -171,14 +171,20 @@ object Fingerprint {
                 hardnessChangePercent = null,
             )
         }
-        if (window == null || window.seconds < MIN_WINDOW_SECONDS) {
+        // Готовность измерений РАЗНАЯ, и общего «мало данных» на всех больше
+        // нет: доза и счёт ждут своего окна ([MIN_WINDOW_SECONDS]), форма
+        // спектра решает сама — ей нужна экспозиция, а не минуты стояния.
+        // Одно «мало данных» на все три скрывало, что часть сравнения уже
+        // сделана, и противоречило накопленному эталону на том же экране.
+        val intensityReady = window != null && window.seconds >= MIN_WINDOW_SECONDS
+        val progress = s.windowProgress(
+            (window?.seconds ?: 0L) / 60L,
+            MIN_WINDOW_SECONDS / 60,
+        )
+        if (window == null) {
             return FingerprintComparison(
                 verdicts = FingerprintDimension.entries.map {
-                    DimensionVerdict(
-                        it,
-                        FingerprintState.NOT_ENOUGH_DATA,
-                        s.needsWindow(MIN_WINDOW_SECONDS / 60),
-                    )
+                    DimensionVerdict(it, FingerprintState.NOT_ENOUGH_DATA, progress)
                 },
                 hardnessNow = null,
                 hardnessReference = null,
@@ -186,7 +192,9 @@ object Fingerprint {
             )
         }
 
-        val dose = band(
+        val dose = if (!intensityReady) {
+            DimensionVerdict(FingerprintDimension.DOSE, FingerprintState.NOT_ENOUGH_DATA, progress)
+        } else band(
             dimension = FingerprintDimension.DOSE,
             now = window.doseMedianMicroSvH,
             low = reference.doseLowMicroSvH,
@@ -195,7 +203,13 @@ object Fingerprint {
             decimals = 2,
             s = s,
         )
-        val counts = band(
+        val counts = if (!intensityReady) {
+            DimensionVerdict(
+                FingerprintDimension.COUNT_RATE,
+                FingerprintState.NOT_ENOUGH_DATA,
+                progress,
+            )
+        } else band(
             dimension = FingerprintDimension.COUNT_RATE,
             now = window.cpsMedian,
             low = reference.cpsLow,
@@ -206,7 +220,7 @@ object Fingerprint {
         )
         val shape = shape(window, reference, s)
 
-        val hardnessNow = Hardness.of(
+        val hardnessNow = if (!intensityReady) null else Hardness.of(
             doseRateMicroSvH = window.doseMedianMicroSvH.toDouble(),
             countRate = window.cpsMedian.toDouble(),
             seconds = window.seconds.toDouble(),
@@ -309,11 +323,16 @@ object Fingerprint {
         if (dose?.state == FingerprintState.NOT_EVALUATED) {
             return s.headlineNoReference
         }
-        if (comparison.verdicts.all { it.state == FingerprintState.NOT_ENOUGH_DATA }) {
-            return s.headlineNotEnough
-        }
         val intensityChanged = dose?.changed == true || counts?.changed == true
         val shapeChanged = shape?.changed == true
+        // Найденное отличие сообщается, даже если проверено не всё: оно уже
+        // найдено. А вот «отличий не найдено» при непроверенном измерении
+        // сказать нельзя — это утверждение о том, чего никто не смотрел.
+        if (!intensityChanged && !shapeChanged &&
+            comparison.verdicts.any { it.state == FingerprintState.NOT_ENOUGH_DATA }
+        ) {
+            return s.headlineNotEnough
+        }
         // «Совпадает» и «как в эталоне» — утверждения о равенстве, которых
         // сравнение не делало: каждое измерение проверяло ОТЛИЧИЕ и его не
         // нашло. Формулировки говорят ровно это.

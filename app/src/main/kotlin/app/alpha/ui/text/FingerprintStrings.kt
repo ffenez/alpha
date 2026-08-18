@@ -24,6 +24,14 @@ interface FingerprintStrings {
      * которых собран эталон, поэтому переводится только ОБОЗНАЧЕНИЕ.
      */
     fun needsWindow(minutes: Long): String
+
+    /**
+     * Сколько уже собрано из необходимого — «7 мин из 15».
+     *
+     * «Мало данных» без этих чисел не отвечает на единственный вопрос, который
+     * в этот момент есть: ждать ещё минуту или полчаса.
+     */
+    fun windowProgress(collectedMinutes: Long, requiredMinutes: Long): String
     fun nowVsReference(now: String, low: String, high: String): String
     val differentChannelGrid: String
 
@@ -71,6 +79,8 @@ object FingerprintRu : FingerprintStrings {
     override val referenceMissing = "эталон места не создан"
 
     override fun needsWindow(minutes: Long) = "нужно $minutes мин подходящих измерений"
+    override fun windowProgress(collectedMinutes: Long, requiredMinutes: Long) =
+        "$collectedMinutes мин из $requiredMinutes"
 
     override fun nowVsReference(now: String, low: String, high: String) =
         "сейчас $now · эталон $low–$high"
@@ -146,6 +156,8 @@ object FingerprintEn : FingerprintStrings {
     override val referenceMissing = "this place has no reference yet"
 
     override fun needsWindow(minutes: Long) = "$minutes min of admitted measurements needed"
+    override fun windowProgress(collectedMinutes: Long, requiredMinutes: Long) =
+        "$collectedMinutes min of $requiredMinutes"
 
     override fun nowVsReference(now: String, low: String, high: String) =
         "now $now · reference $low–$high"
@@ -219,7 +231,7 @@ val FingerprintCatalogue = AreaCatalogue(ru = FingerprintRu, en = FingerprintEn)
 fun FingerprintStrings.allTexts(): List<String> = listOf(
     doseDimension, countDimension, shapeDimension,
     referenceMissing,
-    needsWindow(15), nowVsReference("0,15", "0,12", "0,18"),
+    needsWindow(15), windowProgress(7, 15), nowVsReference("0,15", "0,12", "0,18"),
     differentChannelGrid,
     headlineNoReference, headlineNotEnough, headlineBothChanged, headlineIntensityChanged,
     headlineShapeChanged, headlineNoDifference,
