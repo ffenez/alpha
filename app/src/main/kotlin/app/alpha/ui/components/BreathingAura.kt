@@ -66,11 +66,13 @@ fun BreathingAura(
             // Замерший поток — застывшее свечение: движение здесь означает
             // «данные идут», и врать им нельзя.
             val amount = if (live) phase else 0f
-            val radius = size.minDimension * (0.55f + 0.12f * amount)
+            val radius = size.minDimension * (0.62f + 0.16f * amount)
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        tint.copy(alpha = (if (live) 0.10f + 0.14f * amount else 0.05f)),
+                        // Замерший поток оставляет тусклое свечение: элемент
+                        // виден, но не движется — это и есть сообщение.
+                        tint.copy(alpha = if (live) 0.16f + 0.20f * amount else 0.07f),
                         Color.Transparent,
                     ),
                     center = Offset(size.width / 2f, size.height * 0.42f),

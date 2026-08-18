@@ -255,12 +255,16 @@ fun NavigateSection(
                         NavigateTrend.RISING -> colors.warn
                         else -> colors.data
                     }
-                    val breathing = referenceRatio != null
+                    // Дыхание есть всегда, пока идут измерения: без точки
+                    // отсчёта оно спокойное («прибор жив»), с ней период
+                    // считает [SearchPulse] — и тогда ритм становится
+                    // показанием близости.
+                    val breathing = cps != null
                     Box(
                         modifier = Modifier.drawBehind {
                             if (!breathing) return@drawBehind
                             drawRoundRect(
-                                color = glowColor.copy(alpha = 0.05f + 0.13f * glow),
+                                color = glowColor.copy(alpha = 0.08f + 0.20f * glow),
                                 cornerRadius = CornerRadius(12.dp.toPx()),
                             )
                         },

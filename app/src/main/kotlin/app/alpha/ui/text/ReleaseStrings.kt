@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0271Title: String
+    val v0271Summary: String
+
     val v0270Title: String
     val v0270Summary: String
 
@@ -312,6 +315,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0271Title = "Дыхание стало заметным"
+    override val v0271Summary =
+        "Свечение за числом и вокруг индикатора Поиска было слишком слабым, чтобы его " +
+        "увидеть, а в Поиске оно вдобавок появлялось только после того, как задана точка " +
+        "отсчёта. Теперь дыхание идёт, пока приходят измерения, и заметно; без точки " +
+        "отсчёта оно спокойное, с ней ритм становится показанием близости."
 
     override val v0270Title = "Дыхание на Главной и шкала места"
     override val v0270Summary =
@@ -978,6 +988,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0271Title = "The breathing became visible"
+    override val v0271Summary =
+        "The glow behind the reading and around the search indicator was too faint to notice, " +
+        "and in Поиск it appeared only once a reference point had been set. It now breathes " +
+        "whenever measurements arrive, and it can be seen; without a reference point it is " +
+        "calm, with one the rhythm becomes a reading of closeness."
 
     override val v0270Title = "Breathing on Home and the place scale"
     override val v0270Summary =
