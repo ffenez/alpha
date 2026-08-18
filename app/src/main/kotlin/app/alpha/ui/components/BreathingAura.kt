@@ -35,9 +35,9 @@ import app.alpha.ui.theme.LocalAppColors
  *
  * ## Светлые оформления
  *
- * Свечение живёт светом: на бумажном фоне его не видно. В светлых скинах
- * компонент не рисует ничего — состояние там несёт полоса под числом, которую
- * ставит экран.
+ * На бумажной подложке та же прозрачность читается слабее, поэтому там
+ * свечение плотнее: дыхание обязано быть видно в любом оформлении, иначе оно
+ * не сообщение, а украшение для одной темы.
  */
 @Composable
 fun BreathingAura(
@@ -59,10 +59,8 @@ fun BreathingAura(
         ),
         label = "breathPhase",
     )
-    val visible = colors.isDark
     Box(
         modifier = modifier.drawBehind {
-            if (!visible) return@drawBehind
             // Замерший поток — застывшее свечение: движение здесь означает
             // «данные идут», и врать им нельзя.
             val amount = if (live) phase else 0f
@@ -72,7 +70,15 @@ fun BreathingAura(
                     colors = listOf(
                         // Замерший поток оставляет тусклое свечение: элемент
                         // виден, но не движется — это и есть сообщение.
-                        tint.copy(alpha = if (live) 0.16f + 0.20f * amount else 0.07f),
+                        // На светлой подложке та же прозрачность читается
+                        // слабее, поэтому там свечение плотнее.
+                        tint.copy(
+                            alpha = if (live) {
+                                if (colors.isDark) 0.16f + 0.20f * amount else 0.10f + 0.16f * amount
+                            } else {
+                                if (colors.isDark) 0.07f else 0.05f
+                            },
+                        ),
                         Color.Transparent,
                     ),
                     center = Offset(size.width / 2f, size.height * 0.42f),

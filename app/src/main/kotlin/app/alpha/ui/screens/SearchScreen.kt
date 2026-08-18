@@ -638,41 +638,6 @@ fun SearchScreen(
                 // Величина названа заголовком экрана, σ разбирается в «Почему»
                 // рядом с окном, по которому посчитана.
 
-                if (record != null) {
-                    val delta = SearchVerdict.deltaPercent(search.comparison)
-                    // Две плитки той же формы, что на Главной: фон и отношение
-                    // к нему читаются вместе — «+31 %» без самого фона не
-                    // проверить.
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = Dimens.space2),
-                    ) {
-                        MetricTileBox(
-                            tile = MetricTile(
-                                // Заголовок плитки называет источник фона:
-                                // изученный приложением и записанный человеком —
-                                // разные утверждения о надёжности сравнения.
-                                label = if (learnedInUse) t.backgroundLearnedTag else strings.backgroundTag,
-                                value = Uncertainty.num1(record.cps),
-                            ),
-                            modifier = Modifier.weight(1f),
-                        )
-                        MetricTileBox(
-                            tile = MetricTile(
-                                label = t.toBackground,
-                                value = delta?.let { if (it >= 0) "+$it %" else "−${-it} %" } ?: "—",
-                                valueColor = if (level == SearchLevel.CONFIRMED_EXCESS) {
-                                    colors.warn
-                                } else {
-                                    null
-                                },
-                            ),
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
 
                 // Сам вывод открывает разбор.
                 Column(

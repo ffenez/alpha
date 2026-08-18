@@ -180,6 +180,23 @@ fun NavigateSection(
                     color = colors.ink2,
                 )
                 if (state.reference == null) {
+                    // Шкала стоит и до отсчёта: пустой прибор — это прибор, а
+                    // экран без него выглядел как экран без функции.
+                    NavigateIndicator(
+                        indicator = indicator,
+                        spec = NavigateGaugeSpec(
+                            ratio = null,
+                            peakRatio = null,
+                            factor = NavigateArc.LADDER.first(),
+                            trend = state.trend,
+                            referenceLabel = "1×",
+                            lowLabel = "${factorLabel(1.0 / NavigateArc.LADDER.first())}×",
+                            highLabel = "${factorLabel(NavigateArc.LADDER.first())}×",
+                            referenceCaption = t.navScaleReference,
+                            lowCaption = t.navScaleWeaker,
+                            highCaption = t.navScaleStronger,
+                        ),
+                    )
                     StatusRow(text = t.navSetupTitle, color = colors.ink)
                     Hint(text = t.navSetupBody, style = type.bodySmall, color = colors.ink2)
                     // Главное действие живёт ВНУТРИ своего блока, а не отдельной
@@ -269,10 +286,7 @@ fun NavigateSection(
                             )
                         },
                     ) {
-                        when (indicator) {
-                            SearchIndicator.NEEDLE -> NavigateGauge(spec = gaugeSpec, height = 124.dp)
-                            SearchIndicator.SCALE -> NavigateScale(spec = gaugeSpec, height = 96.dp)
-                        }
+                        NavigateIndicator(indicator = indicator, spec = gaugeSpec)
                     }
                     // Одна фраза о том, можно ли на вывод опереться, и кнопка
                     // с числами. Интервал и порог сняты с рабочего экрана: их
@@ -475,3 +489,12 @@ private fun factorLabel(value: Double): String =
     } else {
         String.format(Locale.US, "%.2f", value).replace('.', ',').trimEnd('0').trimEnd(',')
     }
+
+/** Один вид индикатора на оба места: до отсчёта и после него. */
+@Composable
+private fun NavigateIndicator(indicator: SearchIndicator, spec: NavigateGaugeSpec) {
+    when (indicator) {
+        SearchIndicator.NEEDLE -> NavigateGauge(spec = spec, height = 124.dp)
+        SearchIndicator.SCALE -> NavigateScale(spec = spec, height = 96.dp)
+    }
+}
