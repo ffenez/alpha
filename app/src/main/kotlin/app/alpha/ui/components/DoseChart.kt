@@ -45,6 +45,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import app.alpha.ui.logic.ChartBucket
+import app.alpha.ui.logic.ChartDetailShape
 import app.alpha.ui.logic.DataGap
 import app.alpha.ui.logic.TimeBand
 import app.alpha.ui.chart.ChartAxisLock
@@ -1057,28 +1058,35 @@ private fun bandPath(pixels: PreparedFrame, high: FloatArray, low: FloatArray): 
     return path
 }
 
-/** Median polyline; a gap breaks the pen, nothing is interpolated across it. */
 /**
- * Подробный ряд: линия по крайним значениям колонок. В каждой колонке перо
- * идёт от максимума к минимуму и продолжает со значения, на котором
- * остановилось. При узкой колонке (окно / число колонок) минимум и максимум
- * совпадают с самим измерением; при широкой это прореживание, сохраняющее
- * форму, — пик и провал внутри колонки остаются на картинке.
+ * Подробный ряд: медиана связывает колонки, размах колонки стоит вертикальным
+ * штрихом в её x ([ChartDetailShape]). Прежняя ломаная «минимум колонки →
+ * максимум следующей» на широкой колонке рисовала час роста и вертикальный
+ * сброс — движение, которого не было.
  */
 private fun detailPath(pixels: PreparedFrame): Path {
     val path = Path()
-    var penDown = false
-    for (i in 0 until pixels.count) {
-        if (!pixels.plottable[i]) {
-            penDown = false
-            continue
+    val lines = ChartDetailShape.medianPolylines(
+        x = pixels.x,
+        medianY = pixels.medianY,
+        plottable = pixels.plottable,
+        segmentStart = pixels.segmentStart,
+    )
+    for (polyline in lines) {
+        polyline.forEachIndexed { index, point ->
+            if (index == 0) path.moveTo(point.first, point.second)
+            else path.lineTo(point.first, point.second)
         }
-        if (pixels.segmentStart[i]) penDown = false
-        val high = pixels.maxY[i]
-        val low = pixels.minY[i]
-        if (penDown) path.lineTo(pixels.x[i], high) else path.moveTo(pixels.x[i], high)
-        if (low != high) path.lineTo(pixels.x[i], low)
-        penDown = true
+    }
+    val strokes = ChartDetailShape.rangeStrokes(
+        x = pixels.x,
+        minY = pixels.minY,
+        maxY = pixels.maxY,
+        plottable = pixels.plottable,
+    )
+    for (stroke in strokes) {
+        path.moveTo(stroke.x, stroke.topY)
+        path.lineTo(stroke.x, stroke.bottomY)
     }
     return path
 }

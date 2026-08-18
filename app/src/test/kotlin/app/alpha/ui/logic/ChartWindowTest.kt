@@ -280,3 +280,41 @@ class ChartWindowTest {
         }
     }
 }
+
+class ExactPathBoundaryTest {
+
+    /**
+     * Ступень «6 ч» обязана читаться точным путём.
+     *
+     * Запас чтения добавлялся без ограничителя ровно на границе, диапазон
+     * становился 12 ч, и `methodFor` молча переводил окно на почасовые
+     * скетчи: колонка вырастала до часа, и подробный ряд рисовал семь
+     * треугольников вместо шести часов измерений.
+     */
+    @Test
+    fun `the six hour step still reads raw samples`() {
+        val now = 1_700_000_000_000L
+        val exact = QuantilePaths.EXACT_MAX_SPAN_MILLIS
+        val window = ChartWindows.latest(exact, now)
+        val loaded = ChartWindows.loadRange(window, now)
+        assertEquals("запас на границе раздувает чтение", exact, loaded.spanMillis)
+        assertEquals(QuantileMethod.EXACT_RAW, QuantilePaths.methodFor(loaded.spanMillis))
+    }
+
+    @Test
+    fun `a window past the limit keeps its reading padding`() {
+        val now = 1_700_000_000_000L
+        val span = QuantilePaths.EXACT_MAX_SPAN_MILLIS + 60_000L
+        val loaded = ChartWindows.loadRange(ChartWindows.latest(span, now), now)
+        assertTrue(loaded.spanMillis > span)
+        assertEquals(QuantileMethod.KLL_SKETCH, QuantilePaths.methodFor(loaded.spanMillis))
+    }
+
+    @Test
+    fun `a short window keeps padding inside the exact path`() {
+        val now = 1_700_000_000_000L
+        val loaded = ChartWindows.loadRange(ChartWindows.latest(5L * 60_000L, now), now)
+        assertTrue(loaded.spanMillis > 5L * 60_000L)
+        assertEquals(QuantileMethod.EXACT_RAW, QuantilePaths.methodFor(loaded.spanMillis))
+    }
+}

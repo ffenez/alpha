@@ -132,11 +132,15 @@ object ChartWindows {
             minPaddingMillis,
         )
         val exactLimit = QuantilePaths.EXACT_MAX_SPAN_MILLIS
-        val pad = if (span >= exactLimit) {
+        val pad = if (span > exactLimit) {
             // Длинное окно и так на скетчах: там строка — это час, и лишний
             // запас стоит десятков строк, а не десятков тысяч.
             wanted
         } else {
+            // РАВЕНСТВО принадлежит точному пути: на ступени ровно 6 ч запас
+            // без ограничителя раздувал чтение до 12 ч и молча переводил
+            // окно на почасовые скетчи — колонка становилась часом, и график
+            // рисовал семь треугольников вместо шести часов измерений.
             wanted.coerceAtMost((exactLimit - span) / 2)
         }.coerceAtLeast(0L)
         val to = minOf(window.toMillis + pad, nowMillis)
