@@ -43,11 +43,10 @@ import app.alpha.ui.logic.SpectrumViewOptions
 import app.alpha.ui.screens.LiveChartScreen
 import app.alpha.ui.screens.MapFocus
 import app.alpha.ui.screens.MapScreen
-import app.alpha.ui.screens.MonitorScreen
+import app.alpha.ui.screens.InstrumentScreen
 import app.alpha.ui.screens.OnboardingScreen
 import app.alpha.ui.screens.NuclideTrendScreen
 import app.alpha.ui.screens.RadonScreen
-import app.alpha.ui.screens.SearchScreen
 import app.alpha.ui.screens.SessionDetailScreen
 import app.alpha.ui.screens.SessionTrackMapScreen
 import app.alpha.ui.screens.SettingsScreen
@@ -399,12 +398,12 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     swipeDisabledOn = setOf(AppTab.MAP),
                 ) { pageTab ->
                     when (pageTab) {
-                AppTab.HOME -> MonitorScreen(
+                AppTab.HOME -> InstrumentScreen(
                     graph = graph,
                     onOpenSettings = { showSettings = true },
                     onOpenChart = {
                         chartMetricId = ChartMetric.DOSE.id
-                        // С Главной график живой: диапазон снимается.
+                        // Из наблюдения график живой: диапазон снимается.
                         chartContextId = ChartContexts.LIVE
                         chartRangeFrom = null
                         chartRangeTo = null
@@ -418,23 +417,19 @@ private fun MainScaffoldContent(graph: AppGraph) {
                         showLiveChart = true
                     },
                     onOpenDose = { showDose = true },
-                )
-                AppTab.SEARCH -> SearchScreen(
-                    graph = graph,
-                    // §13 of the search redesign: a confirmed excursion
-                    // whose *spectral shape* also changed may invite the
-                    // user to the spectrum. Nothing is carried across —
-                    // the spectrum tab shows its own live accumulation.
+                    // §13 of the search redesign: a confirmed excursion whose
+                    // *spectral shape* also changed may invite the user to the
+                    // spectrum. Nothing is carried across — the spectrum tab
+                    // shows its own live accumulation.
                     onOpenSpectrum = { tab = AppTab.SPECTRUM },
-                    // «Отпечаток места» спрашивает то же, что и Поиск, но
-                    // про место целиком, а не про сейчас — поэтому вход
-                    // живёт здесь, а не на Главной.
+                    // «Отпечаток места» спрашивает то же, что и Проверка, но
+                    // про место целиком, а не про сейчас.
                     onOpenFingerprint = { showFingerprint = true },
-                    // Лента Поиска и полноэкранный график — одна величина в
+                    // Лента поиска и полноэкранный график — одна величина в
                     // двух размерах: тап открывает счёт во весь экран.
-                    onOpenChart = {
+                    onOpenSearchChart = {
                         chartMetricId = ChartMetric.COUNT_RATE.id
-                        // Открыто из Поиска: курсор там сравнивает с
+                        // Открыто из поиска: курсор там сравнивает с
                         // записанным фоном поиска.
                         chartContextId = ChartContexts.SEARCH
                         chartRangeFrom = null

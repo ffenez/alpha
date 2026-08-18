@@ -14,7 +14,6 @@ object EnStrings : Strings {
     override val language = AppLanguage.EN
 
     override val tabHome = "Monitor"
-    override val tabSearch = "Search"
     override val tabSpectrum = "Spectrum"
     override val tabMap = "Map"
     override val tabHistory = "History"
@@ -35,6 +34,9 @@ object EnStrings : Strings {
     override val hardness = "Hardness"
     override val trendPerHour = "Trend"
     override val scaleThresholdTick = "threshold"
+    override val modeObserve = "Observe"
+    override val modeSearchShort = "Search"
+    override val modeVerifyShort = "Verify"
     override val tilePlaceBackground = "place background"
     override val tilePerHour = "per hour"
     override val tilePerDay = "per day"

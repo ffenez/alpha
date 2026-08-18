@@ -21,6 +21,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.alpha.ui.logic.ArcScale
 import app.alpha.ui.logic.NavigateArc
 import app.alpha.ui.logic.NavigateTrend
 import app.alpha.ui.theme.LocalAppColors
@@ -44,13 +45,28 @@ import kotlin.math.sin
  */
 @Immutable
 data class NavigateGaugeSpec(
-    /** Current rate as a factor of the точка отсчёта; null = nothing to point at. */
+    /** Current rate as a factor of the знаменателя шкалы; null = нечего показывать. */
     val ratio: Double?,
-    /** Half-span of the scale: the ends are ×factor and ×1/factor. */
-    val factor: Double,
+    /**
+     * Шкала прибора: её концы и есть режим. ×1 — либо «как обычно здесь»
+     * ([ArcScale.PLACE]), либо «как в точке отсчёта» ([ArcScale.MARK]).
+     */
+    val scale: ArcScale,
     val trend: NavigateTrend,
     /** «1×» — a mark without a name is a scratch on the glass. */
     val referenceLabel: String,
+    /**
+     * Обычный разброс места (P10–P90) в тех же отношениях — сектор дуги.
+     *
+     * Отвечает на вопрос «бывает ли здесь так»: без него отклонение от медианы
+     * читается как событие даже там, где место само по себе разбросано. Null —
+     * разброс неизвестен либо шкала не про место.
+     */
+    val bandLow: Double? = null,
+    val bandHigh: Double? = null,
+    /** Порог тревоги на той же шкале и его подпись; null — порога нет. */
+    val threshold: Double? = null,
+    val thresholdLabel: String? = null,
     /**
      * Строка состояния под осью — «отсчёт не задан», «сигнал выше отсчёта».
      *
@@ -104,9 +120,9 @@ fun NavigateGauge(
     // Демпфер стрелки: цель — ДОЛЯ шкалы, не угол, поэтому смена кадра
     // (factor) не крутит стрелку через полкруга. Первая стрелка выходит из ×1
     // — из места, откуда пошли.
-    val targetPosition = spec.ratio?.let { NavigateArc.position(it, spec.factor) }
+    val targetPosition = spec.ratio?.let { NavigateArc.position(it, spec.scale) }
     val animatedPosition by animateFloatAsState(
-        targetValue = targetPosition ?: NavigateArc.position(1.0, spec.factor),
+        targetValue = targetPosition ?: NavigateArc.position(1.0, spec.scale),
         animationSpec = if (motionAllowed) {
             tween(NEEDLE_SETTLE_MILLIS, easing = NEEDLE_EASING)
         } else {
@@ -148,10 +164,26 @@ fun NavigateGauge(
         val arcWidth = 6.dp.toPx()
         arc(colors.chartGrid, NavigateArc.START_DEGREES, NavigateArc.SWEEP_DEGREES, arcWidth)
 
+        // Обычный разброс места — широкий тусклый сектор ТОЙ ЖЕ дуги: он
+        // отвечает «бывает ли здесь так», и потому лежит под показанием, а не
+        // рядом с ним.
+        val bandLow = spec.bandLow
+        val bandHigh = spec.bandHigh
+        if (bandLow != null && bandHigh != null && bandHigh > bandLow) {
+            val from = NavigateArc.angleDegrees(bandLow, spec.scale)
+            val to = NavigateArc.angleDegrees(bandHigh, spec.scale)
+            arc(
+                color = colors.ink2.copy(alpha = 0.26f),
+                fromDegrees = from,
+                sweep = (to - from).coerceAtLeast(MIN_BAND_DEGREES),
+                width = arcWidth * 2.4f,
+            )
+        }
+
         // Заливка от ×1 до стрелки: «на столько отсюда ушло». Она едет вместе
         // со стрелкой — это одно движение, показанное дважды.
         if (targetPosition != null) {
-            val fromDegrees = NavigateArc.angleDegrees(1.0, spec.factor)
+            val fromDegrees = NavigateArc.angleDegrees(1.0, spec.scale)
             val toDegrees = NavigateArc.START_DEGREES +
                 NavigateArc.SWEEP_DEGREES * animatedPosition
             arc(
@@ -168,12 +200,12 @@ fun NavigateGauge(
         val tickOuter = radius - arcWidth / 2f - 2.dp.toPx()
         val tickInner = tickOuter - 9.dp.toPx()
         val labelRadius = tickInner - 11.dp.toPx()
-        val ticks = NavigateArc.ticks(spec.factor)
+        val ticks = NavigateArc.ticks(spec.scale)
         val steps = (ticks.size - 1) / 2
         val labelStep = if (steps <= 3) 1 else steps
         ticks.forEachIndexed { index, value ->
             val reference = value == 1.0
-            val angle = NavigateArc.angleDegrees(value, spec.factor)
+            val angle = NavigateArc.angleDegrees(value, spec.scale)
             drawLine(
                 color = if (reference) colors.ink2 else colors.muted,
                 start = point(angle, tickOuter),
@@ -199,6 +231,34 @@ fun NavigateGauge(
                     at.y - measured.size.height / 2f,
                 ),
             )
+        }
+
+        // Порог — своя риска ПОВЕРХ шкалы, с подписью снаружи: он не деление
+        // и не показание, а граница, о которой договорились. За концом шкалы
+        // не рисуется вовсе — прижатая к краю риска врала бы о расстоянии.
+        val threshold = spec.threshold
+        if (threshold != null && !NavigateArc.offScale(threshold, spec.scale)) {
+            val at = NavigateArc.angleDegrees(threshold, spec.scale)
+            drawLine(
+                color = colors.warn,
+                start = point(at, radius + arcWidth / 2f + 2.dp.toPx()),
+                end = point(at, tickInner),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Butt,
+            )
+            spec.thresholdLabel?.let { text ->
+                val measured = textMeasurer.measure(text, axisStyle)
+                val at2 = point(at, radius + arcWidth / 2f + 4.dp.toPx() + measured.size.height / 2f)
+                drawText(
+                    textLayoutResult = measured,
+                    color = colors.warn,
+                    topLeft = Offset(
+                        (at2.x - measured.size.width / 2f)
+                            .coerceIn(0f, size.width - measured.size.width),
+                        at2.y - measured.size.height / 2f,
+                    ),
+                )
+            }
         }
 
         // Стрелка — чернильная линия от оси, без наконечника (эталон): на
@@ -252,6 +312,9 @@ fun NavigateGauge(
         }
     }
 }
+
+/** Самый узкий сектор разброса, который ещё виден как сектор. */
+private const val MIN_BAND_DEGREES = 2f
 
 /** 1 + sin 20°: высота циферблата в 220° по отношению к его радиусу. */
 private const val DIAL_HEIGHT_FACTOR = 1.342f

@@ -55,7 +55,6 @@ interface Strings {
 
     // --- вкладки и навигация ---
     val tabHome: String
-    val tabSearch: String
     val tabSpectrum: String
     val tabMap: String
     val tabHistory: String
@@ -79,6 +78,11 @@ interface Strings {
     val cpsUnit: String
     val hardness: String
     val trendPerHour: String
+
+    /** Названия режимов прибора — по одному слову: это ряд, а не заголовки. */
+    val modeObserve: String
+    val modeSearchShort: String
+    val modeVerifyShort: String
 
     /**
      * Подпись риски порога на шкале места. Слово вместо числа: число порога
@@ -686,7 +690,7 @@ interface Strings {
  * classpath нет, а забытая строка означала бы непроверенный текст.
  */
 fun Strings.allTexts(): List<String> = listOf(
-    tabHome, tabSearch, tabSpectrum, tabMap, tabHistory, back, close, settings,
+    tabHome, tabSpectrum, tabMap, tabHistory, back, close, settings,
     connected, connecting, reconnecting, serviceOff, noLink, noData,
     doseRate, countRate, hardness, trendPerHour, doseToday, placeFingerprint,
     groupMeasurement, groupApp, groupOther, groupDevice, groupSystem,

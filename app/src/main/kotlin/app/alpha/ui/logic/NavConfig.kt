@@ -6,12 +6,15 @@ import app.alpha.ui.components.AppTab
 data class NavEntry(val tab: AppTab, val visible: Boolean)
 
 /**
- * Bottom-nav customization (Настройки → Интерфейс): Поиск/Спектр/Карта/
- * История can be hidden and reordered; Главная is always first. Stored as a
- * CSV of tab names in display order, hidden ones prefixed with `!`
- * (e.g. `SEARCH,!SPECTRUM,MAP,HISTORY`), so a hidden tab keeps its place
- * when re-enabled. Guard: at least one tab besides Главная stays visible.
- * Pure JVM, tested; [app.alpha.data.AppSettings] stores only the string.
+ * Bottom-nav customization (Настройки → Интерфейс): Спектр/Карта/История can
+ * be hidden and reordered; Прибор is always first. Stored as a CSV of tab
+ * names in display order, hidden ones prefixed with `!` (e.g.
+ * `!SPECTRUM,MAP,HISTORY`), so a hidden tab keeps its place when re-enabled.
+ * Guard: at least one tab besides Прибор stays visible. Pure JVM, tested;
+ * [app.alpha.data.AppSettings] stores only the string.
+ *
+ * Имена неизвестных вкладок в хранилище просто игнорируются — так уходит
+ * `SEARCH` из настроек, сохранённых до объединения экранов.
  */
 object NavConfig {
 
@@ -19,7 +22,6 @@ object NavConfig {
 
     /** Default order; everything visible (today's behavior). */
     val DEFAULT: List<NavEntry> = listOf(
-        NavEntry(AppTab.SEARCH, visible = true),
         NavEntry(AppTab.SPECTRUM, visible = true),
         NavEntry(AppTab.MAP, visible = true),
         NavEntry(AppTab.HISTORY, visible = true),

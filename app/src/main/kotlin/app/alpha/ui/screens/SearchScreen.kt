@@ -156,6 +156,14 @@ private const val MIN_PULSE_GAP_MILLIS = 2_000L
 @Composable
 fun SearchScreen(
     graph: AppGraph,
+    /**
+     * Проверка вместо наведения. Режим приходит СВЕРХУ, от [InstrumentScreen]:
+     * это один и тот же прибор с разным знаменателем, и хранить выбор в двух
+     * местах значило бы иметь два разных ответа на вопрос «что сейчас».
+     */
+    verifying: Boolean = false,
+    /** Перейти к проверке — режимом владеет родитель. */
+    onGoToVerify: () -> Unit = {},
     onOpenSpectrum: () -> Unit = {},
     onOpenFingerprint: () -> Unit = {},
     /** Тап по ленте: та же скорость счёта во весь экран. */
@@ -186,11 +194,9 @@ fun SearchScreen(
     val energyToneEnabled by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
     val connection by graph.serviceStatus.connection.collectAsState()
     val doseUnit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
-    // Два режима — два вопроса: «Наведение» отвечает «куда вести прибор
-    // сейчас», «Проверка» — «держится ли превышение над записанным фоном».
-    // Выбор запоминается.
-    val modeId by graph.settings.searchMode.collectAsState(initial = null)
-    val screenMode = SearchMode.of(modeId)
+    // Режим — снаружи: «Поиск» отвечает «куда вести прибор сейчас»,
+    // «Проверка» — «отличается ли это место от записанного эталона».
+    val screenMode = if (verifying) SearchMode.VERIFY else SearchMode.NAVIGATE
     // Вид индикатора «Наведения» — стрелка или прямая шкала.
     // Ровный счёт как повод предложить проверку: состояние живёт между
     // кадрами, потому что «держится восемь секунд» — утверждение о прошлом.
@@ -554,18 +560,10 @@ fun SearchScreen(
             .padding(Dimens.space3),
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
-        // Названия экрана нет: экран назван во вкладке снизу. Канал отклика
-        // выбирается в Настройках → Уведомления и отклик.
+        // Переключателя режима здесь нет: он один на весь прибор и стоит в его
+        // шапке ([InstrumentScreen]). Канал отклика выбирается в Настройках →
+        // Уведомления и отклик.
         val navigating = screenMode == SearchMode.NAVIGATE
-        Segmented(
-            options = listOf(t.modeNavigate, t.modeVerify),
-            selectedIndex = if (navigating) 0 else 1,
-            onSelect = { index ->
-                val next = if (index == 0) SearchMode.NAVIGATE else SearchMode.VERIFY
-                scope.launch { graph.settings.setSearchMode(next.id) }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
         // Выключенный канал назван у самих кнопок. Остальные причины молчания
         // — состояния (нет прибора, нет потока, тихий режим), и они появляются
         // только когда наступили.
@@ -630,7 +628,7 @@ fun SearchScreen(
                 onDismissMeasure = { graph.spotMeasure.dismiss() },
                 onGoToVerify = {
                     graph.spotMeasure.dismiss()
-                    scope.launch { graph.settings.setSearchMode(SearchMode.VERIFY.id) }
+                    onGoToVerify()
                 },
                 // Счёт держится ровно — экран ПРЕДЛАГАЕТ проверку, но не
                 // начинает её сам: остановку приложение не видит, а запуск по
@@ -639,7 +637,7 @@ fun SearchScreen(
                 offerVerify = SearchStillness.offering(stillness, nowTick),
                 onOfferAccept = {
                     stillness = SearchStillness.dismiss(stillness)
-                    scope.launch { graph.settings.setSearchMode(SearchMode.VERIFY.id) }
+                    onGoToVerify()
                 },
                 onOfferDismiss = { stillness = SearchStillness.dismiss(stillness) },
             )
