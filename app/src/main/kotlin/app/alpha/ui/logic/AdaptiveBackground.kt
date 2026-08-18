@@ -145,6 +145,15 @@ data class AdaptiveBackground(
  */
 sealed interface SearchReference {
 
+    /**
+     * Точка отсчёта: человек снял её рукой прямо сейчас, за секунды.
+     *
+     * Главнее всех остальных: если сказано «сравнивай отсюда», сравнивать надо
+     * отсюда. Короткая выдержка — не недостаток, а условие задачи: пока прибор
+     * несут, длинное окно уже не про то место, где он находится.
+     */
+    data class Marked(val reference: NavigateReference) : SearchReference
+
     /** Человек записал эталон: настоящие импульсы, выдержка, метки времени. */
     data class Recorded(val record: BackgroundRecord) : SearchReference
 
@@ -156,6 +165,7 @@ sealed interface SearchReference {
 
     val rateCps: Float?
         get() = when (this) {
+            is Marked -> reference.ratePerSecond.toFloat()
             is Recorded -> record.cps
             is Learned -> background.cps
             None -> null
@@ -165,15 +175,28 @@ sealed interface SearchReference {
 object SearchReferences {
 
     /**
-     * Что взять за фон. Записанный эталон главнее: он несёт настоящие счёты.
-     * Изученный фон вступает, когда эталона нет или он больше не годится
-     * (другой прибор, другое место, устарел).
+     * С чем сравнивать счёт.
+     *
+     * Порядок — от самого осмысленного к самому общему:
+     *
+     *  1. **точка отсчёта**, если она поставлена: человек выбрал её рукой,
+     *     и никакая автоматика не знает лучше, что он имел в виду;
+     *  2. **записанный эталон** места, пока он годится (тот же прибор, то же
+     *     место, не устарел): он несёт настоящие импульсы и выдержку;
+     *  3. **изученный фон** места, когда эталона нет или он больше не годится;
+     *  4. негодный эталон — лучше, чем ничего.
+     *
+     * Это и делает поиск и проверку одной задачей: вопрос «отличается ли»
+     * везде один, меняется только то, ОТ ЧЕГО считать, и выбор делается здесь
+     * один раз на весь экран.
      */
     fun choose(
         record: BackgroundRecord?,
         check: BackgroundCheck?,
         learned: AdaptiveBackground?,
+        mark: NavigateReference? = null,
     ): SearchReference = when {
+        mark != null -> SearchReference.Marked(mark)
         record != null && check == BackgroundCheck.USABLE -> SearchReference.Recorded(record)
         learned != null -> SearchReference.Learned(learned)
         record != null -> SearchReference.Recorded(record)

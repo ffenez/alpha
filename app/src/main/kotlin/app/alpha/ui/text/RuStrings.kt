@@ -34,7 +34,6 @@ object RuStrings : Strings {
             "оставляет больше места графику."
     override val modeObserve = "Наблюдение"
     override val modeSearchShort = "Поиск"
-    override val modeVerifyShort = "Проверка"
     override val tilePlaceBackground = "фон места"
     override val tilePerHour = "за час"
     override val tilePerDay = "за сутки"

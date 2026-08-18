@@ -85,19 +85,19 @@ class ScreenSmokeTest(variantId: String) {
     @Test
     fun search_verify_empty() {
         val graph = emptyGraph()
-        compose.showScreen(variant) { SearchScreen(graph, verifying = true) }
+        compose.showScreen(variant) { SearchScreen(graph) }
     }
 
     @Test
     fun search_verify_seeded() {
         val (graph, _) = seededGraph()
-        compose.showScreen(variant) { SearchScreen(graph, verifying = true) }
+        compose.showScreen(variant) { SearchScreen(graph) }
     }
 
     @Test
     fun search_navigate_seeded() {
         val (graph, _) = seededGraph()
-        compose.showScreen(variant) { SearchScreen(graph, verifying = false) }
+        compose.showScreen(variant) { SearchScreen(graph) }
     }
 
     /** Прибор целиком: шапка, переключатель режима и тело выбранного режима. */
@@ -115,10 +115,11 @@ class ScreenSmokeTest(variantId: String) {
         compose.showScreen(variant) { InstrumentScreen(graph) }
     }
 
+    /** Поиск без прибора и без точки отсчёта: экран обязан открыться пустым. */
     @Test
-    fun instrument_verify_empty() {
+    fun instrument_search_empty() {
         val graph = emptyGraph()
-        runBlocking { graph.settings.setInstrumentMode(InstrumentMode.VERIFY.id) }
+        runBlocking { graph.settings.setInstrumentMode(InstrumentMode.SEARCH.id) }
         compose.showScreen(variant) { InstrumentScreen(graph) }
     }
 

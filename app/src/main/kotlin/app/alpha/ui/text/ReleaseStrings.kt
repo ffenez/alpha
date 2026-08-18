@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0360Title: String
+    val v0360Summary: String
+
     val v0351Title: String
     val v0351Summary: String
 
@@ -348,6 +351,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0360Title = "Поиск и проверка стали одним делом"
+    override val v0360Summary =
+        "Проверка оказалась не отдельным режимом, а продолжением поиска: пока прибор несут, " +
+        "важно «сильнее или слабее», а как только он остановился, тот же счёт против того же " +
+        "знаменателя дозревает до вывода — и под шкалой видно, сколько ещё держать. " +
+        "Знаменатель выбирается сам: поставлена точка отсчёта — считаем от неё, нет — от фона " +
+        "места; текста под скоростью счёта больше нет, всё сказано на самом приборе."
 
     override val v0351Title = "Шкала на выбор, без рамки"
     override val v0351Summary =
@@ -1104,6 +1115,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0360Title = "Search and verification became one job"
+    override val v0360Summary =
+        "Verification turned out to be not a mode but the rest of the search: while the " +
+        "instrument is carried, «stronger or weaker» is what matters, and the moment it stops, " +
+        "the same count against the same denominator ripens into a verdict — with a bar " +
+        "showing how much longer to hold. The denominator picks itself: a reference point if " +
+        "one is set, the place background otherwise, and the text under the count rate is gone."
 
     override val v0351Title = "Pick the scale, drop the frame"
     override val v0351Summary =

@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.alpha.ui.components.Hint
+import app.alpha.ui.components.LedMeter
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.BreathingAura
 import app.alpha.ui.components.Card
@@ -47,6 +48,7 @@ import app.alpha.ui.logic.NavigateArc
 import app.alpha.ui.logic.NavigateEngine
 import app.alpha.ui.logic.NavigateState
 import app.alpha.ui.logic.SearchConfidence
+import app.alpha.ui.logic.SearchDecision
 import app.alpha.ui.logic.SearchPulse
 import app.alpha.ui.logic.SearchUiState
 import app.alpha.ui.logic.NavigateTrend
@@ -103,13 +105,21 @@ fun NavigateSection(
     onMeasureHere: () -> Unit,
     onCancelMeasure: () -> Unit,
     onDismissMeasure: () -> Unit,
-    onGoToVerify: () -> Unit,
     /** Каким рисунком показывать шкалу — выбор из Настроек. */
     indicator: InstrumentIndicator = InstrumentIndicator.DIAL,
-    /** Счёт держится ровно — предложить проверку здесь. */
-    offerVerify: Boolean = false,
-    onOfferAccept: () -> Unit = {},
-    onOfferDismiss: () -> Unit = {},
+    /**
+     * Готовый вердикт лестницы подтверждения, когда сравнение идёт НЕ с точкой
+     * отсчёта: его формулировки называют свой знаменатель («фон места»), и
+     * подменять их отношением к отсчёту нельзя. Null — вердикт строит сама
+     * секция из [ui].
+     */
+    verdict: String? = null,
+    /**
+     * Набор подтверждения: сколько ещё держать прибор здесь. Отличие есть, но
+     * не удержано — полоска; удержано или отличия нет — полоски нет.
+     */
+    decision: SearchDecision.Window? = null,
+    decisionNote: String? = null,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -209,33 +219,6 @@ fun NavigateSection(
                                     )
                                     .padding(horizontal = Dimens.space2),
                             )
-                            // Под числом — одна тихая строка (эталон): после
-                            // отсчёта это отношение со знаменателем и
-                            // интервалом, до него — сравнение с недавним
-                            // уровнем. Смена строки — переход состояния
-                            // интерфейса, и ей можно ехать плавно.
-                            AnimatedContent(
-                                targetState = ui is SearchUiState.ReferenceReady,
-                                transitionSpec = {
-                                    fadeIn(Motion.normal()) togetherWith fadeOut(Motion.fast())
-                                },
-                                label = "footLine",
-                            ) { withReference ->
-                                if (withReference) {
-                                    Text(
-                                        text = NavigateVerdict.referenceSummary(state, delta, t)
-                                            ?: "",
-                                        style = type.footnote,
-                                        color = colors.ink2,
-                                        textAlign = TextAlign.Center,
-                                    )
-                                } else {
-                                    StatusRow(
-                                        text = NavigateVerdict.trendLine(state, t),
-                                        color = trendColor,
-                                    )
-                                }
-                            }
                         }
                         // Один прибор во всех состояниях: та же геометрия, тот
                         // же кадр, разница только в наличии стрелки. Вердикт —
@@ -247,13 +230,27 @@ fun NavigateSection(
                                 scale = ArcScale.around(factor),
                                 trend = state.trend,
                                 referenceLabel = "1×",
-                                statusText = if (ui is SearchUiState.ReferenceReady) {
-                                    confidenceLine(ui.confidence, t)
-                                } else {
-                                    t.navScaleNoReference
-                                },
+                                statusText = verdict
+                                    ?: (ui as? SearchUiState.ReferenceReady)
+                                        ?.let { confidenceLine(it.confidence, t) }
+                                    ?: t.navScaleNoReference,
                             ),
                         )
+                        // Набор подтверждения — полоска под шкалой: она
+                        // отвечает не «сколько здесь», а «сколько ещё держать
+                        // прибор на месте», и потому стоит отдельно от шкалы.
+                        if (decision != null && !decision.ready) {
+                            LedMeter(level = decision.progress)
+                            decisionNote?.let {
+                                Text(
+                                    text = it,
+                                    style = type.footnote,
+                                    color = colors.muted,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
                         // Большое действие живёт ровно в одном состоянии —
                         // пока точки отсчёта нет. После сохранения на его
                         // месте НИЧЕГО (эталон): разбор — по числу, действия
@@ -336,36 +333,7 @@ fun NavigateSection(
                 }
             }
 
-            // Счёт держится ровно — экран предлагает сменить вопрос, но не
-            // решает: остановка не наблюдается, а запуск проверки по спокойному
-            // сигналу дал бы измерение с предрешённым результатом.
-            null -> if (offerVerify) {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                        StatusRow(text = t.offerVerifyTitle, color = colors.ink)
-                        Hint(
-                            text = t.offerVerifyBody,
-                            style = type.bodySmall,
-                            color = colors.ink2,
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                            AppButton(
-                                text = t.offerVerifyAction,
-                                onClick = onOfferAccept,
-                                primary = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                            AppButton(
-                                text = strings.cancel,
-                                onClick = onOfferDismiss,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
-            } else {
-                Unit
-            }
+            null -> Unit
 
             is SpotMeasure.Done -> Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
@@ -385,13 +353,6 @@ fun NavigateSection(
                         text = t.navSpotExposure(spot.result.window.seconds.toInt()),
                         style = type.footnote,
                         color = colors.muted,
-                    )
-                    // The spot is found; the question changes, so the mode does.
-                    AppButton(
-                        text = t.navSpotToVerify,
-                        onClick = onGoToVerify,
-                        primary = true,
-                        modifier = Modifier.fillMaxWidth(),
                     )
                     AppButton(
                         text = t.hide,

@@ -87,7 +87,6 @@ import app.alpha.ui.logic.NavigateEngine
 import app.alpha.ui.logic.NavigateState
 import app.alpha.ui.logic.NavigateTrend
 import app.alpha.ui.logic.SearchMode
-import app.alpha.ui.logic.SearchStillness
 import app.alpha.ui.logic.SearchBaseline
 import app.alpha.ui.logic.SearchEngine
 import app.alpha.ui.logic.SearchFeedbackMode
@@ -197,13 +196,10 @@ fun SearchScreen(
     val energyToneEnabled by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
     val connection by graph.serviceStatus.connection.collectAsState()
     val doseUnit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
-    // Режим — снаружи: «Поиск» отвечает «куда вести прибор сейчас»,
-    // «Проверка» — «отличается ли это место от записанного эталона».
-    val screenMode = if (verifying) SearchMode.VERIFY else SearchMode.NAVIGATE
+    // Режима внутри поиска больше нет: вопрос один, а «проверка» — фаза, в
+    // которую он переходит сам, когда отличие держится ([SearchLadder]).
     // Вид индикатора «Наведения» — стрелка или прямая шкала.
     // Ровный счёт как повод предложить проверку: состояние живёт между
-    // кадрами, потому что «держится восемь секунд» — утверждение о прошлом.
-    var stillness by remember { mutableStateOf(SearchStillness.State()) }
     var nowTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val spot by graph.spotMeasure.state.collectAsState()
 
@@ -318,7 +314,52 @@ fun SearchScreen(
         }
     }
 
-    LaunchedEffect(sample, background) {
+    val deviceSerial = (connection as? ConnectionState.Connected)?.info?.serialNumber
+    val recorded = background
+    val check = recorded?.check(System.currentTimeMillis(), activeProfileId, deviceSerial)
+    // Фон, изученный самим приложением: обычный фон места по скорости счёта.
+    // Вступает, когда записанного эталона нет или он больше не годится.
+    // Эталон он не подменяет: его вес ограничен разбросом самого места
+    // (`AdaptiveBackground`).
+    val baselineState by graph.serviceStatus.baseline.collectAsState()
+    val learned = remember(baselineState) {
+        AdaptiveBackground.of((baselineState as? BaselineState.Active)?.baseline)
+    }
+    // С чем сравнивать — один выбор на весь экран. Поставленная рукой точка
+    // отсчёта идёт первой: поиск и проверка перестают быть разными режимами и
+    // становятся одним вопросом с разным знаменателем.
+    val reference = SearchReferences.choose(recorded, check, learned, navigate.reference)
+    val learnedInUse = reference is SearchReference.Learned
+    val markedInUse = reference is SearchReference.Marked
+    val record = when (reference) {
+        // Точка отсчёта — такое же окно счёта, как записанный эталон, только
+        // снятое за секунды: движку сравнения нужна именно эта пара чисел.
+        is SearchReference.Marked -> BackgroundRecord(
+            window = reference.reference.window,
+            atMillis = reference.reference.atMillis + deviceClockOffset,
+            targetSamples = reference.reference.window.seconds.toInt(),
+            profileId = activeProfileId,
+            profileName = null,
+            deviceSerial = deviceSerial,
+        )
+        is SearchReference.Recorded -> reference.record
+        is SearchReference.Learned -> BackgroundRecord(
+            window = reference.background.referenceWindow(),
+            atMillis = System.currentTimeMillis(),
+            targetSamples = reference.background.effectiveExposureSeconds.toInt(),
+            profileId = activeProfileId,
+            profileName = null,
+            deviceSerial = deviceSerial,
+        )
+        SearchReference.None -> null
+    }
+    val band = when (reference) {
+        is SearchReference.Marked -> null
+        is SearchReference.Learned -> reference.background.low..reference.background.high
+        else -> recorded?.let { backgroundBand(it) }
+    }
+
+    LaunchedEffect(sample, record) {
         val s = sample ?: return@LaunchedEffect
         if (s.deviceTimestampMillis == lastSeenTimestamp) return@LaunchedEffect
         lastSeenTimestamp = s.deviceTimestampMillis
@@ -328,7 +369,7 @@ fun SearchScreen(
             state = search,
             timeMillis = s.deviceTimestampMillis,
             cps = s.countRate,
-            background = background,
+            background = record,
         )
         navigate = NavigateEngine.onReading(
             state = navigate,
@@ -342,13 +383,13 @@ fun SearchScreen(
     // Between readings the verdict must still be able to *expire*: a stream
     // that stops leaves the decision window empty, and the ladder falls back
     // to «ждём данные» instead of freezing on the last conclusion.
-    LaunchedEffect(resumed, background) {
+    LaunchedEffect(resumed, record) {
         while (resumed) {
             delay(TICK_MILLIS)
             val instrumentNow = System.currentTimeMillis() - deviceClockOffset
             search = SearchEngine.onTick(
                 state = search,
-                background = background,
+                background = record,
                 nowMillis = instrumentNow,
             )
             navigate = NavigateEngine.onTick(state = navigate, nowMillis = instrumentNow)
@@ -358,26 +399,19 @@ fun SearchScreen(
     // The search tone follows the **ratio of the decision window**, not the
     // raw rate (redesign §7). The engine glides to the target, so a step in
     // the ratio is never a step in the audio.
-    // В «Наведении» знаменатель другой — точка отсчёта, а не записанный фон, —
-    // и его же несёт шкала дуги.
-    // Секундный тик идёт в ОБОИХ режимах: по нему живёт не только наблюдение
-    // за неподвижностью, но и признак свежести потока — а «идут ли данные»
-    // одинаково важно и в Наведении, и в Проверке.
-    LaunchedEffect(search.direction, screenMode, resumed) {
+    // Секундный тик: по нему живёт признак свежести потока, а «идут ли данные»
+    // одинаково важно во всех состояниях экрана.
+    LaunchedEffect(resumed) {
         while (resumed) {
             nowTick = System.currentTimeMillis()
-            if (screenMode == SearchMode.NAVIGATE) {
-                stillness = SearchStillness.step(stillness, search.direction, nowTick)
-            }
             delay(1_000)
         }
     }
 
-    val ratio = if (screenMode == SearchMode.NAVIGATE) {
-        navigate.referenceRatio
-    } else {
-        search.comparison?.ratio
-    }
+    // Отношение, которое ведёт тон и вибрацию, — то же самое, что показывает
+    // прибор: знаменатель выбран один раз ([SearchReferences]), и пока точка
+    // отсчёта стоит, счёт сравнивается с ней.
+    val ratio = navigate.referenceRatio ?: search.comparison?.ratio
     LaunchedEffect(mode, ratio, clickerActive) {
         clicker.setSearchTone(
             enabled = clickerActive && mode == SearchFeedbackMode.TONE,
@@ -385,53 +419,23 @@ fun SearchScreen(
         )
     }
 
-    // The silent equivalent: pulse cadence carries the same ratio, so the
-    // instrument can be searched with the phone in a pocket. It repeats on
-    // purpose — «холодно/горячо» is the whole point — unlike the σ-step
-    // policy, which fires once per newly reached step.
-    LaunchedEffect(mode, resumed, screenMode) {
-        if (mode != SearchFeedbackMode.VIBRO) return@LaunchedEffect
-        // В «Наведении» вибро — короткий отклик на события, он живёт в
-        // эффекте ниже.
-        if (screenMode == SearchMode.NAVIGATE) return@LaunchedEffect
-        // Do-Not-Disturb is polled once a second, not once per pulse: at the
-        // fastest cadence the pulses are 120 ms apart, and asking the system
-        // eight times a second for an answer that changes once an hour is
-        // work for nothing.
-        var dndCheckedAt = 0L
-        var dndAllows = true
-        while (resumed) {
-            val now = System.currentTimeMillis()
-            if (now - dndCheckedAt >= 1_000L) {
-                dndCheckedAt = now
-                dndAllows = Feedback.dndAllowsFeedback(context)
-            }
-            val interval = SearchVibro.intervalMillis(search.comparison?.ratio)
-            if (interval == null || !dndAllows) {
-                delay(SearchVibro.SLOW_INTERVAL_MILLIS / 2)
-                continue
-            }
-            Feedback.pulse(context)
-            delay(interval)
-        }
-    }
-
+    // Непрерывного пульса нет: он означал бы вибрацию всё время, пока прибор
+    // в руке. Вибро отвечает на СОБЫТИЯ — счёт начал расти, найден новый
+    // максимум, — и живёт в эффекте ниже.
     // Вибро «Наведения»: отклик на событие, а не непрерывная дрожь. Событий
     // два — счёт начал расти и найден новый максимум; оба приглушены порогом
     // и паузой.
     var lastTrend by remember { mutableStateOf(NavigateTrend.COLLECTING) }
     var pulsedPeak by remember { mutableStateOf(0.0) }
     var lastPulseAt by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(navigate.trend, navigate.peak, mode, resumed, screenMode) {
+    LaunchedEffect(navigate.trend, navigate.peak, mode, resumed) {
         val trend = navigate.trend
         val peak = navigate.peak?.ratePerSecond ?: 0.0
         val rose = trend == NavigateTrend.RISING && lastTrend == NavigateTrend.NO_CHANGE
         val newPeak = pulsedPeak > 0.0 && peak > pulsedPeak * PEAK_PULSE_FACTOR
         lastTrend = trend
         if (peak > pulsedPeak) pulsedPeak = peak
-        val active = resumed &&
-            screenMode == SearchMode.NAVIGATE &&
-            mode == SearchFeedbackMode.VIBRO
+        val active = resumed && mode == SearchFeedbackMode.VIBRO
         if (!active || !(rose || newPeak)) return@LaunchedEffect
         val now = System.currentTimeMillis()
         if (now - lastPulseAt < MIN_PULSE_GAP_MILLIS) return@LaunchedEffect
@@ -447,7 +451,7 @@ fun SearchScreen(
     // leaving the composition.
     val view = LocalView.current
     val keepAwake = resumed &&
-        (backgroundRun is LocalBackground.Running || screenMode == SearchMode.NAVIGATE)
+        (backgroundRun is LocalBackground.Running || true)
     DisposableEffect(keepAwake) {
         view.keepScreenOn = keepAwake
         onDispose { view.keepScreenOn = false }
@@ -459,8 +463,8 @@ fun SearchScreen(
     // вторым источником истины.
     val fingerprintStrings = FingerprintCatalogue.of(strings.language)
     var fingerprint by remember { mutableStateOf<FingerprintComparison?>(null) }
-    LaunchedEffect(activeProfileId, resumed, screenMode, fingerprintStrings) {
-        while (resumed && screenMode == SearchMode.VERIFY) {
+    LaunchedEffect(activeProfileId, resumed, fingerprintStrings) {
+        while (resumed && false) {
             val profileId = activeProfileId
             fingerprint = if (profileId == null) {
                 null
@@ -488,35 +492,6 @@ fun SearchScreen(
         connected = connection is ConnectionState.Connected,
         navigate = navigate,
     )
-    val deviceSerial = (connection as? ConnectionState.Connected)?.info?.serialNumber
-    val recorded = background
-    val check = recorded?.check(System.currentTimeMillis(), activeProfileId, deviceSerial)
-    // Фон, изученный самим приложением: обычный фон места по скорости счёта.
-    // Вступает, когда записанного эталона нет или он больше не годится.
-    // Эталон он не подменяет: его вес ограничен разбросом самого места
-    // (`AdaptiveBackground`).
-    val baselineState by graph.serviceStatus.baseline.collectAsState()
-    val learned = remember(baselineState) {
-        AdaptiveBackground.of((baselineState as? BaselineState.Active)?.baseline)
-    }
-    val reference = SearchReferences.choose(recorded, check, learned)
-    val learnedInUse = reference is SearchReference.Learned
-    val record = when (reference) {
-        is SearchReference.Recorded -> reference.record
-        is SearchReference.Learned -> BackgroundRecord(
-            window = reference.background.referenceWindow(),
-            atMillis = System.currentTimeMillis(),
-            targetSamples = reference.background.effectiveExposureSeconds.toInt(),
-            profileId = activeProfileId,
-            profileName = null,
-            deviceSerial = deviceSerial,
-        )
-        SearchReference.None -> null
-    }
-    val band = when (reference) {
-        is SearchReference.Learned -> reference.background.low..reference.background.high
-        else -> recorded?.let { backgroundBand(it) }
-    }
     val level = search.level
     // Shape of the spectrum during the excursion vs the two minutes before it
     // — a separate research observation, never part of the count verdict.
@@ -566,7 +541,6 @@ fun SearchScreen(
         // Переключателя режима здесь нет: он один на весь прибор и стоит в его
         // шапке ([InstrumentScreen]). Канал отклика выбирается в Настройках →
         // Уведомления и отклик.
-        val navigating = screenMode == SearchMode.NAVIGATE
         // Выключенный канал назван у самих кнопок. Остальные причины молчания
         // — состояния (нет прибора, нет потока, тихий режим), и они появляются
         // только когда наступили.
@@ -583,14 +557,14 @@ fun SearchScreen(
                     volumeZero = volumeZero,
                     // В «Наведении» знаменатель другой: фраза про записанный
                     // фон говорила бы о другой величине.
-                    backgroundRecorded = navigating || record != null,
-                    insideBackground = !navigating && SearchTone.frequencyHz(ratio) == null,
+                    backgroundRecorded = record != null,
+                    insideBackground = SearchTone.frequencyHz(ratio) == null,
                 ),
                 t,
             )
         }
         val navSilence = when {
-            !navigating || mode != SearchFeedbackMode.TONE -> null
+            mode != SearchFeedbackMode.TONE -> null
             navigate.reference == null -> t.navToneNoReference
             SearchTone.frequencyHz(ratio) == null -> t.navToneAtReference
             else -> null
@@ -599,238 +573,59 @@ fun SearchScreen(
             Text(text = it, style = type.footnote, color = colors.muted)
         }
 
-        if (navigating) {
-            NavigateSection(
-                ui = searchUi,
-                indicator = indicator,
-                state = navigate,
-                spot = spot,
-                nowMillis = System.currentTimeMillis() - deviceClockOffset,
-                cps = cps,
-                // Доза печатается общим форматом приложения плюс собственная
-                // относительная погрешность прибора.
-                doseLine = sample?.doseRate?.let { rate ->
-                    val value = DoseFormat.rate(rate, doseUnit)
-                    Uncertainty.errPercentLabel(sample?.doseRateErr)
-                        ?.let { "$value $it" } ?: value
-                },
-                referenceTime = navigate.reference?.let {
-                    timeOfDay(it.atMillis + deviceClockOffset)
-                },
-                strings = strings,
-                t = t,
-                onMark = {
-                    navigate = NavigateEngine.mark(
-                        navigate,
-                        System.currentTimeMillis() - deviceClockOffset,
-                    )
-                },
-                onClearMark = { navigate = NavigateEngine.clearMark(navigate) },
-                onResetPeak = { navigate = NavigateEngine.resetPeak(navigate) },
-                onMeasureHere = { graph.spotMeasure.start(navigate.reference) },
-                onCancelMeasure = { graph.spotMeasure.cancel() },
-                onDismissMeasure = { graph.spotMeasure.dismiss() },
-                onGoToVerify = {
-                    graph.spotMeasure.dismiss()
-                    onGoToVerify()
-                },
-                // Счёт держится ровно — экран ПРЕДЛАГАЕТ проверку, но не
-                // начинает её сам: остановку приложение не видит, а запуск по
-                // спокойному сигналу дал бы измерение с предрешённым
-                // результатом (`SearchStillness`).
-                offerVerify = SearchStillness.offering(stillness, nowTick),
-                onOfferAccept = {
-                    stillness = SearchStillness.dismiss(stillness)
-                    onGoToVerify()
-                },
-                onOfferDismiss = { stillness = SearchStillness.dismiss(stillness) },
-            )
-            return@Column
-        }
-
-        // ---------------------------------------------------------- the answer
-        // Цвет числа — отношение к записанному фону: то же правило, что у дозы
-        // на Главной (`DoseTint`). Им же красится дыхание: один смысл — один цвет.
-        val tintFraction = if (doseTint) DoseTint.of(cps, record?.cps, tintFactor) else null
-        val numberTint by animateColorAsState(
-            targetValue = when {
-                cps == null -> colors.muted
-                tintFraction == null -> colors.ink
-                tintFraction <= 0f -> colors.ok
-                tintFraction < 1f -> lerp(colors.warn, colors.crit, tintFraction)
-                else -> colors.crit
+        // Один экран на весь поиск: прибор сверху, под ним то, что относится к
+        // МЕСТУ, а не к текущему движению — фон, отпечаток, спектральная
+        // подсказка. Отдельного режима «Проверка» нет: вывод об отличии
+        // дозревает сам, пока прибор стоит, и показан прямо в приборе.
+        NavigateSection(
+            ui = searchUi,
+            indicator = indicator,
+            state = navigate,
+            spot = spot,
+            nowMillis = System.currentTimeMillis() - deviceClockOffset,
+            cps = cps,
+            // Доза печатается общим форматом приложения плюс собственная
+            // относительная погрешность прибора.
+            doseLine = sample?.doseRate?.let { rate ->
+                val value = DoseFormat.rate(rate, doseUnit)
+                Uncertainty.errPercentLabel(sample?.doseRateErr)
+                    ?.let { "$value $it" } ?: value
             },
-            animationSpec = Motion.normal(),
-            label = "searchTint",
-        )
-        Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space4) {
-            // Период дыхания считает то же отношение, что и высоту тона
-            // ([SearchPulse]); знаменатель здесь — записанный фон места. Глаз и
-            // ухо обязаны говорить одно. Измерение при этом не анимируется:
-            // дышит подсветка, число меняется шагом.
-            BreathingAura(
-                live = cps != null,
-                tint = numberTint,
-                periodMillis = SearchPulse.periodMillis(ratio),
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Dimens.space1),
-                ) {
-                    Text(
-                        text = strings.countRate.uppercase(),
-                        style = type.labelSmall,
-                        color = colors.ink2,
-                    )
-                    // Разбор открывает и само число: когда счёт держится на уровне
-                    // фона, строка вывода пуста, а вопрос «почему так решено»
-                    // остаётся.
-                    Text(
-                        text = cps?.let { Uncertainty.num1(it) } ?: "—",
-                        style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
-                        color = numberTint,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { whyOpen = true },
-                            )
-                            .padding(horizontal = Dimens.space2),
-                    )
-                    // Величина названа заголовком экрана, σ разбирается в «Почему»
-                    // рядом с окном, по которому посчитана.
-
-
-                    // Сам вывод открывает разбор.
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(Dimens.space1),
-                        modifier = Modifier
-                            .padding(top = Dimens.space2)
-                            .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { whyOpen = true },
-                            )
-                            .padding(vertical = Dimens.space1, horizontal = Dimens.space2),
-                    ) {
-                        // На уровне фона экран молчит — это сказано цветом числа;
-                        // любое другое состояние говорит словами.
-                        if (level != SearchLevel.BACKGROUND) {
-                            StatusRow(
-                                text = SearchVerdict.headline(
-                                    level,
-                                    search.direction,
-                                    record != null,
-                                    strings,
-                                ),
-                                color = levelColor,
-                            )
-                        }
-                        // Полный разбор открывается нажатием на сам вывод.
-                    }
-
-                    // Прибора «Наведения» здесь нет намеренно: Проверка
-                    // отвечает на другой вопрос — «отличается ли это место от
-                    // сохранённого профиля», — и ответ на него не «теплее или
-                    // холоднее», а сравнение по составляющим. Копия чужой
-                    // картинки заставляла бы искать в ней смысл, которого у
-                    // неё в этом режиме нет.
-
-                    // Полоска показывает НАБОР ПОДТВЕРЖДЕНИЯ, а не уровень: она
-                    // отвечает, сколько ещё держать прибор здесь. Отличия нет —
-                    // полоски нет.
-                    val decision = search.decision
-                    if (decision != null && !decision.ready && level != SearchLevel.BACKGROUND) {
-                        LedMeter(
-                            level = decision.progress,
-                            modifier = Modifier.padding(top = Dimens.space3),
-                        )
-                        Text(
-                            text = if (decision.atLimit) {
-                                t.decisionTooSmall
-                            } else {
-                                t.decisionRemaining(decision.remainingSeconds.toInt())
-                            },
-                            style = type.footnote,
-                            color = colors.muted,
-                        )
-                    }
-                    if (record == null) {
-                        Hint(
-                            text = t.meterNeedsBackground,
-                            style = type.footnote,
-                            color = colors.muted,
-                        )
-                    }
-                }
-            }
-        }
-
-        // Лента нажимается целиком и открывает полноэкранный график скорости
-        // счёта — тот же, что у дозы: перекрестие, перелистывание, щипок, окна
-        // и статистика окна.
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onOpenChart,
-                ),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                // Величину называет ось графика, что такое полоса — справка «i».
-                val points = search.points
-                if (points.isEmpty()) {
-                    Text(
-                        text = t.waitingStream,
-                        style = type.bodySmall,
-                        color = colors.muted,
-                    )
+            referenceTime = navigate.reference?.let {
+                timeOfDay(it.atMillis + deviceClockOffset)
+            },
+            strings = strings,
+            t = t,
+            // Пока сравнение идёт с точкой отсчёта, вердикт строит сама секция:
+            // её формулировки называют этот знаменатель. С фоном места говорит
+            // лестница подтверждения — у неё свои слова про фон.
+            verdict = if (markedInUse) {
+                null
+            } else {
+                SearchVerdict.headline(level, search.direction, record != null, strings)
+            },
+            // Набор подтверждения идёт ВСЕГДА, пока держится отличие: отдельный
+            // режим для этого не нужен, нужна честная полоска «сколько ещё».
+            decision = search.decision?.takeIf { level != SearchLevel.BACKGROUND },
+            decisionNote = search.decision?.let { decision ->
+                if (decision.atLimit) {
+                    t.decisionTooSmall
                 } else {
-                    val now = points.last().timeMillis
-                    SearchRateChart(
-                        spec = SearchChartSpec(
-                            points = points,
-                            nowMillis = now,
-                            spanMillis = SearchEngine.TAPE_MILLIS,
-                            yTop = search.scale?.top ?: 10f,
-                            band = band,
-                            baseline = record?.cps,
-                            // Подписи у пунктира нет: число фона стоит плиткой
-                            // над лентой.
-                            baselineLabel = null,
-                            xStartLabel = t.tapeStartLabel,
-                            xEndLabel = strings.nowLabel,
-                            excursionLabel = search.comparison
-                                ?.takeIf { search.ladder.confirmed }
-                                ?.let { SearchVerdict.ratioShort(it) }
-                                ?.let { t.excursionLabel(it) },
-                        ),
-                    )
-                    val values = points.map { it.cps }
-                    if (showStats.stats) StatGrid(
-                        cells = listOf(
-                            StatCell(Uncertainty.num1(values.sum() / values.size), t.statMean60),
-                            StatCell(Uncertainty.num1(values.max()), t.statMax),
-                            StatCell(
-                                strings.seconds(SearchEngine.DECISION_WINDOW_MILLIS / 1000),
-                                t.statDecisionWindow,
-                            ),
-                            StatCell(
-                                record?.let { timeOfDay(it.atMillis) } ?: "—",
-                                t.statBackgroundTaken,
-                            ),
-                        ),
-                    )
+                    t.decisionRemaining(decision.remainingSeconds.toInt())
                 }
-            }
-        }
+            },
+            onMark = {
+                navigate = NavigateEngine.mark(
+                    navigate,
+                    System.currentTimeMillis() - deviceClockOffset,
+                )
+            },
+            onClearMark = { navigate = NavigateEngine.clearMark(navigate) },
+            onResetPeak = { navigate = NavigateEngine.resetPeak(navigate) },
+            onMeasureHere = { graph.spotMeasure.start(navigate.reference) },
+            onCancelMeasure = { graph.spotMeasure.cancel() },
+            onDismissMeasure = { graph.spotMeasure.dismiss() },
+        )
 
         // ------------------------------------------- the spectral side question
         val invitation = SearchSpectrumHint.invitation(shape, t)

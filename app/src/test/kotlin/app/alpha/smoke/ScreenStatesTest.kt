@@ -158,7 +158,6 @@ class ScreenStatesTest {
             onMeasureHere = {},
             onCancelMeasure = {},
             onDismissMeasure = {},
-            onGoToVerify = {},
         )
     }
 
@@ -220,10 +219,10 @@ class ScreenStatesTest {
     }
 
     @Test
-    fun `search well above the reference names the ratio in one caption`() {
+    fun `search well above the reference keeps the card to the instrument`() {
         show(UiVariant.ALL[0]) { search(navigateAt(reference = 17.4f, current = 74.5f), cps = 74.5f) }
-        // Отношение — подписью под числом, и знаменатель назван в ней же.
-        assertShown("к точке отсчёта")
+        // Под числом текста нет: отношение и вердикт живут в самом приборе.
+        assertAbsent("к точке отсчёта")
         // Большое действие ушло: точка отсчёта уже стоит.
         assertAbsent(SearchRu.navMark)
         assertAbsent(SearchRu.navUnresolvedNote)

@@ -28,11 +28,18 @@ class InstrumentModeTest {
 
     @Test
     fun `the order follows the work, not the alphabet`() {
-        // Сначала смотрят на место, потом ищут в нём источник, потом сверяют
-        // место с эталоном.
+        // Сначала смотрят на место, потом ищут в нём источник. Третьего режима
+        // нет: проверка — фаза поиска, а не отдельный вопрос.
         assertEquals(
-            listOf(InstrumentMode.OBSERVE, InstrumentMode.SEARCH, InstrumentMode.VERIFY),
+            listOf(InstrumentMode.OBSERVE, InstrumentMode.SEARCH),
             InstrumentMode.entries,
         )
+    }
+
+    @Test
+    fun `the retired verify mode falls back to observation`() {
+        // Настройка, сохранённая до объединения, не должна ни падать, ни
+        // открывать режим, которого больше нет.
+        assertEquals(InstrumentMode.OBSERVE, InstrumentMode.of("verify"))
     }
 }
