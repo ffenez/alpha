@@ -1,6 +1,7 @@
 package app.alpha.ui.logic
 
 import app.alpha.analysis.CountWindow
+import app.alpha.ui.text.SearchRu
 import app.alpha.analysis.RateComparison
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -65,7 +66,7 @@ class SearchVerdictTest {
                 heldMillis = 5_000L,
                 streamFresh = true,
             ),
-        ).flatMap { listOfNotNull(it.label, it.value, it.note) }
+        ).flatMap { listOfNotNull(it.label, it.value, it.note, it.critical) }
 
         for (text in texts) {
             val lower = text.lowercase()
@@ -143,7 +144,7 @@ class SearchVerdictTest {
         assertTrue(labels.contains("Разброс показаний"), "$labels")
         assertTrue(labels.contains("Поток данных"), "$labels")
 
-        val criterion = lines.single { it.label == "Критерий" }
+        val criterion = lines.single { it.label == SearchRu.whyCriterion }
         assertTrue(criterion.note!!.contains("Przyborowski"), criterion.note!!)
 
         // Spectral shape is honestly absent, not quietly implied.
@@ -164,7 +165,7 @@ class SearchVerdictTest {
         )
         val comparisonLine = lines.single { it.label == "Сравнение" }
         assertEquals("не выполнялось", comparisonLine.value)
-        assertTrue(comparisonLine.note!!.contains("нет записанного фона"), comparisonLine.note!!)
+        assertTrue(comparisonLine.critical!!.contains("нет записанного фона"), comparisonLine.critical!!)
     }
 
     @Test
@@ -181,5 +182,33 @@ class SearchVerdictTest {
         assertTrue(line.contains("2"), line)
         assertTrue(line.contains("4,2"), line)
         assertTrue(!line.lowercase().contains("найден"), line)
+    }
+
+    /**
+     * Переключатель «Пояснения» скрывает только пояснения: ±σ, объём замера и
+     * отказ метода живут в канале `critical` и на экране остаются всегда
+     * (CLAUDE.md, три категории интерфейса).
+     */
+    @Test
+    fun `uncertainty and volume are critical, method is explanation`() {
+        val lines = SearchVerdict.whyLines(
+            SearchWhyInput(
+                cps = 30f,
+                background = record(),
+                comparison = comparison(30.0),
+                heldMillis = 8_000L,
+                streamFresh = true,
+            ),
+        )
+        val rate = lines.first { it.critical?.contains("1σ") == true }
+        assertTrue(rate.critical!!.contains("1σ"), rate.critical!!)
+        assertTrue(rate.note == null, "${rate.note}")
+
+        val difference = lines.single { it.label == SearchRu.whyDifference }
+        assertTrue(difference.critical!!.contains("±"), difference.critical!!)
+
+        val criterion = lines.single { it.label == SearchRu.whyCriterion }
+        assertTrue(criterion.note != null, "метод обязан остаться пояснением")
+        assertTrue(criterion.critical == null, "${criterion.critical}")
     }
 }

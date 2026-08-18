@@ -135,8 +135,11 @@ fun WhySheet(
 
                     // Оговорка стоит на ПЕРВОМ уровне: она про смысл вывода, а
                     // не про его расчёт.
+                    // «Не является заключением о радиационной безопасности» —
+                    // не пояснение, а граница вывода: остаётся при любом
+                    // положении переключателя.
                     if (report.caveat.isNotBlank()) {
-                        Hint(text = report.caveat, style = type.footnote, color = colors.ink2)
+                        Text(text = report.caveat, style = type.footnote, color = colors.ink2)
                     }
 
                     if (offerProfileShift) {
@@ -335,6 +338,14 @@ private fun SectionBlock(section: WhySection) {
         section.lines.forEach { WhyRow(it) }
         // Пояснение секции — то же пояснение, что и на экранах: числа и
         // вывод остаются, объяснение выключается вместе со всеми.
+        section.critical?.let {
+            Text(
+                text = it,
+                style = type.footnote,
+                color = colors.ink2,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
         section.note?.let {
             Hint(text = it, modifier = Modifier.padding(top = 2.dp))
         }
@@ -389,6 +400,11 @@ internal fun WhyRow(line: WhyLine) {
                     )
                 }
             }
+        }
+        // Критическое — всегда: ±σ, объём замера, «сравнивать не с чем».
+        // Пояснение — вместе со всеми пояснениями.
+        line.critical?.let {
+            Text(text = it, style = type.footnote, color = colors.ink2)
         }
         line.note?.let { Hint(text = it) }
     }

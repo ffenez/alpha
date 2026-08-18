@@ -347,7 +347,11 @@ interface SearchStrings {
     fun differenceNote(sigma: String, percent: String?): String
 
     /** Метод интервала назван словами; нормальное приближение не используется. */
-    fun ratioNote(phrase: String): String
+    /**
+     * Метод интервала отношения — пояснение. Сам интервал приходит отдельной
+     * критической строкой: он часть числа, а не рассказ о нём.
+     */
+    val ratioMethodNote: String
 
     fun criterionNote(test: String, model: String): String
     fun significanceNote(alpha: String, z: String?): String
@@ -717,11 +721,11 @@ object SearchRu : SearchStrings {
     override fun differenceNote(sigma: String, percent: String?) =
         "±$sigma с⁻¹ (1σ) · " + (percent?.let { "$it к записанному фону" } ?: "")
 
-    override fun ratioNote(phrase: String) =
-        "$phrase · интервал точный: условное биномиальное " +
-            "распределение числа импульсов окна при фиксированной сумме, " +
-            "границы по Клопперу–Пирсону, перенесённые на отношение " +
-            "скоростей; нормальное приближение не используется"
+    override val ratioMethodNote =
+        "интервал точный: условное биномиальное распределение числа импульсов " +
+            "окна при фиксированной сумме, границы по Клопперу–Пирсону, " +
+            "перенесённые на отношение скоростей; нормальное приближение не " +
+            "используется"
 
     override fun criterionNote(test: String, model: String) =
         "$test · модель неопределённости: $model"
@@ -1109,10 +1113,10 @@ object SearchEn : SearchStrings {
     override fun differenceNote(sigma: String, percent: String?) =
         "±$sigma s⁻¹ (1σ) · " + (percent?.let { "$it of the recorded background" } ?: "")
 
-    override fun ratioNote(phrase: String) =
-        "$phrase · the interval is exact: the conditional binomial distribution of the " +
-            "window counts at a fixed total, Clopper–Pearson bounds carried over to the " +
-            "ratio of rates; the normal approximation is not used"
+    override val ratioMethodNote =
+        "the interval is exact: the conditional binomial distribution of the window counts " +
+            "at a fixed total, Clopper–Pearson bounds carried over to the ratio of rates; " +
+            "the normal approximation is not used"
 
     override fun criterionNote(test: String, model: String) =
         "$test · uncertainty model: $model"
@@ -1206,7 +1210,7 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     secondsValue("2,8"),
     noBackgroundToCompare, noReadingsInWindow, countsInWindow("180", 3), counts("180"),
     gapNote("2,0"), differenceNote("0,05", "+12 %"), differenceNote("0,05", null),
-    ratioNote("×1,8"), criterionNote(testConditionalBinomial, modelPoisson),
+    ratioMethodNote, criterionNote(testConditionalBinomial, modelPoisson),
     significanceNote("0,01", "3,2"), significanceNote("0,01", null),
     dispersionNote(dispersionPoissonLike, "1,4"), dispersionNote(dispersionUnknown, null),
     holdNote("4 с", "3 с"), streamNote, shapeNote,

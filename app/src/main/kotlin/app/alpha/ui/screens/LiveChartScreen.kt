@@ -50,6 +50,7 @@ import app.alpha.baseline.alarmThresholds
 import app.alpha.data.DoseUnitSetting
 import app.alpha.data.PreAggregateRepository
 import app.alpha.device.DoseUnits
+import app.alpha.ui.components.ExplainInfoButton
 import app.alpha.ui.components.AppCloseButton
 import app.alpha.ui.components.AppDivider
 import app.alpha.ui.components.AppMenu
@@ -939,7 +940,7 @@ private fun PortraitTopBar(
                 if (paused) FreshnessOrPause(Freshness.NoData, paused = true)
             }
             EdgeChip(context = context, follow = follow, atRange = atRange, onClick = onJumpToEdge)
-            Chip(text = "i", color = colors.ink2, onClick = onInfo)
+            ExplainInfoButton(onClick = onInfo)
         }
         AppDivider()
     }
@@ -1085,7 +1086,7 @@ private fun BoxScope.LandscapeTopBar(
             FreshnessOrPause(Freshness.NoData, paused = true)
         }
         EdgeChip(context = context, follow = follow, atRange = atRange, onClick = onJumpToEdge)
-        Chip(text = "i", color = colors.ink2, onClick = onInfo)
+        ExplainInfoButton(onClick = onInfo)
     }
 }
 

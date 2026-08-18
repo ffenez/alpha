@@ -1,11 +1,18 @@
 package app.alpha.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +25,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,6 +46,7 @@ import app.alpha.ui.logic.NavigateArc
 import app.alpha.ui.logic.NavigateEngine
 import app.alpha.ui.logic.NavigateState
 import app.alpha.ui.logic.SearchIndicator
+import app.alpha.ui.logic.SearchPulse
 import app.alpha.ui.logic.NavigateTrend
 import app.alpha.ui.logic.NavigateVerdict
 import app.alpha.ui.logic.ReferenceDelta
@@ -225,9 +235,40 @@ fun NavigateSection(
                         intervalHigh = state.referenceComparison
                             ?.ratioHigh?.takeIf { it.isFinite() },
                     )
-                    when (indicator) {
-                        SearchIndicator.NEEDLE -> NavigateGauge(spec = gaugeSpec, height = 124.dp)
-                        SearchIndicator.SCALE -> NavigateScale(spec = gaugeSpec, height = 96.dp)
+                    // Дыхание индикатора — третий канал того же показания
+                    // рядом со звуком и вибрацией: период считает
+                    // [SearchPulse] по той же шкале, что высоту тона. Само
+                    // измерение не анимируется — пульсирует подсветка, маркер
+                    // переставляется шагом.
+                    val pulse = rememberInfiniteTransition(label = "searchPulse")
+                    val period = SearchPulse.periodMillis(referenceRatio)
+                    val glow by pulse.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(period, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "searchGlow",
+                    )
+                    val glowColor = when (state.trend) {
+                        NavigateTrend.RISING -> colors.warn
+                        else -> colors.data
+                    }
+                    val breathing = referenceRatio != null
+                    Box(
+                        modifier = Modifier.drawBehind {
+                            if (!breathing) return@drawBehind
+                            drawRoundRect(
+                                color = glowColor.copy(alpha = 0.05f + 0.13f * glow),
+                                cornerRadius = CornerRadius(12.dp.toPx()),
+                            )
+                        },
+                    ) {
+                        when (indicator) {
+                            SearchIndicator.NEEDLE -> NavigateGauge(spec = gaugeSpec, height = 124.dp)
+                            SearchIndicator.SCALE -> NavigateScale(spec = gaugeSpec, height = 96.dp)
+                        }
                     }
                     // Одна фраза о том, можно ли на вывод опереться, и кнопка
                     // с числами. Интервал и порог сняты с рабочего экрана: их

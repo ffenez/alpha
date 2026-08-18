@@ -1,3 +1,8 @@
 <resources>
-    <color name="ic_launcher_background">#0F1216</color>
+    <!--
+        Прозрачный фон значка: сама α и есть значок, подложка ему не нужна.
+        Цвет остаётся ресурсом, а не литералом в adaptive-icon: маска
+        устройства применяется к обоим слоям, и менять его надо в одном месте.
+    -->
+    <color name="ic_launcher_background">#00000000</color>
 </resources>

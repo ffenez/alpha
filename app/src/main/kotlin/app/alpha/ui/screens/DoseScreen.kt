@@ -171,7 +171,13 @@ fun DoseScreen(graph: AppGraph, onBack: () -> Unit) {
                         color = colors.muted,
                     )
                 }
-                Hint(text = h.recordedOfPeriod(HistoryFormat.duration(measuredSeconds, h)))
+                // Покрытие периода — данные, без которых столбики читаются
+                // как полные сутки.
+                Text(
+                    text = h.recordedOfPeriod(HistoryFormat.duration(measuredSeconds, h)),
+                    style = type.footnote,
+                    color = colors.muted,
+                )
             }
         }
     }

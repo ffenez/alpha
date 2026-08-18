@@ -140,7 +140,7 @@ private fun IntroStep(denied: Boolean, onContinue: () -> Unit) {
                 style = type.body,
                 color = colors.ink2,
             )
-            Hint(
+            Text(
                 text = strings.onboardingPermissions,
                 style = type.bodySmall,
             )
@@ -174,7 +174,7 @@ private fun BatteryStep(onAllow: () -> Unit, onSkip: () -> Unit) {
                 style = type.body,
                 color = colors.ink2,
             )
-            Hint(
+            Text(
                 text = strings.onboardingBatteryNote,
                 style = type.bodySmall,
                 color = colors.muted,
@@ -220,7 +220,7 @@ private fun ScanStep(graph: AppGraph) {
                     style = type.bodySmall,
                     color = colors.ink2,
                 )
-                Hint(
+                Text(
                     text = strings.onboardingScanBody,
                     style = type.bodySmall,
                 )

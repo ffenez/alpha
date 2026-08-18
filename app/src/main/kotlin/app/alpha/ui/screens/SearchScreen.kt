@@ -810,8 +810,12 @@ fun SearchScreen(
                     if (invitation != null) {
                         StatusRow(text = invitation, color = colors.warn)
                     }
-                    Hint(
+                    // Отказ метода («данных пока мало») и его исход — не
+                    // пояснение: без них карточка оставалась пустой.
+                    Text(
                         text = shapeNote.orEmpty(),
+                        style = type.footnote,
+                        color = colors.muted,
                     )
                     if (invitation != null) {
                         AppButton(

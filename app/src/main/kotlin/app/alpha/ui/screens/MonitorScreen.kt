@@ -1310,7 +1310,9 @@ private fun BatteryBanner() {
     val t = MonitorCatalogue.of(LocalStrings.current.language)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Hint(
+            // Причина, по которой прибор может замолчать, — состояние, а не
+            // пояснение: без неё карточка вырождается в одинокую кнопку.
+            Text(
                 text = t.batteryBannerBody,
                 style = type.bodySmall,
                 color = colors.ink2,

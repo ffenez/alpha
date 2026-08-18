@@ -80,8 +80,10 @@ enum class WhyLevel { PLAIN, METHOD, EXPERT }
 data class WhySection(
     val title: String,
     val lines: List<WhyLine>,
-    /** Paragraph under the numbers that keeps them from being over-read. */
+    /** Пояснение секции: прячется вместе со всеми пояснениями. */
     val note: String? = null,
+    /** Нехватка данных и отказ метода — видно всегда. */
+    val critical: String? = null,
     val level: WhyLevel = WhyLevel.PLAIN,
     val tone: WhyTone = WhyTone.UNKNOWN,
 ) {
@@ -270,7 +272,7 @@ object WhyReportBuilder {
                         ?.let { DoseFormat.rateWithUnit(it, input.unit, s = s) } ?: "—",
                     // Чья это погрешность — говорится там же, где её видно:
                     // ± приходит ОТ ПРИБОРА и относится к этому показанию.
-                    note = s.deviceErrorNote,
+                    critical = s.deviceErrorNote,
                 ),
             )
             add(
@@ -278,7 +280,7 @@ object WhyReportBuilder {
                     label = s.countRate,
                     value = input.cps?.let { "${Uncertainty.cpsWithSigma(it)} ${s.cpsUnit}" }
                         ?: "—",
-                    note = s.countIsNotDose,
+                    critical = s.countIsNotDose,
                 ),
             )
             add(
@@ -291,7 +293,7 @@ object WhyReportBuilder {
                 WhyLine(
                     label = s.profile,
                     value = input.profileName ?: s.outsideProfile,
-                    note = input.contextWording,
+                    critical = input.contextWording,
                 ),
             )
         },
@@ -308,7 +310,7 @@ object WhyReportBuilder {
                     WhyLine(
                         label = s.historicalRange,
                         value = s.notCollectedYet,
-                        note = learning?.let { shortfallWording(it, m) },
+                        critical = learning?.let { shortfallWording(it, m) },
                     ),
                     WhyLine(
                         label = s.comparisonRuns,
@@ -317,7 +319,7 @@ object WhyReportBuilder {
                         ),
                     ),
                 ),
-                note = s.thresholdIsNotSafety,
+                critical = s.thresholdIsNotSafety,
             )
         }
         val unit = input.unit

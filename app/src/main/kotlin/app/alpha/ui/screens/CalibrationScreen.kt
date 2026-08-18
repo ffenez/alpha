@@ -40,6 +40,7 @@ import app.alpha.analysis.evidence.ResolutionFitOutcome
 import app.alpha.analysis.evidence.ResolutionModel
 import app.alpha.data.toSpectrum
 import app.alpha.device.ConnectionState
+import app.alpha.ui.components.ExplainInfoButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.Card
@@ -268,7 +269,7 @@ internal fun CalibrationContent(
         }
         Hint(text = s.responseWhy)
         Text(text = s.responseCaveat, style = type.footnote, color = colors.warn)
-        Hint(text = s.responsePointGeometry)
+        Text(text = s.responsePointGeometry)
     }
 
     val missing = CalibrationView.missing(model.report, s, h)
@@ -490,7 +491,7 @@ private fun Section(title: String, note: String? = null, content: @Composable ()
                     modifier = Modifier.weight(1f),
                 )
                 if (note != null) {
-                    Chip(text = "i", color = colors.ink2, onClick = { info = true })
+                    ExplainInfoButton(onClick = { info = true })
                 }
             }
             content()

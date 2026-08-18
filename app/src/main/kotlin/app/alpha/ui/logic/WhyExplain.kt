@@ -21,8 +21,17 @@ data class WhyLine(
     val label: String,
     val value: String,
     val evidence: Evidence? = null,
-    /** Optional half-sentence that keeps the line from being over-read. */
+    /**
+     * Пояснение: как считалось, что означает термин. Прячется вместе со всеми
+     * пояснениями (CLAUDE.md, три категории интерфейса).
+     */
     val note: String? = null,
+    /**
+     * То, без чего число нельзя истолковать: ±σ, объём замера, отказ метода,
+     * «сравнивать не с чем». Видно ВСЕГДА, при любом положении переключателя
+     * «Пояснения» — иначе строка «21,8» выглядела бы точной.
+     */
+    val critical: String? = null,
 )
 
 /** Everything the «Почему?» sheet needs; assembled by the screen, not queried here. */

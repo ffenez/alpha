@@ -318,7 +318,7 @@ internal fun ContinuationBanner(
                     color = colors.muted,
                 )
             }
-            Hint(
+            Text(
                 text = strings.continuationWarning,
             )
         }

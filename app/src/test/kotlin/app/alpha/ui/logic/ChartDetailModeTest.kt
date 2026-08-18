@@ -71,6 +71,9 @@ class ChartDetailModeTest {
         baseline = null,
         endpointAlert = false,
         detail = detail,
+        // Поле измерено: разрешение картинки задаёт ширина поля, а подробный
+        // вид держится, пока колонка равна агрегату ([ChartDetailShape]).
+        plotWidthPx = 1080f,
     )
 
     private val fiveMinutes = ChartWindow(now - 5L * 60_000L, now)

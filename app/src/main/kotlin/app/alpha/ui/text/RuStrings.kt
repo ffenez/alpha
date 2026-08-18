@@ -633,7 +633,7 @@ object RuStrings : Strings {
     override val unitDoseMicroR = "мкР"
     override val colorsTitle = "Цвета"
     override val homeLayoutTitle = "Главная"
-    override val hintsNote = "Короткие подсказки рядом со сложными показателями."
+    override val hintsNote = "Справка и дополнительные пояснения на экранах."
     override val doseTintNote = "Главное значение меняет цвет при заметном отличии от обычного."
     override val interfaceTitle = "Интерфейс"
     override val atLeastOneTab = "Кроме Главной должна остаться хотя бы одна вкладка."
@@ -680,7 +680,7 @@ object RuStrings : Strings {
 
     override fun baselineStats(median: String, iqr: String, mad: String, buckets: Int) =
         "медиана $median · P25–P75 $iqr · MAD $mad · n $buckets минутных интервалов"
-    override val hintsTitle = "Пояснения на экранах"
+    override val hintsTitle = "Пояснения"
     override val doseTintTitle = "Цвет числа по фону места"
     override val doseTintFactorTitle = "Багровый при"
     override fun doseTintFactorLabel(factor: String) = "×$factor"
