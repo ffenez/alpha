@@ -32,7 +32,9 @@ import android.content.Context
 import app.alpha.device.BluetoothState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.graphics.lerp
+import app.alpha.ui.components.rememberFrameMillis
 import app.alpha.ui.logic.DoseTint
+import app.alpha.ui.logic.LiveEdge
 import app.alpha.ui.logic.MonitorLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -613,6 +615,15 @@ fun MonitorScreen(
                             )
                         }
                     }
+                    // Живой край едет покадрово, а не рывком раз в секунду:
+                    // между тиками сдвигается только ОКНО просмотра, кадр и
+                    // значения не пересчитываются ([LiveEdge]). Покадровая
+                    // перерисовка включается лишь там, где движение видно.
+                    val liveWindow = ChartWindows.withRightPadding(viewport.window())
+                    val smoothEdge = viewport.followLiveEdge &&
+                        stream.live &&
+                        LiveEdge.smooth(liveWindow.spanMillis, plotWidthPx)
+                    val frameMillis by rememberFrameMillis(smoothEdge, nowMillis)
                     MetricChartCard(
                         metric = metric,
                         frame = frame,
@@ -627,7 +638,7 @@ fun MonitorScreen(
                         onBackToNow = {
                             setGesture(gesture.withViewport(Viewports.jumpToEdge(viewport, bounds), bounds))
                         },
-                        viewWindow = ChartWindows.withRightPadding(viewport.window()),
+                        viewWindow = LiveEdge.shifted(liveWindow, nowMillis, frameMillis),
                         onOpenFromChart = {
                             if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
                         },
