@@ -42,6 +42,7 @@ import app.alpha.analysis.SpectrogramColumn
 import app.alpha.analysis.SpectrogramSlice
 import app.alpha.data.DoseUnitSetting
 import app.alpha.device.ConnectionState
+import app.alpha.ui.components.AppCloseButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.Chip
@@ -287,7 +288,7 @@ fun SpectrogramScreen(
                         .fillMaxWidth()
                         .padding(horizontal = Dimens.space2, vertical = Dimens.space1),
                 ) {
-                    Chip(text = "✕", color = colors.ink2, onClick = onBack)
+                    AppCloseButton(onClose = onBack)
                     if (!connected && slices.isNotEmpty()) {
                         Chip(text = t.offlineTag, color = colors.ink2)
                     }
@@ -567,7 +568,7 @@ private fun HelpDialog(
                     color = colors.ink2,
                 )
                 Spacer(Modifier.weight(1f))
-                Chip(text = "✕", color = colors.ink2, onClick = onClose)
+                AppCloseButton(onClose = onClose)
             }
             if (!connected) {
                 Text(text = t.offlineHistory, style = type.bodySmall, color = colors.ink2)

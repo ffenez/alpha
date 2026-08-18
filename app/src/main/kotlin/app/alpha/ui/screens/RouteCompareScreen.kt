@@ -25,9 +25,10 @@ import app.alpha.AppGraph
 import app.alpha.baseline.BaselineState
 import app.alpha.data.DoseUnitSetting
 import app.alpha.device.DoseUnits
-import app.alpha.ui.components.AppButton
+import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.AppDivider
 import app.alpha.ui.components.Card
+import app.alpha.ui.components.DisclosureRow
 import app.alpha.ui.components.Chip
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.MapGestureLock
@@ -180,7 +181,7 @@ fun RouteCompareScreen(graph: AppGraph, routeIds: List<Long>, onBack: () -> Unit
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = t.back, onClick = onBack)
+            AppBackButton(onBack = onBack)
             Spacer(Modifier.weight(1f))
             Chip(text = h.routeCompareTitle, color = colors.ink)
         }
@@ -252,27 +253,7 @@ fun RouteCompareScreen(graph: AppGraph, routeIds: List<Long>, onBack: () -> Unit
         }
 
         diff?.let { result ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
-                    Text(
-                        text = h.routeDiffSummary(
-                            matched = result.matched,
-                            higher = result.higher.size,
-                            lower = result.lower.size,
-                        ),
-                        style = type.bodySmall,
-                        color = colors.ink,
-                    )
-                    Text(
-                        text = h.routeDiffMethod(
-                            cell = TrackGrid.formatCellSize(RouteDiff.CELL_METERS, t),
-                            minPoints = RouteDiff.MIN_POINTS_PER_CELL,
-                        ),
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
-            }
+            DiffResultCard(result = result, cellSize = TrackGrid.formatCellSize(RouteDiff.CELL_METERS, t))
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -285,6 +266,12 @@ fun RouteCompareScreen(graph: AppGraph, routeIds: List<Long>, onBack: () -> Unit
                         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
+                        // Номер связывает строку с итогом: «выше у маршрута 1».
+                        Text(
+                            text = "${index + 1}",
+                            style = type.label,
+                            color = if (visible) colors.dataText else colors.muted,
+                        )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = RouteFormat.title(route.summary, nowMillis, h),
@@ -310,25 +297,128 @@ fun RouteCompareScreen(graph: AppGraph, routeIds: List<Long>, onBack: () -> Unit
                                 color = colors.ink2,
                             )
                         }
-                        // Маршруты часто лежат друг на друге: погасив один,
-                        // видно, чем отличается второй.
-                        Chip(
-                            text = if (visible) strings.on else strings.off,
-                            color = if (visible) colors.dataText else colors.ink2,
-                            selected = visible,
-                            onClick = {
-                                hidden = if (visible) {
-                                    hidden + route.summary.id
-                                } else {
-                                    hidden - route.summary.id
-                                }
-                            },
-                        )
+                        // Пара сравнения фиксирована: выключать в ней нечего,
+                        // и кнопка, которая ломает единственный смысл экрана,
+                        // не показывается. При трёх и больше маршрутах гасить
+                        // лишние осмысленно — они лежат друг на друге.
+                        if (routes.size > 2) {
+                            Chip(
+                                text = h.routeOnMap,
+                                color = if (visible) colors.dataText else colors.ink2,
+                                selected = visible,
+                                onClick = {
+                                    hidden = if (visible) {
+                                        hidden + route.summary.id
+                                    } else {
+                                        hidden - route.summary.id
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
-                Hint(text = h.routeCompareCaveat, style = type.footnote, color = colors.muted)
             }
         }
+    }
+}
+
+
+/**
+ * Итог сравнения: что произошло — на экране, как посчитано — в «Пояснении».
+ *
+ * Числа связаны арифметикой, и она видна: сопоставлено = отличается + без
+ * заметной разницы. Направление названо вместе с маршрутом («выше у маршрута
+ * 1»), а не одним словом «выше», и не кодируется одним цветом — у каждой
+ * строки есть свой знак.
+ */
+@Composable
+private fun DiffResultCard(result: RouteDiff.Result, cellSize: String) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
+    var explained by rememberSaveable { mutableStateOf(false) }
+
+    val higher = result.higher.size
+    val lower = result.lower.size
+    val same = result.matched - higher - lower
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Text(
+                text = h.routeComparePlaces(result.matched),
+                style = type.footnote,
+                color = colors.ink2,
+            )
+            Text(
+                text = h.routeCompareDiffering(higher + lower),
+                style = type.title,
+                color = colors.ink,
+            )
+            if (higher > 0 || lower > 0) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
+                    DirectionRow(glyph = "▲", text = h.routeCompareHigherOn(higher, 1))
+                    DirectionRow(glyph = "▼", text = h.routeCompareHigherOn(lower, 2))
+                }
+            }
+            Text(
+                text = h.routeCompareSame(same),
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            // Ограничение метода стоит НА экране, а не только в справке: оно
+            // меняет то, как читается результат.
+            Text(
+                text = h.routeCompareDescriptive,
+                style = type.footnote,
+                color = colors.muted,
+            )
+            AppDivider()
+            DisclosureRow(
+                title = h.routeMethodTitle,
+                expanded = explained,
+                onToggle = { explained = !explained },
+            ) {
+                MethodBlock(
+                    title = h.routeMethodPatchTitle,
+                    body = h.routeMethodPatch(cellSize, RouteDiff.MIN_POINTS_PER_CELL),
+                )
+                MethodBlock(title = h.routeMethodTypicalTitle, body = h.routeMethodTypical)
+                MethodBlock(
+                    title = h.routeMethodDifferenceTitle,
+                    body = h.routeMethodDifference,
+                    // Подсказка новичка: P10–P90 простыми словами.
+                    hint = h.routeMethodDifferenceSimple,
+                )
+                MethodBlock(title = h.routeMethodLimitTitle, body = h.routeMethodLimit)
+                MethodBlock(title = h.routeMethodColourTitle, body = h.routeCompareCaveat)
+            }
+        }
+    }
+}
+
+/** Строка направления: знак и число — смысл не только в цвете. */
+@Composable
+private fun DirectionRow(glyph: String, text: String) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+    ) {
+        Text(text = glyph, style = type.footnote, color = colors.ink2)
+        Text(text = text, style = type.bodySmall, color = colors.ink)
+    }
+}
+
+/** Один блок «Пояснения»: заголовок и одно правило. */
+@Composable
+private fun MethodBlock(title: String, body: String, hint: String? = null) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(text = title, style = type.label, color = colors.ink)
+        Text(text = body, style = type.footnote, color = colors.ink2)
+        if (hint != null) Hint(text = hint)
     }
 }
 

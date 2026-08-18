@@ -149,9 +149,42 @@ interface HistoryStrings {
     fun routeDeleteTitle(count: Int): String
     val routeDeleteBody: String
     val routeDiff: String
-    fun routeDiffSummary(matched: Int, higher: Int, lower: Int): String
-    /** Как именно сопоставлены участки: это метод, а не вывод. */
-    fun routeDiffMethod(cell: String, minPoints: Int): String
+
+    /** Итог сравнения: сколько мест сопоставлено. */
+    fun routeComparePlaces(matched: Int): String
+
+    /** Сколько участков отличается — главное число экрана. */
+    fun routeCompareDiffering(count: Int): String
+
+    /** «19 — выше у маршрута 1»: направление названо вместе с маршрутом. */
+    fun routeCompareHigherOn(count: Int, route: Int): String
+
+    /** Остаток: сопоставлено минус отличающиеся. */
+    fun routeCompareSame(count: Int): String
+
+    /** Ограничение, которое нельзя прятать в справку. */
+    val routeCompareDescriptive: String
+
+    /** Номер маршрута в списке — им подписаны строки и направления. */
+    fun routeNumber(index: Int): String
+
+    /** Показан ли маршрут на карте. */
+    val routeOnMap: String
+
+    // --- «Пояснение»: методика, а не результат ---
+    val routeMethodTitle: String
+    val routeMethodPatchTitle: String
+    fun routeMethodPatch(cell: String, minPoints: Int): String
+    val routeMethodTypicalTitle: String
+    val routeMethodTypical: String
+    val routeMethodDifferenceTitle: String
+    val routeMethodDifference: String
+
+    /** То же простыми словами — для включённых подсказок. */
+    val routeMethodDifferenceSimple: String
+    val routeMethodLimitTitle: String
+    val routeMethodLimit: String
+    val routeMethodColourTitle: String
     val statDistance: String
     val statDose: String
     val measurementsUntouched: String
@@ -313,14 +346,38 @@ object HistoryRu : HistoryStrings {
         "Точки маршрута и его метки исчезнут с карты и из накопленных записей. " +
             "Измерения прибора за это время останутся."
     override val routeDiff = "Разница"
-    override fun routeDiffSummary(matched: Int, higher: Int, lower: Int) =
-        "Сопоставлено участков: $matched. Разброс не перекрывается на " +
-            "$higher выше и $lower ниже — на остальных различия не видно."
-    override fun routeDiffMethod(cell: String, minPoints: Int) =
-        "Участок — клетка $cell, где у обоих маршрутов не меньше $minPoints " +
-            "измерений; сравниваются медианы, различие названо видимым только " +
-            "когда P10–P90 маршрутов не перекрываются. Это описание, а не " +
-            "критерий: показания вдоль маршрута идут подряд и зависимы"
+    override fun routeComparePlaces(matched: Int) =
+        "Сравнено $matched ${plural(matched, "место", "места", "мест")}"
+    override fun routeCompareDiffering(count: Int) =
+        "$count ${plural(count, "участок", "участка", "участков")} отличается"
+    override fun routeCompareHigherOn(count: Int, route: Int) =
+        "$count — значения выше у маршрута $route"
+    override fun routeCompareSame(count: Int) =
+        "$count — без заметной разницы"
+    override val routeCompareDescriptive =
+        "описательное сравнение, не проверка значимости"
+    override fun routeNumber(index: Int) = "маршрут $index"
+    override val routeOnMap = "на карте"
+    override val routeMethodTitle = "Как сравниваются маршруты"
+    override val routeMethodPatchTitle = "Участок"
+    override fun routeMethodPatch(cell: String, minPoints: Int) =
+        "Карта делится на клетки $cell. Клетка участвует в сравнении, только если в " +
+            "обоих маршрутах есть не меньше $minPoints измерений."
+    override val routeMethodTypicalTitle = "Типичное значение"
+    override val routeMethodTypical =
+        "Для каждого участка сравниваются медианы измерений."
+    override val routeMethodDifferenceTitle = "Когда показывается различие"
+    override val routeMethodDifference =
+        "Различие отмечается, когда диапазоны P10–P90 двух маршрутов не перекрываются."
+    override val routeMethodDifferenceSimple =
+        "P10–P90 — полоса, в которую попали восемь измерений участка из десяти: " +
+            "самые низкие и самые высокие отброшены. Полосы двух маршрутов разошлись — " +
+            "разница видна и без статистики."
+    override val routeMethodLimitTitle = "Ограничение метода"
+    override val routeMethodLimit =
+        "Измерения вдоль маршрута идут подряд и зависят друг от друга, поэтому это " +
+            "описательное сравнение, а не статистическая проверка значимости."
+    override val routeMethodColourTitle = "Цвет на карте"
     override val statDistance = "путь"
     override val statDose = "доза"
 
@@ -492,15 +549,38 @@ object HistoryEn : HistoryStrings {
         "The route's points and markers disappear from the map and from the " +
             "accumulated recordings. The instrument's measurements stay."
     override val routeDiff = "Difference"
-    override fun routeDiffSummary(matched: Int, higher: Int, lower: Int) =
-        "Patches matched: $matched. The spreads do not overlap on $higher higher " +
-            "and $lower lower — on the rest no difference is visible."
-    override fun routeDiffMethod(cell: String, minPoints: Int) =
-        "A patch is a $cell cell where both routes have at least $minPoints " +
-            "measurements; the medians are compared, and a difference is called " +
-            "visible only when the routes' P10–P90 do not overlap. This is a " +
-            "description, not a test: readings along a route are consecutive " +
-            "and dependent"
+    override fun routeComparePlaces(matched: Int) =
+        "$matched ${if (matched == 1) "place" else "places"} compared"
+    override fun routeCompareDiffering(count: Int) =
+        "$count ${if (count == 1) "patch differs" else "patches differ"}"
+    override fun routeCompareHigherOn(count: Int, route: Int) =
+        "$count — higher on route $route"
+    override fun routeCompareSame(count: Int) =
+        "$count — no visible difference"
+    override val routeCompareDescriptive =
+        "a descriptive comparison, not a test of significance"
+    override fun routeNumber(index: Int) = "route $index"
+    override val routeOnMap = "on the map"
+    override val routeMethodTitle = "How the routes are compared"
+    override val routeMethodPatchTitle = "Patch"
+    override fun routeMethodPatch(cell: String, minPoints: Int) =
+        "The map is split into $cell cells. A cell takes part in the comparison only " +
+            "if both routes have at least $minPoints measurements in it."
+    override val routeMethodTypicalTitle = "Typical value"
+    override val routeMethodTypical =
+        "For each patch the medians of the measurements are compared."
+    override val routeMethodDifferenceTitle = "When a difference is shown"
+    override val routeMethodDifference =
+        "A difference is marked when the P10–P90 ranges of the two routes do not overlap."
+    override val routeMethodDifferenceSimple =
+        "P10–P90 is the band that holds eight of the ten measurements of a patch: the " +
+            "lowest and the highest are left out. When the bands of the two routes come " +
+            "apart, the difference is visible without any statistics."
+    override val routeMethodLimitTitle = "Limit of the method"
+    override val routeMethodLimit =
+        "Measurements along a route are consecutive and depend on each other, so this is " +
+            "a descriptive comparison, not a statistical test of significance."
+    override val routeMethodColourTitle = "Colour on the map"
     override val statDistance = "distance"
     override val statDose = "dose"
 
@@ -535,6 +615,12 @@ fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
     openOnMap, openOnChart,
     today, yesterday,
     spectrumTitle,
+    routeComparePlaces(91), routeCompareDiffering(34), routeCompareHigherOn(19, 1),
+    routeCompareSame(57), routeCompareDescriptive, routeNumber(1), routeOnMap,
+    routeMethodTitle, routeMethodPatchTitle, routeMethodPatch("30 м", 5),
+    routeMethodTypicalTitle, routeMethodTypical, routeMethodDifferenceTitle,
+    routeMethodDifference, routeMethodDifferenceSimple, routeMethodLimitTitle,
+    routeMethodLimit, routeMethodColourTitle,
     filterAll, filterSessions, filterRoutes, filterSpectra, filterFood,
     noFoodYet, foodExplained,
     routeAuto("18:51"), routesTitle, noRoutesYet, routesExplained, routeRecording,
@@ -545,7 +631,7 @@ fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
     noMeasurements, studyDeleteTitle("Калий"), studyDeleteBody,
     records(1), records(3), records(11), routes(1), routes(2), studies(1), studies(5),
     routeDeleteTitle(1), routeDeleteTitle(3), routeDeleteBody,
-    routeDiff, routeDiffSummary(12, 3, 1), routeDiffMethod("30 м", 5),
+    routeDiff,
     seconds(45), minutes(12), hours(8), hoursMinutes(8, 12),
     // Причина подставляется каталогом Монитора — здесь стоит её образец на
     // языке человека, а не имя механизма движка.

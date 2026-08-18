@@ -60,6 +60,7 @@ import app.alpha.device.ConnectionState
 import app.alpha.protocol.Spectrum
 import app.alpha.service.AbRunRecorder
 import app.alpha.service.ServiceStatus
+import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.AppDivider
@@ -171,7 +172,7 @@ private fun ExperimentList(
     val experiments by graph.experimentRepository.recent().collectAsState(initial = emptyList())
 
     Screen {
-        Header(title = t.listTitle, back = t.back, onBack = onBack)
+        Header(title = t.listTitle, onBack = onBack)
         ExperimentalBanner()
         AppButton(
             text = t.newExperiment,
@@ -267,7 +268,7 @@ private fun CreateExperiment(
     val windowsRaw by graph.settings.energyWindowsRaw.collectAsState(initial = null)
 
     Screen {
-        Header(title = t.newExperiment, back = t.back, onBack = onCancel)
+        Header(title = t.newExperiment, onBack = onCancel)
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(text = t.scenario, style = type.label, color = colors.ink)
@@ -918,10 +919,10 @@ private fun Screen(content: @Composable androidx.compose.foundation.layout.Colum
 }
 
 @Composable
-private fun Header(title: String, back: String, onBack: () -> Unit) {
+private fun Header(title: String, onBack: () -> Unit) {
     val colors = LocalAppColors.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        AppButton(text = back, onClick = onBack)
+        AppBackButton(onBack = onBack)
         Spacer(Modifier.weight(1f))
         Chip(text = title, color = colors.ink)
     }

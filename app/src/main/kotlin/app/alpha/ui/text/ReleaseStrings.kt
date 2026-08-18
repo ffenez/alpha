@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0200Title: String
+    val v0200Summary: String
+
     val v0190Title: String
     val v0190Summary: String
 
@@ -288,6 +291,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0200Title = "Сравнение маршрутов говорит по-человечески"
+    override val v0200Summary =
+        "Вместо абзаца про перекрытие разбросов экран говорит: сравнено 91 место, " +
+        "34 участка отличаются — 19 выше у маршрута 1, 15 у маршрута 2, остальные без " +
+        "заметной разницы; методика уехала в «Пояснение». Возврат стал одной стрелкой во " +
+        "всём приложении, счётчик тайлов с карты убран, а кнопка «показать целиком» на " +
+        "маршруте рисует маршрут, а не рамку."
 
     override val v0190Title = "Слабые линии на высоких энергиях больше не теряются"
     override val v0190Summary =
@@ -898,6 +909,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0200Title = "Route comparison speaks plainly"
+    override val v0200Summary =
+        "Instead of a paragraph about overlapping spreads the screen says: 91 places " +
+        "compared, 34 patches differ — 19 higher on route 1, 15 on route 2, the rest with " +
+        "no visible difference; the method moved into «How the routes are compared». Going " +
+        "back is one arrow across the app, the tile counter is gone from the map, and the " +
+        "«fit» button on a route draws a route instead of a frame."
 
     override val v0190Title = "Weak lines at high energies are no longer lost"
     override val v0190Summary =

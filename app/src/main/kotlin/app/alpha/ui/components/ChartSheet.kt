@@ -104,7 +104,7 @@ fun BoxScope.ChartSheet(
             ) {
                 Text(text = title.uppercase(), style = type.labelSmall, color = colors.ink2)
                 Spacer(Modifier.weight(1f))
-                Chip(text = "✕", color = colors.ink2, onClick = onClose)
+                AppCloseButton(onClose = onClose)
             }
             content()
         }

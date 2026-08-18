@@ -360,9 +360,50 @@ class DistanceTest {
 
     @Test
     fun `walk distance accumulates`() {
-        val points = List(11) { point(lat = 55.0 + it * 0.001) } // ~111 m steps
+        val points = List(11) { point(timestamp = it * 1000L, lat = 55.0 + it * 0.001) }
         val d = TrackMap.distanceMeters(points)
         assertTrue(d in 1100.0..1130.0, "d=$d")
+    }
+
+    @Test
+    fun `a provider jump is not walked distance`() {
+        // Фикс с другого конца города через секунду: след такой отрезок не
+        // рисует (LINE_JUMP_METERS), и путь его тоже не считает — иначе одна
+        // телепортация добавляет к прогулке десятки километров.
+        val points = listOf(
+            point(timestamp = 0L, lat = 55.000),
+            point(timestamp = 1_000L, lat = 55.001),   // ~111 м пешком
+            point(timestamp = 2_000L, lat = 55.200),   // ~22 км за секунду
+            point(timestamp = 3_000L, lat = 55.201),   // ~111 м пешком
+        )
+        val d = TrackMap.distanceMeters(points)
+        assertTrue(d in 200.0..240.0, "d=$d")
+    }
+
+    @Test
+    fun `an unmeasured gap is not interpolated into the distance`() {
+        // Пауза дольше LINE_GAP_SECONDS: человек шёл, но координат не было.
+        // Прямая через пропуск — выдуманный путь, как доза за неизмеренные
+        // минуты.
+        val points = listOf(
+            point(timestamp = 0L, lat = 55.000),
+            point(timestamp = 1_000L, lat = 55.001),
+            point(timestamp = 600_000L, lat = 55.003),
+            point(timestamp = 601_000L, lat = 55.004),
+        )
+        val d = TrackMap.distanceMeters(points)
+        assertTrue(d in 200.0..240.0, "d=$d")
+    }
+
+    @Test
+    fun `the reading of 374 km needs 374 km of measured segments`() {
+        // Проверка единиц и форматирования: метры остаются метрами по всей
+        // цепочке, и «374 км» на экране означает 374 000 измеренных метров.
+        val steps = 3_370
+        val points = List(steps + 1) { point(timestamp = it * 1000L, lat = 55.0 + it * 0.001) }
+        val d = TrackMap.distanceMeters(points)
+        assertTrue(d in 370_000.0..378_000.0, "d=$d")
+        assertEquals("374 км", TrackMap.formatDistance(374_000.0))
     }
 }
 

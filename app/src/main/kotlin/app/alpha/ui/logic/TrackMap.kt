@@ -296,6 +296,19 @@ object TrackMap {
     const val MIN_SEGMENT_METERS = 2.0
     const val MAX_ACCURACY_METERS = 50f
 
+    /**
+     * Пройденное расстояние — сумма ИЗМЕРЕННЫХ отрезков.
+     *
+     * Отрезок, который след не рисует ([lineBreaks]: пауза дольше
+     * [LINE_GAP_SECONDS] или скачок дальше [LINE_JUMP_METERS]), в сумму не
+     * входит. Причины разные, правило одно: провайдер иногда отдаёт фикс с
+     * другого конца города через секунду после предыдущего, и такой «отрезок»
+     * добавлял к прогулке десятки километров; а через паузу без координат
+     * человек шёл, но прибор этого не измерял, и прямая через пропуск — та же
+     * выдумка, что доза за неизмеренные минуты.
+     *
+     * Поэтому число — нижняя оценка пути: оно не больше того, что измерено.
+     */
     fun distanceMeters(points: List<MapTrackPoint>): Double {
         var total = 0.0
         var previous: MapTrackPoint? = null
@@ -309,7 +322,11 @@ object TrackMap {
                     point.latitude,
                     point.longitude,
                 )
-                if (segment >= MIN_SEGMENT_METERS) {
+                val seconds = (point.timestamp - last.timestamp) / 1000
+                if (seconds > LINE_GAP_SECONDS || segment > LINE_JUMP_METERS) {
+                    // Не измерено: якорь переносится, путь не растёт.
+                    previous = point
+                } else if (segment >= MIN_SEGMENT_METERS) {
                     total += segment
                     previous = point
                 }

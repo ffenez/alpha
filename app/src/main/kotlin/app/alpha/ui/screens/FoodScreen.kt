@@ -36,6 +36,7 @@ import app.alpha.data.export.N42
 import app.alpha.data.export.SpectrumExport
 import app.alpha.data.db.SpectrumSnapshotEntity
 import app.alpha.device.ConnectionState
+import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.AppDivider
 import app.alpha.ui.components.AppTextField
@@ -262,7 +263,7 @@ fun FoodScreen(
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = strings.back, onClick = onBack)
+            AppBackButton(onBack = onBack)
             Spacer(Modifier.weight(1f))
             Chip(text = "i", color = colors.ink2, onClick = { guideOpen = true })
         }

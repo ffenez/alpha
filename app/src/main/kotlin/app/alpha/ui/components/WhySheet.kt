@@ -97,7 +97,7 @@ fun WhySheet(
                         color = colors.ink,
                         modifier = Modifier.weight(1f),
                     )
-                    Chip(text = "×", color = colors.ink2, onClick = onDismiss)
+                    AppCloseButton(onClose = onDismiss)
                 }
 
                 // Первый уровень отвечает на три вопроса: что происходит,

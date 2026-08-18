@@ -21,7 +21,6 @@ interface ExperimentStrings {
 
     // --- навигация и список ---
 
-    val back: String
     val listTitle: String
     val detailTitle: String
     val newExperiment: String
@@ -224,7 +223,6 @@ interface ExperimentStrings {
 
 object ExperimentRu : ExperimentStrings {
 
-    override val back = "← Назад"
     override val listTitle = "A/B эксперимент"
     override val detailTitle = "Эксперимент"
     override val newExperiment = "Новый эксперимент"
@@ -462,7 +460,6 @@ object ExperimentRu : ExperimentStrings {
  */
 object ExperimentEn : ExperimentStrings {
 
-    override val back = "← Back"
     override val listTitle = "A/B experiment"
     override val detailTitle = "Experiment"
     override val newExperiment = "New experiment"
@@ -703,7 +700,7 @@ val ExperimentCatalogue = AreaCatalogue(ru = ExperimentRu, en = ExperimentEn)
  * означала бы непроверенный текст.
  */
 fun ExperimentStrings.allTexts(): List<String> = listOf(
-    back, listTitle, detailTitle, newExperiment, emptyList, emptyHint, loading,
+     listTitle, detailTitle, newExperiment, emptyList, emptyHint, loading,
     geometry, geometryPrompt, geometryPlaceholder, geometryKeptNote,
     geometryUndescribedInList, geometryUndescribed, geometryUndescribedInline,
     scenario, note, notePlaceholder, create, cancel,

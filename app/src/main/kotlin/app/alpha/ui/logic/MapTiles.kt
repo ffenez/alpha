@@ -122,18 +122,6 @@ object TileStatus {
     /** No tile event at all for this long = something is wrong, say it. */
     const val STALL_MILLIS = 15_000L
 
-    fun line(
-        loaded: Int,
-        failed: Int,
-        waitedMillis: Long,
-        s: MapStrings = MapRu,
-    ): String = when {
-        loaded == 0 && failed == 0 ->
-            if (waitedMillis < STALL_MILLIS) s.tilesLoading else s.tilesStalled
-        loaded == 0 -> s.tilesNetworkError(failed)
-        failed == 0 -> s.tilesReady(loaded)
-        else -> s.tilesReadyWithFailures(loaded, failed)
-    }
 
     /**
      * One-line cause when not a single tile ever arrived. GrapheneOS gives

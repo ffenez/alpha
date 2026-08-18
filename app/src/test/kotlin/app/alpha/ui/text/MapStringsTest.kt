@@ -73,7 +73,7 @@ class MapStringsTest {
     @Test
     fun `catalogues differ where they must`() {
         assertTrue(MapRu.scopeAll != MapEn.scopeAll)
-        assertTrue(MapRu.tilesLoading != MapEn.tilesLoading)
+        assertTrue(MapRu.tilesNetworkHint != MapEn.tilesNetworkHint)
         assertEquals(MapRu, MapCatalogue.of(AppLanguage.RU))
         assertEquals(MapEn, MapCatalogue.of(AppLanguage.EN))
         // Незнакомый язык каталога области решается общим правилом языка.

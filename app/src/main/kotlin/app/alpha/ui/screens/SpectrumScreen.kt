@@ -61,6 +61,7 @@ import app.alpha.data.toSpectrum
 import app.alpha.device.ConnectionState
 import app.alpha.protocol.Spectrum
 import app.alpha.service.SpectrumHub
+import app.alpha.ui.components.AppCloseButton
 import app.alpha.ui.components.NavArrow
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
@@ -701,7 +702,7 @@ private fun SpectrumInfoCard(
                     color = colors.ink2,
                 )
                 Spacer(Modifier.weight(1f))
-                Chip(text = "✕", color = colors.ink2, onClick = onClose)
+                AppCloseButton(onClose = onClose)
             }
             SpectrumInfoLines(
                 calibrationLine = calibrationLine,

@@ -37,7 +37,6 @@ interface MapStrings {
     fun recordingFor(duration: String): String
 
     // --- действия ---
-    val back: String
     val showAllRecordings: String
     val startRecording: String
     /** На экране уже лежит маршрут — кнопка заводит НОВЫЙ, и говорит это. */
@@ -123,11 +122,6 @@ interface MapStrings {
     val unitKilometers: String
 
     // --- тайлы ---
-    val tilesLoading: String
-    val tilesStalled: String
-    fun tilesNetworkError(failed: Int): String
-    fun tilesReady(loaded: Int): String
-    fun tilesReadyWithFailures(loaded: Int, failed: Int): String
     val tilesNetworkHint: String
 }
 
@@ -147,7 +141,6 @@ object MapRu : MapStrings {
     override fun lastRecording(stamp: String) = "последняя · $stamp"
     override fun recordingFor(duration: String) = "запись · $duration"
 
-    override val back = "← Назад"
     override val showAllRecordings = "Показать все записи"
     override val startRecording = "Начать маршрут"
     override val startNewRecording = "Начать новый маршрут"
@@ -239,12 +232,6 @@ object MapRu : MapStrings {
     override val unitMeters = "м"
     override val unitKilometers = "км"
 
-    override val tilesLoading = "тайлы: загружаются…"
-    override val tilesStalled = "тайлы: не приходят"
-    override fun tilesNetworkError(failed: Int) = "тайлы: ошибка сети · неудачных $failed"
-    override fun tilesReady(loaded: Int) = "тайлы: готово · $loaded"
-    override fun tilesReadyWithFailures(loaded: Int, failed: Int) =
-        "тайлы: готово · $loaded · неудачных $failed"
     override val tilesNetworkHint =
         "тайлы не загрузились — проверьте доступ приложения к сети " +
             "(GrapheneOS: разрешение «Сеть»)"
@@ -266,7 +253,6 @@ object MapEn : MapStrings {
     override fun lastRecording(stamp: String) = "latest · $stamp"
     override fun recordingFor(duration: String) = "recording · $duration"
 
-    override val back = "← Back"
     override val showAllRecordings = "Show all recordings"
     override val startRecording = "Start a route"
     override val startNewRecording = "Start a new route"
@@ -358,12 +344,6 @@ object MapEn : MapStrings {
     override val unitMeters = "m"
     override val unitKilometers = "km"
 
-    override val tilesLoading = "tiles: loading…"
-    override val tilesStalled = "tiles: none arriving"
-    override fun tilesNetworkError(failed: Int) = "tiles: network error · failed $failed"
-    override fun tilesReady(loaded: Int) = "tiles: ready · $loaded"
-    override fun tilesReadyWithFailures(loaded: Int, failed: Int) =
-        "tiles: ready · $loaded · failed $failed"
     override val tilesNetworkHint =
         "no tiles loaded — check the app's network access " +
             "(GrapheneOS: the «Network» permission)"
@@ -380,7 +360,7 @@ fun MapStrings.allTexts(): List<String> = listOf(
     exportGpx, exportSaved, exportFailed,
     scopeCurrent, scopeAll, mapTitle, sessionTrack, noTrackInSession, gpsOff, gpsOffAction,
     lastRecording("12:00"), recordingFor("2 мин"),
-    back, showAllRecordings, startRecording, startNewRecording, stopRecording, routeMine, route,
+     showAllRecordings, startRecording, startNewRecording, stopRecording, routeMine, route,
     pointsAndCells("1 200", "48"), centerOnMe, centerOnRoute, centerOnAll,
     metricDose, metricCps, unitCps, scaleAbsolute, scaleContrast,
     cellSize("20 м"), median, paleCells(3, 5), medianValue("0,12"),
@@ -396,6 +376,5 @@ fun MapStrings.allTexts(): List<String> = listOf(
     locationTitle, locationBody, locationAllow,
     waitingGps, fixAgo("2 мин"), meWithAccuracy("±12 м"), accuracyUnknown,
     unitMeters, unitKilometers,
-    tilesLoading, tilesStalled, tilesNetworkError(4), tilesReady(42),
-    tilesReadyWithFailures(42, 3), tilesNetworkHint,
+    tilesNetworkHint,
 )

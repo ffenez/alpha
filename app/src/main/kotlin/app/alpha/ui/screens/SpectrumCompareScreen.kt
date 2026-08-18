@@ -42,6 +42,7 @@ import app.alpha.data.export.ProcessingMetadata
 import app.alpha.data.export.RcXml
 import app.alpha.data.export.SpectrumExport
 import app.alpha.protocol.Spectrum
+import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.AppDivider
@@ -106,7 +107,7 @@ fun SpectrumCompareScreen(
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← ${strings.back}", onClick = onBack)
+            AppBackButton(onBack = onBack)
             Spacer(Modifier.weight(1f))
         }
 
