@@ -1,6 +1,11 @@
 package app.alpha.ui.screens
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,7 +32,6 @@ import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.BreathingAura
 import app.alpha.ui.components.Card
-import app.alpha.ui.components.Chip
 import app.alpha.ui.components.NavigateGauge
 import app.alpha.ui.components.NavigateGaugeSpec
 import app.alpha.ui.components.NavigateTrace
@@ -52,6 +56,7 @@ import app.alpha.ui.text.SearchStrings
 import app.alpha.ui.text.Strings
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
+import app.alpha.ui.theme.LocalAppMetrics
 import app.alpha.ui.theme.LocalAppTypography
 import app.alpha.ui.theme.Motion
 import kotlin.math.roundToInt
@@ -114,18 +119,14 @@ fun NavigateSection(
     val factor = state.scale?.factor ?: NavigateArc.LADDER.first()
     val referenceRatio = ui.ratioOrNull
     val delta = NavigateEngine.referenceDelta(state)
-    // Цвет главного числа — СОСТОЯНИЕ ИЗМЕРЕНИЯ, и он один на число, дыхание
-    // и заливку прибора (эталон: один смысл — один цвет). Пока вывода нет,
-    // число нейтральное: цвет здесь — вердикт, а не признак «данные идут».
+    // Цвет главного числа — цвет ЭКРАНА (эталон): у Поиска он «цвет данных»,
+    // и янтарным становится только подтверждённое усиление. Один цвет на
+    // число, дыхание и заливку прибора: один смысл — один цвет.
     val numberColor = when {
         !ui.live -> colors.muted
-        ui !is SearchUiState.ReferenceReady -> colors.ink
-        else -> when (ui.confidence) {
-            SearchConfidence.INSUFFICIENT -> colors.ink
-            SearchConfidence.NO_DIFFERENCE -> colors.ok
-            SearchConfidence.ABOVE -> colors.warn
-            SearchConfidence.BELOW -> colors.ink2
-        }
+        ui is SearchUiState.ReferenceReady && ui.confidence == SearchConfidence.ABOVE ->
+            colors.warn
+        else -> colors.dataText
     }
     val animatedNumberColor by animateColorAsState(
         targetValue = numberColor,
@@ -148,13 +149,9 @@ fun NavigateSection(
     // одно и то же. Пока точки отсчёта нет, отношения тоже нет, и дыхание
     // остаётся спокойным — оно означает только «прибор жив».
     val breathPeriod = SearchPulse.periodMillis(referenceRatio)
-    // Без вердикта дыхание остаётся «цветом данных» — это признак жизни, а не
-    // окраска вывода; с вердиктом оно дышит цветом числа.
-    val breathTint = if (numberColor == colors.ink || numberColor == colors.muted) {
-        colors.data
-    } else {
-        numberColor
-    }
+    // Дыхание — тем же смыслом, что и число; тусклое число (нет потока) не
+    // делает свечение серым, оно просто застывает.
+    val breathTint = if (numberColor == colors.warn) colors.warn else colors.data
 
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
         // Счёт, состояние, шкала и главное действие — ОДНА карточка: это один
@@ -188,11 +185,24 @@ fun NavigateSection(
                             // «данные идут»: пока сравнивать не с чем, число
                             // нейтральное, и зелёного рядом с «ждём данные» на
                             // экране больше не бывает.
+                            // Число и есть вход в разбор — как на Главной:
+                            // отдельная кнопка «Почему?» занимала строку тем,
+                            // что уже есть на экране.
                             Text(
                                 text = cps?.let { Uncertainty.num1(it) } ?: "—",
                                 style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
                                 color = animatedNumberColor,
                                 textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
+                                    .clickable(
+                                        interactionSource = remember {
+                                            MutableInteractionSource()
+                                        },
+                                        indication = null,
+                                        onClick = { whyOpen = true },
+                                    )
+                                    .padding(horizontal = Dimens.space2),
                             )
                             // Под числом — одна тихая строка (эталон): после
                             // отсчёта это отношение со знаменателем и
@@ -239,43 +249,29 @@ fun NavigateSection(
                             ),
                         )
                         // Большое действие живёт ровно в одном состоянии —
-                        // пока точки отсчёта нет; после сохранения на его
-                        // месте кнопка разбора. Смена — переход состояния
-                        // интерфейса, и она едет плавно, чтобы карточка не
-                        // прыгала в момент сохранения.
-                        AnimatedContent(
-                            targetState = state.reference == null,
-                            transitionSpec = {
-                                (fadeIn(Motion.normal()) + expandVertically(Motion.springy()))
-                                    .togetherWith(
-                                        fadeOut(Motion.fast()) +
-                                            shrinkVertically(Motion.springy()),
-                                    )
-                            },
-                            label = "primaryAction",
-                        ) { noReference ->
-                            if (noReference) {
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(Dimens.space2),
-                                ) {
-                                    Hint(
-                                        text = t.navSetupBody,
-                                        style = type.bodySmall,
-                                        color = colors.ink2,
-                                    )
-                                    AppButton(
-                                        text = t.navMark,
-                                        onClick = onMark,
-                                        primary = true,
-                                        enabled = ui.live,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                }
-                            } else {
-                                Chip(
-                                    text = t.navWhy,
-                                    color = colors.dataText,
-                                    onClick = { whyOpen = true },
+                        // пока точки отсчёта нет. После сохранения на его
+                        // месте НИЧЕГО (эталон): разбор — по числу, действия
+                        // над точкой — в её строке под карточкой. Уход кнопки
+                        // едет плавно, чтобы карточка не прыгала.
+                        AnimatedVisibility(
+                            visible = state.reference == null,
+                            enter = fadeIn(Motion.normal()) + expandVertically(Motion.springy()),
+                            exit = fadeOut(Motion.fast()) + shrinkVertically(Motion.springy()),
+                        ) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+                            ) {
+                                Hint(
+                                    text = t.navSetupBody,
+                                    style = type.bodySmall,
+                                    color = colors.ink2,
+                                )
+                                AppButton(
+                                    text = t.navMark,
+                                    onClick = onMark,
+                                    primary = true,
+                                    enabled = ui.live,
+                                    modifier = Modifier.fillMaxWidth(),
                                 )
                             }
                         }
@@ -286,7 +282,7 @@ fun NavigateSection(
                 // лента живёт секунду и говорит не о приборе, а о себе.
                 if (!ui.live) {
                     Text(text = t.waitingStream, style = type.bodySmall, color = colors.muted)
-                } else if (state.trace.isNotEmpty()) {
+                } else if (state.reference != null && state.trace.isNotEmpty()) {
                     // Пунктир ленты — то, С ЧЕМ идёт сравнение прямо сейчас:
                     // поставленная точка отсчёта, а до неё — уровень, который
                     // приложение считает само. Две линии сразу означали бы на
@@ -308,16 +304,8 @@ fun NavigateSection(
                             startLabel = t.navTraceStart,
                             endLabel = strings.nowLabel,
                         ),
-                        height = if (state.reference != null) 96.dp else 72.dp,
+                        height = 72.dp,
                     )
-                }
-                // Максимум остаётся вторичной подписью и только когда он
-                // есть: с направлением изменения он не соревнуется. Назван
-                // он сессией, а не окном ленты: держится он с начала
-                // прогона, и «68 с назад» под окном в 20 с читалось как
-                // противоречие.
-                NavigateVerdict.peakLine(state, nowMillis, t)?.let {
-                    Text(text = it, style = type.footnote, color = colors.muted)
                 }
             }
         }
@@ -460,6 +448,12 @@ fun NavigateSection(
                         ),
                     ),
                 )
+            }
+            // Максимум за сессию — рядом со своей сущностью: он живёт от
+            // точки отсчёта и сбрасывается из её же меню, а в карточке прибора
+            // был посторонней строкой (эталон её не рисует).
+            NavigateVerdict.peakLine(state, nowMillis, t)?.let {
+                Text(text = it, style = type.footnote, color = colors.muted)
             }
         }
     }
