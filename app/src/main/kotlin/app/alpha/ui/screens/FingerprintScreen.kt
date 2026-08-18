@@ -34,6 +34,7 @@ import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.AppDivider
 import app.alpha.ui.components.Card
+import app.alpha.ui.components.FingerprintDimensionRows
 import app.alpha.ui.components.Chip
 import app.alpha.ui.components.StatusRow
 import app.alpha.ui.logic.HistoryFormat
@@ -149,48 +150,15 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
                 Fingerprint.hardnessLine(current.comparison, t)?.let {
                     Text(text = it, style = type.footnote, color = colors.muted)
                 }
-                // Граница метода — часть вывода.
-                Text(text = t.caveat, style = type.footnote, color = colors.muted)
+                // Граница метода — пояснение: она не меняет вывод, а объясняет
+                // его, и на рабочем экране висела абзацем при каждом взгляде.
+                Hint(text = t.caveat)
             }
         }
 
         // --- по строке на измерение
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                current.comparison.verdicts.forEachIndexed { index, verdict ->
-                    if (index > 0) AppDivider()
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                        modifier = Modifier.padding(vertical = 9.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = verdict.dimension.title(t),
-                                style = type.label,
-                                color = colors.ink,
-                            )
-                            Spacer(Modifier.weight(1f))
-                            Text(
-                                text = stateLabel(verdict.state, t),
-                                style = type.value,
-                                color = stateColor(verdict.state),
-                            )
-                        }
-                        Text(
-                            text = verdict.detail,
-                            style = type.footnote,
-                            color = colors.muted,
-                        )
-                        verdict.changePercent?.let {
-                            Text(
-                                text = t.changeToReference(it),
-                                style = type.footnote,
-                                color = colors.ink2,
-                            )
-                        }
-                    }
-                }
-            }
+            FingerprintDimensionRows(comparison = current.comparison, t = t)
         }
 
         // --- эталон
@@ -254,18 +222,4 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
             }
         }
     }
-}
-
-private fun stateLabel(state: FingerprintState, t: FingerprintStrings): String = when (state) {
-    FingerprintState.SAME -> t.stateSame
-    FingerprintState.CHANGED -> t.stateChanged
-    FingerprintState.NOT_ENOUGH_DATA -> t.stateNotEnoughData
-    FingerprintState.NOT_EVALUATED -> t.stateNotEvaluated
-}
-
-@Composable
-private fun stateColor(state: FingerprintState) = when (state) {
-    FingerprintState.SAME -> LocalAppColors.current.ok
-    FingerprintState.CHANGED -> LocalAppColors.current.warn
-    else -> LocalAppColors.current.muted
 }

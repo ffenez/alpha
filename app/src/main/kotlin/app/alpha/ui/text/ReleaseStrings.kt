@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0330Title: String
+    val v0330Summary: String
+
     val v0320Title: String
     val v0320Summary: String
 
@@ -333,6 +336,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0330Title = "Поиск больше не спорит сам с собой"
+    override val v0330Summary =
+        "Экран мог одновременно показывать живой счёт, сохранённую точку отсчёта и надпись " +
+        "«ждём данные прибора», а стрелка исчезала, пока не набралась статистика — теперь всё " +
+        "рисуется из одного состояния: ожидание только про поток, стрелка появляется сразу, " +
+        "а «недостаточно данных» стало тихой строкой под отношением. Отпечаток места " +
+        "показывает готовность каждой составляющей со сроком, и его сводка стоит в Проверке."
 
     override val v0320Title = "Поиск и Главная — по эталону"
     override val v0320Summary =
@@ -1051,6 +1062,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0330Title = "Поиск stopped contradicting itself"
+    override val v0330Summary =
+        "The screen could show a live count and a saved reference while still saying «waiting " +
+        "for the instrument», and the needle vanished until the statistics arrived — it is all " +
+        "drawn from one state now: waiting is about the stream alone, the needle appears at " +
+        "once, and «not enough data» became a quiet line under the ratio. The place " +
+        "fingerprint reports each part's readiness with its progress, summarised in Проверка."
 
     override val v0320Title = "Поиск and Главная follow the reference"
     override val v0320Summary =

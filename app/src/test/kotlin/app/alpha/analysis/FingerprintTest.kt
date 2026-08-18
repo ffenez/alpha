@@ -136,7 +136,17 @@ class FingerprintTest {
             window = window(seconds = Fingerprint.MIN_WINDOW_SECONDS - 1),
             reference = reference(),
         )
-        assertTrue(comparison.verdicts.all { it.state == FingerprintState.NOT_ENOUGH_DATA })
+        // Готовность у измерений РАЗНАЯ: доза и счёт ждут своего окна, форма
+        // спектра решает по собственной экспозиции. Общего «мало данных» на
+        // всех больше нет — оно скрывало уже сделанную часть сравнения.
+        for (dimension in listOf(FingerprintDimension.DOSE, FingerprintDimension.COUNT_RATE)) {
+            val verdict = assertNotNull(comparison.of(dimension))
+            assertEquals(FingerprintState.NOT_ENOUGH_DATA, verdict.state)
+            // И сказано, сколько собрано из необходимого.
+            assertTrue(verdict.detail.contains("из"), "нет прогресса: ${verdict.detail}")
+        }
+        // Пока хоть одно измерение не проверено, «отличий не найдено» сказать
+        // нельзя: это утверждение о том, чего не смотрели.
         assertEquals(
             "Пока недостаточно измерений для сравнения с эталоном",
             Fingerprint.headline(comparison),

@@ -82,4 +82,18 @@ class NavigateArcTest {
         assertEquals("0,25", NavigateArc.factorLabel(0.25))
         assertEquals("4", NavigateArc.factorLabel(4.0))
     }
+
+    /**
+     * ×1 стоит в геометрическом центре дуги на ЛЮБОМ кадре.
+     *
+     * Центр дуги в системе Compose — 270°, то есть вертикаль вверх: при
+     * отношении ровно единица стрелка обязана стоять строго вертикально, иначе
+     * «столько же, сколько в точке отсчёта» выглядело бы как небольшой уклон.
+     */
+    @Test
+    fun `the reference points straight up on every frame`() {
+        for (factor in NavigateArc.LADDER) {
+            assertEquals(270f, NavigateArc.angleDegrees(1.0, factor), 1e-3f)
+        }
+    }
 }
