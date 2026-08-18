@@ -280,7 +280,7 @@ internal fun EntityExportSheet(
                                 onClick = option.onPick,
                                 modifier = Modifier.fillMaxWidth(),
                             )
-                            Text(
+                            Hint(
                                 text = option.hint,
                                 style = type.footnote,
                                 color = colors.muted,

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0260Title: String
+    val v0260Summary: String
+
     val v0250Title: String
     val v0250Summary: String
 
@@ -306,6 +309,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0260Title = "Выключенные пояснения — чистый экран"
+    override val v0260Summary =
+        "Методика, подписи форматов, объяснения настроек и приглашения «нажмите…» уходят " +
+        "вместе с пояснениями: остаются значения, единицы, состояние и предупреждения. " +
+        "Диалоги удаления сессии и снимка спектра наконец называют своё последствие, а не " +
+        "чужое."
 
     override val v0250Title = "Пояснения выключаются, данные — нет"
     override val v0250Summary =
@@ -958,6 +968,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0260Title = "With explanations off the screen is clean"
+    override val v0260Summary =
+        "The method, the format captions, the descriptions of settings and the «tap to…» " +
+        "invitations now leave with the explanations: values, units, state and warnings stay. " +
+        "Deleting a session or a spectrum snapshot finally names its own consequence instead " +
+        "of the route's."
 
     override val v0250Title = "Explanations switch off, data does not"
     override val v0250Summary =

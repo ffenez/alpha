@@ -180,7 +180,7 @@ internal fun AlarmsSection(graph: AppGraph) {
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text(
+            Hint(
                 text = modeSummary(sensitivity, thresholds, strings),
                 style = type.footnote,
                 color = colors.muted,
@@ -224,7 +224,7 @@ internal fun AlarmsSection(graph: AppGraph) {
                 ),
                 verticalArrangement = Arrangement.spacedBy(Dimens.space2),
             ) {
-                Text(text = strings.alarmsIntro, style = type.bodySmall, color = colors.ink2)
+                Hint(text = strings.alarmsIntro, style = type.bodySmall, color = colors.ink2)
                 StatGrid(
                     cells = listOf(
                         StatCell(
@@ -340,39 +340,6 @@ internal fun AlarmSoundRow() {
     }
 }
 
-@Composable
-internal fun SensitivityOption(
-    title: String,
-    selected: Boolean,
-    description: String,
-    onSelect: () -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    val type = LocalAppTypography.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = Dimens.touchTarget)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onSelect,
-            ),
-    ) {
-        RadioMark(selected)
-        Column {
-            Text(
-                text = title,
-                style = type.label,
-                color = colors.ink,
-            )
-            Text(text = description, style = type.bodySmall, color = colors.muted)
-        }
-    }
-}
 
 internal fun presetDescription(
     thresholds: AlarmThresholds,

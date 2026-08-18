@@ -149,7 +149,7 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
         // Нажимаемость строки названа один раз под таблицей: значок «›» в
         // каждой строке спорил бы с значком вердикта, а он несёт смысл.
         if (onShowOnSpectrum != null) {
-            Text(text = model.lineTapHint, style = type.footnote, color = colors.ink2)
+            Hint(text = model.lineTapHint, style = type.footnote, color = colors.ink2)
         }
         model.ratio.forEach { line ->
             Text(text = line, style = type.footnote, color = colors.muted)

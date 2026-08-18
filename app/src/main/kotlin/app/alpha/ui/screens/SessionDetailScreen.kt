@@ -726,8 +726,8 @@ private fun SessionDeleteDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(text = h.routeDeleteTitle(1), style = type.title, color = colors.ink)
-                Text(text = h.routeDeleteBody, style = type.bodySmall, color = colors.muted)
+                Text(text = h.sessionDeleteTitle, style = type.title, color = colors.ink)
+                Text(text = h.sessionDeleteBody, style = type.bodySmall, color = colors.muted)
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     AppButton(text = strings.delete, onClick = onConfirm)
                     AppButton(text = strings.cancel, onClick = onDismiss)

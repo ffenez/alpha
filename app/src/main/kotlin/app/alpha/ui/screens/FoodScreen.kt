@@ -304,7 +304,7 @@ fun FoodScreen(
                                 )
                             }
                         }
-                        Text(
+                        Hint(
                             text = geometry.hint(t),
                             style = type.footnote,
                             color = colors.muted,
@@ -376,7 +376,7 @@ fun FoodScreen(
                             text = if (isBackground) t.stepBackground else t.stepSample,
                             color = colors.ink,
                         )
-                        Text(
+                        Hint(
                             text = if (isBackground) t.backgroundHint else t.sampleHint,
                             style = type.bodySmall,
                             color = colors.ink2,

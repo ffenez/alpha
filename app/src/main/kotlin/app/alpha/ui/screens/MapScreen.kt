@@ -1655,7 +1655,9 @@ private fun MapEmptyState(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
                 Text(text = title, style = type.label, color = colors.ink)
-                Text(text = body, style = type.bodySmall, color = colors.ink2)
+                // Заголовок называет состояние, тело учит первому действию —
+                // это пояснение и уходит вместе с ними.
+                Hint(text = body, style = type.bodySmall, color = colors.ink2)
             }
         }
     }

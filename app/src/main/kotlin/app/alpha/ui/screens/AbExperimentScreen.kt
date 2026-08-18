@@ -949,7 +949,7 @@ private fun ExperimentalBanner() {
             horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
         ) {
             Chip(text = t.experimentalBadge, color = colors.warn)
-            Text(
+            Hint(
                 text = t.experimentalLead,
                 style = type.bodySmall,
                 color = colors.ink2,

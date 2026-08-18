@@ -193,7 +193,7 @@ internal fun QuantileDiagnosticPanel(
             top = Dimens.space1,
         ),
     ) {
-        Text(
+        Hint(
             text = t.quantileMethodLine(
                 QuantileMetadata.label(method, sketch?.k ?: KllSketch.DEFAULT_K),
             ),
@@ -201,7 +201,7 @@ internal fun QuantileDiagnosticPanel(
             color = colors.muted,
         )
         if (backfill.running && backfill.hoursTotal > 0) {
-            Text(
+            Hint(
                 text = t.preAggregationProgress(
                     percent = (backfill.fraction * 100).toInt(),
                     done = backfill.hoursDone,
@@ -340,7 +340,7 @@ internal fun BoxScope.CursorCard(
             Column {
                 Text(text = clock(time), style = type.footnote, color = colors.ink2)
                 Text(text = t.cursorNoData, style = type.value, color = colors.muted)
-                Text(
+                Hint(
                     text = t.cursorNoDataDetail,
                     style = type.footnote,
                     color = colors.muted,
@@ -393,7 +393,7 @@ internal fun BoxScope.CursorCard(
                 color = if (above) colors.crit else colors.ink,
             )
             if (!expanded) {
-                Text(
+                Hint(
                     text = t.cursorMoreDetails,
                     style = type.footnote,
                     color = colors.muted,
@@ -456,7 +456,7 @@ internal fun BoxScope.CursorCard(
                     style = type.footnote,
                     color = colors.warn,
                 )
-                Text(
+                Hint(
                     text = t.cursorEventsNote,
                     style = type.footnote,
                     color = colors.muted,

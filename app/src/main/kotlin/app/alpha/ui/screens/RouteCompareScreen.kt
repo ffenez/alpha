@@ -25,6 +25,7 @@ import app.alpha.AppGraph
 import app.alpha.baseline.BaselineState
 import app.alpha.data.DoseUnitSetting
 import app.alpha.device.DoseUnits
+import app.alpha.ui.components.Explain
 import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.AppDivider
 import app.alpha.ui.components.Card
@@ -372,6 +373,9 @@ private fun DiffResultCard(result: RouteDiff.Result, cellSize: String) {
                 style = type.footnote,
                 color = colors.muted,
             )
+            // Методика — справка целиком: при выключенных пояснениях экран
+            // остаётся с результатом и его границей.
+            Explain {
             AppDivider()
             DisclosureRow(
                 title = h.routeMethodTitle,
@@ -391,6 +395,7 @@ private fun DiffResultCard(result: RouteDiff.Result, cellSize: String) {
                 )
                 MethodBlock(title = h.routeMethodLimitTitle, body = h.routeMethodLimit)
                 MethodBlock(title = h.routeMethodColourTitle, body = h.routeCompareCaveat)
+            }
             }
         }
     }

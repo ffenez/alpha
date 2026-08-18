@@ -148,6 +148,14 @@ interface HistoryStrings {
     fun routesDeleted(count: Int): String
     fun routeDeleteTitle(count: Int): String
     val routeDeleteBody: String
+
+    /** Снимок спектра: удаляется он сам, накопление прибора не трогается. */
+    val spectrumDeleteTitle: String
+    val spectrumDeleteBody: String
+
+    /** Сессия: исчезают её измерения, снимки и маршруты остаются. */
+    val sessionDeleteTitle: String
+    val sessionDeleteBody: String
     val routeDiff: String
 
     /** Итог сравнения: сколько мест сопоставлено. */
@@ -345,6 +353,14 @@ object HistoryRu : HistoryStrings {
     override val routeDeleteBody =
         "Точки маршрута и его метки исчезнут с карты и из накопленных записей. " +
             "Измерения прибора за это время останутся."
+    override val spectrumDeleteTitle = "Удалить снимок спектра?"
+    override val spectrumDeleteBody =
+        "Исчезнет сохранённый снимок: каналы, калибровка и время накопления. " +
+            "Накопление в самом приборе и другие записи не меняются."
+    override val sessionDeleteTitle = "Удалить сессию?"
+    override val sessionDeleteBody =
+        "Исчезнут измерения этой сессии и посчитанная по ним статистика. " +
+            "Снимки спектра и маршруты остаются в журнале."
     override val routeDiff = "Разница"
     override fun routeComparePlaces(matched: Int) =
         "Сравнено $matched ${plural(matched, "место", "места", "мест")}"
@@ -548,6 +564,14 @@ object HistoryEn : HistoryStrings {
     override val routeDeleteBody =
         "The route's points and markers disappear from the map and from the " +
             "accumulated recordings. The instrument's measurements stay."
+    override val spectrumDeleteTitle = "Delete the spectrum snapshot?"
+    override val spectrumDeleteBody =
+        "The saved snapshot goes: channels, calibration and accumulation time. " +
+            "The instrument's own accumulation and the other records stay."
+    override val sessionDeleteTitle = "Delete the session?"
+    override val sessionDeleteBody =
+        "The measurements of this session and the statistics computed from them go. " +
+            "Spectrum snapshots and routes stay in the log."
     override val routeDiff = "Difference"
     override fun routeComparePlaces(matched: Int) =
         "$matched ${if (matched == 1) "place" else "places"} compared"
@@ -631,6 +655,7 @@ fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
     noMeasurements, studyDeleteTitle("Калий"), studyDeleteBody,
     records(1), records(3), records(11), routes(1), routes(2), studies(1), studies(5),
     routeDeleteTitle(1), routeDeleteTitle(3), routeDeleteBody,
+    spectrumDeleteTitle, spectrumDeleteBody, sessionDeleteTitle, sessionDeleteBody,
     routeDiff,
     seconds(45), minutes(12), hours(8), hoursMinutes(8, 12),
     // Причина подставляется каталогом Монитора — здесь стоит её образец на

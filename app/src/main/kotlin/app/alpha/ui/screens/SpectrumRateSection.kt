@@ -15,6 +15,7 @@ import app.alpha.data.SpectrumPollPolicy
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.ConfirmDialog
@@ -84,14 +85,14 @@ fun SpectrumRateSection(graph: AppGraph) {
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text(
+            Hint(
                 text = t.rateVolume(
                     Uncertainty.num2(SpectrogramHistory.megabytesPerDay(policy.intervalMillis)),
                 ),
                 style = type.footnote,
                 color = colors.muted,
             )
-            Text(
+            Hint(
                 text = t.rateThinning(
                     (SpectrogramHistory.AS_RECORDED_MILLIS / 86_400_000L).toInt(),
                     (SpectrogramHistory.COMPACTED_SLICE_MILLIS / 60_000L).toInt(),
