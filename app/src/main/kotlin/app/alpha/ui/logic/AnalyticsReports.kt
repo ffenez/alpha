@@ -59,11 +59,14 @@ object LineTrendReport {
             measurement = summary?.let {
                 measurement(it.points, spanText, t)
             },
+            // «Данных мало» — отказ метода: он объясняет ПУСТОЙ экран и
+            // остаётся при выключенных пояснениях.
             meaning = when (verdict) {
                 ExcessVerdict.EXCESS -> t.lineMeaningExcess(line.label)
                 ExcessVerdict.NOT_RESOLVED -> t.lineMeaningPlain(line.label)
-                ExcessVerdict.NO_DATA -> t.lineMeaningNoData
+                ExcessVerdict.NO_DATA -> ""
             },
+            unavailable = t.lineMeaningNoData.takeIf { verdict == ExcessVerdict.NO_DATA },
             limitation = t.lineTrendCaveat,
             details = if (summary == null) emptyList() else details,
         )
@@ -135,8 +138,9 @@ object RadonReport {
             meaning = when (verdict) {
                 ExcessVerdict.EXCESS -> t.radonMeaningNotable
                 ExcessVerdict.NOT_RESOLVED -> t.radonMeaningPlain
-                ExcessVerdict.NO_DATA -> t.radonMeaningNoData
+                ExcessVerdict.NO_DATA -> ""
             },
+            unavailable = t.radonMeaningNoData.takeIf { verdict == ExcessVerdict.NO_DATA },
             limitation = t.radonLimit,
             details = if (current == null) emptyList() else details,
         )
