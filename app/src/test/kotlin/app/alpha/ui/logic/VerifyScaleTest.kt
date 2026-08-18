@@ -18,12 +18,12 @@ class VerifyScaleTest {
 
     @Test
     fun `the frame holds the interval, not just the estimate`() {
-        // Оценка помещается в ×2, верхний конец интервала — нет: кадр,
-        // подобранный по одной стрелке, показал бы измерение точнее, чем оно
-        // есть.
-        val tight = VerifyScale.requiredFactor(1.6)
-        val wide = VerifyScale.requiredFactor(1.6, low = 1.1, high = 3.4)
-        assertEquals(2.0, tight, 1e-9)
+        // Оценка помещается в базовый кадр ×4, верхний конец интервала — нет:
+        // кадр, подобранный по одной стрелке, показал бы измерение точнее, чем
+        // оно есть.
+        val tight = VerifyScale.requiredFactor(3.2)
+        val wide = VerifyScale.requiredFactor(3.2, low = 2.1, high = 9.0)
+        assertEquals(4.0, tight, 1e-9)
         assertTrue("интервал не раздвинул кадр", wide > tight)
     }
 
@@ -32,8 +32,8 @@ class VerifyScaleTest {
         // Пустое фоновое окно даёт бесконечный верхний конец; кадр обязан
         // остаться конечным и следовать оценке.
         assertEquals(
-            VerifyScale.requiredFactor(1.6),
-            VerifyScale.requiredFactor(1.6, low = 1.1, high = Double.POSITIVE_INFINITY),
+            VerifyScale.requiredFactor(3.2),
+            VerifyScale.requiredFactor(3.2, low = 2.1, high = Double.POSITIVE_INFINITY),
             1e-9,
         )
     }
@@ -41,7 +41,12 @@ class VerifyScaleTest {
     @Test
     fun `a deficit is framed by its distance from the reference`() {
         // ×0,2 отстоит от фона в пять раз — расстояние считается по обе
-        // стороны от ×1 одинаково.
+        // стороны от ×1 одинаково, и кадр берётся тот же, что для ×5.
+        assertEquals(
+            VerifyScale.requiredFactor(5.0),
+            VerifyScale.requiredFactor(0.2),
+            1e-9,
+        )
         assertEquals(8.0, VerifyScale.requiredFactor(0.2), 1e-9)
     }
 

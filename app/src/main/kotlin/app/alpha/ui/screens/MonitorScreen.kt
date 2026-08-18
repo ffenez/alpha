@@ -893,8 +893,13 @@ private fun StreamChip(stream: StreamState) {
  * Вспомогательные величины стоят плитками во всю ширину, входы «Почему такой
  * вывод?» и «Отпечаток места» — отдельной строкой действий.
  */
+/**
+ * Главный блок Главной. `internal`, а не `private`: этот же блок снимается
+ * скриншот-тестом состояний (`app/src/test/.../ScreenStatesTest`), а состояния
+ * задаются его параметрами, не базой.
+ */
 @Composable
-private fun HeroCard(
+internal fun HeroCard(
     /**
      * Наименьшая высота СОДЕРЖИМОГО карточки, dp: свободная высота страницы,
      * которую карточка забирает себе. Ноль — карточка по своему содержимому.
@@ -994,9 +999,19 @@ private fun HeroCard(
                             onClick = onWhy,
                         ),
                 )
-                // Единица и погрешность прибора живут в «Почему такой вывод»:
-                // одна составляющая не выдаётся там за полную неопределённость,
-                // а строка под числом уводила внимание с самого числа.
+                // Неопределённость показания стоит под числом, когда она
+                // ПОСЧИТАНА: голое число читается как точное, а на этих
+                // выдержках оно не точное. Здесь — собственная оценка прибора;
+                // чем она не является (полным бюджетом с калибровкой и
+                // систематикой), сказано в «Почему такой вывод».
+                Uncertainty.errPercentLabel(errPercent)?.let { error ->
+                    Text(
+                        text = error,
+                        style = type.footnote,
+                        color = colors.muted,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 // Возраст последнего измерения — вторичная строка и только в
                 // устойчивом состоянии.
                 streamAgeLine(stream, strings)?.let { age ->
@@ -1037,7 +1052,7 @@ private fun HeroCard(
                     MetricTile(
                         // Заголовок плитки — одно слово, единица уходит
                         // вторичной строкой.
-                        label = strings.backgroundTag,
+                        label = strings.tilePlaceBackground,
                         // МЕДИАНА места, а не среднее: всплеск сдвигает
                         // среднее и не сдвигает медиану, и весь движок фона
                         // считает медианой (ADR 002). Пока фон собирается,
@@ -1054,7 +1069,7 @@ private fun HeroCard(
                     val slope = (trend as? TrendAvailability.Ready)?.result?.slopeMicroSvHPerHour
                     add(
                         MetricTile(
-                            label = strings.trendPerHour,
+                            label = strings.tilePerHour,
                             value = slope?.let { TrendFit.label(it, unit) } ?: "—",
                             valueColor = trendWarnColor(slope, status),
                             // Плитка называет, чего не хватает для наклона,
@@ -1073,7 +1088,7 @@ private fun HeroCard(
                         MetricTile(
                             // Единица и период — свойства числа и стоят
                             // вторичной строкой; заголовок называет величину.
-                            label = strings.dose,
+                            label = strings.tilePerDay,
                             value = doseTodayMicroSv?.let { DoseFormat.dose(it, unit) } ?: "—",
                             onClick = onOpenDose,
                         ),

@@ -55,6 +55,9 @@ fun BreathingAura(
     content: @Composable () -> Unit,
 ) {
     val colors = LocalAppColors.current
+    // Системное «отключить анимацию» гасит движение, но не сообщение: при
+    // выключенном движении свечение остаётся на месте, просто не дышит.
+    val moving = live && rememberMotionAllowed()
     val breath = rememberInfiniteTransition(label = "breath")
     val phase by breath.animateFloat(
         initialValue = 0f,
@@ -69,7 +72,7 @@ fun BreathingAura(
         modifier = modifier.drawBehind {
             // Замерший поток — застывшее свечение: движение здесь означает
             // «данные идут», и врать им нельзя.
-            val amount = if (live) phase else 0f
+            val amount = if (moving) phase else 0f
             val radius = size.minDimension * (0.62f + 0.16f * amount)
             drawCircle(
                 brush = Brush.radialGradient(

@@ -145,7 +145,6 @@ import app.alpha.data.export.SpectrumTraffic
 import app.alpha.device.DoseUnits
 import app.alpha.ui.logic.MonitorStatus
 import app.alpha.ui.logic.SearchFeedbackMode
-import app.alpha.ui.logic.SearchIndicator
 import app.alpha.ui.logic.statusDetail
 import app.alpha.ui.logic.statusHeadline
 import java.time.Instant
@@ -635,8 +634,6 @@ private fun SoundSection(graph: AppGraph) {
     val modeId by graph.settings.searchFeedbackMode.collectAsState(initial = null)
     val mode = SearchFeedbackMode.of(modeId) ?: SearchFeedbackMode.OFF
     val energyTone by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
-    val indicatorId by graph.settings.searchIndicator.collectAsState(initial = null)
-    val indicator = SearchIndicator.of(indicatorId)
 
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
         SettingsSection(title = strings.searchFeedbackTitle) {
@@ -689,33 +686,6 @@ private fun SoundSection(graph: AppGraph) {
                         },
                     )
                 }
-            }
-        }
-        // Вид индикатора «Наведения» стоит рядом с откликом: и то и другое —
-        // как Поиск говорит с человеком в поле.
-        SettingsSection(title = strings.searchIndicatorTitle) {
-            Column(
-                modifier = Modifier.padding(
-                    horizontal = Dimens.space3,
-                    vertical = Dimens.space2,
-                ),
-                verticalArrangement = Arrangement.spacedBy(Dimens.space2),
-            ) {
-                Segmented(
-                    options = listOf(strings.searchIndicatorNeedle, strings.searchIndicatorScale),
-                    selectedIndex = SearchIndicator.entries.indexOf(indicator),
-                    onSelect = { index ->
-                        scope.launch {
-                            graph.settings.setSearchIndicator(SearchIndicator.entries[index].id)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Hint(
-                    text = strings.searchIndicatorNote,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
             }
         }
         SettingsSection(title = strings.alarmTitle) {
