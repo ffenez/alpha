@@ -118,13 +118,21 @@ fun NavigateGauge(
             spec.referenceCaption != null ||
             spec.highCaption != null
         val labelRows = if (captions) 2f else 1f
+        // Подписи делений стоят СНАРУЖИ дуги: внутри их пересекала бы стрелка,
+        // а стрелка обязана идти от оси до самого края шкалы. Кольцо под них
+        // резервируется до расчёта радиуса, иначе крайние подписи вылезали бы
+        // за края поля.
+        val tickLabelRing = labelHeight + 5.dp.toPx()
         // Циферблат в 220° занимает 2R по ширине и R·(1 + sin 20°) по высоте:
         // вершина дуги над центром, оба конца — ниже него.
-        val vertical = size.height - labelRows * labelHeight - 3f * padding
-        val radius = minOf((size.width - 2f * padding) / 2f, vertical / DIAL_HEIGHT_FACTOR)
+        val vertical = size.height - labelRows * labelHeight - 3f * padding - tickLabelRing
+        val radius = minOf(
+            (size.width - 2f * padding) / 2f - tickLabelRing,
+            vertical / DIAL_HEIGHT_FACTOR,
+        )
         if (radius <= 0f) return@Canvas
         val centerX = size.width / 2f
-        val centerY = padding + radius
+        val centerY = padding + tickLabelRing + radius
 
         fun point(angleDegrees: Float, atRadius: Float): Offset {
             val radians = angleDegrees * PI.toFloat() / 180f
@@ -141,21 +149,23 @@ fun NavigateGauge(
             )
         }
 
-        // The interval, first: a shaded sector of the same scale, under
-        // everything else. Confidence is shown as width, not as a verdict light.
+        // Интервал — участок ТОЙ ЖЕ дуги, подсвеченный под ней: отдельная
+        // полоса рядом читалась как вторая шкала, хотя говорит о той же
+        // величине. Уверенность показана шириной участка, а не цветом.
+        val arcWidth = border * 2.5f
         val bandLow = spec.intervalLow
         val bandHigh = spec.intervalHigh
         if (bandLow != null && bandHigh != null && bandLow > 0.0 && bandHigh >= bandLow) {
             val from = NavigateArc.angleDegrees(bandLow, spec.factor)
             val to = NavigateArc.angleDegrees(bandHigh, spec.factor)
             drawArc(
-                color = colors.ink2.copy(alpha = 0.28f),
+                color = colors.ink2.copy(alpha = 0.22f),
                 startAngle = from,
                 sweepAngle = (to - from).coerceAtLeast(MIN_BAND_DEGREES),
                 useCenter = false,
                 topLeft = Offset(centerX - radius, centerY - radius),
                 size = Size(radius * 2f, radius * 2f),
-                style = Stroke(width = border * 7f, cap = StrokeCap.Butt),
+                style = Stroke(width = arcWidth * 2.4f, cap = StrokeCap.Butt),
             )
         }
 
@@ -166,7 +176,7 @@ fun NavigateGauge(
             useCenter = false,
             topLeft = Offset(centerX - radius, centerY - radius),
             size = Size(radius * 2f, radius * 2f),
-            style = Stroke(width = border * 2f, cap = StrokeCap.Butt),
+            style = Stroke(width = arcWidth, cap = StrokeCap.Butt),
         )
 
         // Сектор от ×1 до стрелки: заполненная часть шкалы говорит «на столько
@@ -175,20 +185,22 @@ fun NavigateGauge(
             val from = NavigateArc.angleDegrees(1.0, spec.factor)
             val to = NavigateArc.angleDegrees(ratio, spec.factor)
             drawArc(
-                color = needleColor.copy(alpha = 0.55f),
+                color = needleColor.copy(alpha = 0.7f),
                 startAngle = minOf(from, to),
                 sweepAngle = kotlin.math.abs(to - from),
                 useCenter = false,
                 topLeft = Offset(centerX - radius, centerY - radius),
                 size = Size(radius * 2f, radius * 2f),
-                style = Stroke(width = border * 2f, cap = StrokeCap.Butt),
+                style = Stroke(width = arcWidth, cap = StrokeCap.Butt),
             )
         }
 
         // Засечки — удвоения кадра, и каждая названа множителем: шкала без
-        // чисел не шкала, а дуга. На широких кадрах подписаны только концы и
-        // ×1 — иначе подписи наезжают друг на друга.
-        val tick = 10.dp.toPx()
+        // чисел не шкала, а дуга. Все подписи лежат на ОДНОМ радиусе снаружи
+        // дуги, поэтому ни одна не встречается со стрелкой. На широких кадрах
+        // подписаны только концы и ×1 — иначе подписи наезжают друг на друга.
+        val tick = 9.dp.toPx()
+        val labelRadius = radius + tickLabelRing / 2f
         val ticks = NavigateArc.ticks(spec.factor)
         val steps = (ticks.size - 1) / 2
         val labelStep = if (steps <= 3) 1 else steps
@@ -197,10 +209,10 @@ fun NavigateGauge(
             val angle = NavigateArc.angleDegrees(value, spec.factor)
             radial(
                 angleDegrees = angle,
-                from = radius - if (reference) tick * 1.6f else tick,
-                to = radius,
+                from = radius - if (reference) tick * 1.5f else tick,
+                to = radius + arcWidth / 2f,
                 color = if (reference) colors.ink2 else colors.chartGrid,
-                width = if (reference) border * 3f else border,
+                width = if (reference) border * 2f else border,
             )
             val power = index - steps
             if (power % labelStep != 0) return@forEachIndexed
@@ -210,7 +222,7 @@ fun NavigateGauge(
                 "${NavigateArc.factorLabel(value)}×"
             }
             val measured = textMeasurer.measure(text, axisStyle)
-            val at = point(angle, radius - tick - measured.size.height / 2f - 4.dp.toPx())
+            val at = point(angle, labelRadius)
             drawText(
                 textLayoutResult = measured,
                 color = if (reference) colors.ink2 else colors.muted,
@@ -239,24 +251,44 @@ fun NavigateGauge(
             )
         }
 
-        // Стрелка идёт ОТ ОСИ, как у стрелочного прибора: короткий штрих у
-        // края читался как ещё одна засечка. Ось нарисована точкой — без неё
-        // стрелка висит в воздухе и не выглядит закреплённой.
+        // Стрелка идёт ОТ ОСИ, как у стрелочного прибора, и всегда одной
+        // длины: короткий штрих у края читался как ещё одна засечка, а
+        // «подрастающая» стрелка означала бы величину дважды. При ×1 она
+        // стоит строго вверх и всё равно видна — её ни с чем не спутать,
+        // потому что засечка ×1 короче и другого цвета.
         spec.ratio?.let { ratio ->
             val angle = NavigateArc.angleDegrees(ratio, spec.factor)
+            val tipRadius = radius - tick * 1.7f
             radial(
                 angleDegrees = angle,
                 from = 0f,
-                to = radius - tick * 0.4f,
+                to = tipRadius,
                 color = needleColor,
-                width = border * 3f,
+                width = 2.5.dp.toPx(),
             )
-            drawCircle(color = needleColor, radius = 4.dp.toPx(), center = Offset(centerX, centerY))
+            // Наконечник: у стрелки есть остриё, иначе это просто отрезок.
+            val head = 7.dp.toPx()
+            val apex = point(angle, tipRadius + head * 0.9f)
+            val left = point(angle - 3.4f, tipRadius - head * 0.2f)
+            val right = point(angle + 3.4f, tipRadius - head * 0.2f)
+            drawPath(
+                path = Path().apply {
+                    moveTo(apex.x, apex.y)
+                    lineTo(left.x, left.y)
+                    lineTo(right.x, right.y)
+                    close()
+                },
+                color = needleColor,
+            )
         }
-        if (spec.ratio == null) {
-            // Пустой прибор: ось на месте, стрелки нет — сравнивать не с чем.
-            drawCircle(color = colors.muted, radius = 3.dp.toPx(), center = Offset(centerX, centerY))
-        }
+        // Ось прибора нарисована всегда, со стрелкой и без неё: геометрия
+        // состояний обязана совпадать, иначе экран прыгает при появлении
+        // точки отсчёта.
+        drawCircle(
+            color = if (spec.ratio == null) colors.muted else needleColor,
+            radius = 4.dp.toPx(),
+            center = Offset(centerX, centerY),
+        )
 
         // Bottom rows: both ends of the scale, the name of its centre, and —
         // under the numbers — what each end means for the person walking.

@@ -94,6 +94,8 @@ import app.alpha.ui.logic.SearchLevel
 import app.alpha.ui.logic.SearchSpectrumHint
 import app.alpha.ui.logic.SearchState
 import app.alpha.ui.logic.SearchPulse
+import app.alpha.ui.logic.SearchUiState
+import app.alpha.ui.logic.SearchUiStates
 import app.alpha.ui.logic.VerifyScale
 import app.alpha.ui.logic.SearchTone
 import app.alpha.ui.logic.HistoryFormat
@@ -339,10 +341,15 @@ fun SearchScreen(
     // the ratio is never a step in the audio.
     // В «Наведении» знаменатель другой — точка отсчёта, а не записанный фон, —
     // и его же несёт шкала дуги.
-    LaunchedEffect(search.direction, screenMode) {
-        while (screenMode == SearchMode.NAVIGATE) {
+    // Секундный тик идёт в ОБОИХ режимах: по нему живёт не только наблюдение
+    // за неподвижностью, но и признак свежести потока — а «идут ли данные»
+    // одинаково важно и в Наведении, и в Проверке.
+    LaunchedEffect(search.direction, screenMode, resumed) {
+        while (resumed) {
             nowTick = System.currentTimeMillis()
-            stillness = SearchStillness.step(stillness, search.direction, nowTick)
+            if (screenMode == SearchMode.NAVIGATE) {
+                stillness = SearchStillness.step(stillness, search.direction, nowTick)
+            }
             delay(1_000)
         }
     }
@@ -428,6 +435,15 @@ fun SearchScreen(
     }
 
     val cps = sample?.countRate
+    // Одно состояние на весь экран: «ждём данные», стрелка, отношение и
+    // видимость действия выводятся из него, а не из отдельных условий по месту.
+    val searchUi = SearchUiStates.of(
+        cps = cps,
+        receivedAtMillis = sample?.receivedAtMillis,
+        nowMillis = nowTick,
+        connected = connection is ConnectionState.Connected,
+        navigate = navigate,
+    )
     val deviceSerial = (connection as? ConnectionState.Connected)?.info?.serialNumber
     val recorded = background
     val check = recorded?.check(System.currentTimeMillis(), activeProfileId, deviceSerial)
@@ -549,6 +565,7 @@ fun SearchScreen(
 
         if (navigating) {
             NavigateSection(
+                ui = searchUi,
                 state = navigate,
                 spot = spot,
                 nowMillis = System.currentTimeMillis() - deviceClockOffset,
