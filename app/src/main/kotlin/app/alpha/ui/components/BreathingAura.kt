@@ -29,9 +29,10 @@ import app.alpha.ui.theme.LocalAppColors
  * ## Чего это не делает
  *
  * Не анимирует измеренное: само число меняется шагом, дышит подсветка вокруг
- * него. Период постоянный ([PERIOD_MILLIS]) — это признак жизни, а не
- * показание; на экране Поиска у того же приёма период считает
- * [app.alpha.ui.logic.SearchPulse], и там он ПОКАЗАНИЕ.
+ * него. Период по умолчанию постоянный ([PERIOD_MILLIS]) — это признак жизни, а
+ * не показание. На экране Поиска тот же компонент получает период от
+ * [app.alpha.ui.logic.SearchPulse], и там период — ПОКАЗАНИЕ близости; какой
+ * это случай, видно по [periodMillis] на месте вызова.
  *
  * ## Светлые оформления
  *
@@ -45,6 +46,11 @@ fun BreathingAura(
     live: Boolean,
     /** Цвет свечения — тот же, что у главного числа. */
     tint: Color = LocalAppColors.current.ok,
+    /**
+     * Период вдоха-выдоха, мс. По умолчанию [PERIOD_MILLIS] — признак жизни;
+     * Поиск передаёт сюда период от близости к точке отсчёта.
+     */
+    periodMillis: Int = PERIOD_MILLIS,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -54,7 +60,7 @@ fun BreathingAura(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(PERIOD_MILLIS, easing = LinearEasing),
+            animation = tween(periodMillis, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "breathPhase",

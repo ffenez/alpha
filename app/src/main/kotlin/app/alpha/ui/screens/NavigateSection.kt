@@ -1,18 +1,11 @@
 package app.alpha.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,14 +18,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
+import app.alpha.ui.components.BreathingAura
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.Chip
 import app.alpha.ui.components.NavigateGauge
@@ -140,161 +132,150 @@ fun NavigateSection(
         )
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Dimens.space1),
-            ) {
-                Text(
-                    text = strings.countRate.uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                )
-                Text(
-                    text = cps?.let { Uncertainty.num1(it) } ?: "—",
-                    style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
-                    color = if (cps != null) colors.ink else colors.muted,
-                    textAlign = TextAlign.Center,
-                )
-                // Состояние и величина ОДНОЙ строкой. Их было две, между ними
-                // стоял отступ, и карточка занимала треть экрана ради ответа
-                // на один вопрос — какой сейчас счёт. Знаменатель по-прежнему
-                // назван в самой строке: «недавний уровень» это то, что
-                // приложение считает само, и он НЕ точка отсчёта.
-                StatusRow(
-                    text = NavigateVerdict.trendLine(state, t),
-                    color = trendColor,
-                )
-            }
-        }
+    // Дыхание Поиска — тот же приём и тот же компонент, что на Главной, но
+    // период здесь ПОКАЗАНИЕ: [SearchPulse] считает его по той же
+    // логарифмической шкале, что и высоту тона, поэтому глаз и ухо говорят
+    // одно и то же. Пока точки отсчёта нет, отношения тоже нет, и дыхание
+    // остаётся спокойным — оно означает только «прибор жив».
+    val breathPeriod = SearchPulse.periodMillis(referenceRatio)
+    val breathTint = when (state.trend) {
+        NavigateTrend.RISING -> colors.warn
+        else -> colors.data
+    }
 
-        // Пока сравнивать не с чем, модуль не сравнивает: на его месте стоит
-        // действие, которое нужно сделать, и то, что оно даст.
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        // Счёт, состояние, шкала и главное действие — ОДНА карточка: это один
+        // ответ на один вопрос «куда вести прибор», а разрыв между числом и
+        // шкалой заставлял связывать их глазами. Заголовка у карточки нет —
+        // название режима стоит на переключателе выше, и повторять его значило
+        // бы занимать строку тем, что уже прочитано.
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Text(
-                    text = t.navModuleTitle.uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                )
-                if (state.reference == null) {
-                    // Шкала стоит и до отсчёта: пустой прибор — это прибор, а
-                    // экран без него выглядел как экран без функции.
-                    NavigateIndicator(
-                        indicator = indicator,
-                        spec = NavigateGaugeSpec(
-                            ratio = null,
-                            peakRatio = null,
-                            factor = NavigateArc.LADDER.first(),
-                            trend = state.trend,
-                            referenceLabel = "1×",
-                            lowLabel = "${factorLabel(1.0 / NavigateArc.LADDER.first())}×",
-                            highLabel = "${factorLabel(NavigateArc.LADDER.first())}×",
-                            referenceCaption = t.navScaleReference,
-                            lowCaption = t.navScaleWeaker,
-                            highCaption = t.navScaleStronger,
-                        ),
-                    )
-                    StatusRow(text = t.navSetupTitle, color = colors.ink)
-                    Hint(text = t.navSetupBody, style = type.bodySmall, color = colors.ink2)
-                    // Главное действие живёт ВНУТРИ своего блока, а не отдельной
-                    // кнопкой внизу экрана: там было не видно, к чему оно.
-                    AppButton(
-                        text = t.navMark,
-                        onClick = onMark,
-                        primary = true,
-                        enabled = cps != null,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                } else {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(Dimens.space1),
-                    ) {
-                        // Направление здесь считается ОТ ТОЧКИ ОТСЧЁТА, а
-                        // состояние на карточке выше — от недавнего уровня:
-                        // знаменатели разные, и это не одна фраза дважды.
-                        StatusRow(
-                            text = NavigateVerdict.referenceDirection(delta, t),
-                            color = deltaColor,
-                        )
-                        Text(
-                            text = NavigateVerdict.ratioHeadline(state, t),
-                            style = type.valueHero.copy(fontSize = 34.sp, lineHeight = 36.sp),
-                            color = deltaColor,
-                            textAlign = TextAlign.Center,
-                        )
-                        Text(
-                            text = NavigateVerdict.deltaCaption(state, delta, t),
-                            style = type.footnote,
-                            color = colors.ink2,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                    // Одно утверждение, два рисунка: спецификация общая, и
-                    // вид не может изменить показание.
-                    val gaugeSpec = NavigateGaugeSpec(
-                        ratio = referenceRatio,
-                        peakRatio = peakRatio,
-                        factor = factor,
-                        trend = state.trend,
-                        referenceLabel = "1×",
-                        lowLabel = "${factorLabel(1.0 / factor)}×",
-                        highLabel = "${factorLabel(factor)}×",
-                        referenceCaption = t.navScaleReference,
-                        lowCaption = t.navScaleWeaker,
-                        highCaption = t.navScaleStronger,
-                        intervalLow = state.referenceComparison
-                            ?.ratioLow?.takeIf { it.isFinite() },
-                        intervalHigh = state.referenceComparison
-                            ?.ratioHigh?.takeIf { it.isFinite() },
-                    )
-                    // Дыхание индикатора — третий канал того же показания
-                    // рядом со звуком и вибрацией: период считает
-                    // [SearchPulse] по той же шкале, что высоту тона. Само
-                    // измерение не анимируется — пульсирует подсветка, маркер
-                    // переставляется шагом.
-                    val pulse = rememberInfiniteTransition(label = "searchPulse")
-                    val period = SearchPulse.periodMillis(referenceRatio)
-                    val glow by pulse.animateFloat(
-                        initialValue = 0f,
-                        targetValue = 1f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(period, easing = LinearEasing),
-                            repeatMode = RepeatMode.Reverse,
-                        ),
-                        label = "searchGlow",
-                    )
-                    val glowColor = when (state.trend) {
-                        NavigateTrend.RISING -> colors.warn
-                        else -> colors.data
-                    }
-                    // Дыхание есть всегда, пока идут измерения: без точки
-                    // отсчёта оно спокойное («прибор жив»), с ней период
-                    // считает [SearchPulse] — и тогда ритм становится
-                    // показанием близости.
-                    val breathing = cps != null
-                    Box(
-                        modifier = Modifier.drawBehind {
-                            if (!breathing) return@drawBehind
-                            drawRoundRect(
-                                color = glowColor.copy(alpha = 0.08f + 0.20f * glow),
-                                cornerRadius = CornerRadius(12.dp.toPx()),
+                // Свечение обнимает ЧИСЛО И ШКАЛУ — ту часть карточки, которая
+                // отвечает «куда вести прибор». Захватив заодно ленту, оно
+                // сместило бы свой центр вниз, и ритм перестал бы читаться как
+                // дыхание показания.
+                BreathingAura(
+                    live = cps != null,
+                    tint = breathTint,
+                    periodMillis = breathPeriod,
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+                        ) {
+                            Text(
+                                text = strings.countRate.uppercase(),
+                                style = type.labelSmall,
+                                color = colors.ink2,
                             )
-                        },
-                    ) {
-                        NavigateIndicator(indicator = indicator, spec = gaugeSpec)
+                            Text(
+                                text = cps?.let { Uncertainty.num1(it) } ?: "—",
+                                style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
+                                color = if (cps != null) colors.ink else colors.muted,
+                                textAlign = TextAlign.Center,
+                            )
+                            // Состояние и величина ОДНОЙ строкой. Знаменатель назван
+                            // в самой строке: «недавний уровень» приложение считает
+                            // само, и он НЕ точка отсчёта.
+                            StatusRow(
+                                text = NavigateVerdict.trendLine(state, t),
+                                color = trendColor,
+                            )
+                        }
+                        if (state.reference == null) {
+                            // Шкала стоит и до отсчёта: пустой прибор — это прибор, а
+                            // экран без него выглядел как экран без функции.
+                            NavigateIndicator(
+                                indicator = indicator,
+                                spec = NavigateGaugeSpec(
+                                    ratio = null,
+                                    peakRatio = null,
+                                    factor = NavigateArc.LADDER.first(),
+                                    trend = state.trend,
+                                    referenceLabel = "1×",
+                                    lowLabel = "${factorLabel(1.0 / NavigateArc.LADDER.first())}×",
+                                    highLabel = "${factorLabel(NavigateArc.LADDER.first())}×",
+                                    referenceCaption = t.navScaleReference,
+                                    lowCaption = t.navScaleWeaker,
+                                    highCaption = t.navScaleStronger,
+                                ),
+                            )
+                            StatusRow(text = t.navSetupTitle, color = colors.ink)
+                            Hint(text = t.navSetupBody, style = type.bodySmall, color = colors.ink2)
+                            // Главное действие живёт ВНУТРИ своего блока, а не
+                            // отдельной кнопкой внизу экрана: там было не видно, к
+                            // чему оно.
+                            AppButton(
+                                text = t.navMark,
+                                onClick = onMark,
+                                primary = true,
+                                enabled = cps != null,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+                            ) {
+                                // Направление здесь считается ОТ ТОЧКИ ОТСЧЁТА, а
+                                // состояние над ним — от недавнего уровня:
+                                // знаменатели разные, и это не одна фраза дважды.
+                                StatusRow(
+                                    text = NavigateVerdict.referenceDirection(delta, t),
+                                    color = deltaColor,
+                                )
+                                Text(
+                                    text = NavigateVerdict.ratioHeadline(state, t),
+                                    style = type.valueHero.copy(fontSize = 34.sp, lineHeight = 36.sp),
+                                    color = deltaColor,
+                                    textAlign = TextAlign.Center,
+                                )
+                                Text(
+                                    text = NavigateVerdict.deltaCaption(state, delta, t),
+                                    style = type.footnote,
+                                    color = colors.ink2,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                            // Одно утверждение, два рисунка: спецификация общая, и
+                            // вид не может изменить показание.
+                            NavigateIndicator(
+                                indicator = indicator,
+                                spec = NavigateGaugeSpec(
+                                    ratio = referenceRatio,
+                                    peakRatio = peakRatio,
+                                    factor = factor,
+                                    trend = state.trend,
+                                    referenceLabel = "1×",
+                                    lowLabel = "${factorLabel(1.0 / factor)}×",
+                                    highLabel = "${factorLabel(factor)}×",
+                                    referenceCaption = t.navScaleReference,
+                                    lowCaption = t.navScaleWeaker,
+                                    highCaption = t.navScaleStronger,
+                                    intervalLow = state.referenceComparison
+                                        ?.ratioLow?.takeIf { it.isFinite() },
+                                    intervalHigh = state.referenceComparison
+                                        ?.ratioHigh?.takeIf { it.isFinite() },
+                                ),
+                            )
+                            // Одна фраза о том, можно ли на вывод опереться, и
+                            // кнопка с числами. Интервал и порог сняты с рабочего
+                            // экрана: их разбирают, когда сомневаются, а не пока
+                            // несут прибор.
+                            NavigateVerdict.unresolvedNote(delta, t)?.let {
+                                Text(text = it, style = type.footnote, color = colors.muted)
+                            }
+                            Chip(
+                                text = t.navWhy,
+                                color = colors.dataText,
+                                onClick = { whyOpen = true },
+                            )
+                        }
                     }
-                    // Одна фраза о том, можно ли на вывод опереться, и кнопка
-                    // с числами. Интервал и порог сняты с рабочего экрана: их
-                    // разбирают, когда сомневаются, а не пока несут прибор.
-                    NavigateVerdict.unresolvedNote(delta, t)?.let {
-                        Text(text = it, style = type.footnote, color = colors.muted)
-                    }
-                    Chip(text = t.navWhy, color = colors.dataText, onClick = { whyOpen = true })
                 }
                 if (state.trace.isEmpty()) {
                     Text(text = t.waitingStream, style = type.bodySmall, color = colors.muted)
@@ -321,10 +302,11 @@ fun NavigateSection(
                         height = if (state.reference != null) 96.dp else 72.dp,
                     )
                 }
-                // Максимум остаётся вторичной подписью и только когда он есть:
-                // с направлением изменения он не соревнуется. Назван он
-                // сессией, а не окном ленты: держится он с начала прогона, и
-                // «68 с назад» под окном в 20 с читалось как противоречие.
+                // Максимум остаётся вторичной подписью и только когда он
+                // есть: с направлением изменения он не соревнуется. Назван
+                // он сессией, а не окном ленты: держится он с начала
+                // прогона, и «68 с назад» под окном в 20 с читалось как
+                // противоречие.
                 NavigateVerdict.peakLine(state, nowMillis, t)?.let {
                     Text(text = it, style = type.footnoteMono, color = colors.ink2)
                 }
