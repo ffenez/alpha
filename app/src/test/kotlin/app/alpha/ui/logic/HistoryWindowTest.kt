@@ -58,20 +58,20 @@ class HistoryWindowTest {
     }
 
     @Test
-    fun `a shrunk window reaches the exact path, which is what lost the series`() {
-        // Суть дефекта в одном утверждении: после подтяжки окно доходит до
-        // точного пути чтения, и доза строится тем же рядом, что счёт и
-        // жёсткость. До подтяжки оно уходило на скетчи и давало одну колонку.
+    fun `a shrunk window and the six hour step both reach the exact path`() {
+        // Утверждение здесь ПЕРЕВЁРНУТО против прежнего: раньше тест
+        // фиксировал, что шестичасовое окно с запасом уходит на скетчи. Оттуда
+        // и брались «пилы»: колонка становилась часом, и подробный ряд рисовал
+        // час роста и вертикальный сброс. Граница точного пути принадлежит
+        // точному пути ([ChartWindows.loadRange]), а после подтяжки к истории
+        // окно тем более короче.
         val chosen = ChartWindows.latest(6 * 3_600_000L, now)
         val fresh = ChartWindows.limitedByHistory(chosen, now - 12 * 60_000L)
 
         val loadOfChosen = ChartWindows.loadRange(chosen, now)
         val loadOfFresh = ChartWindows.loadRange(fresh, now)
 
-        assertTrue(
-            QuantilePaths.methodFor(loadOfChosen.spanMillis) == QuantileMethod.KLL_SKETCH,
-            "шестичасовое окно с запасом на подгрузку и правда идёт по скетчам",
-        )
+        assertEquals(QuantileMethod.EXACT_RAW, QuantilePaths.methodFor(loadOfChosen.spanMillis))
         assertEquals(QuantileMethod.EXACT_RAW, QuantilePaths.methodFor(loadOfFresh.spanMillis))
     }
 

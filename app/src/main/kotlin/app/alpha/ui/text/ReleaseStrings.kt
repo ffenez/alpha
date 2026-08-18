@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0230Title: String
+    val v0230Summary: String
+
     val v0220Title: String
     val v0220Summary: String
 
@@ -297,6 +300,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0230Title = "Шестичасовой график перестал рисовать пилу"
+    override val v0230Summary =
+        "На ступени 6 ч запас чтения раздувал окно вдвое, оно уходило на часовые колонки, и " +
+        "подробная линия рисовала час роста и вертикальный сброс — семь треугольников вместо " +
+        "измерений. Теперь эта ступень читается по секундным данным, а размах колонки стоит " +
+        "штрихом в своей колонке и не соединяется с соседней."
 
     override val v0220Title = "Живой край графиков едет плавно"
     override val v0220Summary =
@@ -928,6 +938,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0230Title = "The six-hour chart no longer draws a saw"
+    override val v0230Summary =
+        "At the 6 h step the reading padding doubled the window, it fell to hourly columns, and " +
+        "the detailed line drew an hour of growth and a vertical drop — seven triangles instead " +
+        "of measurements. That step now reads the per-second data, and the spread of a column " +
+        "stays a stroke inside its own column."
 
     override val v0220Title = "The live edge of the charts flows"
     override val v0220Summary =
