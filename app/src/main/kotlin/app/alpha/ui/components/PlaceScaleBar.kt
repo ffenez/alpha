@@ -1,10 +1,15 @@
 package app.alpha.ui.components
 
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -56,6 +61,11 @@ fun PlaceScaleBar(
     /** Куда значение ходило за последнюю минуту. */
     trailLowMicroSvH: Float? = null,
     trailHighMicroSvH: Float? = null,
+    /**
+     * Подпись риски порога («порог»); null — риска без подписи. Стоит на месте
+     * подписи ×4 (эталон): две подписи в одной точке слились бы.
+     */
+    thresholdLabel: String? = null,
     /** Цвет маркера — тот же, что у числа. */
     tint: Color = LocalAppColors.current.ok,
     modifier: Modifier = Modifier,
@@ -66,6 +76,27 @@ fun PlaceScaleBar(
     val type = LocalAppTypography.current
     val metrics = LocalAppMetrics.current
     val measurer = rememberTextMeasurer()
+    val motionAllowed = rememberMotionAllowed()
+
+    // След — история, и она ЕДЕТ плавно (эталон: 600 мс), в отличие от
+    // маркера, который переставляется шагом: маркер — измеренное значение.
+    val trailSpec: AnimationSpec<Float> = if (motionAllowed) {
+        tween(TRAIL_SETTLE_MILLIS)
+    } else {
+        snap()
+    }
+    val trailLowTarget = PlaceScale.positionOf(trailLowMicroSvH, median)
+    val trailHighTarget = PlaceScale.positionOf(trailHighMicroSvH, median)
+    val trailLowAnimated by animateFloatAsState(
+        targetValue = trailLowTarget ?: 0f,
+        animationSpec = trailSpec,
+        label = "trailLow",
+    )
+    val trailHighAnimated by animateFloatAsState(
+        targetValue = trailHighTarget ?: 0f,
+        animationSpec = trailSpec,
+        label = "trailHigh",
+    )
 
     Column(modifier = modifier.fillMaxWidth()) {
         Canvas(Modifier.fillMaxWidth().height(30.dp)) {
@@ -103,9 +134,9 @@ fun PlaceScaleBar(
                     cap = StrokeCap.Butt,
                 )
             }
-            val trailLow = PlaceScale.positionOf(trailLowMicroSvH, median)
-            val trailHigh = PlaceScale.positionOf(trailHighMicroSvH, median)
-            if (trailLow != null && trailHigh != null) {
+            if (trailLowTarget != null && trailHighTarget != null) {
+                val trailLow = trailLowAnimated
+                val trailHigh = trailHighAnimated
                 drawLine(
                     color = tint.copy(alpha = 0.3f),
                     start = Offset(x(trailLow), axisY),
@@ -142,12 +173,21 @@ fun PlaceScaleBar(
                 drawCircle(color = tint, radius = 3.5.dp.toPx(), center = Offset(markerX, axisY - 12.dp.toPx()))
             }
             // Подписи концов и середины: без них шкала — просто полоска.
-            val labels = listOf(
-                0f to "×0,5",
-                PlaceScale.position(1.0) to "×1",
-                PlaceScale.position(4.0) to "×4",
-                1f to "×8",
-            )
+            // Порог подписан СЛОВОМ на своей риске (эталон: ×0,5 · ×1 · порог
+            // · ×8); ×4 в этом случае уступает место — две подписи рядом
+            // слились бы.
+            val thresholdAt = PlaceScale.positionOf(thresholdMicroSvH, median)
+                ?.takeIf { !PlaceScale.offScale(thresholdMicroSvH, median) }
+            val labels = buildList {
+                add(0f to "×0,5")
+                add(PlaceScale.position(1.0) to "×1")
+                if (thresholdAt != null && thresholdLabel != null) {
+                    add(thresholdAt to thresholdLabel)
+                } else {
+                    add(PlaceScale.position(4.0) to "×4")
+                }
+                add(1f to "×8")
+            }
             for ((fraction, text) in labels) {
                 val measured = measurer.measure(text, type.axis)
                 val left = (x(fraction) - measured.size.width / 2f)
@@ -161,3 +201,11 @@ fun PlaceScaleBar(
         }
     }
 }
+
+/**
+ * Время подхода следа к новому краю, мс.
+ *
+ * **Инженерный параметр**: 600 мс — след успевает доехать до следующего
+ * секундного отсчёта и читается как движение, а не как скачок.
+ */
+private const val TRAIL_SETTLE_MILLIS = 600

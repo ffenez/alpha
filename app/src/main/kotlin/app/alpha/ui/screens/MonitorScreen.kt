@@ -1023,6 +1023,7 @@ internal fun HeroCard(
                     highMicroSvH = band?.doseHighMicroSvH,
                     thresholdMicroSvH = thresholdMicroSvH,
                     threshold2MicroSvH = threshold2MicroSvH,
+                    thresholdLabel = strings.scaleThresholdTick,
                     trailLowMicroSvH = trail?.first,
                     trailHighMicroSvH = trail?.second,
                     tint = heroTint,

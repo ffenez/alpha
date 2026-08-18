@@ -34,6 +34,7 @@ object EnStrings : Strings {
     override val countRate = "Count rate"
     override val hardness = "Hardness"
     override val trendPerHour = "Trend"
+    override val scaleThresholdTick = "threshold"
     override val tilePlaceBackground = "place background"
     override val tilePerHour = "per hour"
     override val tilePerDay = "per day"

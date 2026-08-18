@@ -124,14 +124,6 @@ interface SearchStrings {
     fun navRefBase(rate: String): String
 
     /**
-     * Отношение к точке отсчёта — главная подпись под числом.
-     *
-     * Знаменатель назван в самой строке: отношение без знаменателя — отношение
-     * ни к чему.
-     */
-    fun navRatioToReference(ratio: String): String
-
-    /**
      * Вердикт о РАЗНИЦЕ, отдельно от её величины.
      *
      * Величину экран показывает всегда, как только есть оба числа; эти строки
@@ -176,22 +168,9 @@ interface SearchStrings {
     // --- Наведение: дуга и лента ---
     /** Заголовок единого модуля наведения. */
 
-    /** Затенение на дуге — интервал отношения; линия без имени просто линия. */
-    val navScaleReference: String
-    val navScalePeak: String
 
-    /**
-     * Смысловые подписи концов дуги: числа «0,5×» и «2×» называют кратность,
-     * слово под числом — направление. Середина подписана отдельно: ×1 —
-     * единственная отметка, значащая что-то сама по себе.
-     */
-    val navScaleWeaker: String
-    val navScaleStronger: String
     val navTraceStart: String
-    fun navLocalLevel(rate: String): String
 
-    /** Пунктир ленты, когда точка отсчёта поставлена: сравнение идёт с ней. */
-    fun navReferenceLevel(rate: String): String
 
     // --- Наведение: действия ---
     val navMark: String
@@ -476,8 +455,6 @@ object SearchRu : SearchStrings {
 
     override fun navRefBase(rate: String) = "к точке отсчёта $rate"
 
-    override fun navRatioToReference(ratio: String) = "$ratio× к отсчёту"
-
     override val navScaleNoReference = "отсчёт не задан"
 
     override val navConfidenceInsufficient = "Недостаточно данных для уверенного вывода"
@@ -523,14 +500,8 @@ object SearchRu : SearchStrings {
 
 
 
-    override val navScaleReference = "отсчёт"
-    override val navScalePeak = "макс"
-    override val navScaleWeaker = "слабее"
-    override val navScaleStronger = "сильнее"
     override val navTraceStart = "−20 с"
 
-    override fun navLocalLevel(rate: String) = "недавний уровень $rate"
-    override fun navReferenceLevel(rate: String) = "точка отсчёта $rate"
 
     override val navMark = "Запомнить текущий уровень"
 
@@ -872,8 +843,6 @@ object SearchEn : SearchStrings {
 
     override fun navRefBase(rate: String) = "vs the reference point $rate"
 
-    override fun navRatioToReference(ratio: String) = "$ratio× vs the reference"
-
     override val navScaleNoReference = "no reference"
 
     override val navConfidenceInsufficient = "Not enough data for a confident answer"
@@ -920,14 +889,8 @@ object SearchEn : SearchStrings {
 
 
 
-    override val navScaleReference = "ref"
-    override val navScalePeak = "max"
-    override val navScaleWeaker = "weaker"
-    override val navScaleStronger = "stronger"
     override val navTraceStart = "−20 s"
 
-    override fun navLocalLevel(rate: String) = "recent level $rate"
-    override fun navReferenceLevel(rate: String) = "reference point $rate"
 
     override val navMark = "Remember the current level"
 
@@ -1218,17 +1181,13 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     navRatioInterval(95, "1,20", "2,10"), navRatioToLocal("1,00"), navWindows("1,8", "16,0"),
     navDeltaDash, navRefNone, navRefCollecting, navRefUnresolved, navRefAbove, navRefBelow,
     navDeltaCaptionCollecting, navUnresolvedNote, navRefBase("25,1"),
-    navRatioToReference("1,00"), navScaleNoReference, navConfidenceInsufficient,
+    navScaleNoReference, navConfidenceInsufficient,
     navConfidenceNoDifference,
     navConfidenceAbove, navConfidenceBelow, navReferenceRow("23,6", "21:48"),
     navSetupTitle, navSetupBody, navWhy, navWhyTitle, navWhyNow, navWhyReference, navWhyRatio,
     navWhyInterval, navWhyIntervalNote, navWhyDifference, navWhyRecent, navWhyRecentNote,
     navWhyWindows, navWhyCriterion, navWhyCriterionValue("1"), navWhyCriterionNote, navWhyLimit,
-    navTrendLine(navTrendNoChange, "1,01×"), navReferenceLevel("25,1"),
-    navScaleWeaker, navScaleStronger,
-    navPeakValue("47,6", 18), navScaleReference, navScalePeak,
-    navTraceStart, navLocalLevel("24,8"),
-    navMark, navReferenceSet("26,0", "11:44"), navMarkUpdate, navMarkClear,
+    navTrendLine(navTrendNoChange, "1,01×"), navPeakValue("47,6", 18), navTraceStart, navMark, navReferenceSet("26,0", "11:44"), navMarkUpdate, navMarkClear,
     navMore, navResetPeak, navMeasureHere(10), navSpotProgress(6, 10), navSpotNote,
     navSpotTitle, navSpotResult("48,2", "2,2"), navSpotExposure(10), navSpotToVerify,
     navSpotAbortStreamLost(6, 10), navSpotAbortServiceRestarted(6, 10),
