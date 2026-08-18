@@ -27,6 +27,7 @@ import app.alpha.ui.components.Chip
 import app.alpha.ui.components.ProfilePickerDialog
 import app.alpha.ui.components.Segmented
 import app.alpha.ui.logic.ChartMetric
+import app.alpha.ui.logic.InstrumentIndicator
 import app.alpha.ui.logic.InstrumentMode
 import app.alpha.ui.logic.ProfileTree
 import app.alpha.ui.logic.StreamState
@@ -75,6 +76,8 @@ fun InstrumentScreen(
 
     val modeId by graph.settings.instrumentMode.collectAsState(initial = null)
     val mode = InstrumentMode.of(modeId)
+    val indicatorId by graph.settings.instrumentIndicator.collectAsState(initial = null)
+    val indicator = InstrumentIndicator.of(indicatorId)
 
     val connection by graph.serviceStatus.connection.collectAsState()
     val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
@@ -161,6 +164,7 @@ fun InstrumentScreen(
         when (mode) {
             InstrumentMode.OBSERVE -> MonitorScreen(
                 graph = graph,
+                indicator = indicator,
                 onOpenChart = onOpenChart,
                 onOpenMetricChart = onOpenMetricChart,
                 onOpenDose = onOpenDose,
@@ -169,6 +173,7 @@ fun InstrumentScreen(
             InstrumentMode.SEARCH, InstrumentMode.VERIFY -> SearchScreen(
                 graph = graph,
                 verifying = mode == InstrumentMode.VERIFY,
+                indicator = indicator,
                 onOpenSpectrum = onOpenSpectrum,
                 onOpenFingerprint = onOpenFingerprint,
                 onOpenChart = onOpenSearchChart,

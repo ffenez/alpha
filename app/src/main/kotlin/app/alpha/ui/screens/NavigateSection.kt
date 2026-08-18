@@ -32,6 +32,7 @@ import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.BreathingAura
 import app.alpha.ui.components.Card
+import app.alpha.ui.components.InstrumentBar
 import app.alpha.ui.components.NavigateGauge
 import app.alpha.ui.components.NavigateGaugeSpec
 import app.alpha.ui.components.NavigateTrace
@@ -41,6 +42,7 @@ import app.alpha.ui.components.EntityMenuItem
 import app.alpha.ui.components.EntityMenuButton
 import app.alpha.ui.components.StatusRow
 import app.alpha.ui.logic.ArcScale
+import app.alpha.ui.logic.InstrumentIndicator
 import app.alpha.ui.logic.NavigateArc
 import app.alpha.ui.logic.NavigateEngine
 import app.alpha.ui.logic.NavigateState
@@ -102,6 +104,8 @@ fun NavigateSection(
     onCancelMeasure: () -> Unit,
     onDismissMeasure: () -> Unit,
     onGoToVerify: () -> Unit,
+    /** Каким рисунком показывать шкалу — выбор из Настроек. */
+    indicator: InstrumentIndicator = InstrumentIndicator.DIAL,
     /** Счёт держится ровно — предложить проверку здесь. */
     offerVerify: Boolean = false,
     onOfferAccept: () -> Unit = {},
@@ -237,6 +241,7 @@ fun NavigateSection(
                         // же кадр, разница только в наличии стрелки. Вердикт —
                         // гравировкой под осью: он описывает показание.
                         NavigateIndicator(
+                            indicator = indicator,
                             spec = NavigateGaugeSpec(
                                 ratio = referenceRatio,
                                 scale = ArcScale.around(factor),
@@ -461,18 +466,20 @@ fun NavigateSection(
 }
 
 /**
- * Прибор «Поиска»: один рисунок на все места, где стоит эта шкала — до точки
- * отсчёта и после неё в «Наведении», и на «Проверке», где знаменатель другой.
+ * Прибор: одна и та же шкала во всех местах, где она стоит — в наблюдении, в
+ * поиске до точки отсчёта и после неё.
  *
- * Вида два не бывает: шкала — это прибор, а у прибора одно лицо. Прямая шкала,
- * которая жила здесь вторым вариантом, укладывала ту же лестницу в строку и
- * читалась как индикатор заряда, а не как измерение.
+ * Рисунок выбирается в Настройках ([InstrumentIndicator]) и общий на весь
+ * прибор: два разных вида в двух режимах означали бы два прибора.
  */
 @Composable
-fun NavigateIndicator(spec: NavigateGaugeSpec) {
-    // Циферблат в 220° высок по построению: при меньшей высоте радиус
-    // считается по ней, и прибор снова съёживается в узкий сектор.
-    NavigateGauge(spec = spec, height = 210.dp)
+fun NavigateIndicator(spec: NavigateGaugeSpec, indicator: InstrumentIndicator) {
+    when (indicator) {
+        // Циферблат в 220° высок по построению: при меньшей высоте радиус
+        // считается по ней, и прибор снова съёживается в узкий сектор.
+        InstrumentIndicator.DIAL -> NavigateGauge(spec = spec, height = 190.dp)
+        InstrumentIndicator.BAR -> InstrumentBar(spec = spec)
+    }
 }
 
 /**
@@ -488,4 +495,3 @@ private fun confidenceLine(confidence: SearchConfidence, t: SearchStrings): Stri
         SearchConfidence.ABOVE -> t.navConfidenceAbove
         SearchConfidence.BELOW -> t.navConfidenceBelow
     }
-

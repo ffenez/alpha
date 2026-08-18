@@ -26,6 +26,12 @@ object RuStrings : Strings {
     override val hardness = "Жёсткость"
     override val trendPerHour = "Динамика"
     override val scaleThresholdTick = "порог"
+    override val indicatorTitle = "Шкала прибора"
+    override val indicatorDial = "Циферблат"
+    override val indicatorBar = "Прямая"
+    override val indicatorNote =
+        "Показание одно и то же: круг читается на вытянутой руке, прямая занимает строку и " +
+            "оставляет больше места графику."
     override val modeObserve = "Наблюдение"
     override val modeSearchShort = "Поиск"
     override val modeVerifyShort = "Проверка"

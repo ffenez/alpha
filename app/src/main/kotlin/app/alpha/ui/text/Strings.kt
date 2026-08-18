@@ -80,6 +80,12 @@ interface Strings {
     val trendPerHour: String
 
     /** Названия режимов прибора — по одному слову: это ряд, а не заголовки. */
+    /** Вид шкалы прибора и его выбор в настройках. */
+    val indicatorTitle: String
+    val indicatorDial: String
+    val indicatorBar: String
+    val indicatorNote: String
+
     val modeObserve: String
     val modeSearchShort: String
     val modeVerifyShort: String

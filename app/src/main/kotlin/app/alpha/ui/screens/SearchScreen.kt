@@ -80,6 +80,7 @@ import app.alpha.ui.logic.FeedbackReason
 import app.alpha.ui.logic.FeedbackState
 import app.alpha.data.DoseUnitSetting
 import app.alpha.ui.logic.DoseFormat
+import app.alpha.ui.logic.InstrumentIndicator
 import app.alpha.ui.logic.LocalBackground
 import app.alpha.ui.logic.LocalBackgroundMachine
 import app.alpha.ui.logic.NavigateEngine
@@ -162,6 +163,8 @@ fun SearchScreen(
      * местах значило бы иметь два разных ответа на вопрос «что сейчас».
      */
     verifying: Boolean = false,
+    /** Вид шкалы прибора — общий для всех режимов, из Настроек. */
+    indicator: InstrumentIndicator = InstrumentIndicator.DIAL,
     /** Перейти к проверке — режимом владеет родитель. */
     onGoToVerify: () -> Unit = {},
     onOpenSpectrum: () -> Unit = {},
@@ -599,6 +602,7 @@ fun SearchScreen(
         if (navigating) {
             NavigateSection(
                 ui = searchUi,
+                indicator = indicator,
                 state = navigate,
                 spot = spot,
                 nowMillis = System.currentTimeMillis() - deviceClockOffset,
