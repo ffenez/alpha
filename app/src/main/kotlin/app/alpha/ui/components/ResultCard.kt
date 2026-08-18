@@ -62,7 +62,13 @@ fun ResultCard(
                 Text(text = it, style = type.footnoteMono, color = colors.ink2)
             }
             content?.invoke()
-            Hint(text = result.meaning, style = type.bodySmall, color = colors.ink2)
+            // Почему вывода нет — состояние метода, видно всегда.
+            result.unavailable?.let {
+                Text(text = it, style = type.bodySmall, color = colors.ink2)
+            }
+            if (result.meaning.isNotBlank()) {
+                Hint(text = result.meaning, style = type.bodySmall, color = colors.ink2)
+            }
             // Ограничение — единственное, что удерживает относительный
             // показатель от чтения как измерения; оно остаётся всегда.
             Text(text = result.limitation, style = type.footnote, color = colors.muted)

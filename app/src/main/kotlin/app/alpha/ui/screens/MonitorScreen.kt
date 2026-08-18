@@ -32,6 +32,8 @@ import android.content.Context
 import app.alpha.device.BluetoothState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.graphics.lerp
+import app.alpha.ui.components.PlaceScaleBar
+import app.alpha.ui.components.BreathingAura
 import app.alpha.ui.components.rememberFrameMillis
 import app.alpha.ui.logic.DoseTint
 import app.alpha.ui.logic.LiveEdge
@@ -160,6 +162,15 @@ import kotlinx.coroutines.withContext
  * Период перечитывания графиков Главной. Прибор пишет раз в секунду, колонка
  * карточки покрывает минуты.
  */
+/**
+ * Сколько держится след на шкале места, мс.
+ *
+ * **Инженерный параметр**: минута — столько человек помнит, что было «только
+ * что», и на секундной записи это шестьдесят точек, то есть след успевает
+ * стать полосой, а не остаться точкой.
+ */
+private const val TRAIL_MILLIS = 60_000L
+
 private const val CHART_REFRESH_MILLIS = 15_000L
 
 /**
@@ -432,6 +443,18 @@ fun MonitorScreen(
     }
 
     val doseMicroSvH = live?.let { DoseUnits.rawToMicroSievertPerHour(it.doseRate) }
+    // След последней минуты на шкале места: где значение уже побывало. Это
+    // ИСТОРИЯ, а не измерение, поэтому она и может двигаться плавно; сами
+    // измерения по-прежнему переставляются шагом.
+    var trailPoints by remember { mutableStateOf(emptyList<Pair<Long, Float>>()) }
+    LaunchedEffect(live?.receivedAtMillis) {
+        val value = doseMicroSvH ?: return@LaunchedEffect
+        val at = live?.receivedAtMillis ?: return@LaunchedEffect
+        trailPoints = (trailPoints + (at to value)).filter { at - it.first <= TRAIL_MILLIS }
+    }
+    val trail = trailPoints.takeIf { it.size > 1 }?.let { points ->
+        points.minOf { it.second } to points.maxOf { it.second }
+    }
     val status = MonitorStatus.of(
         doseRateMicroSvH = doseMicroSvH,
         baselineState = baselineState,
@@ -524,6 +547,8 @@ fun MonitorScreen(
                 onOpenDose = onOpenDose,
                 tintEnabled = doseTint,
                 tintFactor = doseTintFactor,
+                thresholdMicroSvH = thresholds.l1MicroSvH,
+                trail = trail,
             )
 
             Column(
@@ -889,6 +914,10 @@ private fun HeroCard(
     tintEnabled: Boolean = true,
     /** Во сколько раз выше обычного цвет насыщается. */
     tintFactor: Float = DoseTint.DEFAULT_FACTOR,
+    /** Порог тревоги на шкале места; null — порога нет. */
+    thresholdMicroSvH: Float? = null,
+    /** Где значение побывало за последнюю минуту: (минимум, максимум). */
+    trail: Pair<Float, Float>? = null,
     onWhy: () -> Unit = {},
     /** Плитка накопленного открывает свой экран. */
     onOpenDose: () -> Unit = {},
@@ -897,6 +926,29 @@ private fun HeroCard(
     val type = LocalAppTypography.current
     val strings = LocalStrings.current
     val t = MonitorCatalogue.of(strings.language)
+    // Цвет главного числа — отношение к обычному фону МЕСТА: от обычного до
+    // заданного порога. Им же красятся дыхание и маркер шкалы: один смысл —
+    // один цвет.
+    val tintFraction = if (tintEnabled) {
+        DoseTint.fraction(
+            doseMicroSvH,
+            (baselineState as? BaselineState.Active)?.baseline,
+            tintFactor,
+        )
+    } else {
+        null
+    }
+    val heroTint by animateColorAsState(
+        targetValue = when {
+            doseMicroSvH == null || stale -> colors.muted
+            tintFraction == null -> colors.ink
+            tintFraction <= 0f -> colors.ok
+            tintFraction < 1f -> lerp(colors.warn, colors.crit, tintFraction)
+            else -> colors.crit
+        },
+        animationSpec = Motion.normal(),
+        label = "doseTint",
+    )
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.heightIn(min = minContentHeight),
@@ -907,7 +959,10 @@ private fun HeroCard(
                 Alignment.CenterVertically,
             ),
         ) {
-            // 1. Главная величина, по центру.
+            // 1. Главная величина, по центру. За ней дышит свечение, пока
+            // идут измерения ([BreathingAura]): движение здесь означает «поток
+            // жив», и на замолчавшем приборе оно замирает.
+            BreathingAura(live = stream.live, tint = heroTint) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -919,32 +974,10 @@ private fun HeroCard(
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
-                // Цвет числа — отношение к обычному фону МЕСТА: от обычного до
-                // заданного порога. За порогом цвет не меняется.
-                val tintFraction = if (tintEnabled) {
-                    DoseTint.fraction(
-                        doseMicroSvH,
-                        (baselineState as? BaselineState.Active)?.baseline,
-                        tintFactor,
-                    )
-                } else {
-                    null
-                }
-                val tint by animateColorAsState(
-                    targetValue = when {
-                        doseMicroSvH == null || stale -> colors.muted
-                        tintFraction == null -> colors.ink
-                        tintFraction <= 0f -> colors.ok
-                        tintFraction < 1f -> lerp(colors.warn, colors.crit, tintFraction)
-                        else -> colors.crit
-                    },
-                    animationSpec = Motion.normal(),
-                    label = "doseTint",
-                )
                 Text(
                     text = doseMicroSvH?.let { DoseFormat.rate(it, unit) } ?: "—",
                     style = type.valueHero,
-                    color = tint,
+                    color = heroTint,
                     modifier = Modifier
                         .padding(top = 2.dp)
                         // Число и есть вход в разбор.
@@ -967,6 +1000,22 @@ private fun HeroCard(
                 }
                 // Единица и погрешность прибора живут в «Почему такой вывод»:
                 // одна составляющая не выдаётся там за полную неопределённость.
+
+                // Шкала места: «много ли это здесь». График отвечает на другой
+                // вопрос — «растёт ли», и одно другого не заменяет.
+                val band = (baselineState as? BaselineState.Active)?.baseline
+                PlaceScaleBar(
+                    value = doseMicroSvH,
+                    medianMicroSvH = band?.doseMedianMicroSvH,
+                    lowMicroSvH = band?.doseLowMicroSvH,
+                    highMicroSvH = band?.doseHighMicroSvH,
+                    thresholdMicroSvH = thresholdMicroSvH,
+                    trailLowMicroSvH = trail?.first,
+                    trailHighMicroSvH = trail?.second,
+                    tint = heroTint,
+                    modifier = Modifier.padding(top = Dimens.space2),
+                )
+            }
             }
 
             // 2. Плитки под числом: величины, дополняющие главное число;

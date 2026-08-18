@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0270Title: String
+    val v0270Summary: String
+
     val v0260Title: String
     val v0260Summary: String
 
@@ -309,6 +312,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0270Title = "Дыхание на Главной и шкала места"
+    override val v0270Summary =
+        "Пока идут измерения, за главным числом дышит свечение — поток замолчал, и оно " +
+        "замирает раньше, чем это скажет чип связи. Под числом появилась шкала места: где " +
+        "показание стоит относительно обычного здесь, с порогом на той же оси и следом " +
+        "последней минуты."
 
     override val v0260Title = "Выключенные пояснения — чистый экран"
     override val v0260Summary =
@@ -968,6 +978,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0270Title = "Breathing on Home and the place scale"
+    override val v0270Summary =
+        "While measurements arrive, a glow breathes behind the main reading — the stream goes " +
+        "quiet and it freezes before the link chip says so. Under the number there is now a " +
+        "place scale: where the reading stands against what is usual here, with the threshold " +
+        "on the same axis and the trail of the last minute."
 
     override val v0260Title = "With explanations off the screen is clean"
     override val v0260Summary =
