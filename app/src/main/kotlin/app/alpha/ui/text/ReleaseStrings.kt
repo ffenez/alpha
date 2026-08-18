@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0291Title: String
+    val v0291Summary: String
+
     val v0290Title: String
     val v0290Summary: String
 
@@ -321,6 +324,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0291Title = "Проверка тоже дышит"
+    override val v0291Summary =
+        "Дыхание за числом появилось в Наведении, а Поиск открывается на Проверке, и там его " +
+        "не было. Теперь свечение есть в обоих режимах, и период считает то же отношение к " +
+        "записанному фону, что и высота тона."
 
     override val v0290Title = "Поиск собран в один прибор"
     override val v0290Summary =
@@ -1010,6 +1019,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0291Title = "Проверка breathes too"
+    override val v0291Summary =
+        "The glow behind the reading arrived in Наведение, while Поиск opens on Проверка, " +
+        "where there was none. It now breathes in both modes, and the period is set by the " +
+        "same ratio to the recorded background that sets the pitch of the tone."
 
     override val v0290Title = "Поиск is one instrument now"
     override val v0290Summary =

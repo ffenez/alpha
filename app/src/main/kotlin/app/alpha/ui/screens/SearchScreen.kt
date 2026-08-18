@@ -49,6 +49,7 @@ import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.BackgroundCard
 import app.alpha.ui.text.BackgroundCardCatalogue
+import app.alpha.ui.components.BreathingAura
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.Chip
 import app.alpha.ui.components.LedMeter
@@ -90,6 +91,7 @@ import app.alpha.ui.logic.SearchFeedbackMode
 import app.alpha.ui.logic.SearchLevel
 import app.alpha.ui.logic.SearchSpectrumHint
 import app.alpha.ui.logic.SearchState
+import app.alpha.ui.logic.SearchPulse
 import app.alpha.ui.logic.SearchTone
 import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.logic.SearchVerdict
@@ -589,114 +591,120 @@ fun SearchScreen(
         }
 
         // ---------------------------------------------------------- the answer
+        // Цвет числа — отношение к записанному фону: то же правило, что у дозы
+        // на Главной (`DoseTint`). Им же красится дыхание: один смысл — один цвет.
+        val tintFraction = if (doseTint) DoseTint.of(cps, record?.cps, tintFactor) else null
+        val numberTint by animateColorAsState(
+            targetValue = when {
+                cps == null -> colors.muted
+                tintFraction == null -> colors.ink
+                tintFraction <= 0f -> colors.ok
+                tintFraction < 1f -> lerp(colors.warn, colors.crit, tintFraction)
+                else -> colors.crit
+            },
+            animationSpec = Motion.normal(),
+            label = "searchTint",
+        )
         Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space4) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+            // Период дыхания считает то же отношение, что и высоту тона
+            // ([SearchPulse]); знаменатель здесь — записанный фон места. Глаз и
+            // ухо обязаны говорить одно. Измерение при этом не анимируется:
+            // дышит подсветка, число меняется шагом.
+            BreathingAura(
+                live = cps != null,
+                tint = numberTint,
+                periodMillis = SearchPulse.periodMillis(ratio),
             ) {
-                Text(
-                    text = strings.countRate.uppercase(),
-                    style = type.labelSmall,
-                    color = colors.ink2,
-                )
-                // Цвет числа — отношение к записанному фону: то же правило,
-                // что у дозы на Главной (`DoseTint`).
-                val tintFraction = if (doseTint) {
-                    DoseTint.of(cps, record?.cps, tintFactor)
-                } else {
-                    null
-                }
-                val numberTint by animateColorAsState(
-                    targetValue = when {
-                        cps == null -> colors.muted
-                        tintFraction == null -> colors.ink
-                        tintFraction <= 0f -> colors.ok
-                        tintFraction < 1f -> lerp(colors.warn, colors.crit, tintFraction)
-                        else -> colors.crit
-                    },
-                    animationSpec = Motion.normal(),
-                    label = "searchTint",
-                )
-                // Разбор открывает и само число: когда счёт держится на уровне
-                // фона, строка вывода пуста, а вопрос «почему так решено»
-                // остаётся.
-                Text(
-                    text = cps?.let { Uncertainty.num1(it) } ?: "—",
-                    style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
-                    color = numberTint,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { whyOpen = true },
-                        )
-                        .padding(horizontal = Dimens.space2),
-                )
-                // Величина названа заголовком экрана, σ разбирается в «Почему»
-                // рядом с окном, по которому посчитана.
-
-
-                // Сам вывод открывает разбор.
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(Dimens.space1),
-                    modifier = Modifier
-                        .padding(top = Dimens.space2)
-                        .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { whyOpen = true },
-                        )
-                        .padding(vertical = Dimens.space1, horizontal = Dimens.space2),
                 ) {
-                    // На уровне фона экран молчит — это сказано цветом числа;
-                    // любое другое состояние говорит словами.
-                    if (level != SearchLevel.BACKGROUND) {
-                        StatusRow(
-                            text = SearchVerdict.headline(
-                                level,
-                                search.direction,
-                                record != null,
-                                strings,
-                            ),
-                            color = levelColor,
+                    Text(
+                        text = strings.countRate.uppercase(),
+                        style = type.labelSmall,
+                        color = colors.ink2,
+                    )
+                    // Разбор открывает и само число: когда счёт держится на уровне
+                    // фона, строка вывода пуста, а вопрос «почему так решено»
+                    // остаётся.
+                    Text(
+                        text = cps?.let { Uncertainty.num1(it) } ?: "—",
+                        style = type.valueHero.copy(fontSize = 52.sp, lineHeight = 54.sp),
+                        color = numberTint,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { whyOpen = true },
+                            )
+                            .padding(horizontal = Dimens.space2),
+                    )
+                    // Величина названа заголовком экрана, σ разбирается в «Почему»
+                    // рядом с окном, по которому посчитана.
+
+
+                    // Сам вывод открывает разбор.
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(Dimens.space1),
+                        modifier = Modifier
+                            .padding(top = Dimens.space2)
+                            .clip(RoundedCornerShape(LocalAppMetrics.current.radiusChip))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { whyOpen = true },
+                            )
+                            .padding(vertical = Dimens.space1, horizontal = Dimens.space2),
+                    ) {
+                        // На уровне фона экран молчит — это сказано цветом числа;
+                        // любое другое состояние говорит словами.
+                        if (level != SearchLevel.BACKGROUND) {
+                            StatusRow(
+                                text = SearchVerdict.headline(
+                                    level,
+                                    search.direction,
+                                    record != null,
+                                    strings,
+                                ),
+                                color = levelColor,
+                            )
+                        }
+                        // Полный разбор открывается нажатием на сам вывод.
+                    }
+
+                    // Направление изменения — вопрос «Наведения», и там оно
+                    // показано модулем целиком; расчёт живёт там же и в «Почему?».
+
+                    // Полоска показывает НАБОР ПОДТВЕРЖДЕНИЯ, а не уровень: она
+                    // отвечает, сколько ещё держать прибор здесь. Отличия нет —
+                    // полоски нет.
+                    val decision = search.decision
+                    if (decision != null && !decision.ready && level != SearchLevel.BACKGROUND) {
+                        LedMeter(
+                            level = decision.progress,
+                            modifier = Modifier.padding(top = Dimens.space3),
+                        )
+                        Text(
+                            text = if (decision.atLimit) {
+                                t.decisionTooSmall
+                            } else {
+                                t.decisionRemaining(decision.remainingSeconds.toInt())
+                            },
+                            style = type.footnote,
+                            color = colors.muted,
                         )
                     }
-                    // Полный разбор открывается нажатием на сам вывод.
-                }
-
-                // Направление изменения — вопрос «Наведения», и там оно
-                // показано модулем целиком; расчёт живёт там же и в «Почему?».
-
-                // Полоска показывает НАБОР ПОДТВЕРЖДЕНИЯ, а не уровень: она
-                // отвечает, сколько ещё держать прибор здесь. Отличия нет —
-                // полоски нет.
-                val decision = search.decision
-                if (decision != null && !decision.ready && level != SearchLevel.BACKGROUND) {
-                    LedMeter(
-                        level = decision.progress,
-                        modifier = Modifier.padding(top = Dimens.space3),
-                    )
-                    Text(
-                        text = if (decision.atLimit) {
-                            t.decisionTooSmall
-                        } else {
-                            t.decisionRemaining(decision.remainingSeconds.toInt())
-                        },
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
-                }
-                if (record == null) {
-                    Hint(
-                        text = t.meterNeedsBackground,
-                        style = type.footnote,
-                        color = colors.muted,
-                    )
+                    if (record == null) {
+                        Hint(
+                            text = t.meterNeedsBackground,
+                            style = type.footnote,
+                            color = colors.muted,
+                        )
+                    }
                 }
             }
         }
