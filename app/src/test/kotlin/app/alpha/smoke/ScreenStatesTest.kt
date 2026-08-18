@@ -213,9 +213,10 @@ class ScreenStatesTest {
     @Test
     fun `search at the reference answers stronger-or-weaker, not statistics`() {
         show(UiVariant.ALL[0]) { search(navigateAt(reference = 17.4f, current = 17.6f), cps = 17.6f) }
-        // Разбор статистики уехал в «Почему?»: на рабочем экране его нет.
+        // Разбор статистики уехал в «Почему?» (открывается по числу): на
+        // рабочем экране нет ни его, ни отдельной кнопки.
         assertAbsent(SearchRu.navUnresolvedNote)
-        assertShown(SearchRu.navWhy)
+        assertAbsent(SearchRu.navWhy)
     }
 
     @Test

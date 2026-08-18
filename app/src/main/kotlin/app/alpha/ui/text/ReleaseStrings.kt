@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0341Title: String
+    val v0341Summary: String
+
     val v0340Title: String
     val v0340Summary: String
 
@@ -339,6 +342,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0341Title = "Наведение — минимум эталона"
+    override val v0341Summary =
+        "Число всегда окрашено цветом экрана, янтарным становится только при подтверждённом " +
+        "усилении, и тем же цветом дышит подсветка. В карточке остался кадр эталона — число, " +
+        "строка под ним, прибор, до отсчёта кнопка и после него график, — а разбор теперь " +
+        "открывается нажатием на само число."
 
     override val v0340Title = "Прибор ожил"
     override val v0340Summary =
@@ -1073,6 +1083,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0341Title = "Наведение is down to the mockup frame"
+    override val v0341Summary =
+        "The reading is always tinted in the screen's colour, turning amber only on a " +
+        "confirmed rise, and the glow breathes the same colour. The card keeps the mockup " +
+        "frame — the number, one line under it, the dial, the button before a reference and " +
+        "the chart after one — and the breakdown now opens by tapping the number itself."
 
     override val v0340Title = "The instrument came alive"
     override val v0340Summary =
