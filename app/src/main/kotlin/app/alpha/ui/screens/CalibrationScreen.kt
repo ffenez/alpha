@@ -40,6 +40,7 @@ import app.alpha.analysis.evidence.ResolutionFitOutcome
 import app.alpha.analysis.evidence.ResolutionModel
 import app.alpha.data.toSpectrum
 import app.alpha.device.ConnectionState
+import app.alpha.ui.components.Explain
 import app.alpha.ui.components.ExplainInfoButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
@@ -224,7 +225,7 @@ internal fun CalibrationContent(
             Text(text = row, style = type.valueSmall, color = colors.ink)
         }
         Hint(text = s.radonExplained)
-        Text(text = s.materialCollected, style = type.footnote, color = colors.muted)
+        Hint(text = s.materialCollected, style = type.footnote, color = colors.muted)
     }
 
     Section(s.linesTitle) {
@@ -248,9 +249,13 @@ internal fun CalibrationContent(
         }
     }
 
-    Section(s.rejectedTitle) {
-        for (row in CalibrationView.rejected(model.report, s)) {
-            Text(text = row, style = type.footnote, color = colors.muted)
+    // Почему линия не взята — разбор метода: он объясняет отбор, а не
+    // сообщает результат.
+    Explain {
+        Section(s.rejectedTitle) {
+            for (row in CalibrationView.rejected(model.report, s)) {
+                Text(text = row, style = type.footnote, color = colors.muted)
+            }
         }
     }
 

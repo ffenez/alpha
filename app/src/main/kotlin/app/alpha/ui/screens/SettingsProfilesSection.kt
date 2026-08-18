@@ -354,7 +354,7 @@ internal fun ProfileSettingsRow(
         if (!expanded) return@Column
 
         baselineStatsLine(baselineState, unit, strings)?.let {
-            Text(text = it, style = type.footnote, color = colors.muted)
+            Hint(text = it, style = type.footnote, color = colors.muted)
         }
 
         AppTextField(value = renameText, onValueChange = { renameText = it })

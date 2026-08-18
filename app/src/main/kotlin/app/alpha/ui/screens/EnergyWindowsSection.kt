@@ -224,7 +224,7 @@ private fun TechnicalDataSheet(
                         style = type.valueSmall,
                         color = colors.ink2,
                     )
-                    Text(
+                    Hint(
                         text = t.ratioFormula(
                             SpectrumFormat.rangeLabel(index.lowWindow),
                             SpectrumFormat.rangeLabel(index.highWindow),
@@ -235,11 +235,11 @@ private fun TechnicalDataSheet(
                     // Что величина описывает и чем она НЕ является, стоит
                     // рядом с ней самой: ограничение — часть числа, а не
                     // примечание к экрану.
-                    Text(text = t.ratioWhat, style = type.bodySmall, color = colors.ink2)
-                    Text(text = t.ratioNotHardness, style = type.bodySmall, color = colors.ink2)
+                    Hint(text = t.ratioWhat, style = type.bodySmall, color = colors.ink2)
+                    Hint(text = t.ratioNotHardness, style = type.bodySmall, color = colors.ink2)
                     Text(text = t.indexNote, style = type.footnote, color = colors.muted)
                 }
-                Text(text = t.windowsEdgeNote, style = type.footnote, color = colors.muted)
+                Hint(text = t.windowsEdgeNote, style = type.footnote, color = colors.muted)
                 AppButton(
                     text = strings.close,
                     onClick = onDismiss,

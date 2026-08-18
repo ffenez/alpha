@@ -43,8 +43,8 @@ fun NeedBackgroundDialog(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(text = t.needBackgroundTitle, style = type.title, color = colors.ink)
-                Text(text = what, style = type.bodySmall, color = colors.ink2)
-                Text(text = t.needBackgroundHow, style = type.bodySmall, color = colors.ink2)
+                Hint(text = what, style = type.bodySmall, color = colors.ink2)
+                Hint(text = t.needBackgroundHow, style = type.bodySmall, color = colors.ink2)
                 if (onRecord == null) {
                     Text(
                         text = t.needBackgroundNoDevice,

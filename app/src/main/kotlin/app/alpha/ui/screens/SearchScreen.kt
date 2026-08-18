@@ -727,7 +727,7 @@ fun SearchScreen(
                     )
                 }
                 if (record == null) {
-                    Text(
+                    Hint(
                         text = t.meterNeedsBackground,
                         style = type.footnote,
                         color = colors.muted,

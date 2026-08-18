@@ -340,7 +340,7 @@ fun NavigateSection(
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                         StatusRow(text = t.offerVerifyTitle, color = colors.ink)
-                        Text(
+                        Hint(
                             text = t.offerVerifyBody,
                             style = type.bodySmall,
                             color = colors.ink2,

@@ -1283,7 +1283,7 @@ private fun BluetoothBanner() {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             StatusRow(text = t.bluetoothOffTitle, color = colors.warn)
-            Text(text = t.bluetoothOffBody, style = type.bodySmall, color = colors.ink2)
+            Hint(text = t.bluetoothOffBody, style = type.bodySmall, color = colors.ink2)
             AppButton(
                 text = t.bluetoothOffAction,
                 onClick = {

@@ -660,7 +660,7 @@ private fun SoundSection(graph: AppGraph) {
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(
+                Hint(
                     text = when (mode) {
                         SearchFeedbackMode.OFF -> strings.feedbackOnScreenOnly
                         SearchFeedbackMode.CLICKS -> strings.feedbackClicks
@@ -711,7 +711,7 @@ private fun SoundSection(graph: AppGraph) {
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(
+                Hint(
                     text = strings.searchIndicatorNote,
                     style = type.footnote,
                     color = colors.muted,
@@ -1249,7 +1249,7 @@ private fun ColorsSection(graph: AppGraph) {
                     placeholder = strings.mapScaleCpsAnchors,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(
+                Hint(
                     text = strings.mapScaleManualHint,
                     style = type.footnote,
                     color = colors.muted,
@@ -1303,7 +1303,7 @@ private fun BaselineSection(graph: AppGraph) {
                 scope.launch { graph.settings.setBaselineFrozen(!on) }
             }
             AppDivider()
-            Text(
+            Hint(
                 text = strings.graceNote,
                 style = type.bodySmall,
                 color = colors.ink2,

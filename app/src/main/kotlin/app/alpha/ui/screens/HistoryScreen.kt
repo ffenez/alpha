@@ -419,8 +419,9 @@ fun HistoryScreen(
 
     deletingSpectrum?.let { entity ->
         ConfirmDialog(
-            title = h.routeDeleteTitle(1),
-            body = h.routeDeleteBody,
+            // Последствие называется по своей сущности: снимок — не маршрут.
+            title = h.spectrumDeleteTitle,
+            body = h.spectrumDeleteBody,
             confirmText = strings.delete,
             onConfirm = {
                 deletingSpectrum = null

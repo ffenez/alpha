@@ -28,30 +28,6 @@ import kotlinx.coroutines.launch
  * оно существует только как явный выбор владельца с умолчанием «хранить всё»
  * (обоснование — в [RawRetention]).
  */
-@Composable
-fun RetentionSection(graph: AppGraph) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    val strings = LocalStrings.current
-    val scope = rememberCoroutineScope()
-
-    val days by graph.settings.rawRetentionDays
-        .collectAsState(initial = RawRetention.KEEP_ALL_DAYS)
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-            Text(
-                text = strings.retentionTitle.uppercase(),
-                style = type.labelSmall,
-                color = colors.ink2,
-            )
-            RetentionChoice(days) { chosen ->
-                scope.launch { graph.settings.setRawRetentionDays(chosen) }
-            }
-            Hint(text = strings.retentionNote)
-        }
-    }
-}
 
 /**
  * Строки выбора срока хранения без своей карточки — чтобы их можно было

@@ -146,7 +146,7 @@ object ChartAxisRu : ChartAxisStrings {
     override val quantilesEstimate =
         "оценка по средним коротких интервалов — без доказанной границы точности"
 
-    override val histogramCaption = "распределение за окно"
+    override val histogramCaption = "за окно"
     override val histogramCountAxis = "показаний прибора (≈1 в секунду)"
     override val histogramInsufficient = "недостаточно данных для распределения"
     override val histogramNoData = "нет измерений в окне"
@@ -222,7 +222,7 @@ object ChartAxisEn : ChartAxisStrings {
     override val quantilesEstimate =
         "an estimate from sub-bucket means — with no proven bound on its accuracy"
 
-    override val histogramCaption = "distribution over the window"
+    override val histogramCaption = "over the window"
     override val histogramCountAxis = "instrument readings (≈1 per second)"
     override val histogramInsufficient = "not enough data for a distribution"
     override val histogramNoData = "no measurements in the window"

@@ -70,7 +70,7 @@ fun ProfilePickerDialog(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(t.pickerTitle, style = type.title, color = colors.ink)
-                Text(
+                Hint(
                     text = t.pickerSubtitle(contextWording),
                     style = type.bodySmall,
                     color = colors.muted,
