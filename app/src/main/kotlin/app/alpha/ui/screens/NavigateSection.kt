@@ -51,7 +51,6 @@ import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
 import app.alpha.ui.theme.Motion
-import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -196,8 +195,8 @@ fun NavigateSection(
                                     factor = NavigateArc.LADDER.first(),
                                     trend = state.trend,
                                     referenceLabel = "1×",
-                                    lowLabel = "${factorLabel(1.0 / NavigateArc.LADDER.first())}×",
-                                    highLabel = "${factorLabel(NavigateArc.LADDER.first())}×",
+                                    lowLabel = "${NavigateArc.factorLabel(1.0 / NavigateArc.LADDER.first())}×",
+                                    highLabel = "${NavigateArc.factorLabel(NavigateArc.LADDER.first())}×",
                                     referenceCaption = t.navScaleReference,
                                     lowCaption = t.navScaleWeaker,
                                     highCaption = t.navScaleStronger,
@@ -251,8 +250,8 @@ fun NavigateSection(
                                     factor = factor,
                                     trend = state.trend,
                                     referenceLabel = "1×",
-                                    lowLabel = "${factorLabel(1.0 / factor)}×",
-                                    highLabel = "${factorLabel(factor)}×",
+                                    lowLabel = "${NavigateArc.factorLabel(1.0 / factor)}×",
+                                    highLabel = "${NavigateArc.factorLabel(factor)}×",
                                     referenceCaption = t.navScaleReference,
                                     lowCaption = t.navScaleWeaker,
                                     highCaption = t.navScaleStronger,
@@ -464,17 +463,13 @@ fun NavigateSection(
     }
 }
 
-/** «4» for a whole factor, «0,25» for its reciprocal — no trailing zeros. */
-private fun factorLabel(value: Double): String =
-    if (value >= 1.0) {
-        String.format(Locale.US, "%.0f", value)
-    } else {
-        String.format(Locale.US, "%.2f", value).replace('.', ',').trimEnd('0').trimEnd(',')
-    }
-
-/** Один вид индикатора на оба места: до отсчёта и после него. */
+/**
+ * Один вид индикатора на все места, где стоит эта шкала: до отсчёта и после
+ * него в «Наведении», и на «Проверке» — там знаменатель другой, а прибор тот
+ * же, и выбор вида в Настройках обязан менять их вместе.
+ */
 @Composable
-private fun NavigateIndicator(indicator: SearchIndicator, spec: NavigateGaugeSpec) {
+fun NavigateIndicator(indicator: SearchIndicator, spec: NavigateGaugeSpec) {
     when (indicator) {
         SearchIndicator.NEEDLE -> NavigateGauge(spec = spec, height = 124.dp)
         SearchIndicator.SCALE -> NavigateScale(spec = spec, height = 96.dp)

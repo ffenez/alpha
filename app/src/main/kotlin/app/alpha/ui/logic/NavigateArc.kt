@@ -1,5 +1,6 @@
 package app.alpha.ui.logic
 
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.pow
@@ -116,6 +117,20 @@ object NavigateArc {
         for (i in -steps..steps) out += 2.0.pow(i)
         return out
     }
+
+    /**
+     * Подпись конца шкалы: «4» для целого множителя, «0,25» для обратного.
+     *
+     * Живёт рядом с самой шкалой, а не в экране: концы подписывают ОБА места,
+     * где эта шкала рисуется — Наведение и Проверка, — и подпись обязана быть
+     * там одна и та же.
+     */
+    fun factorLabel(value: Double): String =
+        if (value >= 1.0) {
+            String.format(Locale.US, "%.0f", value)
+        } else {
+            String.format(Locale.US, "%.2f", value).replace('.', ',').trimEnd('0').trimEnd(',')
+        }
 
     /** Smallest frame on [LADDER] that still holds every one of [ratios]. */
     fun requiredFactor(ratios: List<Double>): Double {
