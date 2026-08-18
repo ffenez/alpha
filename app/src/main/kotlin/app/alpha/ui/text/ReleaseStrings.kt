@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0280Title: String
+    val v0280Summary: String
+
     val v0271Title: String
     val v0271Summary: String
 
@@ -315,6 +318,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0280Title = "Дыхание видно в любом оформлении"
+    override val v0280Summary =
+        "На светлой подложке свечение за числом было почти неразличимым, а шкала Поиска " +
+        "появлялась только после точки отсчёта — теперь дыхание читается в любом " +
+        "оформлении, а шкала стоит всегда и до первого отсчёта просто пуста. График на " +
+        "Главной перестал подрагивать, из Проверки ушли плитки, повторявшие сказанное " +
+        "выше, и у приложения новый значок."
 
     override val v0271Title = "Дыхание стало заметным"
     override val v0271Summary =
@@ -988,6 +999,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0280Title = "The breathing reads in any theme"
+    override val v0280Summary =
+        "On a light background the glow behind the reading was barely there, and the scale in " +
+        "Поиск appeared only once a reference point had been set — the breathing now reads in " +
+        "any theme, and the scale is always present, simply empty until the first reference. " +
+        "The chart on Home no longer jitters, the tiles that repeated what was already said " +
+        "left Проверка, and the app has a new icon."
 
     override val v0271Title = "The breathing became visible"
     override val v0271Summary =

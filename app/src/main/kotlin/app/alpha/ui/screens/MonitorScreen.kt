@@ -645,10 +645,14 @@ fun MonitorScreen(
                     // значения не пересчитываются ([LiveEdge]). Покадровая
                     // перерисовка включается лишь там, где движение видно.
                     val liveWindow = ChartWindows.withRightPadding(viewport.window())
+                    // Момент последнего тика — правый край САМОГО окна, а не
+                    // часы экрана: они обновляются со своей частотой, и от
+                    // разницы частот картинка дёргалась влево-вправо.
+                    val tickMillis = viewport.window().toMillis
                     val smoothEdge = viewport.followLiveEdge &&
                         stream.live &&
                         LiveEdge.smooth(liveWindow.spanMillis, plotWidthPx)
-                    val frameMillis by rememberFrameMillis(smoothEdge, nowMillis)
+                    val frameMillis by rememberFrameMillis(smoothEdge, tickMillis)
                     MetricChartCard(
                         metric = metric,
                         frame = frame,
@@ -663,7 +667,7 @@ fun MonitorScreen(
                         onBackToNow = {
                             setGesture(gesture.withViewport(Viewports.jumpToEdge(viewport, bounds), bounds))
                         },
-                        viewWindow = LiveEdge.shifted(liveWindow, nowMillis, frameMillis),
+                        viewWindow = LiveEdge.shifted(liveWindow, tickMillis, frameMillis),
                         onOpenFromChart = {
                             if (metric == ChartMetric.DOSE) onOpenChart() else onOpenMetricChart(metric)
                         },
