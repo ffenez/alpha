@@ -473,9 +473,9 @@ class MeasurementService : Service() {
         val s = texts
         val units = stringsFor(if (s === NotificationEn) AppLanguage.EN else AppLanguage.RU)
         val text = buildString {
-            append(s.nowRate(DoseFormat.rateWithUnit(doseMicroSvH, doseUnit, units)))
+            append(s.nowRate(DoseFormat.rate(doseMicroSvH, doseUnit)))
             if (typicalHighMicroSvH != null && typicalHighMicroSvH > 0f) {
-                append(s.usuallyUpTo(DoseFormat.rateWithUnit(typicalHighMicroSvH, doseUnit, units)))
+                append(s.usuallyUpTo(DoseFormat.rate(typicalHighMicroSvH, doseUnit)))
             }
         }
         val contentIntent = PendingIntent.getActivity(

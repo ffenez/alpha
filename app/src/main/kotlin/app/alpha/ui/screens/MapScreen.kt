@@ -898,7 +898,7 @@ private fun TrackDetailScreen(
                     ),
                     summary.avgDoseMicroSvH?.let { "${t.statAvg} ${DoseFormat.rate(it, unit)}" },
                     summary.maxDoseMicroSvH?.let {
-                        "${t.statMax} ${DoseFormat.rateWithUnit(it, unit, s = strings)}"
+                        "${t.statMax} ${DoseFormat.rate(it, unit)}"
                     },
                 ).joinToString(" · "),
                 style = type.footnote,
@@ -955,9 +955,9 @@ private fun TrackDetailScreen(
                     valueLabel = { point ->
                         when (metric) {
                             TrackMetric.DOSE -> point.doseMicroSvH
-                                ?.let { DoseFormat.rateWithUnit(it, unit, s = strings) }
+                                ?.let { DoseFormat.rate(it, unit) }
                             TrackMetric.CPS -> point.cps
-                                ?.let { TrackMap.formatCps(it) + " " + t.unitCps }
+                                ?.let { TrackMap.formatCps(it) }
                         }
                     },
                     timeLabel = { point -> HistoryFormat.timeOfDay(point.timestamp) },
@@ -965,9 +965,9 @@ private fun TrackDetailScreen(
                         listOfNotNull(
                             when (metric) {
                                 TrackMetric.DOSE -> point.cps
-                                    ?.let { TrackMap.formatCps(it) + " " + t.unitCps }
+                                    ?.let { TrackMap.formatCps(it) }
                                 TrackMetric.CPS -> point.doseMicroSvH
-                                    ?.let { DoseFormat.rateWithUnit(it, unit, s = strings) }
+                                    ?.let { DoseFormat.rate(it, unit) }
                             },
                             MyPosition.accuracy(point.accuracyMeters, t),
                         ).joinToString(" · ")
@@ -1357,8 +1357,8 @@ private fun TrackPointCard(info: MapTapInfo.TrackPoint, unit: DoseUnitSetting) {
             )
             Text(
                 text = listOfNotNull(
-                    info.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit, s = strings) },
-                    info.cps?.let { TrackMap.formatCps(it) + " CPS" },
+                    info.doseMicroSvH?.let { DoseFormat.rate(it, unit) },
+                    info.cps?.let { TrackMap.formatCps(it) },
                     HistoryFormat.dayTime(info.timestamp, System.currentTimeMillis(), s = h),
                 ).joinToString(" · "),
                 style = type.value,
@@ -1454,8 +1454,8 @@ private fun HotspotCard(graph: AppGraph, info: MapTapInfo.Hotspot, unit: DoseUni
             )
             Text(
                 text = listOfNotNull(
-                    info.doseMicroSvH?.let { DoseFormat.rateWithUnit(it, unit, s = strings) },
-                    extras?.cps?.let { TrackMap.formatCps(it) + " CPS" },
+                    info.doseMicroSvH?.let { DoseFormat.rate(it, unit) },
+                    extras?.cps?.let { TrackMap.formatCps(it) },
                     HistoryFormat.dayTime(info.timestamp, System.currentTimeMillis(), s = h),
                 ).joinToString(" · "),
                 style = type.value,
@@ -1463,7 +1463,7 @@ private fun HotspotCard(graph: AppGraph, info: MapTapInfo.Hotspot, unit: DoseUni
             )
             info.typicalMicroSvH?.let {
                 Text(
-                    text = t.usuallyHere(DoseFormat.rateWithUnit(it, unit, s = strings)),
+                    text = t.usuallyHere(DoseFormat.rate(it, unit)),
                     style = type.footnote,
                     color = colors.ink2,
                 )
@@ -1504,12 +1504,6 @@ private fun RouteSummaryCard(
                     text = title.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = DoseFormat.rateUnitLabel(unit, s = strings),
-                    style = type.footnote,
-                    color = colors.muted,
                 )
             }
             StatGrid(
@@ -1571,16 +1565,6 @@ private fun AreaSummaryCard(
                     text = t.inThisView.uppercase(),
                     style = type.labelSmall,
                     color = colors.ink2,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = if (metric == TrackMetric.DOSE) {
-                        DoseFormat.rateUnitLabel(unit, s = strings)
-                    } else {
-                        "CPS"
-                    },
-                    style = type.footnote,
-                    color = colors.muted,
                 )
             }
             StatGrid(
@@ -1745,8 +1729,8 @@ private fun metricWithUnit(
     metric: TrackMetric,
     unit: DoseUnitSetting,
 ): String = when (metric) {
-    TrackMetric.DOSE -> DoseFormat.rateWithUnit(value, unit, s = strings)
-    TrackMetric.CPS -> TrackMap.formatCps(value) + " CPS"
+    TrackMetric.DOSE -> DoseFormat.rate(value, unit)
+    TrackMetric.CPS -> TrackMap.formatCps(value)
 }
 
 /**

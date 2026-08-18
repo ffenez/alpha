@@ -323,7 +323,8 @@ internal fun buildFrame(
                     count = geometryLabelCount,
                 )
             },
-            unitLabel = if (showUnit) ChartMetrics.unitLabel(metric, unit) else "",
+            // Единица на оси не подписывается: она названа в справке графика.
+            unitLabel = "",
             // Фон, несущий данные: где прибор молчал, куда история не доходит
             // и где проходят сутки/часы (§2 ТЗ).
             gaps = ChartBackground.gaps(

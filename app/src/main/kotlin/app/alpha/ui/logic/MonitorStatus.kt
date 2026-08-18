@@ -151,7 +151,7 @@ fun statusExplanation(
     is MonitorStatus.Fixed -> if (status.above) {
         null
     } else {
-        s.explainMeasuring(DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit, s = s))
+        s.explainMeasuring(DoseFormat.rate(status.thresholdMicroSvH, unit))
     }
     else -> null
 }
@@ -167,35 +167,33 @@ fun statusDetail(
 ): String? = when (status) {
     MonitorStatus.Unknown -> null
     is MonitorStatus.Fixed ->
-        s.detailNoBaseline(DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit, s = s))
+        s.detailNoBaseline(DoseFormat.rate(status.thresholdMicroSvH, unit))
     is MonitorStatus.Usual ->
         // «baseline» — внутреннее имя движка; на экране у величины своё
         // название.
         s.detailUsual(
             baselineRange(status.baseline, unit),
-            DoseFormat.rateUnitLabel(unit, s = s),
             baselineCollectedShort(status.baseline, MonitorCatalogue.of(s.language)),
         )
     is MonitorStatus.AboveUsual ->
         s.detailAboveUsual(
             baselineRange(status.baseline, unit),
-            DoseFormat.rateUnitLabel(unit, s = s),
             heldWording(status.heldSeconds, s),
         )
     is MonitorStatus.AboveThreshold ->
         // Величина И длительность: обе названы, поэтому ожидание видно, а не
         // выглядит как «приложение ничего не заметило».
         s.detailAboveThreshold(
-            DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit, s = s),
+            DoseFormat.rate(status.thresholdMicroSvH, unit),
             heldWording(status.heldSeconds, s),
             spanWording(status.requiredSeconds, s),
         )
     is MonitorStatus.Alert -> {
         val reference = status.baseline
             ?.let {
-                s.referenceProfileBand(baselineRange(it, unit), DoseFormat.rateUnitLabel(unit, s = s))
+                s.referenceProfileBand(baselineRange(it, unit))
             }
-            ?: s.referenceThreshold(DoseFormat.rateWithUnit(status.thresholdMicroSvH, unit, s = s))
+            ?: s.referenceThreshold(DoseFormat.rate(status.thresholdMicroSvH, unit))
         s.detailAlert(reference, heldWording(status.heldSeconds, s))
     }
 }

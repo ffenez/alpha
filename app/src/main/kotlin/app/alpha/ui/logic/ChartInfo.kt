@@ -54,6 +54,11 @@ object ChartInfo {
         detail: ChartDetailMode = ChartDetailMode.DEFAULT,
         /** Открыт фиксированный диапазон из Истории, а не живой край. */
         historical: Boolean = false,
+        /**
+         * В чём измерена величина — «мкЗв/ч», «с⁻¹». На самом графике единицы
+         * нет: она названа здесь, один раз, вместе с остальным устройством оси.
+         */
+        unitLabel: String? = null,
         s: ChartTextStrings = ChartTextRu,
         axis: ChartAxisStrings = ChartAxisRu,
     ): List<ChartInfoSection> {
@@ -74,6 +79,7 @@ object ChartInfo {
             anatomy += s.anatomyHardnessRatio
         }
         anatomy += s.anatomyGaps
+        unitLabel?.let { anatomy += s.anatomyUnit(it) }
         anatomy += s.anatomyAxis
         // Оговорки самой ВЕЛИЧИНЫ переехали сюда с карточки Главной: они
         // обязаны существовать там, где величину показывают, но постоянного

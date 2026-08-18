@@ -47,7 +47,7 @@ interface SessionRadonStrings {
     val runningNow: String
     val samplesLabel: String
     val doseRateLabel: String
-    fun doseRateSummary(avg: String, min: String, max: String, unit: String): String
+    fun doseRateSummary(avg: String, min: String, max: String): String
     val countRateLabel: String
     fun countRateSummary(avg: String, max: String): String
     val sessionDoseLabel: String
@@ -59,7 +59,7 @@ interface SessionRadonStrings {
     val statMin: String
     val statMedian: String
     val statMax: String
-    fun sdWithUnit(unit: String): String
+    val sd: String
     val chartLineNote: String
 
     /** Явное действие карточки: открыть тот же период полноэкранным графиком. */
@@ -76,7 +76,6 @@ interface SessionRadonStrings {
         factor: String,
         flightMedian: String,
         groundMedian: String,
-        unit: String,
     ): String
     val noGroundPoints: String
     val cosmicNote: String
@@ -165,12 +164,12 @@ object SessionRadonRu : SessionRadonStrings {
     override val samplesLabel = "измерений"
     override val doseRateLabel = "мощность дозы"
 
-    override fun doseRateSummary(avg: String, min: String, max: String, unit: String) =
-        "ср $avg · мин $min · макс $max $unit"
+    override fun doseRateSummary(avg: String, min: String, max: String) =
+        "ср $avg · мин $min · макс $max"
 
     override val countRateLabel = "скорость счёта"
 
-    override fun countRateSummary(avg: String, max: String) = "ср $avg · макс $max с⁻¹"
+    override fun countRateSummary(avg: String, max: String) = "ср $avg · макс $max"
 
     override val sessionDoseLabel = "доза за сессию"
     override val trackOnMap = "трек · на карте"
@@ -181,7 +180,7 @@ object SessionRadonRu : SessionRadonStrings {
     override val statMedian = "медиана"
     override val statMax = "макс"
 
-    override fun sdWithUnit(unit: String) = "SD, $unit"
+    override val sd = "SD"
 
     override val chartLineNote =
         "линия — среднее по интервалу (на полноэкранном графике — медиана); пропуски не " +
@@ -202,9 +201,8 @@ object SessionRadonRu : SessionRadonStrings {
         factor: String,
         flightMedian: String,
         groundMedian: String,
-        unit: String,
     ) = "на эшелоне фон ×$factor от вашего наземного медианного " +
-        "($flightMedian против $groundMedian $unit, медианы этой записи)"
+        "($flightMedian против $groundMedian, медианы этой записи)"
 
     override val noGroundPoints =
         "наземных точек с дозой в этой записи нет — множитель к наземному фону не считается"
@@ -316,8 +314,8 @@ object SessionRadonEn : SessionRadonStrings {
     override val samplesLabel = "measurements"
     override val doseRateLabel = "dose rate"
 
-    override fun doseRateSummary(avg: String, min: String, max: String, unit: String) =
-        "avg $avg · min $min · max $max $unit"
+    override fun doseRateSummary(avg: String, min: String, max: String) =
+        "avg $avg · min $min · max $max"
 
     override val countRateLabel = "count rate"
 
@@ -332,7 +330,7 @@ object SessionRadonEn : SessionRadonStrings {
     override val statMedian = "median"
     override val statMax = "max"
 
-    override fun sdWithUnit(unit: String) = "SD, $unit"
+    override val sd = "SD"
 
     override val chartLineNote =
         "the line is the interval mean (on the full-screen chart it is the median); gaps " +
@@ -353,9 +351,8 @@ object SessionRadonEn : SessionRadonStrings {
         factor: String,
         flightMedian: String,
         groundMedian: String,
-        unit: String,
     ) = "at altitude the background is ×$factor of your ground median " +
-        "($flightMedian against $groundMedian $unit, medians of this recording)"
+        "($flightMedian against $groundMedian, medians of this recording)"
 
     override val noGroundPoints =
         "this recording has no ground points with a dose rate — the ratio to the ground " +
@@ -450,12 +447,12 @@ fun SessionRadonStrings.allTexts(): List<String> = listOf(
     lineTrendCaveat,
     exportCsv, exportSaved, exportFailed,
     sessionTag, sessionNotFound, readingSession, runningNow, samplesLabel, doseRateLabel,
-    doseRateSummary("0,15", "0,12", "0,21", "мкЗв/ч"),
+    doseRateSummary("0,15", "0,12", "0,21"),
     countRateLabel, countRateSummary("12", "31"), sessionDoseLabel, trackOnMap,
-    chartTitle, noChartData, statMin, statMedian, statMax, sdWithUnit("мкЗв/ч"),
+    chartTitle, noChartData, statMin, statMedian, statMax, sd,
     chartLineNote, openFullChart, fullChartNote,
     altitudeTitle, noAltitudePoints, altitudeNote,
-    flightFactor("1,8", "0,25", "0,14", "мкЗв/ч"),
+    flightFactor("1,8", "0,25", "0,14"),
     noGroundPoints, cosmicNote,
     eventsTitle, deviationEvent, excursionEvent,
     radonTag, radonResultNotable, radonResultPlain, radonResultNoData,

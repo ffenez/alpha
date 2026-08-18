@@ -168,17 +168,17 @@ interface Strings {
     fun detailNoBaseline(threshold: String): String
 
     /** «P10–P90: 0,09–0,14 мкЗв/ч · наблюдений: 26 ч». */
-    fun detailUsual(range: String, unit: String, collected: String): String
+    fun detailUsual(range: String, collected: String): String
 
     /** «P10–P90 профиля: … · держится 4 мин». */
-    fun detailAboveUsual(range: String, unit: String, held: String): String
+    fun detailAboveUsual(range: String, held: String): String
 
     /** «порог L1 … превышен · держится 40 с из 120 с до тревоги». */
     fun detailAboveThreshold(threshold: String, held: String, required: String): String
 
     fun detailAlert(reference: String, held: String): String
     fun referenceThreshold(threshold: String): String
-    fun referenceProfileBand(range: String, unit: String): String
+    fun referenceProfileBand(range: String): String
 
     /** «держится 4 мин» — длительность вместе со словом. */
     fun held(text: String): String
@@ -681,11 +681,11 @@ fun Strings.allTexts(): List<String> = listOf(
     explainMeasuring("0,30 мкЗв/ч"),
     statusAboveUsual, statusAboveThreshold, statusAboveThresholdShort,
     statusAlert, streamRunning, streamInterruptedFor,
-    detailNoBaseline("0,30"), detailUsual("0,09–0,14", "мкЗв/ч", "26 ч"),
-    detailAboveUsual("0,09–0,14", "мкЗв/ч", held(minutes(4))),
+    detailNoBaseline("0,30"), detailUsual("0,09–0,14", "26 ч"),
+    detailAboveUsual("0,09–0,14", held(minutes(4))),
     detailAboveThreshold("0,30", held(seconds(40)), minutes(2)),
     detailAlert(referenceThreshold("0,30"), held(seconds(45))),
-    referenceProfileBand("0,09–0,14", "мкЗв/ч"),
+    referenceProfileBand("0,09–0,14"),
     held(seconds(45)), seconds(45), minutes(4), hoursMinutes(1, 12),
     agoSeconds(5), updatedAgo(7),
     searchNoBackground, searchWaiting, searchNoExcess, searchSmallChange,

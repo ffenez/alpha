@@ -23,10 +23,8 @@ interface FingerprintStrings {
      * Единицы полосы эталона. Отпечаток сравнивает величины в тех единицах, в
      * которых собран эталон, поэтому переводится только ОБОЗНАЧЕНИЕ.
      */
-    val unitDose: String
-    val unitCount: String
     fun needsWindow(minutes: Long): String
-    fun nowVsReference(now: String, low: String, high: String, unit: String): String
+    fun nowVsReference(now: String, low: String, high: String): String
     val differentChannelGrid: String
 
     // ---------------------------------------------------------- вывод
@@ -71,13 +69,11 @@ object FingerprintRu : FingerprintStrings {
     override val shapeDimension = "Форма спектра"
 
     override val referenceMissing = "эталон места не создан"
-    override val unitDose = "мкЗв/ч"
-    override val unitCount = "с⁻¹"
 
     override fun needsWindow(minutes: Long) = "нужно $minutes мин подходящих измерений"
 
-    override fun nowVsReference(now: String, low: String, high: String, unit: String) =
-        "сейчас $now · эталон $low–$high $unit"
+    override fun nowVsReference(now: String, low: String, high: String) =
+        "сейчас $now · эталон $low–$high"
 
     override val differentChannelGrid = "спектры сняты с разной сеткой каналов"
 
@@ -148,13 +144,11 @@ object FingerprintEn : FingerprintStrings {
     override val shapeDimension = "Spectrum shape"
 
     override val referenceMissing = "this place has no reference yet"
-    override val unitDose = "µSv/h"
-    override val unitCount = "s⁻¹"
 
     override fun needsWindow(minutes: Long) = "$minutes min of admitted measurements needed"
 
-    override fun nowVsReference(now: String, low: String, high: String, unit: String) =
-        "now $now · reference $low–$high $unit"
+    override fun nowVsReference(now: String, low: String, high: String) =
+        "now $now · reference $low–$high"
 
     override val differentChannelGrid = "the spectra were taken on different channel grids"
 
@@ -224,8 +218,8 @@ val FingerprintCatalogue = AreaCatalogue(ru = FingerprintRu, en = FingerprintEn)
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun FingerprintStrings.allTexts(): List<String> = listOf(
     doseDimension, countDimension, shapeDimension,
-    referenceMissing, unitDose, unitCount,
-    needsWindow(15), nowVsReference("0,15", "0,12", "0,18", unitDose),
+    referenceMissing,
+    needsWindow(15), nowVsReference("0,15", "0,12", "0,18"),
     differentChannelGrid,
     headlineNoReference, headlineNotEnough, headlineBothChanged, headlineIntensityChanged,
     headlineShapeChanged, headlineNoDifference,

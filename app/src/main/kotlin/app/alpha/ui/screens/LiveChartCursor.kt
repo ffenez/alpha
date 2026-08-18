@@ -132,7 +132,6 @@ internal fun ExpandedStats(
     val strings = LocalStrings.current
     val t = ChartTextCatalogue.of(strings.language)
     val axis = ChartAxisCatalogue.of(strings.language)
-    val unitLabel = ChartMetrics.unitLabel(metric, unit, axis, strings)
     StatGrid(
         cells = listOf(
             StatCell(stats?.let { DoseFormat.rate(it.min, unit) } ?: "—", t.min),
@@ -143,9 +142,9 @@ internal fun ExpandedStats(
     )
     StatGrid(
         cells = listOf(
-            StatCell(stats?.let { DoseFormat.rate(it.mad, unit) } ?: "—", "MAD, $unitLabel"),
-            StatCell(stats?.let { DoseFormat.rate(it.sd, unit) } ?: "—", "SD, $unitLabel"),
-            StatCell(stats?.let { DoseFormat.rate(it.iqr, unit) } ?: "—", "IQR, $unitLabel"),
+            StatCell(stats?.let { DoseFormat.rate(it.mad, unit) } ?: "—", "MAD"),
+            StatCell(stats?.let { DoseFormat.rate(it.sd, unit) } ?: "—", "SD"),
+            StatCell(stats?.let { DoseFormat.rate(it.iqr, unit) } ?: "—", "IQR"),
         ),
     )
     Hint(

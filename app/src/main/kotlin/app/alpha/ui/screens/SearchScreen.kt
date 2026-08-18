@@ -545,7 +545,7 @@ fun SearchScreen(
                 // Доза печатается общим форматом приложения плюс собственная
                 // относительная погрешность прибора.
                 doseLine = sample?.doseRate?.let { rate ->
-                    val value = DoseFormat.rateWithUnit(rate, doseUnit, strings)
+                    val value = DoseFormat.rate(rate, doseUnit)
                     Uncertainty.errPercentLabel(sample?.doseRateErr)
                         ?.let { "$value $it" } ?: value
                 },
