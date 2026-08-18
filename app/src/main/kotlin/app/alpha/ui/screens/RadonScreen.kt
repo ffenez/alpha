@@ -28,6 +28,7 @@ import app.alpha.AppGraph
 import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.RadonTrend
 import app.alpha.data.toSpectrum
+import app.alpha.ui.components.ExplainInfoButton
 import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.BarChart
@@ -189,7 +190,7 @@ private fun RadonContent(m: RadonModel?, t: SessionRadonStrings) {
                         color = colors.ink2,
                     )
                     Spacer(Modifier.weight(1f))
-                    Chip(text = "i", color = colors.ink2, onClick = { info = true })
+                    ExplainInfoButton(onClick = { info = true })
                 }
                 // Ноль на своём месте, отрицательные столбики — вниз. Раньше
                 // отрицательный час прижимался к нулю и выглядел как «ровно

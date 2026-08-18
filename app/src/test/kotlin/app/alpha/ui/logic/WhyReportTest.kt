@@ -80,10 +80,12 @@ class WhyReportTest {
         report.sections.forEach { section ->
             add(section.title)
             section.note?.let { add(it) }
+            section.critical?.let { add(it) }
             section.lines.forEach { line ->
                 add(line.label)
                 add(line.value)
                 line.note?.let { add(it) }
+                line.critical?.let { add(it) }
             }
         }
     }
@@ -244,7 +246,8 @@ class WhyReportTest {
         assertEquals("Недостаточно данных", states[2].lines.first().value)
 
         for (section in states) {
-            val text = (section.note.orEmpty() + section.lines.joinToString { it.value })
+            val text = (section.note.orEmpty() + section.critical.orEmpty() +
+                section.lines.joinToString { it.value })
             for (word in listOf("обучен", "учится", "модель обучается")) {
                 assertTrue(!text.lowercase().contains(word), "«$word» in: $text")
             }
@@ -386,10 +389,12 @@ class WhyReportTest {
         buildList {
             add(section.title)
             section.note?.let { add(it) }
+            section.critical?.let { add(it) }
             section.lines.forEach {
                 add(it.label)
                 add(it.value)
                 it.note?.let { note -> add(note) }
+                it.critical?.let { note -> add(note) }
             }
         }
     }
@@ -471,7 +476,7 @@ class WhyReportTest {
     fun `the plus-minus next to the dose names the instrument`() {
         val now = WhyReportBuilder.build(input()).sections.first { it.title == "Сейчас" }
         val dose = now.lines.first()
-        val note = assertNotNull(dose.note)
+        val note = assertNotNull(dose.critical)
         assertTrue(note.contains("собственная оценка прибора"), note)
         assertTrue(note.contains("для этого показания"), note)
         // Полный бюджет неопределённости назван отдельно и глубже — выдавать
@@ -483,7 +488,7 @@ class WhyReportTest {
     @Test
     fun `the count rate is explained by what it measures`() {
         val now = WhyReportBuilder.build(input()).sections.first { it.title == "Сейчас" }
-        val note = assertNotNull(now.lines.single { it.label == "Скорость счёта" }.note)
+        val note = assertNotNull(now.lines.single { it.label == "Скорость счёта" }.critical)
         assertTrue(note.contains("не показывает дозу"), note)
         assertTrue(note.contains("энергии"), note)
         assertTrue(!note.contains("далёк"), note)
@@ -523,7 +528,7 @@ class WhyReportTest {
         val comparison = report.sections.single { it.title == "Сравнение с профилем" }
         assertEquals("ещё не собран", comparison.lines.first().value)
         assertTrue(
-            assertNotNull(comparison.lines.first().note).contains("минимально необходимых"),
+            assertNotNull(comparison.lines.first().critical).contains("минимально необходимых"),
         )
         assertTrue(comparison.lines.any { it.value.contains("L1") })
         assertNull(report.usualValue)

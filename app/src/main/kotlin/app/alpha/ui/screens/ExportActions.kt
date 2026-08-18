@@ -329,7 +329,7 @@ internal fun RoutePrivacyDialog(
                 verticalArrangement = Arrangement.spacedBy(Dimens.space2),
             ) {
                 Text(text = s.coordinatesTitle, style = type.title, color = colors.ink)
-                Hint(text = s.coordinatesNote)
+                Text(text = s.coordinatesNote)
                 AppButton(
                     text = s.coordinatesFull,
                     onClick = { onPick(RoutePrivacy.FULL) },

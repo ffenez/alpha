@@ -62,9 +62,9 @@ class SearchStringsTest {
         assertTrue(SearchEn.valueShapeNotEvaluated == "not evaluated")
         assertTrue(SearchRu.valueShapeNotEvaluated == "не оценивается")
         assertTrue(SearchEn.shapeNote.contains("count rate only"))
-        assertTrue(SearchEn.ratioNote("×1,8").contains("normal approximation is not used"))
-        assertTrue(SearchRu.ratioNote("×1,8").contains("нормальное приближение не используется"))
-        assertTrue(SearchEn.ratioNote("×1,8").contains("Clopper–Pearson"))
+        assertTrue(SearchEn.ratioMethodNote.contains("normal approximation is not used"))
+        assertTrue(SearchRu.ratioMethodNote.contains("нормальное приближение не используется"))
+        assertTrue(SearchEn.ratioMethodNote.contains("Clopper–Pearson"))
         // Процент печатается только вместе со знаменателем.
         assertTrue(SearchEn.differenceNote("0,05", "+12 %").contains("of the recorded background"))
         assertTrue(SearchRu.differenceNote("0,05", "+12 %").contains("к записанному фону"))

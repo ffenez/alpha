@@ -36,6 +36,7 @@ import app.alpha.data.export.N42
 import app.alpha.data.export.SpectrumExport
 import app.alpha.data.db.SpectrumSnapshotEntity
 import app.alpha.device.ConnectionState
+import app.alpha.ui.components.ExplainInfoButton
 import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.AppDivider
@@ -265,13 +266,14 @@ fun FoodScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             AppBackButton(onBack = onBack)
             Spacer(Modifier.weight(1f))
-            Chip(text = "i", color = colors.ink2, onClick = { guideOpen = true })
+            ExplainInfoButton(onClick = { guideOpen = true })
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                 Text(text = t.title, style = type.title, color = colors.ink)
-                Hint(text = t.subtitle, style = type.bodySmall, color = colors.ink2)
+                // «Это скрининг, а не лабораторный анализ» — граница метода.
+                Text(text = t.subtitle, style = type.bodySmall, color = colors.ink2)
 
                 when (step) {
                     FoodStep.SETUP -> {
@@ -497,7 +499,9 @@ private fun FoodResult(
             )
         }
     }
-    Hint(text = t.screeningDisclaimer, style = type.footnote, color = colors.muted)
+    // «Отсутствие отличий не доказывает отсутствия радионуклидов» — отказ
+    // утверждать, и он остаётся всегда.
+    Text(text = t.screeningDisclaimer, style = type.footnote, color = colors.muted)
     AppButton(text = t.continueMeasuring, onClick = onContinue, modifier = Modifier.fillMaxWidth())
     AppButton(text = t.exportMeasurement, onClick = onExport, modifier = Modifier.fillMaxWidth())
 }

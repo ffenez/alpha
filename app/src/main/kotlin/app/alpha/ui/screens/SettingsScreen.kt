@@ -410,7 +410,10 @@ private fun SettingsRoot(
                         if (position > 0) SettingsDivider()
                         SettingRow(
                             title = hit.title,
+                            // Раздел найденной настройки — навигация, а не
+                            // пояснение: без него результат поиска не найти.
                             subtitle = hit.section,
+                            subtitleIsExplanation = false,
                             onClick = {
                                 SettingsCategory.entries
                                     .firstOrNull { it.name == hit.categoryId }
@@ -767,8 +770,12 @@ private fun DebugSection(graph: AppGraph) {
                 style = type.bodySmall,
                 color = colors.ink2,
             )
-            Hint(
+            // Что в архиве нет координат и рядов измерений — заявление об
+            // инварианте приватности перед нажатием кнопки, а не пояснение.
+            Text(
                 text = DebugBundle.PRIVACY_NOTE,
+                style = type.footnote,
+                color = colors.muted,
             )
             if (enabled) {
                 Text(text = strings.whatIsWrong, style = type.label, color = colors.ink)

@@ -634,11 +634,14 @@ private fun HelpDialog(
                     style = type.footnote,
                     color = colors.muted,
                 )
-                Hint(text = t.noStoredSpectrum)
+                // Отказ метода: показывать нечего, потому что нет спектра.
+                Text(text = t.noStoredSpectrum, style = type.footnote, color = colors.muted)
                 // Сброс накопления обнуляет сумму прибора, записанное здесь
                 // остаётся.
                 Hint(text = t.recordNote)
-                Hint(text = t.backgroundNote)
+                // Частота записи и её стойкость — данные о том, что именно
+                // сохранено.
+                Text(text = t.backgroundNote, style = type.footnote, color = colors.muted)
             }
         }
         }

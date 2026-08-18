@@ -388,8 +388,12 @@ internal fun ProfileSettingsRow(
         }
 
         // --- Wi-Fi ---
-        Hint(
+        // Заголовок списка сетей и то, что разрешение на геолокацию для
+        // привязки не нужно, — данные, а не пояснение.
+        Text(
             text = strings.wifiNote,
+            style = type.footnote,
+            color = colors.muted,
         )
         boundNetworks.forEach { bound ->
             Row(

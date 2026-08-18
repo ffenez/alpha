@@ -71,4 +71,22 @@ class ChartDetailShapeTest {
         assertEquals(2, ChartDetailShape.medianPolylines(x, medianY, mask, starts).size)
         assertEquals(2, ChartDetailShape.rangeStrokes(x, minY, maxY, mask).size)
     }
+
+    @Test
+    fun `a column wider than one measurement leaves the detailed view`() {
+        // Точный путь, колонка равна секундному агрегату: сами измерения.
+        assertTrue(ChartDetailShape.detailedFits(1_000L, 1_000L, quantilesExact = true))
+        // Шестичасовое окно на поле 1080 px: колонка 40 с — сорок измерений,
+        // её min–max это порядковые статистики группы, а не скачок в данных.
+        assertTrue(!ChartDetailShape.detailedFits(40_000L, 1_000L, quantilesExact = true))
+        // Почасовые скетчи: агрегат сам уже статистика при любой колонке.
+        assertTrue(!ChartDetailShape.detailedFits(3_600_000L, 3_600_000L, quantilesExact = false))
+    }
+
+    @Test
+    fun `an unknown geometry does not switch the view`() {
+        // Ширина колонки ещё не посчитана — вид не меняется на полпути.
+        assertTrue(ChartDetailShape.detailedFits(0L, 1_000L, quantilesExact = true))
+        assertTrue(ChartDetailShape.detailedFits(1_000L, 0L, quantilesExact = true))
+    }
 }

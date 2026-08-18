@@ -16,6 +16,7 @@ import app.alpha.ui.chart.ValueWindow
 import app.alpha.ui.components.DoseChartSpec
 import app.alpha.ui.logic.ChartBackground
 import app.alpha.ui.logic.ChartDetailMode
+import app.alpha.ui.logic.ChartDetailShape
 import app.alpha.ui.logic.ChartMapping
 import app.alpha.ui.logic.ChartMetric
 import app.alpha.ui.logic.ChartMetrics
@@ -159,7 +160,7 @@ internal fun buildFrame(
     //
     // Длинные окна читаются слиянием почасовых скетчей (ADR 004), и колонка
     // там — целое число хранимых часов: распределение известно только по часам.
-    val detailed = detail == ChartDetailMode.DETAILED
+    val requestedDetail = detail == ChartDetailMode.DETAILED
     val refoldable = snapshot.method != QuantileMethod.KLL_SKETCH
     // Геометрия шире видимого окна, чтобы жест двигал готовую картинку
     // (`ChartGesture`); разрешение считается по видимому окну.
@@ -171,11 +172,22 @@ internal fun buildFrame(
             subBucketMillis = snapshot.subBucketMillis,
             // Сглаженный вид — медиана колонки с конвертами разброса, и
             // колонка обязана быть шире одного измерения.
-            smoothed = !detailed,
+            smoothed = !requestedDetail,
         )
     } else {
         snapshot.bucketMillis
     }
+    // Подробный вид держится, только пока колонка равна агрегату снимка: тогда
+    // её крайние значения и есть измерения. Колонка шире агрегата (40 с на
+    // шестичасовом окне, час на суточном) несёт размах ГРУППЫ измерений, и
+    // штрих во всю высоту поля показывает скачки, которых в данных нет; такую
+    // колонку рисует медиана с квантильными конвертами ([ChartDetailShape]).
+    val detailed = requestedDetail &&
+        ChartDetailShape.detailedFits(
+            columnMillis = columnMillis,
+            subBucketMillis = snapshot.subBucketMillis,
+            quantilesExact = snapshot.method.exact,
+        )
     val columns = if (refoldable) {
         val alignedFrom = ChartMapping.alignedFrom(
             geometry.toMillis,

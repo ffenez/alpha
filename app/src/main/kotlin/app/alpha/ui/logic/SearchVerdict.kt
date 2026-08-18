@@ -162,7 +162,7 @@ object SearchVerdict {
             label = t.whyCountRateNow,
             value = input.cps?.let { "${Uncertainty.num1(it)} ${t.cpsUnit}" } ?: t.valueNoData,
             evidence = Evidence.MEASURED,
-            note = input.cps?.let { t.cpsSigmaLine(Uncertainty.num1(Uncertainty.cpsSigma(it))) },
+            critical = input.cps?.let { t.cpsSigmaLine(Uncertainty.num1(Uncertainty.cpsSigma(it))) },
         )
 
         val background = input.background
@@ -171,7 +171,7 @@ object SearchVerdict {
             value = background?.let { "${Uncertainty.num1(it.cps)} ${t.cpsUnit}" }
                 ?: t.valueNotRecorded,
             evidence = Evidence.MEASURED,
-            note = background?.let {
+            critical = background?.let {
                 t.backgroundWindowNote(
                     sigma = Uncertainty.num1(it.sigma),
                     samples = it.window.samples,
@@ -186,7 +186,7 @@ object SearchVerdict {
                 label = t.whyComparison,
                 value = t.valueNotPerformed,
                 evidence = Evidence.STATISTICALLY_DETECTED,
-                note = if (background == null) t.noBackgroundToCompare else t.noReadingsInWindow,
+                critical = if (background == null) t.noBackgroundToCompare else t.noReadingsInWindow,
             )
             return lines
         }
@@ -195,21 +195,21 @@ object SearchVerdict {
             label = t.whyDecisionWindow,
             value = t.secondsValue(num1(comparison.current.seconds)),
             evidence = Evidence.MEASURED,
-            note = t.countsInWindow(num0(comparison.current.counts), comparison.current.samples) +
+            critical = t.countsInWindow(num0(comparison.current.counts), comparison.current.samples) +
                 gapNote(comparison.current.gapSeconds, t),
         )
         lines += WhyLine(
             label = t.whyBackgroundWindow,
             value = t.secondsValue(num1(comparison.background.seconds)),
             evidence = Evidence.MEASURED,
-            note = t.counts(num0(comparison.background.counts)) +
+            critical = t.counts(num0(comparison.background.counts)) +
                 gapNote(comparison.background.gapSeconds, t),
         )
         lines += WhyLine(
             label = t.whyDifference,
             value = signed(comparison.differencePerSecond) + " ${t.cpsUnit}",
             evidence = Evidence.CALCULATED,
-            note = t.differenceNote(
+            critical = t.differenceNote(
                 sigma = num2(comparison.differenceSigma),
                 percent = deltaPercent(comparison)?.let { signedPercent(it) },
             ),
@@ -219,10 +219,12 @@ object SearchVerdict {
                 label = t.whyRatio,
                 value = "×${num2(comparison.ratio)}",
                 evidence = Evidence.STATISTICALLY_DETECTED,
-                // Интервал без названного метода — просто пара чисел: у
-                // пуассоновских счётов нормальное приближение на малых
-                // числах даёт не тот охват, ради которого интервал и строят.
-                note = t.ratioNote(it),
+                // Сам интервал — часть числа и виден всегда; названный метод
+                // интервала — пояснение: у пуассоновских счётов нормальное
+                // приближение на малых числах даёт не тот охват, ради
+                // которого интервал и строят.
+                critical = it,
+                note = t.ratioMethodNote,
             )
         }
         lines += WhyLine(

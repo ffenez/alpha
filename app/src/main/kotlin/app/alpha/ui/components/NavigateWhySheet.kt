@@ -62,7 +62,7 @@ fun NavigateWhySheet(
                 AppDivider()
                 // Граница режима стоит рядом с выводом, а не в справке об
                 // интерфейсе: это ограничение самого вывода.
-                Hint(text = t.navWhyLimit)
+                Text(text = t.navWhyLimit, style = type.footnote, color = colors.ink2)
                 AppButton(
                     text = t.understood,
                     onClick = onDismiss,

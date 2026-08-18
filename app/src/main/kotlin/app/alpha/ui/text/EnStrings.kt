@@ -639,7 +639,7 @@ object EnStrings : Strings {
     override val unitDoseMicroR = "µR"
     override val colorsTitle = "Colours"
     override val homeLayoutTitle = "Home"
-    override val hintsNote = "Short prompts next to the harder numbers."
+    override val hintsNote = "Help and extra explanations on the screens."
     override val doseTintNote = "The main value changes colour when it differs noticeably from usual."
     override val interfaceTitle = "Interface"
     override val atLeastOneTab = "Besides Monitor, at least one tab has to remain."
@@ -687,7 +687,7 @@ object EnStrings : Strings {
 
     override fun baselineStats(median: String, iqr: String, mad: String, buckets: Int) =
         "median $median · P25–P75 $iqr · MAD $mad · n $buckets one-minute intervals"
-    override val hintsTitle = "Explanations on screens"
+    override val hintsTitle = "Explanations"
     override val doseTintTitle = "Tint the number by the place's background"
     override val doseTintFactorTitle = "Crimson at"
     override fun doseTintFactorLabel(factor: String) = "×$factor"

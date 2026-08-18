@@ -60,6 +60,7 @@ import app.alpha.device.ConnectionState
 import app.alpha.protocol.Spectrum
 import app.alpha.service.AbRunRecorder
 import app.alpha.service.ServiceStatus
+import app.alpha.ui.components.ExplainInfoButton
 import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
@@ -769,7 +770,7 @@ private fun ExperimentDetail(
             if (series.isNotEmpty()) DistanceCard(series)
         }
         if (current.kind == ExperimentEntity.KIND_SHIELDING) {
-            Hint(
+            Text(
                 text = t.shieldingWarning,
             )
         }
@@ -954,7 +955,7 @@ private fun ExperimentalBanner() {
                 color = colors.ink2,
                 modifier = Modifier.weight(1f),
             )
-            Chip(text = "i", color = colors.ink2, onClick = { info = true })
+            ExplainInfoButton(onClick = { info = true })
         }
     }
 }
@@ -1068,7 +1069,7 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
                     else -> colors.warn
                 },
             )
-            Hint(
+            Text(
                 text = t.verdictScopeNote,
             )
         }
@@ -1140,7 +1141,7 @@ private fun ComparisonCards(comparison: AbExperiment.Comparison) {
                 )
             }
             comparison.doseRate?.let {
-                Hint(
+                Text(
                     text = t.doseAuxNote,
                 )
             }
@@ -1192,7 +1193,7 @@ private fun DistanceCard(series: List<AbExperiment.DistancePoint>) {
                 }
                 if (index < series.size - 1) AppDivider()
             }
-            Hint(
+            Text(
                 text = t.distanceWarning,
             )
         }

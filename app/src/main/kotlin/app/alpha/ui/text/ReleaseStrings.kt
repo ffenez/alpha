@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0250Title: String
+    val v0250Summary: String
+
     val v0240Title: String
     val v0240Summary: String
 
@@ -303,6 +306,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0250Title = "Пояснения выключаются, данные — нет"
+    override val v0250Summary =
+        "Переключатель назван «Пояснения» и теперь трогает только справочный текст: ±σ, " +
+        "объём замера, «сравнивать не с чем», границы метода и предупреждения остаются на " +
+        "экране всегда. Значок приложения стал прозрачным — на обоях живёт сама α, без " +
+        "подложки; график на длинных окнах рисует медиану с полосой разброса, а не частокол."
 
     override val v0240Title = "Наведение: стрелка или прямая шкала"
     override val v0240Summary =
@@ -948,6 +958,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0250Title = "Explanations switch off, data does not"
+    override val v0250Summary =
+        "The setting is called «Explanations» and now touches help text only: ±σ, the size of " +
+        "a measurement, «nothing to compare with», the limits of a method and the warnings " +
+        "stay on screen always. The launcher icon lost its plate — the α now lives on the " +
+        "wallpaper — and long chart windows draw the median with its spread, not a picket fence."
 
     override val v0240Title = "Guidance: a needle or a straight scale"
     override val v0240Summary =

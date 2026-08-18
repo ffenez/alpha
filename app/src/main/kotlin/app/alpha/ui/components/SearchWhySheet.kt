@@ -54,10 +54,10 @@ fun SearchWhySheet(
                     SearchVerdict.whyLines(input, strings, t).forEach { WhyRow(it) }
                 }
                 AppDivider()
-                // Граница режима: не пояснение интерфейса, а ограничение
-                // вывода — и оно тоже уходит вместе с пояснениями, потому что
-                // сам вывод ничего не утверждает сверх измеренного.
-                Hint(text = t.infoLimit)
+                // Граница режима — часть вывода, а не пояснение к нему:
+                // «подтверждает изменение счёта, а не расположение источника»
+                // меняет то, как читается результат, и остаётся всегда.
+                Text(text = t.infoLimit, style = type.footnote, color = colors.ink2)
                 Hint(
                     text = t.evidenceLegend,
                 )

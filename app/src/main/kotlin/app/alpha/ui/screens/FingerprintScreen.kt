@@ -149,7 +149,8 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
                 Fingerprint.hardnessLine(current.comparison, t)?.let {
                     Text(text = it, style = type.footnote, color = colors.muted)
                 }
-                Hint(text = t.caveat)
+                // Граница метода — часть вывода.
+                Text(text = t.caveat, style = type.footnote, color = colors.muted)
             }
         }
 

@@ -97,6 +97,14 @@ fun SettingRow(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    /**
+     * Пояснение ли подпись под названием.
+     *
+     * По умолчанию да — и тогда она прячется вместе со всеми пояснениями
+     * (CLAUDE.md, три категории). `false` ставится там, где подпись несёт
+     * данные: критерий порога, раздел найденной настройки, единица.
+     */
+    subtitleIsExplanation: Boolean = true,
     value: String? = null,
     /** Значение выделено цветом данных — когда оно само по себе состояние. */
     valueHighlighted: Boolean = false,
@@ -132,11 +140,15 @@ fun SettingRow(
                 color = if (enabled) colors.ink else colors.muted,
             )
             if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
+                if (subtitleIsExplanation) {
+                    Hint(text = subtitle)
+                } else {
+                    Text(
+                        text = subtitle,
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
             }
         }
         if (value != null) {

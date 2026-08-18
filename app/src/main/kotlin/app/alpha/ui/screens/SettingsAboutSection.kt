@@ -171,9 +171,12 @@ internal fun LicensesSection() {
                 ReleaseNotesList()
             }
             SectionTitle(strings.licencesTitle)
-            Hint(
+            // Атрибуция лицензий обязательна и не прячется ни при каких
+            // настройках интерфейса.
+            Text(
                 text = strings.licencesBody,
                 style = type.bodySmall,
+                color = colors.ink2,
             )
             AppButton(
                 text = if (showLicenses) strings.hideLicences else strings.showLicences,

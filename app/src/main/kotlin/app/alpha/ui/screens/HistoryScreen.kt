@@ -894,11 +894,12 @@ fun HistoryScreen(
                                                 unit = unit,
                                                 strings = strings,
                                                 h = h,
-                                                // Качество записи — пояснение:
-                                                // строка о пропусках появляется
-                                                // при включённых пояснениях и
-                                                // заметных пропусках.
-                                                withGaps = LocalHintsVisible.current,
+                                                // Пропуски в записи — данные, а
+                                                // не пояснение: запись с
+                                                // часовым провалом обязана
+                                                // отличаться от сплошной при
+                                                // любых настройках.
+                                                withGaps = true,
                                             ),
                                             check = if (selection.active && !group.running) {
                                                 ids.all { it in selection.sessions }

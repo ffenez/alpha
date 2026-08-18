@@ -189,7 +189,9 @@ internal fun AlarmsSection(graph: AppGraph) {
         SettingsDivider()
         SettingRow(
             title = strings.thresholdNow,
+            // Критерий порога — данные: он говорит, ОТ ЧЕГО считается «×N».
             subtitle = strings.relativeCriterion(formatFactor(thresholds.relativeFactor)),
+            subtitleIsExplanation = false,
             value = DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit, s = strings),
             valueHighlighted = true,
         )

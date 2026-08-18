@@ -183,7 +183,7 @@ object NavigateVerdict {
             lines += WhyLine(
                 label = t.navWhyInterval,
                 value = "${num2(comparison.ratioLow)}–${num2(comparison.ratioHigh)}×",
-                note = if (delta is ReferenceDelta.Unresolved) t.navWhyIntervalNote else null,
+                critical = if (delta is ReferenceDelta.Unresolved) t.navWhyIntervalNote else null,
             )
         }
         // Процент печатается ТОЛЬКО когда тест разрешил различие: «+31 %»,

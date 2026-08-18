@@ -125,7 +125,7 @@ class NavigateVerdictTest {
         assertTrue(labels.contains(SearchRu.navWhyCriterion), "$labels")
         // Именно тут объяснено, почему числа мало: 1× внутри интервала.
         val interval = lines.first { it.label == SearchRu.navWhyInterval }
-        assertTrue(assertNotNull(interval.note).contains("1×"), "${interval.note}")
+        assertTrue(assertNotNull(interval.critical).contains("1×"), "${interval.critical}")
         // Процента в неразрешённом состоянии нет и в разборе.
         assertTrue(!labels.contains(SearchRu.navWhyDifference), "$labels")
     }
@@ -214,7 +214,7 @@ class NavigateVerdictTest {
                 texts += NavigateVerdict.unresolvedNote(delta, catalogue).orEmpty()
                 texts += NavigateVerdict.percentLabel(delta).orEmpty()
                 texts += NavigateVerdict.whyLines(state(), delta, 30.0f, catalogue)
-                    .flatMap { listOf(it.label, it.value, it.note.orEmpty()) }
+                    .flatMap { listOf(it.label, it.value, it.note.orEmpty(), it.critical.orEmpty()) }
             }
             for (trend in NavigateTrend.entries) {
                 texts += NavigateVerdict.trendLabel(trend, catalogue)

@@ -31,7 +31,7 @@ import app.alpha.data.DoseUnitSetting
 import app.alpha.data.SessionSummary
 import app.alpha.data.db.EventEntity
 import app.alpha.device.DoseUnits
-import app.alpha.ui.components.LocalHintsVisible
+import app.alpha.ui.components.ExplainInfoButton
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.AppDivider
 import app.alpha.data.export.ReportFactories
@@ -468,14 +468,10 @@ private fun ChartCard(
                 if (detail.stats != null) {
                     Chip(text = "↗", color = colors.dataText, onClick = onOpenChart)
                 }
-                if (LocalHintsVisible.current) {
-                    Chip(
-                        text = "i",
-                        color = colors.ink2,
-                        onClick = { info = true },
-                        modifier = Modifier.padding(start = Dimens.space1),
-                    )
-                }
+                ExplainInfoButton(
+                    onClick = { info = true },
+                    modifier = Modifier.padding(start = Dimens.space1),
+                )
             }
             val stats = detail.stats
             if (stats == null) {
@@ -565,7 +561,7 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting, t: SessionR
                     color = colors.ink2,
                     modifier = Modifier.weight(1f),
                 )
-                Chip(text = "i", color = colors.ink2, onClick = { info = true })
+                ExplainInfoButton(onClick = { info = true })
             }
             val maxAltitude = columns.filterNotNull().maxOrNull()
             if (maxAltitude == null) {
