@@ -123,6 +123,31 @@ interface SearchStrings {
     /** «к точке отсчёта 25,1» — знаменатель большого числа, под ним. */
     fun navRefBase(rate: String): String
 
+    /**
+     * Отношение к точке отсчёта — главная подпись под числом.
+     *
+     * Знаменатель назван в самой строке: отношение без знаменателя — отношение
+     * ни к чему.
+     */
+    fun navRatioToReference(ratio: String): String
+
+    /**
+     * Вердикт о РАЗНИЦЕ, отдельно от её величины.
+     *
+     * Величину экран показывает всегда, как только есть оба числа; эти строки
+     * отвечают на другой вопрос — можно ли на разницу опереться.
+     */
+    val navConfidenceInsufficient: String
+    val navConfidenceNoDifference: String
+    val navConfidenceAbove: String
+    val navConfidenceBelow: String
+
+    /** Подпись под центром прибора, пока точки отсчёта нет. */
+    val navScaleNoReference: String
+
+    /** Компактная строка сохранённой точки отсчёта: величина и время. */
+    fun navReferenceRow(rate: String, time: String?): String
+
     /** До точки отсчёта модуль не сравнивает, а учит первому действию. */
     val navSetupTitle: String
     val navSetupBody: String
@@ -450,6 +475,18 @@ object SearchRu : SearchStrings {
         "Наблюдаемое изменение может быть обычным колебанием счёта."
 
     override fun navRefBase(rate: String) = "к точке отсчёта $rate"
+
+    override fun navRatioToReference(ratio: String) = "$ratio× к отсчёту"
+
+    override val navScaleNoReference = "отсчёт не задан"
+
+    override val navConfidenceInsufficient = "Недостаточно данных для уверенного вывода"
+    override val navConfidenceNoDifference = "Без заметного изменения"
+    override val navConfidenceAbove = "Сигнал выше отсчёта"
+    override val navConfidenceBelow = "Сигнал ниже отсчёта"
+
+    override fun navReferenceRow(rate: String, time: String?) =
+        listOfNotNull("Точка отсчёта", rate, time).joinToString(" · ")
 
     override val navSetupTitle = "Задайте точку отсчёта"
     override val navSetupBody =
@@ -835,6 +872,18 @@ object SearchEn : SearchStrings {
 
     override fun navRefBase(rate: String) = "vs the reference point $rate"
 
+    override fun navRatioToReference(ratio: String) = "$ratio× vs the reference"
+
+    override val navScaleNoReference = "no reference"
+
+    override val navConfidenceInsufficient = "Not enough data for a confident answer"
+    override val navConfidenceNoDifference = "No difference showing"
+    override val navConfidenceAbove = "Signal above the reference"
+    override val navConfidenceBelow = "Signal below the reference"
+
+    override fun navReferenceRow(rate: String, time: String?) =
+        listOfNotNull("Reference point", rate, time).joinToString(" · ")
+
     override val navSetupTitle = "Set a reference point"
     override val navSetupBody =
         "Remember the level where you are standing now. After that the app " +
@@ -1169,6 +1218,9 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     navRatioInterval(95, "1,20", "2,10"), navRatioToLocal("1,00"), navWindows("1,8", "16,0"),
     navDeltaDash, navRefNone, navRefCollecting, navRefUnresolved, navRefAbove, navRefBelow,
     navDeltaCaptionCollecting, navUnresolvedNote, navRefBase("25,1"),
+    navRatioToReference("1,00"), navScaleNoReference, navConfidenceInsufficient,
+    navConfidenceNoDifference,
+    navConfidenceAbove, navConfidenceBelow, navReferenceRow("23,6", "21:48"),
     navSetupTitle, navSetupBody, navWhy, navWhyTitle, navWhyNow, navWhyReference, navWhyRatio,
     navWhyInterval, navWhyIntervalNote, navWhyDifference, navWhyRecent, navWhyRecentNote,
     navWhyWindows, navWhyCriterion, navWhyCriterionValue("1"), navWhyCriterionNote, navWhyLimit,

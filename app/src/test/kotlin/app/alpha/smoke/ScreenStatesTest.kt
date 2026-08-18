@@ -14,6 +14,7 @@ import app.alpha.baseline.BaselineState
 import app.alpha.ui.logic.MonitorStatus
 import app.alpha.ui.logic.NavigateEngine
 import app.alpha.ui.logic.NavigateState
+import app.alpha.ui.logic.SearchUiStates
 import app.alpha.ui.logic.SpotMeasure
 import app.alpha.ui.logic.StreamState
 import app.alpha.ui.screens.HeroCard
@@ -134,7 +135,15 @@ class ScreenStatesTest {
     @androidx.compose.runtime.Composable
     private fun search(state: NavigateState, cps: Float?) {
         val strings = LocalStrings.current
+        val now = state.latest?.timeMillis ?: 1_700_000_000_000L
         NavigateSection(
+            ui = SearchUiStates.of(
+                cps = cps,
+                receivedAtMillis = if (cps == null) null else now,
+                nowMillis = now,
+                connected = cps != null,
+                navigate = state,
+            ),
             state = state,
             spot = SpotMeasure.Idle,
             nowMillis = state.latest?.timeMillis ?: 1_700_000_000_000L,
@@ -161,8 +170,8 @@ class ScreenStatesTest {
         assertShown(s.tilePlaceBackground)
         assertShown(s.tilePerHour)
         assertShown(s.tilePerDay)
-        // Неопределённость показания стоит под числом, раз она посчитана.
-        assertShown("±9")
+        // Погрешность прибора под числом не стоит: её место — в «Почему».
+        assertAbsent("±9")
     }
 
     @Test
@@ -195,12 +204,10 @@ class ScreenStatesTest {
     @Test
     fun `search before a reference shows the empty instrument and the action`() {
         show(UiVariant.ALL[0]) { search(NavigateState(), cps = 17.4f) }
-        val t = SearchRu
         // Прибор стоит пустым, и рядом — единственное действие этого состояния.
-        assertShown(t.navSetupTitle)
-        assertShown(t.navMark)
+        assertShown(SearchRu.navMark)
         // Отношения ещё нет, поэтому его подписи тоже нет.
-        assertAbsent("1,00×")
+        assertAbsent("к отсчёту")
     }
 
     @Test
@@ -215,13 +222,21 @@ class ScreenStatesTest {
     fun `search well above the reference names the ratio in one caption`() {
         show(UiVariant.ALL[0]) { search(navigateAt(reference = 17.4f, current = 74.5f), cps = 74.5f) }
         // Отношение — подписью под числом, и знаменатель назван в ней же.
-        assertShown("к точке отсчёта")
+        assertShown("к отсчёту")
+        // Большое действие ушло: точка отсчёта уже стоит.
+        assertAbsent(SearchRu.navMark)
         assertAbsent(SearchRu.navUnresolvedNote)
     }
 
     @Test
-    fun `search with the stream stopped keeps the instrument on screen`() {
+    fun `search with the stream stopped says so and only about the stream`() {
         show(UiVariant.ALL[0]) { search(NavigateState(), cps = null) }
-        assertShown(SearchRu.navSetupTitle)
+        assertShown(SearchRu.waitingStream)
+    }
+
+    @Test
+    fun `a live reading never shows the waiting line`() {
+        show(UiVariant.ALL[0]) { search(navigateAt(reference = 17.4f, current = 74.5f), cps = 74.5f) }
+        assertAbsent(SearchRu.waitingStream)
     }
 }
