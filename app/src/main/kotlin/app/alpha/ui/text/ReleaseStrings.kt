@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0300Title: String
+    val v0300Summary: String
+
     val v0291Title: String
     val v0291Summary: String
 
@@ -324,6 +327,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0300Title = "Шкала прибора и на Проверке"
+    override val v0300Summary =
+        "Отношение к записанному фону было только словами вердикта — теперь оно стоит на той " +
+        "же шкале, что и в Наведении, вместе с сектором своего интервала. Стрелка красится " +
+        "только подтверждённым отличием: пока лестница набирает подтверждение, цвет тревоги " +
+        "был бы приговором раньше времени."
 
     override val v0291Title = "Проверка тоже дышит"
     override val v0291Summary =
@@ -1019,6 +1029,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0300Title = "The instrument scale reaches Проверка"
+    override val v0300Summary =
+        "The ratio to the recorded background was words in the verdict only — it now stands on " +
+        "the same scale as in Наведение, with the sector of its interval. The needle is " +
+        "coloured only by a confirmed difference: while the ladder is still collecting, an " +
+        "alarm colour would be a verdict passed too early."
 
     override val v0291Title = "Проверка breathes too"
     override val v0291Summary =

@@ -54,6 +54,7 @@ import app.alpha.ui.components.Card
 import app.alpha.ui.components.Chip
 import app.alpha.ui.components.LedMeter
 import app.alpha.ui.components.SearchChartSpec
+import app.alpha.ui.components.NavigateGaugeSpec
 import app.alpha.ui.components.SearchRateChart
 import app.alpha.ui.components.SearchWhySheet
 import app.alpha.ui.components.Segmented
@@ -79,6 +80,8 @@ import app.alpha.data.DoseUnitSetting
 import app.alpha.ui.logic.DoseFormat
 import app.alpha.ui.logic.LocalBackground
 import app.alpha.ui.logic.LocalBackgroundMachine
+import app.alpha.ui.logic.NavigateArc
+import app.alpha.ui.logic.NavigateScaleState
 import app.alpha.ui.logic.NavigateEngine
 import app.alpha.ui.logic.NavigateState
 import app.alpha.ui.logic.NavigateTrend
@@ -92,6 +95,7 @@ import app.alpha.ui.logic.SearchLevel
 import app.alpha.ui.logic.SearchSpectrumHint
 import app.alpha.ui.logic.SearchState
 import app.alpha.ui.logic.SearchPulse
+import app.alpha.ui.logic.VerifyScale
 import app.alpha.ui.logic.SearchTone
 import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.logic.SearchVerdict
@@ -591,6 +595,22 @@ fun SearchScreen(
         }
 
         // ---------------------------------------------------------- the answer
+        // Кадр шкалы растёт сразу и сжимается с задержкой ([NavigateArc.next]):
+        // стрелка, упёртая в конец, врёт, а кадр, дёргающийся вслед за шумом,
+        // не даёт прочитать положение.
+        var verifyScale by remember { mutableStateOf<NavigateScaleState?>(null) }
+        LaunchedEffect(search.comparison) {
+            verifyScale = NavigateArc.next(
+                verifyScale,
+                System.currentTimeMillis(),
+                VerifyScale.requiredFactor(
+                    ratio = search.comparison?.ratio,
+                    low = search.comparison?.ratioLow,
+                    high = search.comparison?.ratioHigh,
+                ),
+            )
+        }
+        val verifyFactor = verifyScale?.factor ?: NavigateArc.LADDER.first()
         // Цвет числа — отношение к записанному фону: то же правило, что у дозы
         // на Главной (`DoseTint`). Им же красится дыхание: один смысл — один цвет.
         val tintFraction = if (doseTint) DoseTint.of(cps, record?.cps, tintFactor) else null
@@ -676,8 +696,30 @@ fun SearchScreen(
                         // Полный разбор открывается нажатием на сам вывод.
                     }
 
-                    // Направление изменения — вопрос «Наведения», и там оно
-                    // показано модулем целиком; расчёт живёт там же и в «Почему?».
+                    // Та же шкала прибора, что в «Наведении», но знаменатель
+                    // другой — записанный фон места, и он назван подписью под
+                    // ×1. Интервал нарисован сектором: одна стрелка без него
+                    // показывала бы отношение точнее, чем оно измерено. Пока
+                    // фона нет, шкала стоит пустой — прибор без показания это
+                    // всё ещё прибор.
+                    val comparison = search.comparison
+                    NavigateIndicator(
+                        indicator = indicator,
+                        spec = NavigateGaugeSpec(
+                            ratio = comparison?.ratio,
+                            peakRatio = null,
+                            intervalLow = comparison?.ratioLow?.takeIf { it.isFinite() },
+                            intervalHigh = comparison?.ratioHigh?.takeIf { it.isFinite() },
+                            factor = verifyFactor,
+                            trend = VerifyScale.trend(level),
+                            referenceLabel = "1×",
+                            lowLabel = "${NavigateArc.factorLabel(1.0 / verifyFactor)}×",
+                            highLabel = "${NavigateArc.factorLabel(verifyFactor)}×",
+                            referenceCaption = strings.backgroundTag,
+                            lowCaption = t.navScaleWeaker,
+                            highCaption = t.navScaleStronger,
+                        ),
+                    )
 
                     // Полоска показывает НАБОР ПОДТВЕРЖДЕНИЯ, а не уровень: она
                     // отвечает, сколько ещё держать прибор здесь. Отличия нет —
