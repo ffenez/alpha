@@ -20,6 +20,9 @@ interface ChartTextStrings {
     val sectionNumbers: String
     val sectionGestures: String
 
+    /** «Значения — в мкЗв/ч»: единица названа в справке, а не у каждого числа. */
+    fun anatomyUnit(unit: String): String
+
     val anatomyAxis: String
     val anatomyMedianLine: String
 
@@ -176,6 +179,9 @@ object ChartTextRu : ChartTextStrings {
     override val sectionReferences = "С чем сравнивается"
     override val sectionNumbers = "Откуда числа"
     override val sectionGestures = "Жесты"
+
+    override fun anatomyUnit(unit: String) =
+        "Значения на этом графике — в $unit; единица выбрана в Настройках."
 
     override val anatomyAxis = "Ось значений подогнана к наблюдаемым данным, а не к нулю: " +
         "показаны те уровни, на которых прибор реально был. Порог тревоги входит в кадр, " +
@@ -356,6 +362,9 @@ object ChartTextEn : ChartTextStrings {
     override val sectionNumbers = "Where the numbers come from"
     override val sectionGestures = "Gestures"
 
+    override fun anatomyUnit(unit: String) =
+        "The values on this chart are in $unit; the unit is chosen in Settings."
+
     override val anatomyAxis = "The value axis is fitted to the observed data, not tied to " +
         "zero: it shows the levels the instrument actually was at. The alarm threshold enters " +
         "the frame only when the data comes close to it; a distant threshold is shown by a " +
@@ -520,7 +529,7 @@ val ChartTextCatalogue = AreaCatalogue(ru = ChartTextRu, en = ChartTextEn)
 /** Все строки области — для проверок, действующих на каждый язык. */
 fun ChartTextStrings.allTexts(): List<String> = listOf(
     infoTitle, sectionAnatomy, sectionReferences, sectionNumbers, sectionGestures,
-    anatomyAxis, anatomyMedianLine, anatomyMedianDetail,
+    anatomyUnit("мкЗв/ч"), anatomyAxis, anatomyMedianLine, anatomyMedianDetail,
     anatomyEnvelopes, anatomyEnvelopesDetail, anatomyHardnessRatio, anatomyGaps,
     referenceProfileBand, referenceProfileBandMissing, referenceAlarmLine,
     referenceAlarmAbsent, referenceMarkers, referenceEpisodes,

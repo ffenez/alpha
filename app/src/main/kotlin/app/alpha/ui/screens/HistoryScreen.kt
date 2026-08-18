@@ -1829,8 +1829,8 @@ private fun sessionDetail(
     val stats = group.stats
     val avg = stats.avgDoseRateMicroSvH
     if (stats.sampleCount == 0 || avg == null) return h.noMeasurements
-    val values = DoseFormat.rateWithUnit(avg, unit, s = strings) + " · " +
-        DoseFormat.doseWithUnit(group.doseMicroSv, unit, s = strings)
+    val values = DoseFormat.rate(avg, unit) + " · " +
+        DoseFormat.dose(group.doseMicroSv, unit)
     if (!withGaps) return values
     // Прибор пишет раз в секунду, поэтому число измерений и есть измеренные
     // секунды; пропуск — то, чего в записи нет.
@@ -1864,7 +1864,7 @@ private fun routeDetail(
     val max = route.maxDoseMicroSvH
     return listOfNotNull(
         "${strings.avg} ${DoseFormat.rate(avg, unit)}",
-        max?.let { "${strings.max} ${DoseFormat.rateWithUnit(it, unit, s = strings)}" },
+        max?.let { "${strings.max} ${DoseFormat.rate(it, unit)}" },
     ).joinToString(" · ")
 }
 

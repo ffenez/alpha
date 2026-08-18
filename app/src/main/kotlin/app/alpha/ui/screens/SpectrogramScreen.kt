@@ -496,7 +496,7 @@ private fun BoxScope.MomentOverlay(
                 cells = listOf(
                     StatCell(
                         value = selected.doseMicroSvH
-                            ?.let { DoseFormat.rateWithUnit(it, unit, s = strings) }
+                            ?.let { DoseFormat.rate(it, unit) }
                             ?: "—",
                         key = t.keyDoseRate,
                     ),

@@ -593,7 +593,7 @@ object SpectrumRu : SpectrumStrings {
     override val boundsChip = "настроить…"
     override val columnWindow = "диапазон, кэВ"
     override val columnCounts = "имп"
-    override val columnRate = "с⁻¹ ± σ"
+    override val columnRate = "счёт ± σ"
     override val columnShare = "доля"
 
     override val indexNote =
@@ -1004,7 +1004,7 @@ object SpectrumEn : SpectrumStrings {
     override val boundsChip = "configure…"
     override val columnWindow = "range, keV"
     override val columnCounts = "counts"
-    override val columnRate = "counts/s ± σ"
+    override val columnRate = "count ± σ"
     override val columnShare = "share"
 
     // «не мера опасности» → «not a measure of harm»: отношение ОПИСЫВАЕТ состав

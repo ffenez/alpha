@@ -97,8 +97,8 @@ class SpectrumStringsTest {
         // неопределённость — σ_R = √C/t, стандартная неопределённость скорости
         // счёта. Прежнее «±Σ» на экране было следствием перевода шапки в
         // верхний регистр (σ → Σ) и читалось как знак суммы.
-        assertEquals("counts/s ± σ", SpectrumEn.columnRate)
-        assertEquals("с⁻¹ ± σ", SpectrumRu.columnRate)
+        assertEquals("count ± σ", SpectrumEn.columnRate)
+        assertEquals("счёт ± σ", SpectrumRu.columnRate)
         assertTrue(SpectrumEn.shapeChiSquare(18, "4,1").startsWith("χ²"))
     }
 

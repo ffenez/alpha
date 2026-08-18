@@ -52,12 +52,12 @@ class MonitorStatusTest {
         // Само сравнение никуда не делось — оно стало пояснением и видно при
         // включённых «Пояснениях на экранах».
         assertEquals(
-            "ниже вашего порога 0,30 мкЗв/ч; обычный фон этого места ещё изучается",
+            "ниже вашего порога 0,30; обычный фон этого места ещё изучается",
             statusExplanation(below, DoseUnitSetting.MICRO_SIEVERT),
         )
         // The reference is shown even before a baseline exists (spec §18).
         assertEquals(
-            "ваш порог 0,30 мкЗв/ч · здесь пока мало измерений",
+            "ваш порог 0,30 · здесь пока мало измерений",
             statusDetail(below, DoseUnitSetting.MICRO_SIEVERT),
         )
 
@@ -65,7 +65,7 @@ class MonitorStatusTest {
         assertEquals(MonitorStatus.Fixed(above = true, thresholdMicroSvH = 0.30f), above)
         assertEquals("Выше вашего порога", statusHeadline(above))
         assertTrue(
-            statusDetail(above, DoseUnitSetting.MICRO_SIEVERT)!!.startsWith("ваш порог 0,30 мкЗв/ч"),
+            statusDetail(above, DoseUnitSetting.MICRO_SIEVERT)!!.startsWith("ваш порог 0,30"),
         )
     }
 
@@ -85,7 +85,7 @@ class MonitorStatusTest {
         assertEquals("Обычно здесь", statusHeadline(status))
         assertEquals("Обычно здесь", statusHeadlineShort(status))
         assertEquals(
-            "обычно здесь 0,09–0,14 мкЗв/ч",
+            "обычно здесь 0,09–0,14",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -106,7 +106,7 @@ class MonitorStatusTest {
         assertEquals(MonitorStatus.AboveUsual(baseline, heldSeconds = 240), status)
         assertEquals("Выше обычного", statusHeadline(status))
         assertEquals(
-            "обычно здесь 0,09–0,14 мкЗв/ч · уже 4 мин",
+            "обычно здесь 0,09–0,14 · уже 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -122,7 +122,7 @@ class MonitorStatusTest {
         )
         assertEquals("Держится выше порога", statusHeadline(status))
         assertEquals(
-            "обычно здесь 0,09–0,14 мкЗв/ч · уже 4 мин",
+            "обычно здесь 0,09–0,14 · уже 4 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -133,7 +133,7 @@ class MonitorStatusTest {
         val alert = DeviationSnapshot(alertSince = now - 130_000)
         val status = MonitorStatus.of(0.35f, null, alert, thresholds, now)
         assertEquals(
-            "ваш порог 0,30 мкЗв/ч · уже 2 мин",
+            "ваш порог 0,30 · уже 2 мин",
             statusDetail(status, DoseUnitSetting.MICRO_SIEVERT),
         )
     }
@@ -202,7 +202,9 @@ class MonitorStatusTest {
         )) {
             val detail = statusDetail(status, DoseUnitSetting.MICRO_SIEVERT)!!
             assertTrue(detail.contains("обычно здесь"), detail)
-            assertTrue(detail.contains("мкЗв/ч"), detail)
+            // Единица в подпись не входит: она названа в справке, а не у
+            // каждого числа на экране.
+            assertTrue(!detail.contains("мкЗв/ч"), detail)
         }
     }
 

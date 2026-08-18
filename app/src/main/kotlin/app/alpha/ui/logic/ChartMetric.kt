@@ -85,9 +85,6 @@ object ChartMetrics {
         ChartMetric.HARDNESS -> Hardness.format(value.toDouble())
     }
 
-    fun formatWithUnit(metric: ChartMetric, value: Float, unit: DoseUnitSetting): String =
-        "${format(metric, value, unit)} ${unitLabel(metric, unit)}"
-
     /**
      * Порог тревоги L1 рисуется только на дозе: он задан в единицах дозы, и
      * переносить его на счёт или на отношение было бы выдумкой.

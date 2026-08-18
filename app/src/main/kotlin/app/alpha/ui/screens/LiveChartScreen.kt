@@ -692,6 +692,7 @@ fun LiveChartScreen(
                 frame = frame,
                 baseline = baseline,
                 logScale = logScale,
+                unit = unit,
                 historical = historical,
                 onClose = { infoOpen = false },
             )
@@ -777,6 +778,7 @@ fun LiveChartScreen(
             frame = frame,
             baseline = baseline,
             logScale = logScale,
+            unit = unit,
             historical = historical,
             onClose = { infoOpen = false },
         )

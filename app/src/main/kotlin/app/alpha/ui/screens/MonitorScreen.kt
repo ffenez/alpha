@@ -1223,7 +1223,7 @@ private fun MetricChartCard(
                             StatCell(ChartMetrics.format(metric, stats.max, unit), t.statMax),
                             StatCell(
                                 ChartMetrics.format(metric, stats.sd, unit),
-                                "SD, ${ChartMetrics.unitLabel(metric, unit)}",
+                                "SD",
                             ),
                             StatCell(HistoryFormat.count(stats.sampleCount), "n"),
                         ),

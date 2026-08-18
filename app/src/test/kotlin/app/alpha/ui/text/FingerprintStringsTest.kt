@@ -81,11 +81,11 @@ class FingerprintStringsTest {
     }
 
     @Test
-    fun `units carry over to the english catalogue`() {
-        // Обозначение единицы — часть числа: непереведённое «мкЗв/ч» в
-        // английском интерфейсе делает строку нечитаемой ровно там, где
-        // сравниваются величины.
-        assertEquals("µSv/h", FingerprintEn.unitDose)
-        assertEquals("s⁻¹", FingerprintEn.unitCount)
+    fun `the comparison line carries no unit`() {
+        // Единицы названы в справке, а не рядом с каждым числом: строка
+        // сравнения показывает величины и эталон.
+        val line = FingerprintRu.nowVsReference("0,15", "0,12", "0,18")
+        assertTrue(!line.contains("мкЗв") && !line.contains("с⁻¹"), line)
+        assertTrue(line.contains("0,15") && line.contains("0,12–0,18"), line)
     }
 }

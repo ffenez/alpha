@@ -194,6 +194,8 @@ internal fun BoxScope.ChartInfoSheet(
     frame: ChartFrame?,
     baseline: Baseline?,
     logScale: Boolean,
+    /** Единицу графика называет справка — на самом графике её нет. */
+    unit: DoseUnitSetting,
     onClose: () -> Unit,
     historical: Boolean = false,
 ) {
@@ -217,6 +219,7 @@ internal fun BoxScope.ChartInfoSheet(
                 ChartDetailMode.SMOOTHED
             },
             historical = historical,
+            unitLabel = ChartMetrics.unitLabel(metric, unit),
             s = t,
         )
     }

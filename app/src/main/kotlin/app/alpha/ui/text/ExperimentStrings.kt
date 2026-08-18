@@ -302,7 +302,7 @@ object ExperimentRu : ExperimentStrings {
 
     override fun spectrumCounts(counts: String) = "спектр $counts имп"
 
-    override fun doseMean(value: String, samples: Int) = "доза ср $value мкЗв/ч, n=$samples"
+    override fun doseMean(value: String, samples: Int) = "доза ср $value, n=$samples"
 
     override fun distanceRow(distance: String) = "расстояние $distance"
 
@@ -314,7 +314,7 @@ object ExperimentRu : ExperimentStrings {
             "что именно найдено (спец §2)."
     override val columnMetric = "показатель"
     override val columnVerdict = "вывод"
-    override val rowDose = "доза, мкЗв/ч"
+    override val rowDose = "доза"
     override val rowTotalCounts = "полный счёт, имп/с"
     override val rowSpectrum = "полный спектр"
     override val doseAuxNote =
@@ -541,7 +541,7 @@ object ExperimentEn : ExperimentStrings {
 
     override fun spectrumCounts(counts: String) = "spectrum $counts counts"
 
-    override fun doseMean(value: String, samples: Int) = "dose avg $value µSv/h, n=$samples"
+    override fun doseMean(value: String, samples: Int) = "dose avg $value, n=$samples"
 
     override fun distanceRow(distance: String) = "distance $distance"
 
@@ -553,7 +553,7 @@ object ExperimentEn : ExperimentStrings {
             "and not about what exactly was found (spec §2)."
     override val columnMetric = "metric"
     override val columnVerdict = "conclusion"
-    override val rowDose = "dose, µSv/h"
+    override val rowDose = "dose"
     override val rowTotalCounts = "total count, counts/s"
     override val rowSpectrum = "full spectrum"
     override val doseAuxNote =

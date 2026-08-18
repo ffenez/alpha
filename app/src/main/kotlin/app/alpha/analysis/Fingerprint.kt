@@ -192,7 +192,6 @@ object Fingerprint {
             low = reference.doseLowMicroSvH,
             median = reference.doseMedianMicroSvH,
             high = reference.doseHighMicroSvH,
-            unit = s.unitDose,
             decimals = 2,
             s = s,
         )
@@ -202,7 +201,6 @@ object Fingerprint {
             low = reference.cpsLow,
             median = reference.cpsMedian,
             high = reference.cpsHigh,
-            unit = s.unitCount,
             decimals = 1,
             s = s,
         )
@@ -235,7 +233,6 @@ object Fingerprint {
         low: Float,
         median: Float,
         high: Float,
-        unit: String,
         decimals: Int,
         s: FingerprintStrings,
     ): DimensionVerdict {
@@ -247,7 +244,6 @@ object Fingerprint {
                 now = number(now, decimals),
                 low = number(low, decimals),
                 high = number(high, decimals),
-                unit = unit,
             ),
             changePercent = percent(now.toDouble(), median.toDouble()),
         )

@@ -100,11 +100,11 @@ object EnStrings : Strings {
     override fun detailNoBaseline(threshold: String) =
         "your threshold $threshold · not much measured here yet"
 
-    override fun detailUsual(range: String, unit: String, collected: String) =
-        "usually here $range $unit"
+    override fun detailUsual(range: String, collected: String) =
+        "usually here $range"
 
-    override fun detailAboveUsual(range: String, unit: String, held: String) =
-        "usually here $range $unit · $held"
+    override fun detailAboveUsual(range: String, held: String) =
+        "usually here $range · $held"
 
     override fun detailAboveThreshold(threshold: String, held: String, required: String) =
         "your threshold $threshold · $held of $required"
@@ -113,7 +113,7 @@ object EnStrings : Strings {
 
     override fun referenceThreshold(threshold: String) = "your threshold $threshold"
 
-    override fun referenceProfileBand(range: String, unit: String) = "usually here $range $unit"
+    override fun referenceProfileBand(range: String) = "usually here $range"
 
     override fun held(text: String) = "for $text already"
 

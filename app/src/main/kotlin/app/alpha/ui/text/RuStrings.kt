@@ -100,11 +100,11 @@ object RuStrings : Strings {
     override fun detailNoBaseline(threshold: String) =
         "ваш порог $threshold · здесь пока мало измерений"
 
-    override fun detailUsual(range: String, unit: String, collected: String) =
-        "обычно здесь $range $unit"
+    override fun detailUsual(range: String, collected: String) =
+        "обычно здесь $range"
 
-    override fun detailAboveUsual(range: String, unit: String, held: String) =
-        "обычно здесь $range $unit · $held"
+    override fun detailAboveUsual(range: String, held: String) =
+        "обычно здесь $range · $held"
 
     override fun detailAboveThreshold(threshold: String, held: String, required: String) =
         "ваш порог $threshold · $held из $required"
@@ -113,7 +113,7 @@ object RuStrings : Strings {
 
     override fun referenceThreshold(threshold: String) = "ваш порог $threshold"
 
-    override fun referenceProfileBand(range: String, unit: String) = "обычно здесь $range $unit"
+    override fun referenceProfileBand(range: String) = "обычно здесь $range"
 
     override fun held(text: String) = "уже $text"
 

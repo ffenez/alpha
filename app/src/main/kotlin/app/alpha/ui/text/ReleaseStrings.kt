@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0210Title: String
+    val v0210Summary: String
+
     val v0200Title: String
     val v0200Summary: String
 
@@ -291,6 +294,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0210Title = "Единицы ушли с экранов"
+    override val v0210Summary =
+        "«мкЗв/ч» и «с⁻¹» больше не повторяются у каждого числа: на Карте, в Журнале, в " +
+        "сессии, на графиках и в уведомлении стоят только значения. Единица названа там, " +
+        "где о ней спрашивают, — в справке графика, в «Почему такой вывод» и в Настройках, " +
+        "где она и выбирается."
 
     override val v0200Title = "Сравнение маршрутов говорит по-человечески"
     override val v0200Summary =
@@ -909,6 +919,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0210Title = "Units are off the screens"
+    override val v0210Summary =
+        "«мкЗв/ч» and «с⁻¹» no longer repeat next to every number: the map, the log, the " +
+        "session, the charts and the notification show values only. The unit is named where " +
+        "it is asked about — in the chart reference, in «Why this verdict» and in Settings, " +
+        "where it is chosen."
 
     override val v0200Title = "Route comparison speaks plainly"
     override val v0200Summary =

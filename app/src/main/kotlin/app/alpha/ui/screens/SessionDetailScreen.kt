@@ -380,8 +380,7 @@ private fun SummaryCard(
                         color = colors.ink,
                     )
                     Text(
-                        text = t.sessionDoseLabel + ", " +
-                            DoseFormat.doseUnitLabel(unit, s = strings),
+                        text = t.sessionDoseLabel,
                         style = type.overline,
                         color = colors.muted,
                     )
@@ -390,11 +389,11 @@ private fun SummaryCard(
                     cells = listOf(
                         StatCell(
                             DoseFormat.rate(avgMicroSvH, unit),
-                            t.doseRateLabel + ", " + DoseFormat.rateUnitLabel(unit, s = strings),
+                            t.doseRateLabel,
                         ),
                         StatCell(
                             "${(stats.avgCountRate ?: 0f).toInt()}",
-                            t.countRateLabel + ", " + SearchCatalogue.of(strings.language).cpsUnit,
+                            t.countRateLabel,
                         ),
                         StatCell(HistoryFormat.count(stats.sampleCount), t.samplesLabel),
                     ),
@@ -530,7 +529,7 @@ private fun ChartCard(
                             StatCell(DoseFormat.rate(stats.max, unit), t.statMax),
                             StatCell(
                                 DoseFormat.rate(stats.sigma, unit),
-                                t.sdWithUnit(DoseFormat.rateUnitLabel(unit, s = strings)),
+                                t.sd,
                             ),
                         ),
                     )
@@ -603,7 +602,6 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting, t: SessionR
                                 DoseFormat.rate(flight.flightMedianMicroSvH ?: 0f, unit),
                             groundMedian =
                                 DoseFormat.rate(flight.groundMedianMicroSvH ?: 0f, unit),
-                            unit = DoseFormat.rateUnitLabel(unit, s = strings),
                         ),
                         style = type.bodySmall,
                         color = colors.ink2,
@@ -638,7 +636,7 @@ private fun EventsCard(
             )
             events.forEach { event ->
                 val dose = event.doseRate?.let {
-                    DoseFormat.rateWithUnit(DoseUnits.rawToMicroSievertPerHour(it), unit)
+                    DoseFormat.rate(DoseUnits.rawToMicroSievertPerHour(it), unit)
                 }
                 Text(
                     text = listOfNotNull(
