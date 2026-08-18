@@ -38,6 +38,7 @@ import app.alpha.analysis.SpectrumEdge
 import app.alpha.device.ConnectionState
 import app.alpha.data.toSpectrum
 import app.alpha.protocol.Spectrum
+import app.alpha.ui.components.AppCloseButton
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.ChartSheet
 import app.alpha.ui.components.Chip
@@ -235,7 +236,7 @@ fun SpectrumFullScreen(
                     .fillMaxWidth()
                     .padding(horizontal = Dimens.space2, vertical = Dimens.space1),
             ) {
-                Chip(text = "✕", color = colors.ink2, onClick = onBack)
+                AppCloseButton(onClose = onBack)
                 // Название экрана не повторяется; остаётся только состояние —
                 // что показан сохранённый снимок, а не живое накопление.
                 if (viewingSnapshot) {

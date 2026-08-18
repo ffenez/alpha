@@ -28,6 +28,7 @@ import app.alpha.AppGraph
 import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.RadonTrend
 import app.alpha.data.toSpectrum
+import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.BarChart
 import app.alpha.ui.components.BarChartSpec
@@ -125,7 +126,7 @@ fun RadonScreen(graph: AppGraph, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← ${strings.back}", onClick = onBack)
+            AppBackButton(onBack = onBack)
             Spacer(Modifier.weight(1f))
             Chip(text = t.radonTag, color = colors.ink)
         }

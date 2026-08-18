@@ -58,35 +58,29 @@ class TileFilterTest {
 
 class TileStatusTest {
 
+    // Счётчика тайлов на экране больше нет ни в каком режиме: осталось только
+    // состояние «карта пуста, потому что тайлы не приходят».
+
     @Test
-    fun `no tiles yet reads as loading`() {
-        assertEquals("тайлы: загружаются…", TileStatus.line(0, 0, 1_000))
+    fun `silence before the stall window says nothing`() {
         assertNull(TileStatus.networkHint(0, 0, 1_000))
     }
 
     @Test
-    fun `silence past the stall window is called out`() {
-        assertEquals("тайлы: не приходят", TileStatus.line(0, 0, TileStatus.STALL_MILLIS))
+    fun `silence past the stall window names the likely cause`() {
         assertNotNull(TileStatus.networkHint(0, 0, TileStatus.STALL_MILLIS))
     }
 
     @Test
-    fun `only failures reads as a network error and hints immediately`() {
-        assertEquals("тайлы: ошибка сети · неудачных 4", TileStatus.line(0, 4, 500))
+    fun `only failures hint immediately`() {
         val hint = TileStatus.networkHint(0, 4, 500)
         assertNotNull(hint)
         assertTrue(hint.contains("Сеть"), hint)
     }
 
     @Test
-    fun `loaded tiles report the count`() {
-        assertEquals("тайлы: готово · 42", TileStatus.line(42, 0, 60_000))
+    fun `a loaded tile ends the hint, failures or not`() {
         assertNull(TileStatus.networkHint(42, 0, 60_000))
-    }
-
-    @Test
-    fun `partial failures stay visible next to the count`() {
-        assertEquals("тайлы: готово · 42 · неудачных 3", TileStatus.line(42, 3, 60_000))
         assertNull(TileStatus.networkHint(42, 3, 60_000))
     }
 }

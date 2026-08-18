@@ -29,6 +29,7 @@ import app.alpha.analysis.FingerprintState
 import app.alpha.baseline.BaselineState
 import app.alpha.data.FingerprintRepository
 import app.alpha.data.db.ProfileFingerprintEntity
+import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.AppDivider
@@ -117,7 +118,7 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Dimens.space3),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AppButton(text = "← ${strings.back}", onClick = onBack)
+            AppBackButton(onBack = onBack)
             Spacer(Modifier.weight(1f))
         }
 

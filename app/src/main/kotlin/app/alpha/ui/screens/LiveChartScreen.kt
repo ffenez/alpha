@@ -50,6 +50,7 @@ import app.alpha.baseline.alarmThresholds
 import app.alpha.data.DoseUnitSetting
 import app.alpha.data.PreAggregateRepository
 import app.alpha.device.DoseUnits
+import app.alpha.ui.components.AppCloseButton
 import app.alpha.ui.components.AppDivider
 import app.alpha.ui.components.AppMenu
 import app.alpha.ui.components.AppMenuDivider
@@ -907,7 +908,7 @@ private fun PortraitTopBar(
                 .fillMaxWidth()
                 .padding(horizontal = Dimens.space2, vertical = Dimens.space1),
         ) {
-            Chip(text = "✕", color = colors.ink2, onClick = onBack)
+            AppCloseButton(onClose = onBack)
             Text(
                 text = "$metricTitle · $periodLabel".uppercase(),
                 style = type.labelSmall,
@@ -1036,7 +1037,7 @@ private fun BoxScope.LandscapeTopBar(
             .fillMaxWidth()
             .padding(horizontal = Dimens.space2, vertical = Dimens.space1),
     ) {
-        Chip(text = "✕", color = colors.ink2, onClick = onBack)
+        AppCloseButton(onClose = onBack)
         Text(
             text = "$metricTitle · $periodLabel".uppercase(),
             style = type.labelSmall,

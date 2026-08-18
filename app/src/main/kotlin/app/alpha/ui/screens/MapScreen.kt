@@ -50,6 +50,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -268,8 +270,6 @@ fun MapScreen(graph: AppGraph, focus: MapFocus? = null) {
         TrackMetric.DOSE -> manualDose
         TrackMetric.CPS -> manualCps
     }
-    // Счётчик тайлов — диагностика: виден при включённом отладочном отчёте.
-    val debugReport by graph.settings.debugReportEnabled.collectAsState(initial = false)
 
     // Which scope to draw: the stored choice, or the default for what exists.
     // A running recording overrides it in memory only — the user's stored
@@ -487,7 +487,6 @@ fun MapScreen(graph: AppGraph, focus: MapFocus? = null) {
             usualBand = usualBand,
             tintFactor = tintFactor,
             manualAnchors = manualAnchors,
-            showTileStats = debugReport,
             onViewport = { viewport = it },
             emptyState = {
                 val nothingDrawn = if (scope == MapTrackScope.ALL) {
@@ -1010,8 +1009,6 @@ private fun TrackMapCard(
     tintFactor: Float = DoseTint.DEFAULT_FACTOR,
     /** Границы ручной шкалы для выбранной величины. */
     manualAnchors: List<Float> = emptyList(),
-    /** Счётчик тайлов — только при включённом отладочном отчёте. */
-    showTileStats: Boolean = false,
     /** Общий с графиком курсор: выбранный момент маршрута. */
     cursor: MapTrackPoint? = null,
     /** Тап по следу выбирает момент, а не только открывает карточку. */
@@ -1113,16 +1110,10 @@ private fun TrackMapCard(
             if (grid == null && render.distanceMeters > 0) {
                 Chip(text = TrackMap.formatDistance(render.distanceMeters, t))
             }
-            // Счётчик тайлов — диагностика под отладочным отчётом, но о том,
-            // что карта пуста из-за сети, экран говорит всегда.
+            // Счётчика тайлов на карте нет ни в каком режиме: это внутренняя
+            // диагностика. О том, что карта пуста из-за сети, экран говорит
+            // отдельной карточкой — это состояние, а не счётчик.
             val hint = TileStatus.networkHint(tiles.loaded, tiles.failed, waitedMillis, t)
-            if (showTileStats) {
-                Chip(
-                    text = TileStatus.line(tiles.loaded, tiles.failed, waitedMillis, t),
-                    color = if (hint != null) colors.warn else colors.ink2,
-                    dot = if (hint != null) colors.warn else null,
-                )
-            }
             if (hint != null) {
                 Card(
                     background = colors.surface,
@@ -1195,7 +1186,8 @@ private fun TrackMapCard(
             val fitBoundsAvailable = if (grid != null) initialBounds != null else render.bounds != null
             if (fitBoundsAvailable) {
                 MapIconButton(
-                    icon = MapIcon.FIT,
+                    // Область записей — рамка, один маршрут — сам маршрут.
+                    icon = if (grid != null) MapIcon.FIT else MapIcon.ROUTE,
                     description = if (grid != null) t.centerOnAll else t.centerOnRoute,
                     onClick = { recenterTick++ },
                 )
@@ -1230,7 +1222,7 @@ private fun TrackMapCard(
 }
 
 /** Что делает кнопка поверх карты. Два действия — два разных рисунка. */
-private enum class MapIcon { MY_LOCATION, FIT }
+private enum class MapIcon { MY_LOCATION, FIT, ROUTE }
 
 /** Место под указание авторства OSM в нижнем левом углу карты. */
 private val ATTRIBUTION_SPACE = 22.dp
@@ -1278,6 +1270,41 @@ private fun MapIconButton(
                     ).forEach { (from, to) ->
                         drawLine(color = color, start = from, end = to, strokeWidth = stroke)
                     }
+                }
+                // «Показать маршрут целиком»: сам маршрут — извилистая линия
+                // от точки старта к точке конца. Рамка из четырёх углов
+                // означает «вместить область» и на карте с одним следом
+                // говорила не о том, что произойдёт.
+                MapIcon.ROUTE -> {
+                    val w = size.width
+                    val h = size.height
+                    val start = Offset(w * 0.20f, h * 0.80f)
+                    val end = Offset(w * 0.80f, h * 0.20f)
+                    val path = Path().apply {
+                        moveTo(start.x, start.y)
+                        cubicTo(
+                            w * 0.60f, h * 0.78f,
+                            w * 0.22f, h * 0.42f,
+                            w * 0.50f, h * 0.44f,
+                        )
+                        cubicTo(
+                            w * 0.78f, h * 0.46f,
+                            w * 0.62f, h * 0.26f,
+                            end.x, end.y,
+                        )
+                    }
+                    drawPath(
+                        path = path,
+                        color = color,
+                        style = Stroke(width = stroke, cap = StrokeCap.Round),
+                    )
+                    drawCircle(color = color, radius = stroke * 1.4f, center = start)
+                    drawCircle(
+                        color = color,
+                        radius = stroke * 1.4f,
+                        center = end,
+                        style = Stroke(width = stroke),
+                    )
                 }
                 // «Показать целиком»: четыре угла рамки — жест «вместить всё».
                 MapIcon.FIT -> {

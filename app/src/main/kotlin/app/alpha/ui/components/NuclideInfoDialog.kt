@@ -95,7 +95,7 @@ fun NuclideInfoDialog(
                 color = colors.ink,
                 modifier = Modifier.weight(1f),
             )
-            CloseButton(label = t.close, onClick = onDismiss)
+            AppCloseButton(onClose = onDismiss)
         }
         AppDivider()
         Column(
@@ -117,21 +117,6 @@ fun NuclideInfoDialog(
     }
 }
 
-/** «×» в шапке: цель нажатия во всю зону большого пальца, а не глиф в 12 dp. */
-@Composable
-private fun CloseButton(label: String, onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    val type = LocalAppTypography.current
-    Box(
-        modifier = Modifier
-            .size(Dimens.touchTarget)
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = "×", style = type.title, color = colors.ink2)
-    }
-}
 
 @Composable
 private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit)?) {

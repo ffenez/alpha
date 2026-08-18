@@ -70,7 +70,7 @@ fun EntityHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
     ) {
-        if (onBack != null) Chip(text = "←", color = colors.ink2, onClick = onBack)
+        if (onBack != null) AppBackButton(onBack = onBack)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
