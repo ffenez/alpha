@@ -11,6 +11,25 @@ import app.alpha.analysis.CountWindow
  * «Наведение» asks «куда вести прибор прямо сейчас» and compares the newest
  * counting window with the one just before it.
  */
+/**
+ * Чем «Наведение» показывает отношение к точке отсчёта.
+ *
+ * Утверждение одно и то же — положение на логарифмической шкале
+ * ([NavigateArc.position]); различается только рисунок. Стрелка читается на
+ * вытянутой руке и занимает круг; прямая шкала занимает строку и говорит тем
+ * же языком, что шкала места на Главной. Выбор — за человеком, потому что это
+ * вопрос привычки, а не точности.
+ */
+enum class SearchIndicator(val id: String) {
+    NEEDLE("needle"),
+    SCALE("scale"),
+    ;
+
+    companion object {
+        fun of(id: String?): SearchIndicator = entries.firstOrNull { it.id == id } ?: NEEDLE
+    }
+}
+
 enum class SearchMode(val id: String) {
     NAVIGATE("navigate"),
     VERIFY("verify"),

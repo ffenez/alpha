@@ -5,6 +5,7 @@ import app.alpha.AppGraph
 import app.alpha.ui.logic.ChartMetric
 import app.alpha.ui.chart.ChartContext
 import app.alpha.ui.logic.ChartRange
+import app.alpha.ui.logic.SearchIndicator
 import app.alpha.ui.logic.SearchMode
 import app.alpha.ui.logic.SpectrumViewOptions
 import app.alpha.ui.screens.AbExperimentScreen
@@ -99,6 +100,17 @@ class ScreenSmokeTest(variantId: String) {
     fun search_navigate_seeded() {
         val (graph, _) = seededGraph()
         runBlocking { graph.settings.setSearchMode(SearchMode.NAVIGATE.id) }
+        compose.showScreen(variant) { SearchScreen(graph) }
+    }
+
+    /** Второй вид индикатора рисуется тем же экраном и теми же данными. */
+    @Test
+    fun search_navigate_scale_indicator() {
+        val (graph, _) = seededGraph()
+        runBlocking {
+            graph.settings.setSearchMode(SearchMode.NAVIGATE.id)
+            graph.settings.setSearchIndicator(SearchIndicator.SCALE.id)
+        }
         compose.showScreen(variant) { SearchScreen(graph) }
     }
 

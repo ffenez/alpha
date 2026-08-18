@@ -81,6 +81,7 @@ import app.alpha.ui.logic.LocalBackgroundMachine
 import app.alpha.ui.logic.NavigateEngine
 import app.alpha.ui.logic.NavigateState
 import app.alpha.ui.logic.NavigateTrend
+import app.alpha.ui.logic.SearchIndicator
 import app.alpha.ui.logic.SearchMode
 import app.alpha.ui.logic.SearchStillness
 import app.alpha.ui.logic.SearchBaseline
@@ -169,6 +170,9 @@ fun SearchScreen(
     // Выбор запоминается.
     val modeId by graph.settings.searchMode.collectAsState(initial = null)
     val screenMode = SearchMode.of(modeId)
+    // Вид индикатора «Наведения» — стрелка или прямая шкала.
+    val indicatorId by graph.settings.searchIndicator.collectAsState(initial = null)
+    val indicator = SearchIndicator.of(indicatorId)
     // Ровный счёт как повод предложить проверку: состояние живёт между
     // кадрами, потому что «держится восемь секунд» — утверждение о прошлом.
     var stillness by remember { mutableStateOf(SearchStillness.State()) }
@@ -538,6 +542,7 @@ fun SearchScreen(
 
         if (navigating) {
             NavigateSection(
+                indicator = indicator,
                 state = navigate,
                 spot = spot,
                 nowMillis = System.currentTimeMillis() - deviceClockOffset,

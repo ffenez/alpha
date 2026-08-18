@@ -27,6 +27,7 @@ import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.Chip
 import app.alpha.ui.components.NavigateGauge
+import app.alpha.ui.components.NavigateScale
 import app.alpha.ui.components.NavigateGaugeSpec
 import app.alpha.ui.components.NavigateTrace
 import app.alpha.ui.components.NavigateTraceSpec
@@ -35,6 +36,7 @@ import app.alpha.ui.components.StatusRow
 import app.alpha.ui.logic.NavigateArc
 import app.alpha.ui.logic.NavigateEngine
 import app.alpha.ui.logic.NavigateState
+import app.alpha.ui.logic.SearchIndicator
 import app.alpha.ui.logic.NavigateTrend
 import app.alpha.ui.logic.NavigateVerdict
 import app.alpha.ui.logic.ReferenceDelta
@@ -84,6 +86,8 @@ fun NavigateSection(
     onCancelMeasure: () -> Unit,
     onDismissMeasure: () -> Unit,
     onGoToVerify: () -> Unit,
+    /** Стрелка или прямая шкала — вид выбирается в Настройках. */
+    indicator: SearchIndicator = SearchIndicator.NEEDLE,
     /** Счёт держится ровно — предложить проверку здесь. */
     offerVerify: Boolean = false,
     onOfferAccept: () -> Unit = {},
@@ -203,25 +207,28 @@ fun NavigateSection(
                             textAlign = TextAlign.Center,
                         )
                     }
-                    NavigateGauge(
-                        spec = NavigateGaugeSpec(
-                            ratio = referenceRatio,
-                            peakRatio = peakRatio,
-                            factor = factor,
-                            trend = state.trend,
-                            referenceLabel = "1×",
-                            lowLabel = "${factorLabel(1.0 / factor)}×",
-                            highLabel = "${factorLabel(factor)}×",
-                            referenceCaption = t.navScaleReference,
-                            lowCaption = t.navScaleWeaker,
-                            highCaption = t.navScaleStronger,
-                            intervalLow = state.referenceComparison
-                                ?.ratioLow?.takeIf { it.isFinite() },
-                            intervalHigh = state.referenceComparison
-                                ?.ratioHigh?.takeIf { it.isFinite() },
-                        ),
-                        height = 124.dp,
+                    // Одно утверждение, два рисунка: спецификация общая, и
+                    // вид не может изменить показание.
+                    val gaugeSpec = NavigateGaugeSpec(
+                        ratio = referenceRatio,
+                        peakRatio = peakRatio,
+                        factor = factor,
+                        trend = state.trend,
+                        referenceLabel = "1×",
+                        lowLabel = "${factorLabel(1.0 / factor)}×",
+                        highLabel = "${factorLabel(factor)}×",
+                        referenceCaption = t.navScaleReference,
+                        lowCaption = t.navScaleWeaker,
+                        highCaption = t.navScaleStronger,
+                        intervalLow = state.referenceComparison
+                            ?.ratioLow?.takeIf { it.isFinite() },
+                        intervalHigh = state.referenceComparison
+                            ?.ratioHigh?.takeIf { it.isFinite() },
                     )
+                    when (indicator) {
+                        SearchIndicator.NEEDLE -> NavigateGauge(spec = gaugeSpec, height = 124.dp)
+                        SearchIndicator.SCALE -> NavigateScale(spec = gaugeSpec, height = 96.dp)
+                    }
                     // Одна фраза о том, можно ли на вывод опереться, и кнопка
                     // с числами. Интервал и порог сняты с рабочего экрана: их
                     // разбирают, когда сомневаются, а не пока несут прибор.

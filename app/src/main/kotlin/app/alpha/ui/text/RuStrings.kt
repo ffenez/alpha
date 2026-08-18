@@ -450,6 +450,14 @@ object RuStrings : Strings {
     override val spectralComparison = "Спектральное сравнение"
 
     override val searchFeedbackTitle = "Отклик в Поиске"
+
+    override val searchIndicatorTitle = "Индикатор наведения"
+    override val searchIndicatorNeedle = "Стрелка"
+    override val searchIndicatorScale = "Шкала"
+    override val searchIndicatorNote =
+        "Показание одно и то же — во сколько раз счёт отличается от точки отсчёта. " +
+        "Стрелка читается на вытянутой руке, прямая шкала занимает строку и говорит " +
+        "тем же языком, что шкала места на Главной."
     override val feedbackOnScreenOnly = "сигнал виден только на экране Поиска"
     override val feedbackClicks = "щелчок на каждый зарегистрированный импульс"
     override val feedbackTone = "непрерывный тон: выше — дальше от записанного фона"
