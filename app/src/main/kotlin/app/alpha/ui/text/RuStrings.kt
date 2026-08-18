@@ -6,7 +6,6 @@ object RuStrings : Strings {
     override val language = AppLanguage.RU
 
     override val tabHome = "Главная"
-    override val tabSearch = "Поиск"
     override val tabSpectrum = "Спектр"
     override val tabMap = "Карта"
     override val tabHistory = "История"
@@ -27,6 +26,9 @@ object RuStrings : Strings {
     override val hardness = "Жёсткость"
     override val trendPerHour = "Динамика"
     override val scaleThresholdTick = "порог"
+    override val modeObserve = "Наблюдение"
+    override val modeSearchShort = "Поиск"
+    override val modeVerifyShort = "Проверка"
     override val tilePlaceBackground = "фон места"
     override val tilePerHour = "за час"
     override val tilePerDay = "за сутки"

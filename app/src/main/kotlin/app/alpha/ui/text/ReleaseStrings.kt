@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0350Title: String
+    val v0350Summary: String
+
     val v0341Title: String
     val v0341Summary: String
 
@@ -342,6 +345,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0350Title = "Один прибор"
+    override val v0350Summary =
+        "Главная и Поиск задавали один вопрос — «много ли здесь» — и различались только тем, " +
+        "с чем сравнивают, поэтому теперь это один экран с переключателем «Наблюдение · Поиск " +
+        "· Проверка», а внизу освободилась вкладка. Циферблат при переключении остаётся на " +
+        "месте, меняются его концы: ×0,5…×8 к обычному фону места — с серым сектором " +
+        "обычного разброса и янтарной риской порога — либо ×0,25…×4 к точке отсчёта."
 
     override val v0341Title = "Наведение — минимум эталона"
     override val v0341Summary =
@@ -1083,6 +1094,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0350Title = "One instrument"
+    override val v0350Summary =
+        "Главная and Поиск asked the same question — «how much is there» — and differed only " +
+        "in what they compared against, so they are one screen now, switched by «Observe · " +
+        "Search · Verify», and a tab was freed. The dial stays put while its ends change: " +
+        "×0.5…×8 against the usual background of this place, with a grey sector for its " +
+        "ordinary spread and an amber threshold tick, or ×0.25…×4 against the reference."
 
     override val v0341Title = "Наведение is down to the mockup frame"
     override val v0341Summary =

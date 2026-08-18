@@ -31,8 +31,15 @@ import app.alpha.ui.theme.LocalAppTypography
 
 /** The five data screens (SPEC navigation: Home/Search/Spectrum/Map/History). */
 enum class AppTab {
+    /**
+     * Прибор — наблюдение, поиск и проверка одним экраном.
+     *
+     * Отдельной вкладки «Поиск» больше нет: она задавала тот же вопрос, что и
+     * Главная, и различалась только знаменателем шкалы. Режим переключается
+     * внутри прибора, а вкладка отвечает за то, ЧЕМ человек сейчас занят
+     * (макет `docs/design/one-instrument.html`).
+     */
     HOME,
-    SEARCH,
     SPECTRUM,
     MAP,
     HISTORY,
@@ -41,7 +48,6 @@ enum class AppTab {
     /** Название вкладки на языке интерфейса. */
     fun title(strings: Strings): String = when (this) {
         HOME -> strings.tabHome
-        SEARCH -> strings.tabSearch
         SPECTRUM -> strings.tabSpectrum
         MAP -> strings.tabMap
         HISTORY -> strings.tabHistory
@@ -51,7 +57,6 @@ enum class AppTab {
 private val AppTab.icon: ImageVector
     get() = when (this) {
         AppTab.HOME -> AppIcons.Home
-        AppTab.SEARCH -> AppIcons.Search
         AppTab.SPECTRUM -> AppIcons.Spectrum
         AppTab.MAP -> AppIcons.Map
         AppTab.HISTORY -> AppIcons.History

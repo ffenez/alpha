@@ -5,13 +5,14 @@ import app.alpha.AppGraph
 import app.alpha.ui.logic.ChartMetric
 import app.alpha.ui.chart.ChartContext
 import app.alpha.ui.logic.ChartRange
-import app.alpha.ui.logic.SearchMode
+import app.alpha.ui.logic.InstrumentMode
 import app.alpha.ui.logic.SpectrumViewOptions
 import app.alpha.ui.screens.AbExperimentScreen
 import app.alpha.ui.screens.FingerprintScreen
 import app.alpha.ui.screens.HistoryScreen
 import app.alpha.ui.screens.LiveChartScreen
 import app.alpha.ui.screens.MapScreen
+import app.alpha.ui.screens.InstrumentScreen
 import app.alpha.ui.screens.MonitorScreen
 import app.alpha.ui.screens.OnboardingScreen
 import app.alpha.ui.screens.RadonScreen
@@ -84,22 +85,41 @@ class ScreenSmokeTest(variantId: String) {
     @Test
     fun search_verify_empty() {
         val graph = emptyGraph()
-        runBlocking { graph.settings.setSearchMode(SearchMode.VERIFY.id) }
-        compose.showScreen(variant) { SearchScreen(graph) }
+        compose.showScreen(variant) { SearchScreen(graph, verifying = true) }
     }
 
     @Test
     fun search_verify_seeded() {
         val (graph, _) = seededGraph()
-        runBlocking { graph.settings.setSearchMode(SearchMode.VERIFY.id) }
-        compose.showScreen(variant) { SearchScreen(graph) }
+        compose.showScreen(variant) { SearchScreen(graph, verifying = true) }
     }
 
     @Test
     fun search_navigate_seeded() {
         val (graph, _) = seededGraph()
-        runBlocking { graph.settings.setSearchMode(SearchMode.NAVIGATE.id) }
-        compose.showScreen(variant) { SearchScreen(graph) }
+        compose.showScreen(variant) { SearchScreen(graph, verifying = false) }
+    }
+
+    /** Прибор целиком: шапка, переключатель режима и тело выбранного режима. */
+    @Test
+    fun instrument_observe() {
+        val (graph, _) = seededGraph()
+        runBlocking { graph.settings.setInstrumentMode(InstrumentMode.OBSERVE.id) }
+        compose.showScreen(variant) { InstrumentScreen(graph) }
+    }
+
+    @Test
+    fun instrument_search() {
+        val (graph, _) = seededGraph()
+        runBlocking { graph.settings.setInstrumentMode(InstrumentMode.SEARCH.id) }
+        compose.showScreen(variant) { InstrumentScreen(graph) }
+    }
+
+    @Test
+    fun instrument_verify_empty() {
+        val graph = emptyGraph()
+        runBlocking { graph.settings.setInstrumentMode(InstrumentMode.VERIFY.id) }
+        compose.showScreen(variant) { InstrumentScreen(graph) }
     }
 
     // --- Спектр: живой, снимок, полный экран ---

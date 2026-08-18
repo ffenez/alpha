@@ -40,6 +40,7 @@ import app.alpha.ui.components.NavigateWhySheet
 import app.alpha.ui.components.EntityMenuItem
 import app.alpha.ui.components.EntityMenuButton
 import app.alpha.ui.components.StatusRow
+import app.alpha.ui.logic.ArcScale
 import app.alpha.ui.logic.NavigateArc
 import app.alpha.ui.logic.NavigateEngine
 import app.alpha.ui.logic.NavigateState
@@ -238,7 +239,7 @@ fun NavigateSection(
                         NavigateIndicator(
                             spec = NavigateGaugeSpec(
                                 ratio = referenceRatio,
-                                factor = factor,
+                                scale = ArcScale.around(factor),
                                 trend = state.trend,
                                 referenceLabel = "1×",
                                 statusText = if (ui is SearchUiState.ReferenceReady) {

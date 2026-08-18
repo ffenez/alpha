@@ -136,6 +136,13 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
      */
     val searchMode: Flow<String?> = dataStore.data.map { it[SEARCH_MODE] }
 
+    /** Режим прибора: наблюдение, поиск или проверка ([InstrumentMode]). */
+    val instrumentMode: Flow<String?> = dataStore.data.map { it[INSTRUMENT_MODE] }
+
+    suspend fun setInstrumentMode(id: String) {
+        dataStore.edit { it[INSTRUMENT_MODE] = id }
+    }
+
     suspend fun setSearchMode(id: String) {
         dataStore.edit { it[SEARCH_MODE] = id }
     }
@@ -689,6 +696,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val SEARCH_FEEDBACK_MODE = stringPreferencesKey("search_feedback_mode")
         private val SEARCH_SOUND_FLAVOUR = stringPreferencesKey("search_sound_flavour")
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")
+        private val INSTRUMENT_MODE = stringPreferencesKey("instrument_mode")
         private val SEARCH_MODE = stringPreferencesKey("search_mode")
         private val WHY_EXPANDED = booleanPreferencesKey("why_calculations_expanded")
         private val FONT_SCALE = intPreferencesKey("ui_font_scale_pct")

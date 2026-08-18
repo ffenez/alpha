@@ -75,7 +75,7 @@ class StringsTest {
     fun `catalogues differ where they must and agree where they must not`() {
         // Разные языки — разные строки: копипаста каталога проверяется тем,
         // что хотя бы навигация действительно переведена.
-        assertTrue(RuStrings.tabSearch != EnStrings.tabSearch)
+        assertTrue(RuStrings.tabSpectrum != EnStrings.tabSpectrum)
         assertTrue(RuStrings.doseRate != EnStrings.doseRate)
         // Каталог знает свой язык.
         assertEquals(AppLanguage.RU, RuStrings.language)

@@ -91,6 +91,7 @@ import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.AppIcons
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.Chip
+import app.alpha.ui.components.NavigateGaugeSpec
 import app.alpha.ui.components.ProfilePickerDialog
 import app.alpha.ui.components.MetricTile
 import app.alpha.ui.components.MetricTileBox
@@ -98,6 +99,7 @@ import app.alpha.ui.components.StatCell
 import app.alpha.ui.components.StatGrid
 import app.alpha.ui.components.StatusDot
 import app.alpha.ui.components.WhySheet
+import app.alpha.ui.logic.ArcScale
 import app.alpha.ui.logic.ChartMapping
 import app.alpha.ui.logic.ChartDetailMode
 import app.alpha.ui.logic.ChartMetric
@@ -109,6 +111,7 @@ import app.alpha.ui.logic.streamStatusLine
 import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.logic.MonitorStatus
 import app.alpha.ui.logic.BaselineSnapshot
+import app.alpha.ui.logic.NavigateTrend
 import app.alpha.ui.logic.ProfileShift
 import app.alpha.ui.logic.ProfileTree
 import app.alpha.ui.logic.TrendAvailability
@@ -206,7 +209,6 @@ private const val TREND_WINDOW_MILLIS = 3_600_000L
 fun MonitorScreen(
     graph: AppGraph,
     onOpenMetricChart: (ChartMetric) -> Unit = {},
-    onOpenSettings: () -> Unit = {},
     onOpenChart: () -> Unit = {},
     /** Плитка накопленного открывает свой экран. */
     onOpenDose: () -> Unit = {},
@@ -413,7 +415,6 @@ fun MonitorScreen(
         }
     }
 
-    var showProfilePicker by remember { mutableStateOf(false) }
     var showWhy by remember { mutableStateOf(false) }
 
     // Сравнение с эталоном места — запрос ради «Почему?» и вкладки отпечатка:
@@ -489,39 +490,15 @@ fun MonitorScreen(
                 .padding(Dimens.space3),
             verticalArrangement = Arrangement.spacedBy(Dimens.space3),
         ) {
+            // Шапка прибора (место, связь, поток, настройки) живёт этажом выше,
+            // в [InstrumentScreen]: она одна на все режимы, и рисовать её здесь
+            // значило бы иметь две разные шапки у одного прибора.
             Column(
                 modifier = Modifier.onSizeChanged {
                     headerHeight = with(density) { it.height.toDp() }
                 },
                 verticalArrangement = Arrangement.spacedBy(Dimens.space3),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
-                ) {
-                    Chip(
-                        text = profileChipText(activeProfile, profiles, contextState, t),
-                        color = colors.ink,
-                        onClick = { showProfilePicker = true },
-                    )
-                    Spacer(Modifier.weight(1f))
-                    ConnectedFlash(connectedAt)
-                    ConnectionChip(connection, serviceRunning, stream)
-                    StreamChip(stream)
-                    Icon(
-                        imageVector = AppIcons.Lambda,
-                        contentDescription = strings.settings,
-                        tint = colors.ink2,
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = onOpenSettings,
-                            ),
-                    )
-                }
-
                 // Выключенный Bluetooth стоит выше всего: пока он выключен, прибор
                 // не подключится, и все числа ниже относятся к прошлому.
                 BluetoothBanner()
@@ -701,23 +678,6 @@ fun MonitorScreen(
         }
     }
 
-    if (showProfilePicker) {
-        ProfilePickerDialog(
-            profiles = profiles,
-            activeProfileId = activeProfile?.id,
-            manual = contextState.isManual,
-            contextWording = contextWording(contextState, t),
-            onSelect = { id -> scope.launch { graph.profileRepository.selectManually(id) } },
-            onReturnToAuto = { scope.launch { graph.profileRepository.returnToAuto() } },
-            onCreate = { name ->
-                scope.launch {
-                    val id = graph.profileRepository.add(name)
-                    graph.profileRepository.selectManually(id)
-                }
-            },
-            onDismiss = { showProfilePicker = false },
-        )
-    }
 
     if (showWhy) {
         // §7: удержанное часами отклонение может означать, что изменилось
@@ -771,7 +731,7 @@ fun MonitorScreen(
 }
 
 /** «⌂ Дом · авто ▾» — profile plus how it was chosen (spec §17 layout). */
-private fun profileChipText(
+internal fun profileChipText(
     active: ProfileEntity?,
     profiles: List<ProfileEntity>,
     context: MeasurementContext,
@@ -814,7 +774,7 @@ fun contextWording(
  * «Подключено» на пару секунд после установления связи; надпись гаснет сама.
  */
 @Composable
-private fun ConnectedFlash(connectedAtMillis: Long?) {
+internal fun ConnectedFlash(connectedAtMillis: Long?) {
     val colors = LocalAppColors.current
     val t = MonitorCatalogue.of(LocalStrings.current.language)
     // Видимость считается от момента подключения, а не от сборки экрана.
@@ -844,7 +804,7 @@ private fun ConnectedFlash(connectedAtMillis: Long?) {
 private const val CONNECTED_FLASH_MILLIS = 2_500L
 
 @Composable
-private fun ConnectionChip(
+internal fun ConnectionChip(
     connection: ConnectionState,
     serviceRunning: Boolean,
     /** Точка говорит о ДАННЫХ, а не о Bluetooth: связь может стоять, а поток не идти. */
@@ -876,7 +836,7 @@ private fun ConnectionChip(
  * во вторичную строку под главным числом.
  */
 @Composable
-private fun StreamChip(stream: StreamState) {
+internal fun StreamChip(stream: StreamState) {
     val colors = LocalAppColors.current
     val label = streamStatusLine(stream, LocalStrings.current) ?: return
     val color = when (stream) {
@@ -1013,21 +973,36 @@ internal fun HeroCard(
                     )
                 }
 
-                // Шкала места: «много ли это здесь». График отвечает на другой
-                // вопрос — «растёт ли», и одно другого не заменяет.
+                // Шкала места — ТОТ ЖЕ прибор, что в поиске, только знаменатель
+                // другой: медиана фона этого места. Отношение к ней — то же
+                // «много ли здесь», и отвечать на него линейной полоской, пока
+                // в соседнем режиме стоит циферблат, значило бы иметь два
+                // разных прибора для одного вопроса.
                 val band = (baselineState as? BaselineState.Active)?.baseline
-                PlaceScaleBar(
-                    value = doseMicroSvH,
-                    medianMicroSvH = band?.doseMedianMicroSvH,
-                    lowMicroSvH = band?.doseLowMicroSvH,
-                    highMicroSvH = band?.doseHighMicroSvH,
-                    thresholdMicroSvH = thresholdMicroSvH,
-                    threshold2MicroSvH = threshold2MicroSvH,
-                    thresholdLabel = strings.scaleThresholdTick,
-                    trailLowMicroSvH = trail?.first,
-                    trailHighMicroSvH = trail?.second,
-                    tint = heroTint,
-                    modifier = Modifier.padding(top = Dimens.space2),
+                val median = band?.doseMedianMicroSvH?.takeIf { it > 0f }
+                val ratioToPlace = median?.let { m -> doseMicroSvH?.let { it / m } }
+                NavigateIndicator(
+                    spec = NavigateGaugeSpec(
+                        ratio = ratioToPlace?.toDouble(),
+                        scale = ArcScale.PLACE,
+                        trend = if (status is MonitorStatus.AboveUsual ||
+                            status is MonitorStatus.Alert
+                        ) {
+                            NavigateTrend.RISING
+                        } else {
+                            NavigateTrend.NO_CHANGE
+                        },
+                        referenceLabel = "1×",
+                        // Обычный разброс места — сектор дуги: он отвечает
+                        // «бывает ли здесь так».
+                        bandLow = median?.let { m -> band.doseLowMicroSvH / m }?.toDouble(),
+                        bandHigh = median?.let { m -> band.doseHighMicroSvH / m }?.toDouble(),
+                        threshold = median?.let { m -> thresholdMicroSvH?.let { it / m } }
+                            ?.toDouble(),
+                        thresholdLabel = strings.scaleThresholdTick,
+                        statusText = statusHeadline(status, strings)
+                            ?: streamAgeLine(stream, strings),
+                    ),
                 )
             }
             }

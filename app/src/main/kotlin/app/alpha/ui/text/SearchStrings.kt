@@ -70,9 +70,6 @@ interface SearchStrings {
     val offerVerifyAction: String
 
     // --- режимы экрана ---
-    /** Сегмент вверху: два ВОПРОСА, а не «точный» и «быстрый». */
-    val modeNavigate: String
-    val modeVerify: String
 
     // --- Наведение: четыре состояния и величина изменения ---
     val navTrendCollecting: String
@@ -415,8 +412,6 @@ object SearchRu : SearchStrings {
             "фона ограниченный статистический вес, потому что счёт в любом месте " +
             "гуляет и без источника. Для точных измерений запишите эталон."
 
-    override val modeNavigate = "Наведение"
-    override val modeVerify = "Проверка"
 
     override val navTrendCollecting = "… Пока недостаточно данных"
     override val navTrendNoChange = "→ Без заметного изменения"
@@ -806,8 +801,6 @@ object SearchEn : SearchStrings {
             "weight, because counts drift anywhere without any source. For exact " +
             "measurements record a reference."
 
-    override val modeNavigate = "Navigate"
-    override val modeVerify = "Verify"
 
     override val navTrendCollecting = "… collecting counts"
     override val navTrendNoChange = "→ no resolved change"
@@ -1176,7 +1169,7 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     backgroundRecordedAt("12.08", "14:30"),
     title, soundChip, vibroChip, feedbackOffNote, feedbackOffShort,    toneHint, vibroHint,
     toBackground, meterNeedsBackground,    waitingStream, cpsUnit, cpsSigmaLine("3,6"), tapeStartLabel, baselineLabel("25,5"), excursionLabel("×1,8"),
-    modeNavigate, modeVerify,    navTrendCollecting, navTrendNoChange, navTrendRising, navTrendFalling,
+    navTrendCollecting, navTrendNoChange, navTrendRising, navTrendFalling,
     navRatio("1,60", navRatioInterval(95, "1,20", "2,10")), navRatio("1,60", null),
     navRatioInterval(95, "1,20", "2,10"), navRatioToLocal("1,00"), navWindows("1,8", "16,0"),
     navDeltaDash, navRefNone, navRefCollecting, navRefUnresolved, navRefAbove, navRefBelow,

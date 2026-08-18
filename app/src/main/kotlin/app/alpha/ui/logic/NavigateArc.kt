@@ -102,20 +102,33 @@ object NavigateArc {
     const val SHRINK_HOLD_MILLIS = 6_000L
 
     /** Position of a ratio on the arc, 0 (left end) … 1 (right end). */
-    fun position(ratio: Double, factor: Double): Float {
-        if (!ratio.isFinite() || ratio <= 0.0 || factor <= 1.0) return 0.5f
-        val half = ln(factor)
-        return (0.5 + ln(ratio) / (2.0 * half)).coerceIn(0.0, 1.0).toFloat()
-    }
+    fun position(ratio: Double, factor: Double): Float =
+        position(ratio, ArcScale.around(factor))
 
     /** The same position as a Compose sweep angle in degrees. */
     fun angleDegrees(ratio: Double, factor: Double): Float =
         START_DEGREES + SWEEP_DEGREES * position(ratio, factor)
 
+    /** Положение на ПРОИЗВОЛЬНОЙ шкале прибора, 0…1. */
+    fun position(ratio: Double, scale: ArcScale): Float {
+        if (!ratio.isFinite() || ratio <= 0.0) return scale.position(1.0)
+        return scale.position(ratio)
+    }
+
+    /** Угол на произвольной шкале — то же положение в градусах Compose. */
+    fun angleDegrees(ratio: Double, scale: ArcScale): Float =
+        START_DEGREES + SWEEP_DEGREES * position(ratio, scale)
+
     /** True when the value is off the scale and the needle sits on the end. */
     fun offScale(ratio: Double, factor: Double): Boolean {
         if (!ratio.isFinite() || ratio <= 0.0 || factor <= 1.0) return false
         return ratio > factor || ratio < 1.0 / factor
+    }
+
+    /** То же для произвольной шкалы: значение упёрлось в конец. */
+    fun offScale(ratio: Double, scale: ArcScale): Boolean {
+        if (!ratio.isFinite() || ratio <= 0.0) return false
+        return ratio > scale.hi || ratio < scale.lo
     }
 
     /**
@@ -126,11 +139,15 @@ object NavigateArc {
      * distances — the ticks have to be a geometric series or they would lie
      * about the spacing.
      */
-    fun ticks(factor: Double): List<Double> {
-        if (factor <= 1.0) return listOf(1.0)
-        val steps = (ln(factor) / ln(2.0)).roundToInt().coerceAtLeast(1)
-        val out = ArrayList<Double>(2 * steps + 1)
-        for (i in -steps..steps) out += 2.0.pow(i)
+    fun ticks(factor: Double): List<Double> = ticks(ArcScale.around(factor))
+
+    /** Засечки произвольной шкалы: удвоения от нижнего конца до верхнего. */
+    fun ticks(scale: ArcScale): List<Double> {
+        val low = (ln(scale.lo) / ln(2.0)).roundToInt()
+        val high = (ln(scale.hi) / ln(2.0)).roundToInt()
+        if (high <= low) return listOf(1.0)
+        val out = ArrayList<Double>(high - low + 1)
+        for (i in low..high) out += 2.0.pow(i)
         return out
     }
 
@@ -184,5 +201,41 @@ object NavigateArc {
             return state.copy(shrinkPendingSinceMillis = pendingSince)
         }
         return NavigateScaleState(factor = requiredFactor)
+    }
+}
+
+/**
+ * Шкала прибора: концы в ОТНОШЕНИЯХ и логарифмическое положение между ними.
+ *
+ * У прибора два применения, и они различаются только знаменателем ×1 и
+ * концами (макет `docs/design/one-instrument.html`):
+ *
+ *  - [PLACE] — отношение к медиане фона МЕСТА, ×0,5…×8: вниз от обычного
+ *    уходить особо некуда, а вверх нужен запас на настоящий рост;
+ *  - [MARK] — отношение к точке отсчёта, ×0,25…×4: симметрично, потому что
+ *    прибор одинаково часто и приближают к источнику, и уводят от него.
+ *
+ * Ось логарифмическая в обоих случаях: равные множители обязаны быть равными
+ * расстояниями, иначе шкала врёт про интервалы.
+ */
+data class ArcScale(val lo: Double, val hi: Double) {
+
+    /** Доля шкалы, 0…1; вне концов — прижато к ближнему. */
+    fun position(ratio: Double): Float {
+        if (!ratio.isFinite() || ratio <= 0.0 || hi <= lo) return 0f
+        val span = ln(hi / lo)
+        return (ln(ratio / lo) / span).coerceIn(0.0, 1.0).toFloat()
+    }
+
+    companion object {
+        /** Шкала места: ×0,5…×8 вокруг медианы этого места. */
+        val PLACE = ArcScale(0.5, 8.0)
+
+        /** Базовая шкала точки отсчёта: ×0,25…×4. */
+        val MARK = ArcScale(0.25, 4.0)
+
+        /** Симметричная шкала ×1/factor…×factor — кадр «Наведения». */
+        fun around(factor: Double): ArcScale =
+            if (factor <= 1.0) ArcScale(0.5, 2.0) else ArcScale(1.0 / factor, factor)
     }
 }
