@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0240Title: String
+    val v0240Summary: String
+
     val v0230Title: String
     val v0230Summary: String
 
@@ -300,6 +303,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0240Title = "Наведение: стрелка или прямая шкала"
+    override val v0240Summary =
+        "В Настройках → Отклик появился выбор индикатора: привычная стрелка или прямая " +
+        "шкала, которая занимает строку и говорит тем же языком, что шкала места на " +
+        "Главной. Показание у них одно и то же — во сколько раз счёт отличается от точки " +
+        "отсчёта, и вид его изменить не может."
 
     override val v0230Title = "Шестичасовой график перестал рисовать пилу"
     override val v0230Summary =
@@ -938,6 +948,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0240Title = "Guidance: a needle or a straight scale"
+    override val v0240Summary =
+        "Settings → Feedback now offers a choice of indicator: the familiar needle or a " +
+        "straight scale that takes one row and speaks the language of the place scale on " +
+        "Home. The reading is the same either way — how many times the count differs from " +
+        "the reference point — and the view cannot change it."
 
     override val v0230Title = "The six-hour chart no longer draws a saw"
     override val v0230Summary =

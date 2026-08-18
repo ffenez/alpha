@@ -449,6 +449,14 @@ object EnStrings : Strings {
     override val spectralComparison = "Spectral comparison"
 
     override val searchFeedbackTitle = "Search feedback"
+
+    override val searchIndicatorTitle = "Guidance indicator"
+    override val searchIndicatorNeedle = "Needle"
+    override val searchIndicatorScale = "Scale"
+    override val searchIndicatorNote =
+        "The reading is the same either way — how many times the count differs from the " +
+        "reference point. The needle is legible at arm's length; the straight scale takes " +
+        "one row and speaks the language of the place scale on Home."
     override val feedbackOnScreenOnly = "the signal is shown on the Search screen only"
     override val feedbackClicks = "a click for every registered count"
     override val feedbackTone = "a continuous tone: higher means further from the background"
