@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Главная и Поиск: эталон</title>
+<style>
+  :root {
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --s1: 6px; --s2: 10px; --s3: 16px; --s4: 26px;
+    /* страница — тёмная витрина */
+    --page: #0F1216; --pline: #232B34; --pink: #E7EAEE; --pink2: #97A1AC; --pmuted: #5F6873; --paccent: #4FC3D8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--pink); font-family: var(--sans); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: clamp(24px,5vw,52px) clamp(16px,4vw,40px) 80px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--pmuted); margin: 0 0 var(--s2); }
+  h1 { font-weight: 600; font-size: clamp(26px,4.6vw,38px); letter-spacing: -.02em; margin: 0 0 var(--s2); }
+  .lede { max-width: 66ch; color: var(--pink2); margin: 0 0 var(--s4); }
+  .lede b { color: var(--pink); font-weight: 600; }
+
+  .stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: clamp(18px,2.6vw,32px); align-items: start; }
+  .col { display: flex; flex-direction: column; gap: var(--s2); }
+  .name { font-size: 17px; font-weight: 600; }
+  .claim { color: var(--pink2); font-size: 13px; margin: 0; }
+
+  /* --- телефон и темы --- */
+  .phone { border: 1px solid var(--pline); border-radius: 26px; background: #000; padding: 9px; box-shadow: 0 26px 52px -30px #000; }
+  .screen {
+    --bg: #0F1216; --surface: #151A20; --surface2: #1B222A; --line: #232B34;
+    --ink: #E7EAEE; --ink2: #97A1AC; --muted: #5F6873;
+    --ok: #55C08B; --warn: #E8A33D; --crit: #E86A5E; --data: #22A0B6; --data-text: #4FC3D8; --field: #0D1116;
+    position: relative; border-radius: 18px; background: var(--bg); color: var(--ink);
+    overflow: hidden; height: 600px; display: flex; flex-direction: column; gap: var(--s2); padding: var(--s3);
+  }
+  .screen.light {
+    --bg: #F4F6F8; --surface: #FFFFFF; --surface2: #ECF0F3; --line: #E1E6EB;
+    --ink: #171C22; --ink2: #5A6470; --muted: #8B95A0;
+    --ok: #1E7A50; --warn: #A56410; --crit: #BC3E33; --data: #177E92; --data-text: #116273; --field: #EDF1F4;
+  }
+
+  .rail { display: flex; align-items: center; gap: var(--s2); font-family: var(--mono); font-size: 10.5px; color: var(--ink2); }
+  .rail .sp { flex: 1; }
+  .chip { border: 1px solid var(--line); border-radius: 8px; padding: 3px 7px; white-space: nowrap; }
+  .chip.sel { background: var(--surface2); color: var(--ink); border-color: var(--muted); }
+  .chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); }
+
+  .card { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: var(--s3); overflow: hidden; }
+  .hero { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: var(--s3); }
+
+  /* дыхание: видно в обеих темах, плотность разная */
+  .aura {
+    position: absolute; left: 50%; top: 38%; width: 300px; height: 300px; margin: -150px 0 0 -150px;
+    border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, color-mix(in srgb, var(--tint, var(--ok)) 34%, transparent) 0%, transparent 70%);
+    animation: aura 2600ms ease-in-out infinite;
+  }
+  .light .aura { background: radial-gradient(circle, color-mix(in srgb, var(--tint, var(--ok)) 26%, transparent) 0%, transparent 70%); }
+  @keyframes aura { 0%,100% { transform: scale(.88); opacity: .5 } 50% { transform: scale(1.08); opacity: 1 } }
+  .frozen .aura { animation: none; opacity: .22; transform: scale(.9); }
+
+  .center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .label { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink2); }
+  .value { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1.05; color: var(--tint, var(--ink)); }
+  .v-hero { font-size: 46px; }
+  .v-big { font-size: 52px; }
+  .foot { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
+  /* шкала места */
+  .scale { position: relative; width: 100%; margin-top: var(--s3); }
+  .track { position: relative; height: 26px; }
+  .axis { position: absolute; left: 0; right: 0; top: 16px; height: 2px; background: var(--line); }
+  .band { position: absolute; top: 10px; height: 14px; background: color-mix(in srgb, var(--ink2) 22%, transparent); }
+  .trail { position: absolute; top: 15px; height: 4px; background: color-mix(in srgb, var(--tint, var(--ok)) 34%, transparent); border-radius: 2px; transition: left 600ms, width 600ms; }
+  .tickm { position: absolute; top: 8px; width: 2px; height: 18px; background: var(--warn); }
+  .mark { position: absolute; top: 6px; width: 3px; height: 22px; background: var(--tint, var(--ok)); }
+  .mark::after { content: ""; position: absolute; left: 50%; top: -6px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--tint, var(--ok)); }
+  .gt { position: absolute; top: 2px; width: 1px; height: 8px; background: var(--line); }
+  .ticks { position: relative; height: 14px; font-family: var(--mono); font-size: 9px; color: var(--muted); }
+  .ticks span { position: absolute; transform: translateX(-50%); }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2); }
+  .tile { background: var(--surface2); border: 1px solid var(--line); border-radius: 8px; padding: var(--s2); }
+  .tile .k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .tile .v { font-family: var(--mono); font-size: 15px; color: var(--ink); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  .chart { background: var(--field); border-radius: 8px; height: 120px; overflow: hidden; position: relative; }
+  .chart svg { width: 200%; height: 100%; }
+  .flow { animation: flow 24s linear infinite; }
+  @keyframes flow { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+
+  /* поиск */
+  .gauge { position: relative; display: grid; place-items: center; }
+  .gauge svg { width: 100%; height: 150px; }
+  .needle { transform-origin: 150px 128px; transition: transform 700ms cubic-bezier(.2,0,0,1); }
+
+  .notes { margin-top: var(--s4); border-top: 1px solid var(--pline); padding-top: var(--s3); }
+  .notes h2 { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--pmuted); font-weight: 500; margin: 0 0 var(--s2); }
+  .notes div { display: grid; grid-template-columns: 150px 1fr; gap: var(--s2); font-size: 13.5px; color: var(--pink2); padding: 6px 0; border-bottom: 1px solid var(--pline); }
+  .notes span:first-child { font-family: var(--mono); font-size: 11px; color: var(--paccent); padding-top: 2px; }
+  .notes b { color: var(--pink); font-weight: 600; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Alpha · эталон экранов · тёмный и светлый «Научный терминал»</p>
+  <h1>Как это должно выглядеть</h1>
+  <p class="lede">
+    Четыре кадра: Главная в обеих темах, Поиск до отсчёта и после него.
+    <b>Дыхание видно в обеих темах</b> — на бумаге оно плотнее, потому что светлая подложка
+    съедает прозрачность. <b>Шкала прибора стоит всегда</b>, даже пока отсчёт не задан:
+    пустой прибор — это прибор. Числа меняются шагом, плавно едут только след и кадр графика.
+  </p>
+
+  <div class="stage">
+
+    <!-- Главная, тёмная -->
+    <div class="col">
+      <div class="name">Главная · тёмная</div>
+      <p class="claim">Дыхание за числом, шкала места под ним, порог на той же оси.</p>
+      <div class="phone"><div class="screen" style="--tint: var(--ok)">
+        <div class="rail"><span class="chip">⌂ Дом · авто</span><span class="sp"></span><span class="chip ok">связь</span><span class="chip">1 Гц</span><span>λ</span></div>
+        <div class="card hero">
+          <div class="aura"></div>
+          <div class="center">
+            <span class="label">мощность дозы</span>
+            <span class="value v-hero">0,14</span>
+            <span class="foot">±9 %</span>
+            <div class="scale">
+              <div class="track">
+                <div class="axis"></div>
+                <div class="gt" style="left:0"></div><div class="gt" style="left:25%"></div>
+                <div class="gt" style="left:50%"></div><div class="gt" style="left:75%"></div><div class="gt" style="left:calc(100% - 1px)"></div>
+                <div class="band" style="left:19%;width:12%"></div>
+                <div class="trail" style="left:22%;width:9%"></div>
+                <div class="tickm" style="left:57%"></div>
+                <div class="mark" style="left:27%"></div>
+              </div>
+              <div class="ticks"><span style="left:2%">×0,5</span><span style="left:25%">×1</span><span style="left:57%">порог</span><span style="left:96%">×8</span></div>
+            </div>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="k">фон места</div><div class="v">0,12</div></div>
+            <div class="tile"><div class="k">за час</div><div class="v">+0,01</div></div>
+            <div class="tile"><div class="k">за сутки</div><div class="v">2,8</div></div>
+          </div>
+        </div>
+        <div class="card" style="padding:var(--s2) var(--s3)">
+          <div class="rail" style="font-size:10px"><span class="label">мощность дозы</span><span class="sp"></span><span>5 мин</span><span>⤢</span></div>
+          <div class="chart" style="margin-top:var(--s2)">
+            <svg viewBox="0 0 480 120" preserveAspectRatio="none"><g class="flow"><polyline id="l1" fill="none" stroke="var(--data-text)" stroke-width="1.6" points=""/></g></svg>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- Главная, светлая -->
+    <div class="col">
+      <div class="name">Главная · светлая</div>
+      <p class="claim">То же дыхание плотнее: на бумаге прозрачность съедается.</p>
+      <div class="phone"><div class="screen light" style="--tint: var(--warn)">
+        <div class="rail"><span class="chip">⌂ Дом · авто</span><span class="sp"></span><span class="chip ok">связь</span><span class="chip">1 Гц</span><span>λ</span></div>
+        <div class="card hero">
+          <div class="aura"></div>
+          <div class="center">
+            <span class="label">мощность дозы</span>
+            <span class="value v-hero">0,29</span>
+            <span class="foot">±7 %</span>
+            <div class="scale">
+              <div class="track">
+                <div class="axis"></div>
+                <div class="gt" style="left:0"></div><div class="gt" style="left:25%"></div>
+                <div class="gt" style="left:50%"></div><div class="gt" style="left:75%"></div><div class="gt" style="left:calc(100% - 1px)"></div>
+                <div class="band" style="left:19%;width:12%"></div>
+                <div class="trail" style="left:38%;width:14%"></div>
+                <div class="tickm" style="left:57%"></div>
+                <div class="mark" style="left:50%"></div>
+              </div>
+              <div class="ticks"><span style="left:2%">×0,5</span><span style="left:25%">×1</span><span style="left:57%">порог</span><span style="left:96%">×8</span></div>
+            </div>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="k">фон места</div><div class="v">0,12</div></div>
+            <div class="tile"><div class="k">за час</div><div class="v">+0,04</div></div>
+            <div class="tile"><div class="k">за сутки</div><div class="v">3,1</div></div>
+          </div>
+        </div>
+        <div class="card" style="padding:var(--s2) var(--s3)">
+          <div class="rail" style="font-size:10px"><span class="label">мощность дозы</span><span class="sp"></span><span>5 мин</span><span>⤢</span></div>
+          <div class="chart" style="margin-top:var(--s2)">
+            <svg viewBox="0 0 480 120" preserveAspectRatio="none"><g class="flow"><polyline id="l2" fill="none" stroke="var(--data-text)" stroke-width="1.6" points=""/></g></svg>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- Поиск до отсчёта -->
+    <div class="col">
+      <div class="name">Поиск · до отсчёта</div>
+      <p class="claim">Шкала стоит пустой, стрелки нет — сравнивать пока не с чем.</p>
+      <div class="phone"><div class="screen" style="--tint: var(--data)">
+        <div class="rail"><span class="chip sel">наведение</span><span class="chip">проверка</span><span class="sp"></span><span class="chip ok">связь</span><span class="chip">звук</span></div>
+        <div class="card hero">
+          <div class="aura"></div>
+          <div class="center">
+            <span class="label">скорость счёта</span>
+            <span class="value v-big">17,4</span>
+            <span class="foot">недавний уровень · без заметного изменения</span>
+          </div>
+          <div class="gauge">
+            <svg viewBox="0 0 300 150" aria-hidden="true">
+              <path d="M40 128 A110 110 0 0 1 260 128" fill="none" stroke="var(--line)" stroke-width="7"/>
+              <g id="ticksEmpty"></g>
+              <circle cx="150" cy="128" r="4" fill="var(--muted)"/>
+              <text x="150" y="150" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)" letter-spacing="1.4">ОТСЧЁТ НЕ ЗАДАН</text>
+            </svg>
+          </div>
+          <div style="border:1px solid var(--data); background:var(--data); color:#06222A; border-radius:8px; padding:10px; text-align:center; font-family:var(--mono); font-size:12px">задать точку отсчёта</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- Поиск после отсчёта -->
+    <div class="col">
+      <div class="name">Поиск · после отсчёта</div>
+      <p class="claim">Стрелка на отношении, дыхание частит по близости.</p>
+      <div class="phone"><div class="screen" style="--tint: var(--warn); --breath: 700ms">
+        <div class="rail"><span class="chip sel">наведение</span><span class="chip">проверка</span><span class="sp"></span><span class="chip ok">связь</span><span class="chip">звук</span></div>
+        <div class="card hero">
+          <div class="aura" style="animation-duration:700ms"></div>
+          <div class="center">
+            <span class="label">скорость счёта</span>
+            <span class="value v-big">74,5</span>
+            <span class="foot">×4,3 к точке отсчёта · интервал 3,9–4,7</span>
+          </div>
+          <div class="gauge">
+            <svg viewBox="0 0 300 150" aria-hidden="true">
+              <path d="M40 128 A110 110 0 0 1 260 128" fill="none" stroke="var(--line)" stroke-width="7"/>
+              <path id="fill" d="" fill="none" stroke="var(--warn)" stroke-width="7" stroke-linecap="round"/>
+              <g id="ticksFull"></g>
+              <g class="needle" id="needle"><line x1="150" y1="128" x2="150" y2="34" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/></g>
+              <circle cx="150" cy="128" r="4.5" fill="var(--ink)"/>
+              <text x="150" y="150" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)" letter-spacing="1.4">СИГНАЛ УСИЛИВАЕТСЯ</text>
+            </svg>
+          </div>
+          <div class="chart" style="height:64px">
+            <svg viewBox="0 0 480 64" preserveAspectRatio="none"><g class="flow"><polyline id="l3" fill="none" stroke="var(--data-text)" stroke-width="1.5" points=""/></g></svg>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <h2>Что здесь закон</h2>
+    <div><span>дыхание</span><span><b>Видно в обеих темах.</b> Тёмная — свечение 0,16…0,36 от цвета числа; светлая — 0,10…0,26, потому что бумага съедает прозрачность. Поток замолчал — свечение застывает тусклым, а не исчезает.</span></div>
+    <div><span>период</span><span>На Главной постоянный, 2,6 с: это «прибор жив». В Поиске период — <b>показание</b>: 2,6 с у фона, 0,45 с при ×8, та же шкала, что у тона.</span></div>
+    <div><span>шкала места</span><span>Ось отношения к медиане места, ×0,5…×8, логарифмическая. Серая полоса — обычный разброс, янтарная риска — порог, маркер — сейчас (шагом), след — минута (плавно).</span></div>
+    <div><span>шкала поиска</span><span><b>Стоит всегда.</b> До отсчёта — засечки без стрелки и подпись «отсчёт не задан»; после — стрелка на отношении и заливка от ×1 до него.</span></div>
+    <div><span>график</span><span>Едет непрерывно и <b>только вперёд</b>: край считается от правого края окна, а не от часов экрана, иначе картинка дёргается при расхождении частот.</span></div>
+    <div><span>чего нет</span><span>Тика по грани карточки, мигания плиток и плиток «фон / разница» под графиком Проверки.</span></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var seed = 3;
+    function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+    function line(id, amp, base) {
+      var pts = [];
+      for (var x = 0; x <= 240; x += 4) pts.push([x, base - amp * (Math.sin(x / 19) * .5 + Math.sin(x / 7) * .3) - (rnd() - .5) * amp * .45]);
+      var all = pts.concat(pts.map(function (p) { return [p[0] + 242, p[1]]; }));
+      document.getElementById(id).setAttribute('points', all.map(function (p) { return p[0] + ',' + p[1].toFixed(1); }).join(' '));
+    }
+    line('l1', 22, 62); line('l2', 26, 60); line('l3', 14, 40);
+
+    // Дуга поиска: −110°…+110°, логарифмическая ×0,25 … ×4 (кадр 4×)
+    var A0 = -110, A1 = 110, R = 110, CX = 150, CY = 128;
+    function pos(ratio) { return (Math.log(ratio) / Math.LN2 + 2) / 4; }
+    function ang(ratio) { return A0 + (A1 - A0) * Math.min(1, Math.max(0, pos(ratio))); }
+    function pt(a, r) { var t = (a - 90) * Math.PI / 180; return [CX + r * Math.cos(t), CY + r * Math.sin(t)]; }
+    function ticks(host, withLabels) {
+      [0.25, 0.5, 1, 2, 4].forEach(function (ratio) {
+        var a = ang(ratio), p1 = pt(a, R - 4), p2 = pt(a, R - 14), p3 = pt(a, R - 28);
+        var ref = ratio === 1;
+        host.insertAdjacentHTML('beforeend',
+          '<line x1="' + p1[0].toFixed(1) + '" y1="' + p1[1].toFixed(1) + '" x2="' + p2[0].toFixed(1) + '" y2="' + p2[1].toFixed(1) +
+          '" stroke="' + (ref ? 'var(--ink2)' : 'var(--muted)') + '" stroke-width="' + (ref ? 3 : 1.6) + '"/>' +
+          (withLabels ? '<text x="' + p3[0].toFixed(1) + '" y="' + (p3[1] + 4).toFixed(1) + '" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="' + (ref ? 'var(--ink2)' : 'var(--muted)') + '">' + (ref ? '1×' : (ratio + '×').replace('.', ',')) + '</text>' : ''));
+      });
+    }
+    ticks(document.getElementById('ticksEmpty'), true);
+    ticks(document.getElementById('ticksFull'), true);
+
+    var ratio = 4.3;
+    var a = ang(ratio), a1 = ang(1);
+    var p1 = pt(Math.min(a, a1), R), p2 = pt(Math.max(a, a1), R);
+    document.getElementById('fill').setAttribute('d',
+      'M' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) + ' A' + R + ' ' + R + ' 0 0 1 ' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1));
+    document.getElementById('needle').style.transform = 'rotate(' + a.toFixed(1) + 'deg)';
+  })();
+</script>
+
+</body>
+</html>
