@@ -548,6 +548,7 @@ fun MonitorScreen(
                 tintEnabled = doseTint,
                 tintFactor = doseTintFactor,
                 thresholdMicroSvH = thresholds.l1MicroSvH,
+                threshold2MicroSvH = thresholds.l2MicroSvH,
                 trail = trail,
             )
 
@@ -918,8 +919,9 @@ private fun HeroCard(
     tintEnabled: Boolean = true,
     /** Во сколько раз выше обычного цвет насыщается. */
     tintFactor: Float = DoseTint.DEFAULT_FACTOR,
-    /** Порог тревоги на шкале места; null — порога нет. */
+    /** Пороги тревоги на шкале места; null — порога нет. */
     thresholdMicroSvH: Float? = null,
+    threshold2MicroSvH: Float? = null,
     /** Где значение побывало за последнюю минуту: (минимум, максимум). */
     trail: Pair<Float, Float>? = null,
     onWhy: () -> Unit = {},
@@ -992,20 +994,9 @@ private fun HeroCard(
                             onClick = onWhy,
                         ),
                 )
-                // Неопределённость показания — КРИТИЧЕСКОЕ: число без неё
-                // читается как точное, а на этих выдержках оно не точное.
-                // Здесь стоит собственная оценка прибора; чем она не является
-                // (полной неопределённостью с калибровкой и систематикой),
-                // сказано в «Почему такой вывод» — это уже пояснение.
-                Uncertainty.errPercentLabel(errPercent)?.let { error ->
-                    Text(
-                        text = error,
-                        style = type.footnote,
-                        color = colors.muted,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-                Hint(text = strings.deviceErrorNote, textAlign = TextAlign.Center)
+                // Единица и погрешность прибора живут в «Почему такой вывод»:
+                // одна составляющая не выдаётся там за полную неопределённость,
+                // а строка под числом уводила внимание с самого числа.
                 // Возраст последнего измерения — вторичная строка и только в
                 // устойчивом состоянии.
                 streamAgeLine(stream, strings)?.let { age ->
@@ -1026,6 +1017,7 @@ private fun HeroCard(
                     lowMicroSvH = band?.doseLowMicroSvH,
                     highMicroSvH = band?.doseHighMicroSvH,
                     thresholdMicroSvH = thresholdMicroSvH,
+                    threshold2MicroSvH = threshold2MicroSvH,
                     trailLowMicroSvH = trail?.first,
                     trailHighMicroSvH = trail?.second,
                     tint = heroTint,

@@ -162,7 +162,11 @@ fun SearchScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
+    // Живое показание берётся из памяти службы, а не из базы — тем же путём,
+    // что на Главной. Строку в базе может отбросить уникальный индекс, а
+    // запись может быть выключена вовсе, и тогда экран показывал «ждём данные
+    // прибора» при исправно идущем потоке.
+    val sample by graph.serviceStatus.lastSample.collectAsState()
     val background by graph.searchBackground.collectAsState(initial = null)
     val activeProfileId by graph.contextHub.activeProfileId.collectAsState()
     val feedbackModeId by graph.settings.searchFeedbackMode.collectAsState(initial = null)
@@ -298,19 +302,19 @@ fun SearchScreen(
 
     LaunchedEffect(sample, background) {
         val s = sample ?: return@LaunchedEffect
-        if (s.timestamp == lastSeenTimestamp) return@LaunchedEffect
-        lastSeenTimestamp = s.timestamp
-        lastSampleReceivedAt = System.currentTimeMillis()
-        deviceClockOffset = lastSampleReceivedAt - s.timestamp
+        if (s.deviceTimestampMillis == lastSeenTimestamp) return@LaunchedEffect
+        lastSeenTimestamp = s.deviceTimestampMillis
+        lastSampleReceivedAt = s.receivedAtMillis
+        deviceClockOffset = lastSampleReceivedAt - s.deviceTimestampMillis
         search = SearchEngine.onReading(
             state = search,
-            timeMillis = s.timestamp,
+            timeMillis = s.deviceTimestampMillis,
             cps = s.countRate,
             background = background,
         )
         navigate = NavigateEngine.onReading(
             state = navigate,
-            timeMillis = s.timestamp,
+            timeMillis = s.deviceTimestampMillis,
             cps = s.countRate,
         )
         clicker.setRate(ClickRate.clicksPerSecond(s.countRate))
