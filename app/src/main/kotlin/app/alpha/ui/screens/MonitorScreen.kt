@@ -992,6 +992,20 @@ private fun HeroCard(
                             onClick = onWhy,
                         ),
                 )
+                // Неопределённость показания — КРИТИЧЕСКОЕ: число без неё
+                // читается как точное, а на этих выдержках оно не точное.
+                // Здесь стоит собственная оценка прибора; чем она не является
+                // (полной неопределённостью с калибровкой и систематикой),
+                // сказано в «Почему такой вывод» — это уже пояснение.
+                Uncertainty.errPercentLabel(errPercent)?.let { error ->
+                    Text(
+                        text = error,
+                        style = type.footnote,
+                        color = colors.muted,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                Hint(text = strings.deviceErrorNote, textAlign = TextAlign.Center)
                 // Возраст последнего измерения — вторичная строка и только в
                 // устойчивом состоянии.
                 streamAgeLine(stream, strings)?.let { age ->
@@ -1002,8 +1016,6 @@ private fun HeroCard(
                         textAlign = TextAlign.Center,
                     )
                 }
-                // Единица и погрешность прибора живут в «Почему такой вывод»:
-                // одна составляющая не выдаётся там за полную неопределённость.
 
                 // Шкала места: «много ли это здесь». График отвечает на другой
                 // вопрос — «растёт ли», и одно другого не заменяет.
@@ -1228,14 +1240,21 @@ private fun MetricChartCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                // В шапке — название картинки и знак раскрытия. Окно читается
-                // по подписям оси времени, единица — по значениям.
+                // В шапке — название картинки, длительность окна и знак
+                // раскрытия. Единица читается по значениям оси.
                 Text(
                     text = ChartMetrics.title(metric, strings).uppercase(),
                     style = type.label,
                     color = colors.ink,
                 )
                 Spacer(Modifier.weight(1f))
+                // Окно названо числом, пока оно ступень лестницы. После щипка
+                // окно произвольное, подписи нет, и его читают по оси времени.
+                ChartWindows.spanLabel(spanMillis, ChartAxisCatalogue.of(strings.language))
+                    ?.let { span ->
+                        Text(text = span, style = type.footnoteMono, color = colors.ink2)
+                        Spacer(Modifier.width(Dimens.space1))
+                    }
                 // «Сейчас» появляется, только когда график ушёл от живого края.
                 if (!following) {
                     Chip(text = t.backToNow, color = colors.dataText, onClick = onBackToNow)

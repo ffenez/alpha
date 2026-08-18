@@ -2,6 +2,7 @@ package app.alpha.ui.logic
 
 import app.alpha.data.db.DownsampledSample
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -278,6 +279,15 @@ class ChartWindowTest {
                 )
             }
         }
+    }
+
+    @Test
+    fun `the window is named only when it is a step of the ladder`() {
+        assertEquals("5м", ChartWindows.spanLabel(5L * 60_000L))
+        assertEquals("6ч", ChartWindows.spanLabel(6L * 3_600_000L))
+        // После щипка окно произвольное: подписи нет, окно читается по оси.
+        assertNull(ChartWindows.spanLabel(7L * 60_000L))
+        assertNull(ChartWindows.spanLabel(null))
     }
 }
 

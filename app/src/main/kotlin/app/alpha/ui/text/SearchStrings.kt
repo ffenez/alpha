@@ -150,7 +150,6 @@ interface SearchStrings {
 
     // --- Наведение: дуга и лента ---
     /** Заголовок единого модуля наведения. */
-    val navModuleTitle: String
 
     /** Затенение на дуге — интервал отношения; линия без имени просто линия. */
     val navScaleReference: String
@@ -485,7 +484,6 @@ object SearchRu : SearchStrings {
     override fun navPeakValue(rate: String, agoSeconds: Int) =
         "Максимум за сессию: $rate · $agoSeconds с назад"
 
-    override val navModuleTitle = "Наведение"
 
 
     override val navScaleReference = "отсчёт"
@@ -871,7 +869,6 @@ object SearchEn : SearchStrings {
     override fun navPeakValue(rate: String, agoSeconds: Int) =
         "Session maximum: $rate · $agoSeconds s ago"
 
-    override val navModuleTitle = "Navigation"
 
 
     override val navScaleReference = "ref"
@@ -1177,7 +1174,7 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     navWhyWindows, navWhyCriterion, navWhyCriterionValue("1"), navWhyCriterionNote, navWhyLimit,
     navTrendLine(navTrendNoChange, "1,01×"), navReferenceLevel("25,1"),
     navScaleWeaker, navScaleStronger,
-    navPeakValue("47,6", 18), navModuleTitle, navScaleReference, navScalePeak,
+    navPeakValue("47,6", 18), navScaleReference, navScalePeak,
     navTraceStart, navLocalLevel("24,8"),
     navMark, navReferenceSet("26,0", "11:44"), navMarkUpdate, navMarkClear,
     navMore, navResetPeak, navMeasureHere(10), navSpotProgress(6, 10), navSpotNote,

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0290Title: String
+    val v0290Summary: String
+
     val v0280Title: String
     val v0280Summary: String
 
@@ -318,6 +321,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0290Title = "Поиск собран в один прибор"
+    override val v0290Summary =
+        "Счёт, состояние, шкала и кнопка отсчёта стояли в двух карточках, и связь между " +
+        "числом и шкалой приходилось искать глазами — теперь это один прибор, вокруг " +
+        "которого дышит подсветка: спокойно у точки отсчёта и чаще по мере приближения. " +
+        "На Главной под числом снова стоит погрешность прибора, а в шапке графика — " +
+        "длительность окна."
 
     override val v0280Title = "Дыхание видно в любом оформлении"
     override val v0280Summary =
@@ -999,6 +1010,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0290Title = "Поиск is one instrument now"
+    override val v0290Summary =
+        "The count, the state, the scale and the reference button sat in two cards, and the " +
+        "link between the number and the scale had to be found by eye — it is now one " +
+        "instrument with the glow breathing around it: calm at the reference point and faster " +
+        "as you close in. On Home the device error is back under the reading, and the chart " +
+        "header names the length of its window."
 
     override val v0280Title = "The breathing reads in any theme"
     override val v0280Summary =
