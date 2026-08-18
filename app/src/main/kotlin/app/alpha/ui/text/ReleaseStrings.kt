@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0220Title: String
+    val v0220Summary: String
+
     val v0210Title: String
     val v0210Summary: String
 
@@ -294,6 +297,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0220Title = "Живой край графиков едет плавно"
+    override val v0220Summary =
+        "Окно, привязанное к «сейчас», сдвигалось раз в секунду, и на пятиминутном графике " +
+        "это был заметный рывок; теперь между измерениями плавно едет само окно, а данные " +
+        "остаются там, где измерены — движется картинка, а не числа."
 
     override val v0210Title = "Единицы ушли с экранов"
     override val v0210Summary =
@@ -919,6 +928,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0220Title = "The live edge of the charts flows"
+    override val v0220Summary =
+        "The window pinned to «now» used to step once a second, a visible jerk on a " +
+        "five-minute chart; between measurements the window itself now flows while the data " +
+        "stays where it was measured — the picture moves, not the numbers."
 
     override val v0210Title = "Units are off the screens"
     override val v0210Summary =

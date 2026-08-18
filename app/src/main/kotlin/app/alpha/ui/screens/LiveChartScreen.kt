@@ -77,7 +77,9 @@ import app.alpha.ui.logic.ChartBucket
 import app.alpha.ui.logic.LocalBackground
 import app.alpha.ui.logic.ChartWindow
 import app.alpha.ui.logic.DoseScale
+import app.alpha.ui.components.rememberFrameMillis
 import app.alpha.ui.logic.ChartWindows
+import app.alpha.ui.logic.LiveEdge
 import app.alpha.analysis.Hardness
 import app.alpha.ui.logic.ChartMetric
 import app.alpha.ui.logic.ChartDetailMode
@@ -562,7 +564,15 @@ fun LiveChartScreen(
             if (f != null) {
                 // Кадр посчитан шире видимого окна; на экран раскладывается
                 // видимое.
-                val view = ChartWindows.withRightPadding(window)
+                // Тот же живой край, что на карточках: между секундными
+                // тиками едет окно, а не данные ([LiveEdge]).
+                val padded = ChartWindows.withRightPadding(window)
+                // Момент последнего тика — правый край видимого окна: пока
+                // экран следит за «сейчас», это и есть «сейчас» на тике.
+                val tickMillis = window.toMillis
+                val smoothEdge = follow && LiveEdge.smooth(padded.spanMillis, plotWidthPx)
+                val frameMillis by rememberFrameMillis(smoothEdge, tickMillis)
+                val view = LiveEdge.shifted(padded, tickMillis, frameMillis)
                 DoseChart(
                     spec = f.spec.copy(
                         viewFromMillis = view.fromMillis,
