@@ -471,7 +471,9 @@ fun NavigateSection(
 @Composable
 fun NavigateIndicator(indicator: SearchIndicator, spec: NavigateGaugeSpec) {
     when (indicator) {
-        SearchIndicator.NEEDLE -> NavigateGauge(spec = spec, height = 124.dp)
+        // Циферблат в 220° высок по построению: при меньшей высоте радиус
+        // считается по ней, и прибор снова съёживается в узкий сектор.
+        SearchIndicator.NEEDLE -> NavigateGauge(spec = spec, height = 210.dp)
         SearchIndicator.SCALE -> NavigateScale(spec = spec, height = 96.dp)
     }
 }

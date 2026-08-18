@@ -25,8 +25,8 @@ import app.alpha.ui.theme.LocalAppTypography
  *
  *  - серая полоса — обычный разброс места (P10–P90 профиля): она отвечает на
  *    вопрос «бывает ли здесь так»;
- *  - янтарная риска — порог тревоги, и она стоит на той же оси, поэтому видно
- *    не только «выше обычного», но и «сколько ещё до порога»;
+ *  - риски порогов — оба заданных уровня на той же оси, поэтому видно не
+ *    только «выше обычного», но и «сколько ещё до каждого из них»;
  *  - маркер — текущее значение. Он переставляется ШАГОМ: положение маркера —
  *    измеренное число, а измеренное в этом приложении не доезжает;
  *  - след — где значение побывало за последнюю минуту; это история, и она
@@ -44,8 +44,15 @@ fun PlaceScaleBar(
     /** Обычный разброс места, P10–P90. */
     lowMicroSvH: Float?,
     highMicroSvH: Float?,
-    /** Порог тревоги на той же оси; null — порога нет. */
+    /**
+     * Пороги тревоги на той же оси; null — порога нет.
+     *
+     * Уровней два, и на шкале их тоже два: настроив второй, человек ищет его
+     * глазами, а одна риска отвечала бы на вопрос «сколько осталось» только
+     * про первый.
+     */
     thresholdMicroSvH: Float?,
+    threshold2MicroSvH: Float? = null,
     /** Куда значение ходило за последнюю минуту. */
     trailLowMicroSvH: Float? = null,
     trailHighMicroSvH: Float? = null,
@@ -73,14 +80,16 @@ fun PlaceScaleBar(
                 strokeWidth = border * 2f,
                 cap = StrokeCap.Butt,
             )
+            // Засечки лестницы одинаковые: ×1 отдельной палкой не выделяется —
+            // медиана места уже названа подписью, а вертикаль на ней спорила с
+            // риской порога и маркером за внимание.
             for (ratio in PlaceScale.ticks()) {
-                val reference = ratio == 1.0
                 val at = x(PlaceScale.position(ratio))
                 drawLine(
-                    color = if (reference) colors.ink2 else colors.line,
-                    start = Offset(at, axisY - if (reference) 7.dp.toPx() else 4.dp.toPx()),
-                    end = Offset(at, axisY + if (reference) 7.dp.toPx() else 4.dp.toPx()),
-                    strokeWidth = if (reference) border * 2f else border,
+                    color = colors.line,
+                    start = Offset(at, axisY - 4.dp.toPx()),
+                    end = Offset(at, axisY + 4.dp.toPx()),
+                    strokeWidth = border,
                 )
             }
             val low = PlaceScale.positionOf(lowMicroSvH, median)
@@ -105,13 +114,22 @@ fun PlaceScaleBar(
                     cap = StrokeCap.Round,
                 )
             }
-            PlaceScale.positionOf(thresholdMicroSvH, median)?.let { at ->
-                drawLine(
-                    color = colors.warn,
-                    start = Offset(x(at), axisY - 9.dp.toPx()),
-                    end = Offset(x(at), axisY + 9.dp.toPx()),
-                    strokeWidth = border * 2f,
-                )
+            // Оба порога: первый янтарный, второй — цветом тревоги. Порог за
+            // правым концом шкалы не рисуется вовсе, иначе риска прилипла бы к
+            // краю и врала бы о расстоянии до него.
+            for ((threshold, color) in listOf(
+                thresholdMicroSvH to colors.warn,
+                threshold2MicroSvH to colors.crit,
+            )) {
+                if (PlaceScale.offScale(threshold, median)) continue
+                PlaceScale.positionOf(threshold, median)?.let { at ->
+                    drawLine(
+                        color = color,
+                        start = Offset(x(at), axisY - 9.dp.toPx()),
+                        end = Offset(x(at), axisY + 9.dp.toPx()),
+                        strokeWidth = border * 2f,
+                    )
+                }
             }
             PlaceScale.positionOf(value, median)?.let { at ->
                 val markerX = x(at)

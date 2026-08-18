@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0310Title: String
+    val v0310Summary: String
+
     val v0300Title: String
     val v0300Summary: String
 
@@ -327,6 +330,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0310Title = "Шкала стала прибором"
+    override val v0310Summary =
+        "Дуга в шестьдесят градусов укладывала всю лестницу отношений в узкий сектор, и " +
+        "стрелка почти не отклонялась — теперь это циферблат на 220° со стрелкой от оси, " +
+        "подписанными засечками и залитым путём от единицы до показания. Заодно на шкале " +
+        "места стоят оба заданных порога, а Проверка перестала просить данные прибора при " +
+        "идущем потоке — она читает те же живые показания, что и Главная."
 
     override val v0300Title = "Шкала прибора и на Проверке"
     override val v0300Summary =
@@ -1029,6 +1040,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0310Title = "The scale became an instrument"
+    override val v0310Summary =
+        "A sixty-degree arc packed the whole ladder of ratios into a narrow sector and the " +
+        "needle barely moved — it is a 220° dial now, with the needle running from the axis, " +
+        "the factors labelled at the ticks and the way from one to the reading filled in. The " +
+        "place scale also carries both configured thresholds, and Проверка stopped asking for " +
+        "instrument data while the stream runs — it reads the live samples Главная reads."
 
     override val v0300Title = "The instrument scale reaches Проверка"
     override val v0300Summary =

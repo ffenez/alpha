@@ -72,9 +72,17 @@ data class NavigateScaleState(
  */
 object NavigateArc {
 
-    /** Compose sweep angles: 0° is 3 o'clock, positive clockwise. */
-    const val START_DEGREES = 240f
-    const val SWEEP_DEGREES = 60f
+    /**
+     * Compose sweep angles: 0° is 3 o'clock, positive clockwise.
+     *
+     * **Инженерный параметр**: 220° от 160° — почти полный круг с разрывом
+     * снизу, то есть циферблат прибора. Прежние 60° укладывали всю лестницу
+     * отношений в узкий сектор: разница между ×1 и ×4 занимала полтора
+     * сантиметра, стрелка почти не отклонялась, и картинка не работала как
+     * прибор, ради которого она нарисована.
+     */
+    const val START_DEGREES = 160f
+    const val SWEEP_DEGREES = 220f
 
     /** Half-spans the frame may take, in factors of the reference. */
     val LADDER = listOf(2.0, 4.0, 8.0, 16.0, 32.0)

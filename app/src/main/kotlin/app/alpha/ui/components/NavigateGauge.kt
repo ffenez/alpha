@@ -118,9 +118,10 @@ fun NavigateGauge(
             spec.referenceCaption != null ||
             spec.highCaption != null
         val labelRows = if (captions) 2f else 1f
-        // The 60° cap is `radius` wide and `radius·(1 − cos 30°)` tall.
+        // Циферблат в 220° занимает 2R по ширине и R·(1 + sin 20°) по высоте:
+        // вершина дуги над центром, оба конца — ниже него.
         val vertical = size.height - labelRows * labelHeight - 3f * padding
-        val radius = minOf(size.width - 2f * padding, vertical / SAGITTA)
+        val radius = minOf((size.width - 2f * padding) / 2f, vertical / DIAL_HEIGHT_FACTOR)
         if (radius <= 0f) return@Canvas
         val centerX = size.width / 2f
         val centerY = padding + radius
@@ -168,27 +169,65 @@ fun NavigateGauge(
             style = Stroke(width = border * 2f, cap = StrokeCap.Butt),
         )
 
-        // Ticks: every doubling out to the ends of the frame; the reference
-        // itself is longer and in ink, because ×1 is the one tick that means
-        // something on its own.
-        val tick = 7.dp.toPx()
-        for (value in NavigateArc.ticks(spec.factor)) {
+        // Сектор от ×1 до стрелки: заполненная часть шкалы говорит «на столько
+        // отсюда ушло», и её длина читается раньше, чем положение стрелки.
+        spec.ratio?.let { ratio ->
+            val from = NavigateArc.angleDegrees(1.0, spec.factor)
+            val to = NavigateArc.angleDegrees(ratio, spec.factor)
+            drawArc(
+                color = needleColor.copy(alpha = 0.55f),
+                startAngle = minOf(from, to),
+                sweepAngle = kotlin.math.abs(to - from),
+                useCenter = false,
+                topLeft = Offset(centerX - radius, centerY - radius),
+                size = Size(radius * 2f, radius * 2f),
+                style = Stroke(width = border * 2f, cap = StrokeCap.Butt),
+            )
+        }
+
+        // Засечки — удвоения кадра, и каждая названа множителем: шкала без
+        // чисел не шкала, а дуга. На широких кадрах подписаны только концы и
+        // ×1 — иначе подписи наезжают друг на друга.
+        val tick = 10.dp.toPx()
+        val ticks = NavigateArc.ticks(spec.factor)
+        val steps = (ticks.size - 1) / 2
+        val labelStep = if (steps <= 3) 1 else steps
+        ticks.forEachIndexed { index, value ->
             val reference = value == 1.0
+            val angle = NavigateArc.angleDegrees(value, spec.factor)
             radial(
-                angleDegrees = NavigateArc.angleDegrees(value, spec.factor),
-                from = radius - if (reference) tick * 2f else tick,
+                angleDegrees = angle,
+                from = radius - if (reference) tick * 1.6f else tick,
                 to = radius,
                 color = if (reference) colors.ink2 else colors.chartGrid,
-                width = if (reference) border * 2f else border,
+                width = if (reference) border * 3f else border,
+            )
+            val power = index - steps
+            if (power % labelStep != 0) return@forEachIndexed
+            val text = if (reference) {
+                spec.referenceLabel
+            } else {
+                "${NavigateArc.factorLabel(value)}×"
+            }
+            val measured = textMeasurer.measure(text, axisStyle)
+            val at = point(angle, radius - tick - measured.size.height / 2f - 4.dp.toPx())
+            drawText(
+                textLayoutResult = measured,
+                color = if (reference) colors.ink2 else colors.muted,
+                topLeft = Offset(
+                    (at.x - measured.size.width / 2f)
+                        .coerceIn(0f, size.width - measured.size.width),
+                    at.y - measured.size.height / 2f,
+                ),
             )
         }
 
         // Held maximum: a mark on the same scale, never a second needle.
         spec.peakRatio?.let { peak ->
             val angle = NavigateArc.angleDegrees(peak, spec.factor)
-            val apex = point(angle, radius - tick * 2f)
-            val left = point(angle - 2.4f, radius - tick * 3.6f)
-            val right = point(angle + 2.4f, radius - tick * 3.6f)
+            val apex = point(angle, radius - tick * 1.2f)
+            val left = point(angle - 2.4f, radius - tick * 2.4f)
+            val right = point(angle + 2.4f, radius - tick * 2.4f)
             drawPath(
                 path = Path().apply {
                     moveTo(apex.x, apex.y)
@@ -200,33 +239,23 @@ fun NavigateGauge(
             )
         }
 
-        // The needle, drawn last so nothing crosses it. Line and head are ONE
-        // pointer: the estimate has to read as a single thing against the
-        // shaded interval it sits in and against the ×1 tick it is measured
-        // from. The held maximum keeps its own smaller mark further in, so the
-        // two can never be taken for each other.
+        // Стрелка идёт ОТ ОСИ, как у стрелочного прибора: короткий штрих у
+        // края читался как ещё одна засечка. Ось нарисована точкой — без неё
+        // стрелка висит в воздухе и не выглядит закреплённой.
         spec.ratio?.let { ratio ->
             val angle = NavigateArc.angleDegrees(ratio, spec.factor)
             radial(
                 angleDegrees = angle,
-                from = radius - 30.dp.toPx(),
-                to = radius + 4.dp.toPx(),
+                from = 0f,
+                to = radius - tick * 0.4f,
                 color = needleColor,
                 width = border * 3f,
             )
-            val head = 6.dp.toPx()
-            val apex = point(angle, radius + 4.dp.toPx())
-            val left = point(angle - 3.2f, radius - head)
-            val right = point(angle + 3.2f, radius - head)
-            drawPath(
-                path = Path().apply {
-                    moveTo(apex.x, apex.y)
-                    lineTo(left.x, left.y)
-                    lineTo(right.x, right.y)
-                    close()
-                },
-                color = needleColor,
-            )
+            drawCircle(color = needleColor, radius = 4.dp.toPx(), center = Offset(centerX, centerY))
+        }
+        if (spec.ratio == null) {
+            // Пустой прибор: ось на месте, стрелки нет — сравнивать не с чем.
+            drawCircle(color = colors.muted, radius = 3.dp.toPx(), center = Offset(centerX, centerY))
         }
 
         // Bottom rows: both ends of the scale, the name of its centre, and —
@@ -256,7 +285,8 @@ fun NavigateGauge(
             }
         }
 
-        row(spec.lowLabel, spec.referenceLabel, spec.highLabel, baseline, colors.muted)
+        // Множители подписаны у самих засечек, поэтому внизу остаётся только
+        // смысл концов и знаменатель шкалы — то, что числами не сказать.
         if (captions) {
             row(
                 spec.lowCaption,
@@ -269,8 +299,8 @@ fun NavigateGauge(
     }
 }
 
-/** 1 − cos 30°: how tall a 60° cap is compared with how wide it is. */
-private const val SAGITTA = 0.134f
+/** 1 + sin 20°: высота циферблата в 220° по отношению к его радиусу. */
+private const val DIAL_HEIGHT_FACTOR = 1.342f
 
 /** A very tight interval still has to be visible as a band, not vanish. */
 private const val MIN_BAND_DEGREES = 1.2f
