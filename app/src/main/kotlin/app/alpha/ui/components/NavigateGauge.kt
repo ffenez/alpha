@@ -67,12 +67,14 @@ data class NavigateGaugeSpec(
      *
      * Уровней два, и на шкале их тоже два: настроив второй, человек ищет его
      * глазами, а одна риска отвечала бы «сколько осталось» только про первый.
-     * Подписан первый — иначе две подписи в соседних точках сливаются; второй
-     * узнаётся по цвету тревоги.
+     *
+     * Подписи у рисок нет: собственный уровень — величина из настроек, и её
+     * имя на рабочем экране называло настройку, а не то, что видно. Риска
+     * говорит «вот он относительно обычного», а чем она задана — в справке по
+     * нажатию на числа.
      */
     val threshold: Double? = null,
     val threshold2: Double? = null,
-    val thresholdLabel: String? = null,
 )
 
 /**
@@ -251,22 +253,6 @@ fun NavigateGauge(
                 strokeWidth = 2.dp.toPx(),
                 cap = StrokeCap.Butt,
             )
-            // Подписан только первый порог: у второго риска стоит рядом, и две
-            // подписи в соседних точках сливаются в кашу.
-            if (threshold != spec.threshold) continue
-            spec.thresholdLabel?.let { text ->
-                val measured = textMeasurer.measure(text, axisStyle)
-                val at2 = point(at, radius + arcWidth / 2f + 4.dp.toPx() + measured.size.height / 2f)
-                drawText(
-                    textLayoutResult = measured,
-                    color = color,
-                    topLeft = Offset(
-                        (at2.x - measured.size.width / 2f)
-                            .coerceIn(0f, size.width - measured.size.width),
-                        at2.y - measured.size.height / 2f,
-                    ),
-                )
-            }
         }
 
         // Стрелка — чернильная линия от оси, без наконечника (эталон): на

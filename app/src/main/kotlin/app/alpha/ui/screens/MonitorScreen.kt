@@ -32,7 +32,6 @@ import android.content.Context
 import app.alpha.device.BluetoothState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.graphics.lerp
-import app.alpha.ui.components.PlaceScaleBar
 import app.alpha.ui.components.BreathingAura
 import app.alpha.ui.components.rememberFrameMillis
 import app.alpha.ui.logic.DoseTint
@@ -1025,7 +1024,6 @@ internal fun HeroCard(
                             ?.toDouble(),
                         threshold2 = median?.let { m -> threshold2MicroSvH?.let { it / m } }
                             ?.toDouble(),
-                        thresholdLabel = strings.scaleThresholdTick,
                     ),
                 )
             }

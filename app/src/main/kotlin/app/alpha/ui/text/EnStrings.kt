@@ -33,7 +33,6 @@ object EnStrings : Strings {
     override val countRate = "Count rate"
     override val hardness = "Hardness"
     override val trendPerHour = "Trend"
-    override val scaleThresholdTick = "L1"
     override val indicatorTitle = "Instrument scale"
     override val indicatorDial = "Dial"
     override val indicatorBar = "Bar"

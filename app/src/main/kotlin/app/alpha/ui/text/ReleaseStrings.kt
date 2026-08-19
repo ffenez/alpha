@@ -408,8 +408,8 @@ object ReleaseRu : ReleaseStrings {
         "Мелкие серые строки, которые объясняли устройство расчёта и терминов — поправка шкалы, " +
         "срок хранения, выход линии, отнесение канала к окну, — теперь прячутся вместе с " +
         "«Пояснениями»; единицы, неопределённости, отказы метода и предупреждения остались. " +
-        "На рабочем экране больше нет слова «порог»: свой уровень обозначен на шкале риской L1, " +
-        "как и на графике."
+        "С рабочего экрана ушли и слово «порог», и подпись риски: свой уровень виден на шкале " +
+        "самой риской, а чем она задана — в справке по нажатию на числа."
 
     override val v0442Title = "Значок снова читается буквой"
     override val v0442Summary =
@@ -1295,8 +1295,8 @@ object ReleaseEn : ReleaseStrings {
         "The small grey lines that explained how a calculation or a term works — the scale " +
         "correction, the retention period, a line's yield, how a channel joins a window — now " +
         "hide with «Пояснения»; units, uncertainties, method refusals and warnings stay. The " +
-        "working screen no longer says «threshold»: your own level is marked L1 on the scale, " +
-        "as it already is on the chart."
+        "working screen has lost both the word «threshold» and the tick's caption: your own " +
+        "level shows as the tick itself, and what sets it lives in the help behind the numbers."
 
     override val v0442Title = "The icon reads as a letter again"
     override val v0442Summary =
