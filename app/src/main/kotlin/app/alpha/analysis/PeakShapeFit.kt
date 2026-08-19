@@ -26,9 +26,18 @@ import kotlin.math.sqrt
  *     f = A·exp(kL²/2 + kL·z),        z < −kL
  *     f = A·exp(kR²/2 − kR·z),        z > kR
  *
- * Пять параметров (A, μ, σ, kL, kR) вместо трёх; континуум берётся ГОТОВЫМ из
- * боковых полос ([PeakDetection]), а не подгоняется — так подгонка не может
- * «съесть» подложку и завысить площадь.
+ * Пять параметров формы (A, μ, σ, kL, kR) вместо трёх, плюс два на континуум
+ * под окном — уровень и наклон.
+ *
+ * ## Почему континуум подгоняется, а не берётся готовым
+ *
+ * Оценка из боковых полос ([PeakDetection]) — прямая, а настоящая подложка под
+ * окном шириной в три полуширины заметно выгнута: на реальном спектре с
+ * миллионами импульсов расхождение прямой с подложкой даёт C/ndf около 3,7 при
+ * идеальной в остальном форме, и годная линия отбраковывалась бы именно там,
+ * где статистики больше всего. Поэтому уровень и наклон входят в подгонку, а
+ * оценка полос служит начальным приближением и границей правдоподобия
+ * ([MAX_CONTINUUM_FACTOR]): уйти от неё в разы, «съев» пик, подгонка не может.
  *
  * ## Критерий согласия
  *
@@ -76,8 +85,20 @@ object PeakShapeFit {
     const val MIN_TAIL = 0.5
     const val MAX_TAIL = 4.0
 
-    /** Итераций симплекса. **Инженерный параметр**: хватает для пяти параметров. */
-    private const val MAX_ITERATIONS = 400
+    /**
+     * Во сколько раз подогнанный уровень континуума может отличаться от оценки
+     * боковых полос. **Инженерный параметр**: 2 — подложка под окном выгнута,
+     * но не в разы; больший разброс означает, что подгонка перераспределила
+     * импульсы между пиком и подложкой, и площади верить нельзя.
+     */
+    const val MAX_CONTINUUM_FACTOR = 2.0
+
+    /**
+     * Итераций симплекса. **Инженерный параметр**: семь параметров сходятся
+     * медленнее пяти, и 400 шагов на реальных пиках останавливались до
+     * сходимости.
+     */
+    private const val MAX_ITERATIONS = 900
 
     /** Относительный порог остановки по разбросу вершин симплекса. */
     private const val TOLERANCE = 1e-4
@@ -116,6 +137,10 @@ object PeakShapeFit {
 
     data class Result(
         val shape: Shape,
+        /** Подогнанный уровень континуума под центром линии, импульсов. */
+        val continuumAtCenter: Double,
+        /** Подогнанный наклон континуума, импульсов на канал. */
+        val continuumSlope: Double,
         /** Площадь линии над континуумом, импульсов. */
         val netCounts: Double,
         /** Статистическая неопределённость центра, каналы. */
@@ -148,6 +173,8 @@ object PeakShapeFit {
         continuumAt: (Int) -> Double,
         centerGuess: Double,
         sigmaGuess: Double,
+        /** Предел согласия; вынесен параметром, чтобы его можно было измерить. */
+        maxReducedC: Double = MAX_REDUCED_C,
     ): Result? {
         val n = range.last - range.first + 1
         if (n < MIN_CHANNELS) return null
@@ -156,29 +183,53 @@ object PeakShapeFit {
 
         val channels = range.toList()
         val observed = channels.map { counts[it].toDouble() }
-        val continuum = channels.map { max(continuumAt(it), 0.0) }
-        val netGuess = observed.indices.sumOf { observed[it] - continuum[it] }
-        if (netGuess <= 0.0) return null
+        // Начальный континуум — оценка боковых полос: её уровень под центром и
+        // её наклон. Дальше оба уточняются подгонкой.
+        val startLevel = max(continuumAt(centerGuess.toInt().coerceIn(range)), 0.0)
+        val startSlope = (continuumAt(range.last) - continuumAt(range.first)) /
+            (range.last - range.first).toDouble()
+        val netGuess = observed.indices.sumOf {
+            observed[it] - (startLevel + startSlope * (channels[it] - centerGuess))
+        }
+        // Слабой линии подгонка не помогает, а мешает: она снимает СИСТЕМАТИКУ
+        // хвоста, а на малой площади хвост неотличим от шума, и семь свободных
+        // параметров добавляют разброс вместо того, чтобы убрать смещение.
+        if (netGuess < MIN_FIT_COUNTS) return null
         // Высота ядра из площади: A = N / (σ·√(2π)) для чистой гауссианы —
         // хвосты её только увеличивают, поэтому это заведомо нижняя оценка,
         // и симплекс идёт вверх.
         val amplitudeGuess = netGuess / (sigmaGuess * sqrt(2.0 * Math.PI))
 
-        val start = doubleArrayOf(amplitudeGuess, centerGuess, sigmaGuess, 2.0, 2.0)
+        val start = doubleArrayOf(
+            amplitudeGuess, centerGuess, sigmaGuess, 2.0, 2.0, startLevel, startSlope,
+        )
         val objective = { p: DoubleArray ->
             val candidate = shapeOf(p)
-            if (candidate == null) Double.MAX_VALUE else cash(candidate, channels, observed, continuum)
+            if (candidate == null) {
+                Double.MAX_VALUE
+            } else {
+                cash(candidate, p[5], p[6], centerGuess, channels, observed)
+            }
         }
         val best = nelderMead(start, objective) ?: return null
         val shape = shapeOf(best) ?: return null
+        val level = best[5]
+        val slope = best[6]
+        if (!level.isFinite() || !slope.isFinite() || level < 0.0) return null
+        // Континуум не имеет права уйти от оценки полос в разы: иначе подгонка
+        // просто переложила импульсы из пика в подложку или обратно.
+        if (startLevel > 0.0) {
+            val factor = level / startLevel
+            if (factor > MAX_CONTINUUM_FACTOR || factor < 1.0 / MAX_CONTINUUM_FACTOR) return null
+        }
 
         if (abs(shape.centerChannel - centerGuess) > MAX_CENTER_SHIFT_SIGMA * sigmaGuess) {
             return null
         }
         val degreesOfFreedom = n - PARAMETERS
         if (degreesOfFreedom <= 0) return null
-        val reduced = cash(shape, channels, observed, continuum) / degreesOfFreedom
-        if (!reduced.isFinite() || reduced > MAX_REDUCED_C) return null
+        val reduced = cash(shape, level, slope, centerGuess, channels, observed) / degreesOfFreedom
+        if (!reduced.isFinite() || reduced > maxReducedC) return null
 
         val net = channels.sumOf { shape.at(it.toDouble()) }
         if (net <= 0.0) return null
@@ -188,6 +239,8 @@ object PeakShapeFit {
 
         return Result(
             shape = shape,
+            continuumAtCenter = level,
+            continuumSlope = slope,
             netCounts = net,
             centerSigmaChannels = centerSigma,
             reducedC = reduced,
@@ -226,15 +279,19 @@ object PeakShapeFit {
      */
     private fun cash(
         shape: Shape,
+        continuumLevel: Double,
+        continuumSlope: Double,
+        continuumOrigin: Double,
         channels: List<Int>,
         observed: List<Double>,
-        continuum: List<Double>,
     ): Double {
         var sum = 0.0
         for (i in channels.indices) {
+            val channel = channels[i].toDouble()
+            val continuum = continuumLevel + continuumSlope * (channel - continuumOrigin)
             // Ожидание не бывает нулевым: логарифм от нуля сделал бы
             // статистику бесконечной там, где континуум просто пуст.
-            val model = max(shape.at(channels[i].toDouble()) + continuum[i], MIN_EXPECTED)
+            val model = max(shape.at(channel) + continuum, MIN_EXPECTED)
             val data = observed[i]
             sum += model - data + if (data > 0.0) data * ln(data / model) else 0.0
         }
@@ -320,16 +377,26 @@ object PeakShapeFit {
         return simplex[bestIndex].takeIf { values[bestIndex].isFinite() }
     }
 
-    /** Параметров формы: A, μ, σ, kL, kR. */
-    private const val PARAMETERS = 5
+    /**
+     * Минимальная нетто-площадь линии, при которой подгонка вообще имеет
+     * смысл. **Инженерный параметр**: 500 импульсов — при них статистическая
+     * неопределённость центра σ/√N составляет около FWHM/50, то есть заметно
+     * меньше того смещения в десятки кэВ, ради которого форма и подгоняется.
+     * На линии из 85 импульсов (проверено на реальном спектре) подгонка
+     * уводила центр от истинного, а не к нему: хвост там неотличим от шума.
+     */
+    const val MIN_FIT_COUNTS = 500.0
+
+    /** Параметров всего: A, μ, σ, kL, kR и два на континуум. */
+    private const val PARAMETERS = 7
 
     /** Минимальное ожидание в канале, импульсов: логарифм от нуля не берётся. */
     private const val MIN_EXPECTED = 1e-6
 
     /**
-     * Минимум каналов в окне подгонки. **Инженерный параметр**: 15 — на пять
+     * Минимум каналов в окне подгонки. **Инженерный параметр**: 21 — на семь
      * параметров нужно заметно больше точек, чем параметров, иначе ndf
      * настолько мал, что C/ndf ничего не отбраковывает.
      */
-    const val MIN_CHANNELS = 15
+    const val MIN_CHANNELS = 21
 }

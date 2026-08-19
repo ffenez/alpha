@@ -25,9 +25,14 @@ import kotlin.math.sqrt
  * член описывал бы нелинейность самого кристалла, которая за время между
  * измерениями не меняется, — он уже сидит в калибровке прибора.
  *
- * По ОДНОЙ линии оценивается только множитель (c₀ = 0): сдвиг и наклон по одной
- * точке неразделимы, и «поправка» из двух свободных параметров по одному
- * уравнению — это выбор из бесконечного числа решений.
+ * Одной линии НЕ ХВАТАЕТ ([ScaleCorrectionMath.MIN_REFERENCES]). Сдвиг и наклон
+ * по одной точке неразделимы, а чистый множитель, снятый с неё, экстраполирует
+ * куда угодно: на реальном спектре, где расхождение с таблицей у K-40 около
+ * −29 кэВ, а у Tl-208 −31 кэВ, множитель из одного K-40 предсказывает на
+ * 2614,5 кэВ поправку +52 кэВ — вдвое больше настоящей и в другую сторону от
+ * истины. Линии обязаны ещё и РАЗОЙТИСЬ по шкале
+ * ([ScaleCorrectionMath.MIN_SPAN_RATIO]): две близкие точки задают прямую своим
+ * малым промежутком, и она расходится за их пределами.
  *
  * ## Что она НЕ делает
  *
@@ -101,6 +106,21 @@ object ScaleCorrectionMath {
     const val MAX_GAIN = 1.3
 
     /**
+     * Сколько опорных линий нужно. **Инженерный параметр**: 2 — минимум, на
+     * котором сдвиг нуля отделим от наклона. По одной линии поправка была бы
+     * чистым множителем, а он на настоящем приборе предсказывает высокие
+     * энергии неверно (см. [ScaleCorrection]).
+     */
+    const val MIN_REFERENCES = 2
+
+    /**
+     * Во сколько раз обязаны разойтись крайние линии. **Инженерный параметр**:
+     * 1,5 — при меньшем размахе прямая определяется коротким промежутком между
+     * точками, и её продолжение к другим энергиям ничем не обосновано.
+     */
+    const val MIN_SPAN_RATIO = 1.5
+
+    /**
      * Поправка по сопоставленным линиям.
      *
      * @param references пары «табличная линия — измеренная энергия»
@@ -109,12 +129,12 @@ object ScaleCorrectionMath {
      */
     fun of(references: List<ScaleCorrection.Reference>): ScaleCorrection? {
         val usable = references.filter { it.tableKeV > 0.0 && it.measuredKeV > 0.0 }
-        if (usable.isEmpty()) return null
+        if (usable.size < MIN_REFERENCES) return null
+        val low = usable.minOf { it.tableKeV }
+        val high = usable.maxOf { it.tableKeV }
+        if (low <= 0.0 || high / low < MIN_SPAN_RATIO) return null
 
-        val (offset, gain) = if (usable.size == 1) {
-            // Одна линия: только множитель. Сдвиг нуля по ней не определён.
-            0.0 to usable[0].tableKeV / usable[0].measuredKeV
-        } else {
+        val (offset, gain) = run {
             val n = usable.size
             val sumX = usable.sumOf { it.measuredKeV }
             val sumY = usable.sumOf { it.tableKeV }
@@ -133,9 +153,7 @@ object ScaleCorrectionMath {
         val after = rms(usable) { offset + gain * it.measuredKeV }
         // Улучшение требуется СТРОГОЕ: при нулевом остатке до поправки
         // условие не выполняется, и поправка не предлагается — шкала уже на
-        // месте, и двигать её незачем. Одна линия совмещается точно (after =
-        // 0), поэтому то же условие пропускает её ровно тогда, когда линия
-        // стояла не на месте.
+        // месте, и двигать её незачем.
         if (after * MIN_IMPROVEMENT >= before) return null
 
         return ScaleCorrection(

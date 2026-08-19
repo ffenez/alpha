@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0411Title: String
+    val v0411Summary: String
+
     val v0410Title: String
     val v0410Summary: String
 
@@ -375,6 +378,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0411Title = "Разбор проверен на плотном спектре"
+    override val v0411Summary =
+        "На спектре с четырьмя миллионами импульсов подгонка формы отбраковывала самый сильный " +
+        "пик, а поправка шкалы строилась по одной линии и завышала высокие энергии вдвое: теперь " +
+        "форма уточняет и подложку под линией, слабой линии формы не приписывает, а поправка " +
+        "требует двух разнесённых опорных линий."
 
     override val v0410Title = "Спектр научился говорить в беккерелях"
     override val v0410Summary =
@@ -1200,6 +1210,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0411Title = "The analysis met a dense spectrum"
+    override val v0411Summary =
+        "On a spectrum of four million counts the shape fit was rejecting the strongest peak and " +
+        "the scale correction was built from a single line, overstating high energies twofold: " +
+        "the fit now refines the continuum under the line, leaves weak lines to their centroid, " +
+        "and the correction demands two well-separated reference lines."
 
     override val v0410Title = "The spectrum learned to speak in becquerels"
     override val v0410Summary =
