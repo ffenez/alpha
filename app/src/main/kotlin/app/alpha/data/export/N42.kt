@@ -50,7 +50,6 @@ object N42 {
     fun write(
         foreground: Measurement,
         background: Measurement? = null,
-        serialNumber: String? = null,
         model: String = "RadiaCode",
         softwareVersion: String? = null,
         zone: ZoneId = ZoneId.systemDefault(),
@@ -73,10 +72,9 @@ object N42 {
         sb.append("  <RadInstrumentInformation id=\"instrument-1\">\n")
         sb.append("    <RadInstrumentManufacturerName>RadiaCode")
             .append("</RadInstrumentManufacturerName>\n")
-        serialNumber?.let {
-            sb.append("    <RadInstrumentIdentifier>").append(escape(it))
-                .append("</RadInstrumentIdentifier>\n")
-        }
+        // <RadInstrumentIdentifier> не пишется: по стандарту это идентификатор
+        // конкретного экземпляра прибора, а файл предназначен для передачи.
+        // Производитель и модель для интерпретации спектра достаточны.
         sb.append("    <RadInstrumentModelName>").append(escape(model))
             .append("</RadInstrumentModelName>\n")
         sb.append("    <RadInstrumentClassCode>Spectroscopic Personal Radiation Detector")

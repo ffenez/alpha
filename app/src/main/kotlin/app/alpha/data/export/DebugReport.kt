@@ -41,8 +41,11 @@ data class DebugSnapshot(
     val appVersion: String,
     val androidSdk: Int,
     val deviceModel: String,
-    /** Прибор: серийник и прошивка; null = не подключён. */
-    val instrumentSerial: String?,
+    /**
+     * Прошивка прибора; null = не подключён. Серийный номер в отчёт не
+     * попадает: он называет экземпляр, а для разбора достаточно модели,
+     * прошивки и конфигурации.
+     */
     val instrumentFirmware: String?,
     /** Модель, как её ОПОЗНАЛО приложение по серийнику. */
     val instrumentModel: String?,
@@ -174,7 +177,6 @@ object DebugReport {
         appendLine("## Прибор")
         appendLine("подключение: ${snapshot.connection}")
         appendLine("сервис измерения: ${if (snapshot.serviceRunning) "работает" else "остановлен"}")
-        appendLine("серийный номер: ${snapshot.instrumentSerial ?: "—"}")
         appendLine("прошивка: ${snapshot.instrumentFirmware ?: "—"}")
         appendLine(
             "модель: ${snapshot.instrumentModel ?: "—"}" +

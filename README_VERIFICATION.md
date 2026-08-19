@@ -1,7 +1,9 @@
 # README verification map
 
 Every material claim in `README.md` / `README_RU.md`, and where it can be
-checked. Written 19 August 2026 against `versionName 0.45.1` (versionCode 84).
+checked. Written 19 August 2026, rechecked against `versionName 0.46.0`
+(versionCode 85), when both READMEs were shortened and the instrument serial
+was removed from every exported file.
 
 Commands quoted here were actually run; their results are in
 `PUBLIC_RELEASE_REPORT.md`.
@@ -31,6 +33,7 @@ Commands quoted here were actually run; their results are in
 | Accumulated dose over 7/30/90 calendar days with coverage | `ui/logic/DosePeriod.kt`, `ui/logic/DailyDose.kt`, `ui/screens/DoseScreen.kt`; tests `DosePeriodTest` (13) |
 | Place fingerprint | `analysis/Fingerprint.kt`, ADR 005, `ui/screens/FingerprintScreen.kt` |
 | Export HTML/CSV/JSON/GeoJSON/GPX/N42/XML through the system picker | `ui/screens/ExportActions.kt` (`ExportFile` enum), `data/export/` |
+| No exported file carries the instrument serial | `data/export/RcXml.kt` (no `<SerialNumber>`), `data/export/N42.kt` (no `<RadInstrumentIdentifier>`), `data/export/DebugReport.kt`; tests `SpectrumExportTest.«a live session export names the model but not the instrument»`, `N42Test.«the instrument identifier is never written»`, `RcXmlTest` |
 
 ## 2. Scientific claims
 
@@ -68,6 +71,7 @@ Commands quoted here were actually run; their results are in
 | Cloud backup and D2D transfer excluded | `android:allowBackup="false"` **plus** `res/xml/data_extraction_rules.xml` with both `<cloud-backup>` and `<device-transfer>` excluding every domain. Necessity confirmed against Android docs: with `allowBackup="false"` on API 31+, D2D "doesn't disable device-to-device transfers for the app" |
 | Location read in two places only | `service/MeasurementService.kt` (track recording, user-started) and `ui/map/MapLocation.kt` (the position marker, only while the Map tab is composed and only with the permission granted — re-checked at the call site). No other `requestLocationUpdates` exists in the tree. Place recognition uses `context/NetworkIdentity` (SHA-256 of the gateway address) and no location at all |
 | No account | No auth code, no credentials anywhere in the tree |
+| Exported files identify the model, not the unit | `RcSpectrum` has no serial field at all, so no XML path can write one; `N42.write` has no serial parameter; `DebugSnapshot` has no serial field. The model comes from `SpectrumExport.modelFromSerial` and is a series name. The serial stays in the database (`SpectrumSnapshotEntity.deviceSerial`), where `SpectrumEpoch`, `ResolutionSource`, `BackgroundRecord` and `BackupKey` use it to tell one detector from another, and in the app's own backup |
 
 ## 5. Build claims
 
@@ -75,7 +79,7 @@ Commands quoted here were actually run; their results are in
 |---|---|
 | JDK 17, compileSdk 35, minSdk 26, targetSdk 35 | `app/build.gradle.kts` |
 | Kotlin 2.1.0, AGP 8.7.3 | `gradle/libs.versions.toml` |
-| 2104 unit tests, 118 smoke tests | Counted from the JUnit XML of `./gradlew test` and `./gradlew :app:smokeTest` on 19 Aug 2026 |
+| The four checks are the ones the READMEs list | `./gradlew test`, `:app:smokeTest`, `:app:lintDebug`, `:app:assembleRelease`; run separately, as `CLAUDE.md` requires |
 | Release build is unsigned, no key in the repository | `app/build.gradle.kts` has no `signingConfig`; `.gitignore` excludes `*.keystore`, `*.jks`; APK inspection shows no signing material |
 
 ## 6. Comparison with the official app
@@ -83,6 +87,9 @@ Commands quoted here were actually run; their results are in
 Source: <https://www.radiacode.com/software>, fetched **19 August 2026**.
 The Android manual (<https://downloads.radiacode.com/EN/RC-10x_Android.pdf>) is
 a scanned PDF whose text could not be extracted, so it supports nothing here.
+
+Both READMEs now state this comparison as prose rather than a table; the rows
+below are what that prose is built from.
 
 | Row | Official source | Result |
 |---|---|---|

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0460Title: String
+    val v0460Summary: String
+
     val v0451Title: String
     val v0451Summary: String
 
@@ -408,6 +411,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0460Title = "Выгруженный спектр больше не называет ваш прибор"
+    override val v0460Summary =
+        "В файлах спектра — и в XML, и в N42 — есть поле для серийного номера, и приложение его " +
+        "заполняло: отданный кому-то файл указывал на ваш конкретный экземпляр. Теперь номер не " +
+        "пишется ни в спектр, ни в диагностический архив; остаётся только модель, без которой " +
+        "спектр не прочитать."
 
     override val v0451Title = "Перенос на новый телефон больше не забирает измерения"
     override val v0451Summary =
@@ -1309,6 +1319,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0460Title = "An exported spectrum no longer names your detector"
+    override val v0460Summary =
+        "Spectrum files — both XML and N42 — have a field for the serial number, and the app filled " +
+        "it in: a file you handed to someone pointed at your particular unit. The number is no " +
+        "longer written into a spectrum or into the diagnostic archive; only the model stays, " +
+        "without which a spectrum cannot be read."
 
     override val v0451Title = "Moving to a new phone no longer takes your measurements"
     override val v0451Summary =

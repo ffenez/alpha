@@ -6,8 +6,10 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SpectrumExportTest {
 
@@ -69,7 +71,6 @@ class SpectrumExportTest {
         assertEquals(end - 600_000L, data.startMillis)
         assertEquals(600L, data.spectrum.measurementSeconds)
         assertEquals(listOf(5, 6, 7, 8), data.spectrum.counts)
-        assertEquals("RC-110-000042", data.spectrum.serialNumber)
 
         val background = assertNotNull(data.background)
         assertEquals(1800L, background.measurementSeconds)
@@ -82,7 +83,26 @@ class SpectrumExportTest {
         val data = SpectrumExport.toResultData(entity(end, 60), null, null, zone)
         assertEquals("RadiaCode", data.deviceModel)
         assertNull(data.background)
-        assertNull(data.spectrum.serialNumber)
+    }
+
+    @Test
+    fun `a live session export names the model but not the instrument`() {
+        // Серийный номер живого сеанса нужен только чтобы назвать модель:
+        // «RadiaCode-110» описывает кристалл и шкалу, экземпляр не называет.
+        val end = ZonedDateTime.of(2026, 8, 9, 12, 0, 0, 0, zone).toInstant().toEpochMilli()
+        val serial = "RC-110-000042"
+        val xml = RcXml.write(
+            SpectrumExport.toResultData(
+                entity(end, 600, label = "Проба"),
+                entity(end - 1000L, 1800),
+                serial,
+                zone,
+            ),
+            zone,
+        )
+        assertTrue("RadiaCode-110" in xml)
+        assertFalse(serial in xml)
+        assertFalse("SerialNumber" in xml)
     }
 
     @Test

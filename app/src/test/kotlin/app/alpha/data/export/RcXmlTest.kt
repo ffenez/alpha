@@ -21,7 +21,6 @@ class RcXmlTest {
         endMillis = ZonedDateTime.of(2026, 8, 9, 12, 30, 45, 0, zone).toInstant().toEpochMilli(),
         spectrum = RcSpectrum(
             name = "Проба №1 <гранит>",
-            serialNumber = "RC-110-001234",
             a0 = -5.5f,
             a1 = 2.4168f,
             a2 = 3.9769E-4f,
@@ -33,7 +32,6 @@ class RcXmlTest {
 
     private fun backgroundSpectrum() = RcSpectrum(
         name = "фон",
-        serialNumber = "RC-110-001234",
         a0 = -5.5f,
         a1 = 2.4168f,
         a2 = 3.9769E-4f,
@@ -63,7 +61,6 @@ class RcXmlTest {
             endMillis = null,
             spectrum = RcSpectrum(
                 name = null,
-                serialNumber = null,
                 a0 = 0f,
                 a1 = 2.4f,
                 a2 = 0f,
@@ -105,7 +102,8 @@ class RcXmlTest {
         assertTrue("<EndTime>2026-08-09T12:30:45</EndTime>" in xml)
         assertTrue("<NumberOfChannels>1024</NumberOfChannels>" in xml)
         assertTrue("<ChannelPitch>1</ChannelPitch>" in xml)
-        assertTrue("<SerialNumber>RC-110-001234</SerialNumber>" in xml)
+        // Серийный номер прибора в файл не пишется: он называет экземпляр.
+        assertTrue("<SerialNumber>" !in xml)
         assertTrue("<PolynomialOrder>2</PolynomialOrder>" in xml)
         // MeasurementTime is seconds — the classic ms/s confusion is the known
         // community bug; 9045 s must be written as-is.
@@ -209,7 +207,6 @@ class RcXmlTest {
             data.endMillis,
         )
         assertEquals("Th-232-BG", data.spectrum.name)
-        assertEquals("RC-102-000115", data.spectrum.serialNumber)
         assertEquals(-11.3706f, data.spectrum.a0, 1e-4f)
         assertEquals(2.46757f, data.spectrum.a1, 1e-5f)
         assertEquals(3.9769E-4f, data.spectrum.a2, 1e-8f)

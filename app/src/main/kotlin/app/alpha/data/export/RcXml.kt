@@ -79,9 +79,10 @@ object RcXml {
         sb.append("        <ChannelPitch>1</ChannelPitch>\n")
         sb.append("        <SpectrumName>").append(cdata(s.name.orEmpty()))
             .append("</SpectrumName>\n")
-        s.serialNumber?.let {
-            sb.append("        <SerialNumber>").append(escape(it)).append("</SerialNumber>\n")
-        }
+        // <SerialNumber> сознательно не пишется: поле формата идентифицирует
+        // конкретный экземпляр прибора, а выгруженный файл предназначен для
+        // передачи. Модель (RcResultData.deviceModel) для чтения спектра
+        // достаточна и экземпляр не называет.
         sb.append("        <EnergyCalibration>\n")
         sb.append("          <PolynomialOrder>2</PolynomialOrder>\n")
         sb.append("          <Coefficients>\n")
@@ -196,7 +197,8 @@ object RcXml {
         warnings: MutableList<String>,
     ): RcSpectrum {
         val name = child(element, "SpectrumName")?.let { text(it).trim().ifEmpty { null } }
-        val serial = child(element, "SerialNumber")?.let { text(it).trim().ifEmpty { null } }
+        // <SerialNumber> чужого файла читается и отбрасывается: приложение не
+        // хранит идентификатор чужого экземпляра и не пишет его обратно.
 
         val coefficients = child(element, "EnergyCalibration")
             ?.let { child(it, "Coefficients") }
@@ -258,7 +260,6 @@ object RcXml {
 
         return RcSpectrum(
             name = name,
-            serialNumber = serial,
             a0 = calibration[0].toFloat(),
             a1 = calibration[1].toFloat(),
             a2 = calibration[2].toFloat(),
@@ -374,7 +375,6 @@ object RcXml {
 /** One energy spectrum block (EnergySpectrum / BackgroundEnergySpectrum). */
 data class RcSpectrum(
     val name: String?,
-    val serialNumber: String?,
     /** E(keV) = a0 + a1·ch + a2·ch². */
     val a0: Float,
     val a1: Float,
