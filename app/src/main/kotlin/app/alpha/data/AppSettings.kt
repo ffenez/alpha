@@ -95,6 +95,20 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
+     * Вибрация телефона при подтверждённом превышении НАШЕГО порога.
+     *
+     * Отдельно от системного канала уведомлений: у канала свои настройки
+     * вибрации, и человек, поставивший порог в приложении, вправе ожидать
+     * отклика от приложения, а не от настроек Android. По умолчанию включена —
+     * порог ставят, чтобы о нём узнать.
+     */
+    val alarmVibration: Flow<Boolean> = dataStore.data.map { it[ALARM_VIBRATION] ?: true }
+
+    suspend fun setAlarmVibration(on: Boolean) {
+        dataStore.edit { it[ALARM_VIBRATION] = on }
+    }
+
+    /**
      * Каналы отклика поиска — три независимых выключателя.
      *
      * Хранятся тремя булевыми, а не одним режимом: щелчки, тон и вибрация не
@@ -716,6 +730,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         /** Pre-redesign toggles; read once for migration, then removed. */
         private val SEARCH_SOUND = booleanPreferencesKey("search_sound")
         private val SEARCH_VIBRATION = booleanPreferencesKey("search_vibration")
+        private val ALARM_VIBRATION = booleanPreferencesKey("alarm_vibration")
         private val SEARCH_CLICKS = booleanPreferencesKey("search_clicks")
         private val SEARCH_TONE = booleanPreferencesKey("search_tone")
         private val SEARCH_VIBRO = booleanPreferencesKey("search_vibro")

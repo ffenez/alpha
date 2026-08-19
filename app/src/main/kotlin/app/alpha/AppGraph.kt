@@ -35,6 +35,7 @@ import app.alpha.service.StreamTrace
 import app.alpha.data.BackupManager
 import app.alpha.data.BackupRepository
 import app.alpha.ui.logic.ChartCache
+import app.alpha.ui.feedback.FeedbackHub
 import app.alpha.ui.logic.NavigateSession
 import app.alpha.ui.logic.ChartTrace
 import app.alpha.service.LocalBackgroundRecorder
@@ -231,6 +232,22 @@ class AppGraph private constructor(
      * поставил человек, приложение само не отменяет.
      */
     val navigateSession: NavigateSession = NavigateSession()
+
+    /**
+     * Отклик поиска — щелчки, тон и вибрация — на любом экране приложения.
+     *
+     * Живёт в графе, а не в композиции экрана: прибор в руке ведут на слух и
+     * на ощупь, и уход на карту или в спектр не должен обрывать этот канал.
+     */
+    val feedbackHub: FeedbackHub by lazy {
+        FeedbackHub(
+            context = context,
+            settings = settings,
+            status = serviceStatus,
+            navigateSession = navigateSession,
+            scope = appScope,
+        )
+    }
 
     /** Трасса конвейера графика: на каком этапе исчезают точки. */
     val chartTrace: ChartTrace = ChartTrace()

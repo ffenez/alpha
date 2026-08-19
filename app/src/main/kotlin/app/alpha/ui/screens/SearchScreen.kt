@@ -64,7 +64,6 @@ import app.alpha.ui.components.StatCell
 import app.alpha.ui.components.StatGrid
 import app.alpha.ui.components.StatusRow
 import app.alpha.ui.feedback.Feedback
-import app.alpha.ui.feedback.GeigerClicker
 import app.alpha.analysis.Fingerprint
 import app.alpha.analysis.FingerprintComparison
 import app.alpha.baseline.BaselineState
@@ -74,7 +73,6 @@ import app.alpha.ui.logic.BackgroundRecord
 import app.alpha.ui.logic.SearchReference
 import app.alpha.ui.logic.SearchReferences
 import app.alpha.ui.logic.BackgroundRef
-import app.alpha.ui.logic.ClickRate
 import app.alpha.ui.logic.EnergyTone
 import app.alpha.ui.logic.FeedbackReason
 import app.alpha.ui.logic.FeedbackState
@@ -99,7 +97,6 @@ import app.alpha.ui.logic.SearchUiStates
 import app.alpha.ui.logic.SearchTone
 import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.logic.SearchVerdict
-import app.alpha.ui.logic.SearchVibro
 import app.alpha.ui.logic.SearchWhyInput
 import app.alpha.ui.logic.Uncertainty
 import app.alpha.ui.logic.backgroundBand
@@ -227,8 +224,10 @@ fun SearchScreen(
     val navigateSession = graph.navigateSession
     var navigate by navigateSession::state
 
-    // --- Geiger-style feedback: foreground-only, this screen only ---
-    val clicker = remember { GeigerClicker(context) }
+    // Откликом управляет [FeedbackHub] из графа: он работает на всех экранах.
+    // Экран только ОБЪЯСНЯЕТ молчание — для этого ему и нужны состояния
+    // аудио, громкости и тихого режима.
+    val feedback = graph.feedbackHub
     val lifecycleOwner = LocalLifecycleOwner.current
     var resumed by remember {
         mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
@@ -250,8 +249,6 @@ fun SearchScreen(
         if (resumed) graph.searchPresenceHub.attach()
         onDispose { if (resumed) graph.searchPresenceHub.detach() }
     }
-    val soundMode = channels.usesSound
-    val clickerActive = soundMode && resumed
     // Silence must be explainable: these are polled once a second so the
     // screen can name the actual reason instead of just staying quiet.
     var dndBlocked by remember { mutableStateOf(false) }
@@ -261,23 +258,19 @@ fun SearchScreen(
     LaunchedEffect(resumed) {
         while (resumed) {
             dndBlocked = !Feedback.dndAllowsFeedback(context)
-            audioUnavailable = clicker.audioUnavailable
-            volumeZero = clicker.volumeZero
+            audioUnavailable = feedback.audioUnavailable
+            volumeZero = feedback.volumeZero
             dataFresh = lastSampleReceivedAt > 0 &&
                 System.currentTimeMillis() - lastSampleReceivedAt <= FEEDBACK_STALE_MILLIS
             delay(1_000)
         }
-    }
-    DisposableEffect(clickerActive) {
-        if (clickerActive) clicker.start()
-        onDispose { clicker.stop() }
     }
     // «Тон по энергии»: needs the 5 s spectrum poll — attach a hub watcher
     // while active, then steer the click pitch from the newest interval
     // slice's mean photon energy; stale/no data honestly falls back to the
     // plain default tick. It pitches the *clicks*, so it never runs together
     // with the search tone, whose pitch already carries the ratio.
-    val toneActive = clickerActive && channels.clicks && energyToneEnabled
+    val toneActive = channels.clicks && energyToneEnabled && resumed
     // The 5 s spectrum poll stays attached for the whole time Поиск is on
     // screen, not only for «тон по энергии»: the spectral-shape question of
     // §13 needs the *minutes before* an excursion, which cannot be collected
@@ -290,7 +283,7 @@ fun SearchScreen(
     val spectrumSlices by graph.spectrogramStore.slices.collectAsState()
     LaunchedEffect(toneActive) {
         if (!toneActive) {
-            clicker.setToneBand(null)
+            feedback.setToneBand(null)
             return@LaunchedEffect
         }
         while (true) {
@@ -303,17 +296,8 @@ fun SearchScreen(
             } else {
                 null
             }
-            clicker.setToneBand(band)
+            feedback.setToneBand(band)
             delay(1_000)
-        }
-    }
-    // Honest silence: no fresh samples — no clicks, whatever the last CPS was.
-    LaunchedEffect(clickerActive) {
-        while (clickerActive) {
-            delay(1_000)
-            if (System.currentTimeMillis() - lastSampleReceivedAt > FEEDBACK_STALE_MILLIS) {
-                clicker.setRate(0f)
-            }
         }
     }
 
@@ -379,7 +363,6 @@ fun SearchScreen(
             timeMillis = s.deviceTimestampMillis,
             cps = s.countRate,
         )
-        clicker.setRate(ClickRate.clicksPerSecond(s.countRate))
         dataFresh = true
     }
 
@@ -415,42 +398,6 @@ fun SearchScreen(
     // прибор: знаменатель выбран один раз ([SearchReferences]), и пока точка
     // отсчёта стоит, счёт сравнивается с ней.
     val ratio = navigate.referenceRatio ?: search.comparison?.ratio
-    LaunchedEffect(channels, ratio, clickerActive) {
-        clicker.setSearchTone(
-            enabled = clickerActive && channels.tone,
-            targetHz = SearchTone.frequencyHz(ratio),
-        )
-    }
-
-    // Вибрация — «холодно/горячо» на ощупь: пульс идёт непрерывно, а его
-    // частота несёт то же отношение, что высота тона. Это главный канал для
-    // прибора в кармане, и без него включённая вибрация ощущалась как
-    // выключенная — событийные толчки ниже слишком редки, чтобы вести.
-    //
-    // Внутри фона пульса нет по построению ([SearchVibro.intervalMillis]
-    // возвращает null): там нечего искать, и дрожь была бы постоянной.
-    LaunchedEffect(channels, resumed) {
-        if (!channels.vibro || !resumed) return@LaunchedEffect
-        // Do-Not-Disturb спрашивается раз в секунду, а не на каждый пульс: на
-        // самой быстрой частоте это восемь запросов в секунду ради ответа,
-        // который меняется раз в час.
-        var dndCheckedAt = 0L
-        var dndAllows = true
-        while (resumed) {
-            val now = System.currentTimeMillis()
-            if (now - dndCheckedAt >= 1_000L) {
-                dndCheckedAt = now
-                dndAllows = Feedback.dndAllowsFeedback(context)
-            }
-            val interval = SearchVibro.intervalMillis(ratio)
-            if (interval == null || !dndAllows) {
-                delay(SearchVibro.SLOW_INTERVAL_MILLIS / 2)
-                continue
-            }
-            Feedback.pulse(context)
-            delay(interval)
-        }
-    }
 
     // Вибро «Наведения»: отклик на событие, а не непрерывная дрожь. Событий
     // два — счёт начал расти и найден новый максимум; оба приглушены порогом

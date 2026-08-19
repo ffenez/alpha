@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0390Title: String
+    val v0390Summary: String
+
     val v0381Title: String
     val v0381Summary: String
 
@@ -363,6 +366,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0390Title = "Отклик слышно на всех экранах"
+    override val v0390Summary =
+        "Щелчки, тон и вибрация больше не привязаны к экрану Поиска: они ведут прибор, пока " +
+        "приложение открыто, — хоть на карте, хоть в спектре, — и знаменатель у них тот же, " +
+        "что у стрелки. Телефон теперь вибрирует и по порогу, заданному в приложении: " +
+        "тремя толчками из службы, не дожидаясь настроек системного канала уведомлений."
 
     override val v0381Title = "Вибрация вернулась, проверка знает прибор"
     override val v0381Summary =
@@ -1158,6 +1168,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0390Title = "The feedback is audible on every screen"
+    override val v0390Summary =
+        "Clicks, tone and vibration are no longer tied to the Поиск screen: they guide the " +
+        "instrument for as long as the app is open — on the map, in the spectrum — against the " +
+        "same denominator the needle uses. The phone now also vibrates on the threshold set " +
+        "in the app: three pulses from the service, without waiting for the system channel."
 
     override val v0381Title = "The pulse is back, the check knows the instrument"
     override val v0381Summary =
