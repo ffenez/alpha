@@ -43,12 +43,25 @@ class ScaleCorrectionTest {
     }
 
     @Test
-    fun `одна линия даёт только множитель`() {
-        val correction = ScaleCorrectionMath.of(listOf(reference(1460.8, 1430.0)))
-        assertNotNull(correction)
-        assertEquals(0.0, correction.offsetKeV, 1e-9)
-        assertEquals(1460.8 / 1430.0, correction.gain, 1e-9)
-        assertEquals(1460.8, correction.apply(1430.0), 1e-6)
+    fun `одной линии не хватает`() {
+        // Множитель из одной линии экстраполирует куда угодно: на реальном
+        // спектре K-40 (−29 кэВ) предсказывал на 2614,5 поправку +52 кэВ при
+        // настоящих −31.
+        assertNull(ScaleCorrectionMath.of(listOf(reference(1460.8, 1430.0))))
+    }
+
+    @Test
+    fun `близкие линии прямую не задают`() {
+        // 1173 и 1332 расходятся всего в 1,14 раза: продолжение прямой к 2600
+        // держится на промежутке в 160 кэВ.
+        assertNull(
+            ScaleCorrectionMath.of(
+                listOf(
+                    reference(1173.2, 1150.0, "Co-60"),
+                    reference(1332.5, 1306.0, "Co-60"),
+                ),
+            ),
+        )
     }
 
     @Test
@@ -65,13 +78,25 @@ class ScaleCorrectionTest {
     @Test
     fun `неправдоподобный множитель отбраковывается`() {
         // Линии сопоставлены не с теми: «поправка» удвоила бы шкалу.
-        assertNull(ScaleCorrectionMath.of(listOf(reference(1460.8, 661.7))))
+        assertNull(
+            ScaleCorrectionMath.of(
+                listOf(reference(1460.8, 661.7), reference(2614.5, 1200.0)),
+            ),
+        )
     }
 
     @Test
     fun `пустой список поправки не даёт`() {
         assertNull(ScaleCorrectionMath.of(emptyList()))
         assertNull(ScaleCorrectionMath.of(listOf(reference(-1.0, 100.0))))
+    }
+
+    @Test
+    fun `настоящий спектр с одним K-40 поправки не получает`() {
+        // Проверка калибровки на реальном спектре (4,2 млн импульсов) уверенно
+        // меряет только K-40: остальные опорные линии слабее восьми σ. Поправка
+        // по ней одной завышала бы высокие энергии вдвое, поэтому её нет.
+        assertNull(ScaleCorrectionMath.of(listOf(reference(1460.8, 1432.3, "K-40"))))
     }
 
     @Test
@@ -96,9 +121,11 @@ class ScaleCorrectionTest {
 
     @Test
     fun `сдвиг на энергии называется числом`() {
-        val correction = ScaleCorrectionMath.of(listOf(reference(1460.8, 1430.0)))
+        val correction = ScaleCorrectionMath.of(
+            listOf(reference(661.7, 650.0), reference(1460.8, 1430.0)),
+        )
         assertNotNull(correction)
-        assertEquals(30.8, correction.shiftAt(1430.0), 0.01)
+        assertEquals(1460.8 - 1430.0, correction.shiftAt(1430.0), 0.5)
     }
 
     @Test
