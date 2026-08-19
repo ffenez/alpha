@@ -667,6 +667,7 @@ object EnStrings : Strings {
             "always stay; the rest is your choice."
     override val blockTrend = "Trend/h"
     override val blockDoseToday = "Dose today"
+    override val blockHero = "Dose rate value and tiles"
     override val blockDoseChart = "Dose rate chart"
     override val blockCountChart = "Count-rate chart"
     override val blockHardnessChart = "Hardness chart"

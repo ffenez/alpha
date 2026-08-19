@@ -81,6 +81,7 @@ private data class ScreenKey(
     val lineTrend: Boolean,
     val experiments: Boolean,
     val food: Boolean,
+    val dose: Boolean,
     val trackMapId: Long?,
     val detailId: Long?,
 )
@@ -279,11 +280,6 @@ private fun MainScaffoldContent(graph: AppGraph) {
         return
     }
 
-    if (showDose) {
-        DoseScreen(graph = graph, onBack = { showDose = false })
-        return
-    }
-
     if (showLiveChart) {
         val from = chartRangeFrom
         val to = chartRangeTo
@@ -320,6 +316,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     lineTrend = showLineTrend,
                     experiments = showExperiments,
                     food = showFood,
+                    dose = showDose,
                     trackMapId = trackMapId,
                     detailId = detailId,
                 ),
@@ -367,6 +364,11 @@ private fun MainScaffoldContent(graph: AppGraph) {
                 key.radon -> RadonScreen(graph, onBack = { showRadon = false })
                 key.lineTrend -> NuclideTrendScreen(graph, onBack = { showLineTrend = false })
                 key.food -> FoodScreen(graph, onBack = { showFood = false })
+                // Накопленная доза — обычный экран записи, а не владелец
+                // дисплея: он живёт внутри общего контейнера и получает
+                // системный отступ вместе со всеми. Ранний возврат ставил его
+                // ПОД строку состояния, и шапка оказывалась выше общей сетки.
+                key.dose -> DoseScreen(graph, onBack = { showDose = false })
                 key.experiments -> AbExperimentScreen(
                     graph = graph,
                     onBack = { showExperiments = false },
@@ -496,6 +498,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                 showSettings = false
                 showLiveChart = false
                 showFood = false
+                showDose = false
                 showSpectrogram = false
                 spectrogramFull = false
                 showRadon = false

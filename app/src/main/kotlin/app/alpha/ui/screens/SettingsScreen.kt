@@ -1710,6 +1710,14 @@ private fun HomeLayoutSection(graph: AppGraph) {
                 },
             )
             SettingsDivider()
+            SwitchSettingRow(
+                title = strings.blockHero,
+                checked = blocks.hero,
+                onChange = { on ->
+                    scope.launch { graph.settings.setMonitorBlocks(blocks.copy(hero = on)) }
+                },
+            )
+            SettingsDivider()
             // График дозы — первым: это главная величина экрана, и его
             // выключатель обязан стоять там, где его ищут, а не после
             // второстепенных.

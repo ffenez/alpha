@@ -1,0 +1,570 @@
+<title>Восемь бит для Alpha</title>
+<style>
+  :root {
+    --ground:#f2f0e9; --rule:#d9d5c8; --ink:#17150f; --ink2:#5c574a; --faint:#8b8577;
+    --accent:#b4441f;
+    --mono: ui-monospace,"SFMono-Regular","JetBrains Mono","Menlo","Consolas",monospace;
+    --sans: "Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:#12110f; --rule:#2e2c26; --ink:#efece2; --ink2:#a49d8c; --faint:#6f6a5d;
+      --accent:#e0703f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:#12110f; --rule:#2e2c26; --ink:#efece2; --ink2:#a49d8c; --faint:#6f6a5d;
+    --accent:#e0703f;
+  }
+  body { background:var(--ground); color:var(--ink); font-family:var(--sans); line-height:1.55;
+         margin:0; padding:0 20px 100px; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1240px; margin:0 auto; }
+  header.top { padding:72px 0 40px; border-bottom:1px solid var(--rule); }
+  .eyebrow { font-family:var(--mono); font-size:11px; letter-spacing:.22em; text-transform:uppercase;
+             color:var(--accent); margin:0 0 18px; }
+  h1 { font-size:clamp(34px,6vw,58px); line-height:1.02; letter-spacing:-.02em; margin:0 0 20px;
+       text-wrap:balance; font-weight:620; }
+  header.top p { max-width:64ch; color:var(--ink2); margin:0 0 12px; font-size:16px; }
+  h2 { font-size:13px; font-family:var(--mono); letter-spacing:.18em; text-transform:uppercase;
+       color:var(--faint); margin:56px 0 18px; font-weight:600; }
+  .rules { display:grid; gap:10px; margin:26px 0 0; padding:0; list-style:none; max-width:78ch; }
+  .rules li { display:grid; grid-template-columns:22px 1fr; gap:12px; font-size:15px; color:var(--ink2); }
+  .rules b { color:var(--ink); font-weight:600; }
+  .rules span.n { font-family:var(--mono); font-size:11px; color:var(--accent); padding-top:4px; }
+
+  .skin { border-top:1px solid var(--rule); padding:44px 0 12px; }
+  .skin-head { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:44px; align-items:start; }
+  @media (max-width:900px){ .skin-head{ grid-template-columns:minmax(0,1fr); gap:24px; } }
+  .num { font-family:var(--mono); font-size:11px; letter-spacing:.2em; color:var(--accent); margin:0 0 8px; }
+  .skin h3 { font-size:29px; margin:0 0 4px; letter-spacing:-.01em; font-weight:620; }
+  .lineage { font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+             color:var(--faint); margin:0 0 16px; }
+  .skin p.body { color:var(--ink2); margin:0 0 16px; font-size:15px; max-width:62ch; }
+  .verdict { font-size:14px; border-left:2px solid var(--accent); padding:2px 0 2px 14px;
+             color:var(--ink2); margin:0; max-width:62ch; }
+  .verdict b { color:var(--ink); }
+  .tokens { display:grid; grid-template-columns:repeat(2,1fr); gap:8px 14px; }
+  .tok { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:10px; color:var(--ink2); }
+  .tok b { width:16px; height:16px; flex:none; border:1px solid rgba(128,128,128,.35); }
+  .light-strip { display:flex; margin-top:14px; border:1px solid var(--rule); }
+  .light-strip i { height:26px; flex:1; }
+  .light-cap { font-family:var(--mono); font-size:10px; color:var(--faint); margin-top:6px; letter-spacing:.08em; }
+
+  .screens { display:flex; gap:28px; margin-top:30px; overflow-x:auto; padding-bottom:8px; }
+  .screen-wrap { flex:none; }
+  .screen-cap { font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase;
+                color:var(--faint); margin:0 0 10px 2px; }
+
+  /* ---------- phone ---------- */
+  .phone { border:1px solid var(--rule); background:#000; padding:8px; box-shadow:0 26px 52px -32px #000; }
+  .screen {
+    width:300px; height:660px; overflow:hidden; display:flex; flex-direction:column; gap:8px;
+    padding:10px 10px 0; background:var(--d-bg); color:var(--d-ink);
+    font-family:var(--mono); font-size:11px;
+  }
+  .screen * { border-radius:0; }
+  .rail { display:flex; align-items:center; gap:5px; font-size:8px; letter-spacing:.12em; color:var(--d-ink2); }
+  .rail .sp { flex:1; }
+  .chip { border:2px solid var(--d-line); padding:2px 5px; }
+  .chip.on { color:var(--d-ok); border-color:var(--d-ok); }
+  .lam { color:var(--d-muted); }
+  .seg { display:flex; border:2px solid var(--d-line); }
+  .seg span { flex:1; text-align:center; font-size:9px; letter-spacing:.14em; padding:5px 0; color:var(--d-muted); }
+  .seg span.on { background:var(--d-data); color:var(--d-ondata); font-weight:700; }
+  .card { border:2px solid var(--d-line); background:var(--d-surface); padding:9px; display:flex;
+          flex-direction:column; gap:8px; }
+  .card.grow { flex:1; }
+  .center { text-align:center; display:flex; flex-direction:column; gap:2px; }
+  .klabel { font-size:8px; letter-spacing:.2em; color:var(--d-ink2); }
+  .value { font-size:44px; line-height:1.02; letter-spacing:.02em; color:var(--d-datatext); font-weight:700;
+           font-variant-numeric:tabular-nums; }
+  .value.warn { color:var(--d-warn); }
+  .foot { font-size:8px; letter-spacing:.12em; color:var(--d-muted); }
+  .dial { display:block; width:100%; height:118px; }
+  .dial rect.off { fill:var(--d-surface2); }
+  .dial rect.on { fill:var(--d-data); }
+  .dial rect.warn { fill:var(--d-warn); }
+  .dial rect.crit { fill:var(--d-crit); }
+  .dial rect.needle { fill:var(--d-ink); }
+  .dial rect.hub { fill:var(--d-line); }
+  .scale { display:flex; justify-content:space-between; font-size:8px; color:var(--d-muted); letter-spacing:.1em; }
+  .tiles { display:flex; gap:5px; }
+  .tile { flex:1; border:2px solid var(--d-line); background:var(--d-bg); padding:5px; }
+  .tile .k { font-size:7px; letter-spacing:.12em; color:var(--d-muted); }
+  .tile .v { font-size:14px; color:var(--d-ink); margin-top:2px; font-weight:700; }
+  .plotwrap { margin-top:auto; }
+  .plot { border:2px solid var(--d-line); background:var(--d-field); height:60px; display:flex;
+          align-items:flex-end; gap:2px; padding:4px; }
+  .plot i { flex:1; background:var(--d-data); }
+  .plot i.hi { background:var(--d-warn); }
+  .plot i.max { background:var(--d-crit); }
+  .plotcap { display:flex; justify-content:space-between; font-size:7px; color:var(--d-muted);
+             margin-top:3px; letter-spacing:.1em; }
+  .status { display:flex; align-items:center; gap:6px; font-size:9px; letter-spacing:.12em; color:var(--d-warn); }
+  .status.crit { color:var(--d-crit); }
+  .status .sq { width:7px; height:7px; background:var(--d-warn); flex:none; }
+  .status .sq.crit { background:var(--d-crit); }
+  .refrow { display:flex; align-items:center; gap:5px; font-size:8px; letter-spacing:.1em; color:var(--d-ink2); }
+  .refrow .grow { flex:1; }
+  .btn { border:2px solid var(--d-line); padding:3px 7px; font-size:8px; letter-spacing:.14em; color:var(--d-ink); }
+  .why { display:grid; grid-template-columns:1fr auto; gap:2px 8px; font-size:8px; letter-spacing:.1em;
+         color:var(--d-muted); }
+  .why span:nth-child(even) { color:var(--d-ink); text-align:right; }
+  .nav { display:flex; border-top:2px solid var(--d-line); margin:0 -10px; }
+  .nav span { flex:1; text-align:center; font-size:8px; letter-spacing:.12em; padding:9px 0 12px; color:var(--d-muted); }
+  .nav span.on { color:var(--d-data); }
+
+  footer { border-top:1px solid var(--rule); margin-top:60px; padding-top:32px; }
+  footer p { color:var(--ink2); max-width:72ch; font-size:15px; }
+  footer b { color:var(--ink); }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">Alpha · оформление</p>
+    <h1>Восемь бит для Alpha</h1>
+    <p>Пять вариантов ретро-скина: не «перекрасить в зелёное», а выбрать родословную. Каждая показана
+      на двух полных экранах — <b>Наблюдение</b> и <b>Поиск</b>, — потому что судить шкуру по кусочку
+      нельзя: цвет работает тяжелее всего там, где рядом стоят стрелка, порог и вывод.</p>
+    <p>Экраны собраны из того же набора, что в приложении: строка профиля, переключатель режима,
+      карточка прибора со ступенчатым циферблатом, плитки, мини-график и нижняя навигация.</p>
+    <ul class="rules">
+      <li><span class="n">01</span><span><b>Смысл цвета не меняется.</b> Янтарный — «выше обычного»,
+        красный — подтверждённое превышение, цвет данных — сами данные. Скин меняет оттенки, а не
+        показания.</span></li>
+      <li><span class="n">02</span><span><b>Прямые углы, рамка в два пикселя.</b> Скруглений нет
+        нигде — так рисовал бы интерфейс тайловый движок.</span></li>
+      <li><span class="n">03</span><span><b>Циферблат ступенчатый.</b> Плавная дуга в восьми битах
+        врёт: разрешение экрана было в клетках, и шкала честнее выглядит блоками. Геометрия та же —
+        220°, тот же сектор обычного, та же риска порога.</span></li>
+      <li><span class="n">04</span><span><b>Контраст на солнце.</b> Прибор носят на улице; шкура,
+        которая читается только в комнате, отбраковывается независимо от красоты.</span></li>
+    </ul>
+  </header>
+  <h2>Пять вариаций · десять экранов</h2>
+
+  <section class="skin" style="--d-bg:#0B0F0B;--d-surface:#121A12;--d-surface2:#1A241A;--d-line:#2E4630;--d-ink:#CFF5CF;--d-ink2:#7FBF7F;--d-muted:#4E7A50;--d-ok:#5BE85B;--d-warn:#F2C14E;--d-crit:#FF5A5A;--d-data:#3AD6C8;--d-datatext:#6BF0E2;--d-ondata:#06231F;--d-field:#080C08">
+    <div class="skin-head">
+      <div>
+        <p class="num">01</p>
+        <h3>Фосфор</h3>
+        <p class="lineage">P1-люминофор · монитор осциллографа · то, что стоит сейчас</p>
+        <p class="body">Действующая шкура, доведённая до конца: та же люминофорная зелень, но данные уведены в бирюзу, чтобы кривая не сливалась с подписями, а сетка приглушена до угольной. Единственная из пяти, где хватает и янтаря, и красного, и отдельного цвета данных — четыре независимых смысла, ничего не занято дважды.</p>
+        <p class="verdict"><b>Годится как основная.</b> Ничего не теряет против научного терминала, а на солнце читается за счёт почти чёрного фона.</p>
+      </div>
+      <div class="pal">
+        <div class="tokens"><div class="tok"><b style="background:#0B0F0B"></b>фон 0B0F0B</div><div class="tok"><b style="background:#CFF5CF"></b>текст CFF5CF</div><div class="tok"><b style="background:#3AD6C8"></b>данные 3AD6C8</div><div class="tok"><b style="background:#5BE85B"></b>норма 5BE85B</div><div class="tok"><b style="background:#F2C14E"></b>внимание F2C14E</div><div class="tok"><b style="background:#FF5A5A"></b>тревога FF5A5A</div></div>
+        <div class="light-strip"><i style="background:#E8E6C8"></i><i style="background:#F4F2D8"></i><i style="background:#8C8A6E"></i><i style="background:#116D68"></i><i style="background:#9A6A00"></i><i style="background:#B03A2E"></i></div>
+        <p class="light-cap">светлый вариант: бумажно-жёлтый корпус</p>
+      </div>
+    </div>
+    <div class="screens">
+      <div class="screen-wrap">
+        <p class="screen-cap">Наблюдение</p>
+        <div class="phone"><div class="screen">
+      <div class="rail">
+        <span class="chip">⌂ ДОМ · АВТО</span><span class="sp"></span>
+        <span class="chip on">СВЯЗЬ</span><span class="chip">1 ГЦ</span><span class="lam">λ</span>
+      </div>
+      <div class="seg"><span class="on">НАБЛЮДЕНИЕ</span><span>ПОИСК</span></div>
+      <div class="card grow">
+        <div class="center">
+          <span class="klabel">МОЩНОСТЬ ДОЗЫ</span>
+          <span class="value">0,15</span>
+          <span class="foot">МКЗВ/Ч · ×1,2 К ОБЫЧНОМУ ЗДЕСЬ</span>
+        </div>
+        <svg class="dial" viewBox="0 0 300 178"><rect class="on" x="44.8" y="172.6" width="15" height="26" transform="rotate(250.0 52.3 185.6)"/><rect class="on" x="38.5" y="140.0" width="15" height="26" transform="rotate(268.3 46.0 153.0)"/><rect class="on" x="42.9" y="107.2" width="15" height="26" transform="rotate(286.7 50.4 120.2)"/><rect class="on" x="57.3" y="77.3" width="15" height="26" transform="rotate(305.0 64.8 90.3)"/><rect class="on" x="80.4" y="53.6" width="15" height="26" transform="rotate(323.3 87.9 66.6)"/><rect class="on" x="109.8" y="38.3" width="15" height="26" transform="rotate(341.7 117.3 51.3)"/><rect class="on" x="142.5" y="33.0" width="15" height="26" transform="rotate(360.0 150.0 46.0)"/><rect class="off" x="175.2" y="38.3" width="15" height="26" transform="rotate(378.3 182.7 51.3)"/><rect class="off" x="204.6" y="53.6" width="15" height="26" transform="rotate(396.7 212.1 66.6)"/><rect class="warn" x="227.7" y="77.3" width="15" height="26" transform="rotate(415.0 235.2 90.3)"/><rect class="off" x="242.1" y="107.2" width="15" height="26" transform="rotate(433.3 249.6 120.2)"/><rect class="off" x="246.5" y="140.0" width="15" height="26" transform="rotate(451.7 254.0 153.0)"/><rect class="crit" x="240.2" y="172.6" width="15" height="26" transform="rotate(470.0 247.7 185.6)"/><rect class="needle" x="166.0" y="77.6" width="12" height="12"/><rect class="hub" x="141" y="141" width="18" height="18"/></svg>
+        <div class="scale"><span>×0,5</span><span>1×</span><span>×8</span></div>
+        <div class="tiles">
+          <div class="tile"><div class="k">ФОН МЕСТА</div><div class="v">0,12</div></div>
+          <div class="tile"><div class="k">ЗА ЧАС</div><div class="v">+0,01</div></div>
+          <div class="tile"><div class="k">ЗА СУТКИ</div><div class="v">2,8</div></div>
+        </div>
+        <div class="plotwrap">
+          <div class="plot"><i class="" style="height:38%"></i><i class="" style="height:52%"></i><i class="" style="height:44%"></i><i class="" style="height:61%"></i><i class="hi" style="height:78%"></i><i class="" style="height:57%"></i><i class="" style="height:49%"></i><i class="" style="height:66%"></i><i class="max" style="height:92%"></i><i class="" style="height:58%"></i><i class="" style="height:41%"></i><i class="" style="height:47%"></i><i class="" style="height:55%"></i><i class="" style="height:63%"></i><i class="" style="height:44%"></i><i class="" style="height:39%"></i><i class="" style="height:51%"></i><i class="" style="height:72%"></i></div>
+          <div class="plotcap"><span>16:16</span><span>МОЩНОСТЬ ДОЗЫ · 5 МИН</span><span>16:20</span></div>
+        </div>
+        <div class="status"><span class="sq"></span>ВЫШЕ ОБЫЧНОГО · 4 МИН</div>
+      </div>
+      <div class="nav"><span class="on">ПРИБОР</span><span>СПЕКТР</span><span>ЖУРНАЛ</span><span>КАРТА</span></div>
+    </div></div>
+      </div>
+      <div class="screen-wrap">
+        <p class="screen-cap">Поиск · точка отсчёта задана</p>
+        <div class="phone"><div class="screen">
+      <div class="rail">
+        <span class="chip">⌂ ДОМ · АВТО</span><span class="sp"></span>
+        <span class="chip on">СВЯЗЬ</span><span class="chip">ЗВУК</span><span class="lam">λ</span>
+      </div>
+      <div class="seg"><span>НАБЛЮДЕНИЕ</span><span class="on">ПОИСК</span></div>
+      <div class="card grow">
+        <div class="center">
+          <span class="klabel">К ТОЧКЕ ОТСЧЁТА</span>
+          <span class="value warn">2,4×</span>
+          <span class="foot">52,3 ИМП/С · ОТСЧЁТ 21,8</span>
+        </div>
+        <svg class="dial" viewBox="0 0 300 178"><rect class="on" x="44.8" y="172.6" width="15" height="26" transform="rotate(250.0 52.3 185.6)"/><rect class="on" x="38.5" y="140.0" width="15" height="26" transform="rotate(268.3 46.0 153.0)"/><rect class="on" x="42.9" y="107.2" width="15" height="26" transform="rotate(286.7 50.4 120.2)"/><rect class="on" x="57.3" y="77.3" width="15" height="26" transform="rotate(305.0 64.8 90.3)"/><rect class="on" x="80.4" y="53.6" width="15" height="26" transform="rotate(323.3 87.9 66.6)"/><rect class="on" x="109.8" y="38.3" width="15" height="26" transform="rotate(341.7 117.3 51.3)"/><rect class="on" x="142.5" y="33.0" width="15" height="26" transform="rotate(360.0 150.0 46.0)"/><rect class="on" x="175.2" y="38.3" width="15" height="26" transform="rotate(378.3 182.7 51.3)"/><rect class="on" x="204.6" y="53.6" width="15" height="26" transform="rotate(396.7 212.1 66.6)"/><rect class="on" x="227.7" y="77.3" width="15" height="26" transform="rotate(415.0 235.2 90.3)"/><rect class="warn" x="242.1" y="107.2" width="15" height="26" transform="rotate(433.3 249.6 120.2)"/><rect class="off" x="246.5" y="140.0" width="15" height="26" transform="rotate(451.7 254.0 153.0)"/><rect class="crit" x="240.2" y="172.6" width="15" height="26" transform="rotate(470.0 247.7 185.6)"/><rect class="needle" x="211.1" y="123.9" width="12" height="12"/><rect class="hub" x="141" y="141" width="18" height="18"/></svg>
+        <div class="scale"><span>×0,25</span><span>1×</span><span>×4</span></div>
+        <div class="refrow">
+          <span class="grow">ОТСЧЁТ 21,8 ИМП/С · 16:14</span>
+          <span class="btn">УБРАТЬ</span><span class="btn">⋮</span>
+        </div>
+        <div class="why">
+          <span>ОЦЕНОЧНЫЙ ИНТЕРВАЛ</span><span>2,11–2,74×</span>
+          <span>КРИТЕРИЙ</span><span>P &lt; 0,05</span>
+          <span>ЗАМЕТИЛИ БЫ ОТ</span><span>×1,18</span>
+        </div>
+        <div class="plotwrap">
+          <div class="plot"><i class="" style="height:38%"></i><i class="" style="height:52%"></i><i class="" style="height:44%"></i><i class="" style="height:61%"></i><i class="" style="height:78%"></i><i class="" style="height:57%"></i><i class="" style="height:49%"></i><i class="" style="height:66%"></i><i class="" style="height:92%"></i><i class="" style="height:58%"></i><i class="hi" style="height:41%"></i><i class="" style="height:47%"></i><i class="" style="height:55%"></i><i class="" style="height:63%"></i><i class="" style="height:44%"></i><i class="" style="height:39%"></i><i class="" style="height:51%"></i><i class="max" style="height:72%"></i></div>
+          <div class="plotcap"><span>−60 С</span><span>СКОРОСТЬ СЧЁТА</span><span>СЕЙЧАС</span></div>
+        </div>
+        <div class="status crit"><span class="sq crit"></span>РАЗЛИЧИЕ ПОДТВЕРЖДЕНО</div>
+      </div>
+      <div class="nav"><span class="on">ПРИБОР</span><span>СПЕКТР</span><span>ЖУРНАЛ</span><span>КАРТА</span></div>
+    </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="skin" style="--d-bg:#120C00;--d-surface:#1C1400;--d-surface2:#2A1F00;--d-line:#4A3600;--d-ink:#FFC44D;--d-ink2:#C08D22;--d-muted:#7A5A10;--d-ok:#FFB000;--d-warn:#FFE08A;--d-crit:#FF6B2C;--d-data:#FFB000;--d-datatext:#FFD27A;--d-ondata:#120C00;--d-field:#0D0800">
+    <div class="skin-head">
+      <div>
+        <p class="num">02</p>
+        <h3>Янтарь</h3>
+        <p class="lineage">P3-люминофор · IBM 5151 · один цвет и его яркости</p>
+        <p class="body">Монохром честного янтарного терминала: цвет ровно один, всё различие несут яркость и форма. Самая спокойная для глаз в темноте и самая цельная по характеру — экран выглядит как прибор, а не как приложение.</p>
+        <p class="verdict"><b>Расплата — семантика.</b> Отличить «выше обычного» от «тревоги» одной яркостью нельзя: тревога уходит в оранжево-красный, и монохром на ней ломается. Либо принимаем это исключение, либо тревога помечается миганием рамки, а не цветом.</p>
+      </div>
+      <div class="pal">
+        <div class="tokens"><div class="tok"><b style="background:#120C00"></b>фон 120C00</div><div class="tok"><b style="background:#FFC44D"></b>текст FFC44D</div><div class="tok"><b style="background:#FFB000"></b>данные FFB000</div><div class="tok"><b style="background:#FFB000"></b>норма FFB000</div><div class="tok"><b style="background:#FFE08A"></b>внимание FFE08A</div><div class="tok"><b style="background:#FF6B2C"></b>тревога FF6B2C</div></div>
+        <div class="light-strip"><i style="background:#EDE2CC"></i><i style="background:#F7EFDD"></i><i style="background:#8A7550"></i><i style="background:#8A5600"></i><i style="background:#B07A00"></i><i style="background:#A83A10"></i></div>
+        <p class="light-cap">светлый вариант: пергамент и сепия</p>
+      </div>
+    </div>
+    <div class="screens">
+      <div class="screen-wrap">
+        <p class="screen-cap">Наблюдение</p>
+        <div class="phone"><div class="screen">
+      <div class="rail">
+        <span class="chip">⌂ ДОМ · АВТО</span><span class="sp"></span>
+        <span class="chip on">СВЯЗЬ</span><span class="chip">1 ГЦ</span><span class="lam">λ</span>
+      </div>
+      <div class="seg"><span class="on">НАБЛЮДЕНИЕ</span><span>ПОИСК</span></div>
+      <div class="card grow">
+        <div class="center">
+          <span class="klabel">МОЩНОСТЬ ДОЗЫ</span>
+          <span class="value">0,15</span>
+          <span class="foot">МКЗВ/Ч · ×1,2 К ОБЫЧНОМУ ЗДЕСЬ</span>
+        </div>
+        <svg class="dial" viewBox="0 0 300 178"><rect class="on" x="44.8" y="172.6" width="15" height="26" transform="rotate(250.0 52.3 185.6)"/><rect class="on" x="38.5" y="140.0" width="15" height="26" transform="rotate(268.3 46.0 153.0)"/><rect class="on" x="42.9" y="107.2" width="15" height="26" transform="rotate(286.7 50.4 120.2)"/><rect class="on" x="57.3" y="77.3" width="15" height="26" transform="rotate(305.0 64.8 90.3)"/><rect class="on" x="80.4" y="53.6" width="15" height="26" transform="rotate(323.3 87.9 66.6)"/><rect class="on" x="109.8" y="38.3" width="15" height="26" transform="rotate(341.7 117.3 51.3)"/><rect class="on" x="142.5" y="33.0" width="15" height="26" transform="rotate(360.0 150.0 46.0)"/><rect class="off" x="175.2" y="38.3" width="15" height="26" transform="rotate(378.3 182.7 51.3)"/><rect class="off" x="204.6" y="53.6" width="15" height="26" transform="rotate(396.7 212.1 66.6)"/><rect class="warn" x="227.7" y="77.3" width="15" height="26" transform="rotate(415.0 235.2 90.3)"/><rect class="off" x="242.1" y="107.2" width="15" height="26" transform="rotate(433.3 249.6 120.2)"/><rect class="off" x="246.5" y="140.0" width="15" height="26" transform="rotate(451.7 254.0 153.0)"/><rect class="crit" x="240.2" y="172.6" width="15" height="26" transform="rotate(470.0 247.7 185.6)"/><rect class="needle" x="166.0" y="77.6" width="12" height="12"/><rect class="hub" x="141" y="141" width="18" height="18"/></svg>
+        <div class="scale"><span>×0,5</span><span>1×</span><span>×8</span></div>
+        <div class="tiles">
+          <div class="tile"><div class="k">ФОН МЕСТА</div><div class="v">0,12</div></div>
+          <div class="tile"><div class="k">ЗА ЧАС</div><div class="v">+0,01</div></div>
+          <div class="tile"><div class="k">ЗА СУТКИ</div><div class="v">2,8</div></div>
+        </div>
+        <div class="plotwrap">
+          <div class="plot"><i class="" style="height:38%"></i><i class="" style="height:52%"></i><i class="" style="height:44%"></i><i class="" style="height:61%"></i><i class="hi" style="height:78%"></i><i class="" style="height:57%"></i><i class="" style="height:49%"></i><i class="" style="height:66%"></i><i class="max" style="height:92%"></i><i class="" style="height:58%"></i><i class="" style="height:41%"></i><i class="" style="height:47%"></i><i class="" style="height:55%"></i><i class="" style="height:63%"></i><i class="" style="height:44%"></i><i class="" style="height:39%"></i><i class="" style="height:51%"></i><i class="" style="height:72%"></i></div>
+          <div class="plotcap"><span>16:16</span><span>МОЩНОСТЬ ДОЗЫ · 5 МИН</span><span>16:20</span></div>
+        </div>
+        <div class="status"><span class="sq"></span>ВЫШЕ ОБЫЧНОГО · 4 МИН</div>
+      </div>
+      <div class="nav"><span class="on">ПРИБОР</span><span>СПЕКТР</span><span>ЖУРНАЛ</span><span>КАРТА</span></div>
+    </div></div>
+      </div>
+      <div class="screen-wrap">
+        <p class="screen-cap">Поиск · точка отсчёта задана</p>
+        <div class="phone"><div class="screen">
+      <div class="rail">
+        <span class="chip">⌂ ДОМ · АВТО</span><span class="sp"></span>
+        <span class="chip on">СВЯЗЬ</span><span class="chip">ЗВУК</span><span class="lam">λ</span>
+      </div>
+      <div class="seg"><span>НАБЛЮДЕНИЕ</span><span class="on">ПОИСК</span></div>
+      <div class="card grow">
+        <div class="center">
+          <span class="klabel">К ТОЧКЕ ОТСЧЁТА</span>
+          <span class="value warn">2,4×</span>
+          <span class="foot">52,3 ИМП/С · ОТСЧЁТ 21,8</span>
+        </div>
+        <svg class="dial" viewBox="0 0 300 178"><rect class="on" x="44.8" y="172.6" width="15" height="26" transform="rotate(250.0 52.3 185.6)"/><rect class="on" x="38.5" y="140.0" width="15" height="26" transform="rotate(268.3 46.0 153.0)"/><rect class="on" x="42.9" y="107.2" width="15" height="26" transform="rotate(286.7 50.4 120.2)"/><rect class="on" x="57.3" y="77.3" width="15" height="26" transform="rotate(305.0 64.8 90.3)"/><rect class="on" x="80.4" y="53.6" width="15" height="26" transform="rotate(323.3 87.9 66.6)"/><rect class="on" x="109.8" y="38.3" width="15" height="26" transform="rotate(341.7 117.3 51.3)"/><rect class="on" x="142.5" y="33.0" width="15" height="26" transform="rotate(360.0 150.0 46.0)"/><rect class="on" x="175.2" y="38.3" width="15" height="26" transform="rotate(378.3 182.7 51.3)"/><rect class="on" x="204.6" y="53.6" width="15" height="26" transform="rotate(396.7 212.1 66.6)"/><rect class="on" x="227.7" y="77.3" width="15" height="26" transform="rotate(415.0 235.2 90.3)"/><rect class="warn" x="242.1" y="107.2" width="15" height="26" transform="rotate(433.3 249.6 120.2)"/><rect class="off" x="246.5" y="140.0" width="15" height="26" transform="rotate(451.7 254.0 153.0)"/><rect class="crit" x="240.2" y="172.6" width="15" height="26" transform="rotate(470.0 247.7 185.6)"/><rect class="needle" x="211.1" y="123.9" width="12" height="12"/><rect class="hub" x="141" y="141" width="18" height="18"/></svg>
+        <div class="scale"><span>×0,25</span><span>1×</span><span>×4</span></div>
+        <div class="refrow">
+          <span class="grow">ОТСЧЁТ 21,8 ИМП/С · 16:14</span>
+          <span class="btn">УБРАТЬ</span><span class="btn">⋮</span>
+        </div>
+        <div class="why">
+          <span>ОЦЕНОЧНЫЙ ИНТЕРВАЛ</span><span>2,11–2,74×</span>
+          <span>КРИТЕРИЙ</span><span>P &lt; 0,05</span>
+          <span>ЗАМЕТИЛИ БЫ ОТ</span><span>×1,18</span>
+        </div>
+        <div class="plotwrap">
+          <div class="plot"><i class="" style="height:38%"></i><i class="" style="height:52%"></i><i class="" style="height:44%"></i><i class="" style="height:61%"></i><i class="" style="height:78%"></i><i class="" style="height:57%"></i><i class="" style="height:49%"></i><i class="" style="height:66%"></i><i class="" style="height:92%"></i><i class="" style="height:58%"></i><i class="hi" style="height:41%"></i><i class="" style="height:47%"></i><i class="" style="height:55%"></i><i class="" style="height:63%"></i><i class="" style="height:44%"></i><i class="" style="height:39%"></i><i class="" style="height:51%"></i><i class="max" style="height:72%"></i></div>
+          <div class="plotcap"><span>−60 С</span><span>СКОРОСТЬ СЧЁТА</span><span>СЕЙЧАС</span></div>
+        </div>
+        <div class="status crit"><span class="sq crit"></span>РАЗЛИЧИЕ ПОДТВЕРЖДЕНО</div>
+      </div>
+      <div class="nav"><span class="on">ПРИБОР</span><span>СПЕКТР</span><span>ЖУРНАЛ</span><span>КАРТА</span></div>
+    </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="skin" style="--d-bg:#9BBC0F;--d-surface:#8BAC0F;--d-surface2:#7A9A0D;--d-line:#0F380F;--d-ink:#0F380F;--d-ink2:#306230;--d-muted:#4A7A26;--d-ok:#0F380F;--d-warn:#306230;--d-crit:#0F380F;--d-data:#0F380F;--d-datatext:#0F380F;--d-ondata:#9BBC0F;--d-field:#8BAC0F">
+    <div class="skin-head">
+      <div>
+        <p class="num">03</p>
+        <h3>Карманная</h3>
+        <p class="lineage">Game Boy DMG · четыре тона, ни одним больше</p>
+        <p class="body">Самая узнаваемая из пяти и самая жёсткая: вся палитра — четыре оттенка болотно-зелёного, никакого другого цвета не существует. Плотный, тёплый, ни на что не похожий экран.</p>
+        <p class="verdict"><b>Не годится как есть.</b> Четыре тона не несут четырёх смыслов: янтарь и красный совпадут, и «выше обычного» станет неотличимо от тревоги — это подмена показаний, а не оформление. Видно на Поиске: стрелка, порог и подтверждение сливаются в один цвет. Спасти можно только заливкой — тревога инверсией карточки, внимание штриховкой. Это отдельная работа, не перекраска.</p>
+      </div>
+      <div class="pal">
+        <div class="tokens"><div class="tok"><b style="background:#9BBC0F"></b>фон 9BBC0F</div><div class="tok"><b style="background:#0F380F"></b>текст 0F380F</div><div class="tok"><b style="background:#0F380F"></b>данные 0F380F</div><div class="tok"><b style="background:#0F380F"></b>норма 0F380F</div><div class="tok"><b style="background:#306230"></b>внимание 306230</div><div class="tok"><b style="background:#0F380F"></b>тревога 0F380F</div></div>
+        <div class="light-strip"><i style="background:#C6D8A0"></i><i style="background:#9BBC0F"></i><i style="background:#8BAC0F"></i><i style="background:#306230"></i><i style="background:#1E4A1E"></i><i style="background:#0F380F"></i></div>
+        <p class="light-cap">светлый вариант: светлого варианта нет: шкура сама по себе светлая</p>
+      </div>
+    </div>
+    <div class="screens">
+      <div class="screen-wrap">
+        <p class="screen-cap">Наблюдение</p>
+        <div class="phone"><div class="screen">
+      <div class="rail">
+        <span class="chip">⌂ ДОМ · АВТО</span><span class="sp"></span>
+        <span class="chip on">СВЯЗЬ</span><span class="chip">1 ГЦ</span><span class="lam">λ</span>
+      </div>
+      <div class="seg"><span class="on">НАБЛЮДЕНИЕ</span><span>ПОИСК</span></div>
+      <div class="card grow">
+        <div class="center">
+          <span class="klabel">МОЩНОСТЬ ДОЗЫ</span>
+          <span class="value">0,15</span>
+          <span class="foot">МКЗВ/Ч · ×1,2 К ОБЫЧНОМУ ЗДЕСЬ</span>
+        </div>
+        <svg class="dial" viewBox="0 0 300 178"><rect class="on" x="44.8" y="172.6" width="15" height="26" transform="rotate(250.0 52.3 185.6)"/><rect class="on" x="38.5" y="140.0" width="15" height="26" transform="rotate(268.3 46.0 153.0)"/><rect class="on" x="42.9" y="107.2" width="15" height="26" transform="rotate(286.7 50.4 120.2)"/><rect class="on" x="57.3" y="77.3" width="15" height="26" transform="rotate(305.0 64.8 90.3)"/><rect class="on" x="80.4" y="53.6" width="15" height="26" transform="rotate(323.3 87.9 66.6)"/><rect class="on" x="109.8" y="38.3" width="15" height="26" transform="rotate(341.7 117.3 51.3)"/><rect class="on" x="142.5" y="33.0" width="15" height="26" transform="rotate(360.0 150.0 46.0)"/><rect class="off" x="175.2" y="38.3" width="15" height="26" transform="rotate(378.3 182.7 51.3)"/><rect class="off" x="204.6" y="53.6" width="15" height="26" transform="rotate(396.7 212.1 66.6)"/><rect class="warn" x="227.7" y="77.3" width="15" height="26" transform="rotate(415.0 235.2 90.3)"/><rect class="off" x="242.1" y="107.2" width="15" height="26" transform="rotate(433.3 249.6 120.2)"/><rect class="off" x="246.5" y="140.0" width="15" height="26" transform="rotate(451.7 254.0 153.0)"/><rect class="crit" x="240.2" y="172.6" width="15" height="26" transform="rotate(470.0 247.7 185.6)"/><rect class="needle" x="166.0" y="77.6" width="12" height="12"/><rect class="hub" x="141" y="141" width="18" height="18"/></svg>
+        <div class="scale"><span>×0,5</span><span>1×</span><span>×8</span></div>
+        <div class="tiles">
+          <div class="tile"><div class="k">ФОН МЕСТА</div><div class="v">0,12</div></div>
+          <div class="tile"><div class="k">ЗА ЧАС</div><div class="v">+0,01</div></div>
+          <div class="tile"><div class="k">ЗА СУТКИ</div><div class="v">2,8</div></div>
+        </div>
+        <div class="plotwrap">
+          <div class="plot"><i class="" style="height:38%"></i><i class="" style="height:52%"></i><i class="" style="height:44%"></i><i class="" style="height:61%"></i><i class="hi" style="height:78%"></i><i class="" style="height:57%"></i><i class="" style="height:49%"></i><i class="" style="height:66%"></i><i class="max" style="height:92%"></i><i class="" style="height:58%"></i><i class="" style="height:41%"></i><i class="" style="height:47%"></i><i class="" style="height:55%"></i><i class="" style="height:63%"></i><i class="" style="height:44%"></i><i class="" style="height:39%"></i><i class="" style="height:51%"></i><i class="" style="height:72%"></i></div>
+          <div class="plotcap"><span>16:16</span><span>МОЩНОСТЬ ДОЗЫ · 5 МИН</span><span>16:20</span></div>
+        </div>
+        <div class="status"><span class="sq"></span>ВЫШЕ ОБЫЧНОГО · 4 МИН</div>
+      </div>
+      <div class="nav"><span class="on">ПРИБОР</span><span>СПЕКТР</span><span>ЖУРНАЛ</span><span>КАРТА</span></div>
+    </div></div>
+      </div>
+      <div class="screen-wrap">
+        <p class="screen-cap">Поиск · точка отсчёта задана</p>
+        <div class="phone"><div class="screen">
+      <div class="rail">
+        <span class="chip">⌂ ДОМ · АВТО</span><span class="sp"></span>
+        <span class="chip on">СВЯЗЬ</span><span class="chip">ЗВУК</span><span class="lam">λ</span>
+      </div>
+      <div class="seg"><span>НАБЛЮДЕНИЕ</span><span class="on">ПОИСК</span></div>
+      <div class="card grow">
+        <div class="center">
+          <span class="klabel">К ТОЧКЕ ОТСЧЁТА</span>
+          <span class="value warn">2,4×</span>
+          <span class="foot">52,3 ИМП/С · ОТСЧЁТ 21,8</span>
+        </div>
+        <svg class="dial" viewBox="0 0 300 178"><rect class="on" x="44.8" y="172.6" width="15" height="26" transform="rotate(250.0 52.3 185.6)"/><rect class="on" x="38.5" y="140.0" width="15" height="26" transform="rotate(268.3 46.0 153.0)"/><rect class="on" x="42.9" y="107.2" width="15" height="26" transform="rotate(286.7 50.4 120.2)"/><rect class="on" x="57.3" y="77.3" width="15" height="26" transform="rotate(305.0 64.8 90.3)"/><rect class="on" x="80.4" y="53.6" width="15" height="26" transform="rotate(323.3 87.9 66.6)"/><rect class="on" x="109.8" y="38.3" width="15" height="26" transform="rotate(341.7 117.3 51.3)"/><rect class="on" x="142.5" y="33.0" width="15" height="26" transform="rotate(360.0 150.0 46.0)"/><rect class="on" x="175.2" y="38.3" width="15" height="26" transform="rotate(378.3 182.7 51.3)"/><rect class="on" x="204.6" y="53.6" width="15" height="26" transform="rotate(396.7 212.1 66.6)"/><rect class="on" x="227.7" y="77.3" width="15" height="26" transform="rotate(415.0 235.2 90.3)"/><rect class="warn" x="242.1" y="107.2" width="15" height="26" transform="rotate(433.3 249.6 120.2)"/><rect class="off" x="246.5" y="140.0" width="15" height="26" transform="rotate(451.7 254.0 153.0)"/><rect class="crit" x="240.2" y="172.6" width="15" height="26" transform="rotate(470.0 247.7 185.6)"/><rect class="needle" x="211.1" y="123.9" width="12" height="12"/><rect class="hub" x="141" y="141" width="18" height="18"/></svg>
+        <div class="scale"><span>×0,25</span><span>1×</span><span>×4</span></div>
+        <div class="refrow">
+          <span class="grow">ОТСЧЁТ 21,8 ИМП/С · 16:14</span>
+          <span class="btn">УБРАТЬ</span><span class="btn">⋮</span>
+        </div>
+        <div class="why">
+          <span>ОЦЕНОЧНЫЙ ИНТЕРВАЛ</span><span>2,11–2,74×</span>
+          <span>КРИТЕРИЙ</span><span>P &lt; 0,05</span>
+          <span>ЗАМЕТИЛИ БЫ ОТ</span><span>×1,18</span>
+        </div>
+        <div class="plotwrap">
+          <div class="plot"><i class="" style="height:38%"></i><i class="" style="height:52%"></i><i class="" style="height:44%"></i><i class="" style="height:61%"></i><i class="" style="height:78%"></i><i class="" style="height:57%"></i><i class="" style="height:49%"></i><i class="" style="height:66%"></i><i class="" style="height:92%"></i><i class="" style="height:58%"></i><i class="hi" style="height:41%"></i><i class="" style="height:47%"></i><i class="" style="height:55%"></i><i class="" style="height:63%"></i><i class="" style="height:44%"></i><i class="" style="height:39%"></i><i class="" style="height:51%"></i><i class="max" style="height:72%"></i></div>
+          <div class="plotcap"><span>−60 С</span><span>СКОРОСТЬ СЧЁТА</span><span>СЕЙЧАС</span></div>
+        </div>
+        <div class="status crit"><span class="sq crit"></span>РАЗЛИЧИЕ ПОДТВЕРЖДЕНО</div>
+      </div>
+      <div class="nav"><span class="on">ПРИБОР</span><span>СПЕКТР</span><span>ЖУРНАЛ</span><span>КАРТА</span></div>
+    </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="skin" style="--d-bg:#0D0D2B;--d-surface:#161645;--d-surface2:#1F1F5E;--d-line:#3A3A8C;--d-ink:#FCFCFC;--d-ink2:#A0A8FC;--d-muted:#6058B0;--d-ok:#58D854;--d-warn:#FCBC3C;--d-crit:#E84058;--d-data:#3CBCFC;--d-datatext:#7CDCFC;--d-ondata:#0D0D2B;--d-field:#08081F">
+    <div class="skin-head">
+      <div>
+        <p class="num">04</p>
+        <h3>Картридж</h3>
+        <p class="lineage">NES 2C02 · ночное небо и чистые спрайтовые цвета</p>
+        <p class="body">Палитра приставки: густой синий фон и четыре ясных, ничем не смешанных цвета поверх. Самая яркая и самая «игровая» из пяти — при этом смыслы разведены лучше всех: голубые данные, зелёное спокойствие, жёлтое внимание, малиновая тревога.</p>
+        <p class="verdict"><b>Годится, но это громко.</b> Синий фон отбирает у данных часть контраста на солнце, и белый текст на нём светит в темноте сильнее, чем нужно ночью. Если брать — то с приглушением фона до почти чёрного в тёмной теме.</p>
+      </div>
+      <div class="pal">
+        <div class="tokens"><div class="tok"><b style="background:#0D0D2B"></b>фон 0D0D2B</div><div class="tok"><b style="background:#FCFCFC"></b>текст FCFCFC</div><div class="tok"><b style="background:#3CBCFC"></b>данные 3CBCFC</div><div class="tok"><b style="background:#58D854"></b>норма 58D854</div><div class="tok"><b style="background:#FCBC3C"></b>внимание FCBC3C</div><div class="tok"><b style="background:#E84058"></b>тревога E84058</div></div>
+        <div class="light-strip"><i style="background:#E4E4F4"></i><i style="background:#FCFCFC"></i><i style="background:#8888C0"></i><i style="background:#0058A8"></i><i style="background:#A05000"></i><i style="background:#A81030"></i></div>
+        <p class="light-cap">светлый вариант: белый пластик приставки</p>
+      </div>
+    </div>
+    <div class="screens">
+      <div class="screen-wrap">
+        <p class="screen-cap">Наблюдение</p>
+        <div class="phone"><div class="screen">
+      <div class="rail">
+        <span class="chip">⌂ ДОМ · АВТО</span><span class="sp"></span>
+        <span class="chip on">СВЯЗЬ</span><span class="chip">1 ГЦ</span><span class="lam">λ</span>
+      </div>
+      <div class="seg"><span class="on">НАБЛЮДЕНИЕ</span><span>ПОИСК</span></div>
+      <div class="card grow">
+        <div class="center">
+          <span class="klabel">МОЩНОСТЬ ДОЗЫ</span>
+          <span class="value">0,15</span>
+          <span class="foot">МКЗВ/Ч · ×1,2 К ОБЫЧНОМУ ЗДЕСЬ</span>
+        </div>
+        <svg class="dial" viewBox="0 0 300 178"><rect class="on" x="44.8" y="172.6" width="15" height="26" transform="rotate(250.0 52.3 185.6)"/><rect class="on" x="38.5" y="140.0" width="15" height="26" transform="rotate(268.3 46.0 153.0)"/><rect class="on" x="42.9" y="107.2" width="15" height="26" transform="rotate(286.7 50.4 120.2)"/><rect class="on" x="57.3" y="77.3" width="15" height="26" transform="rotate(305.0 64.8 90.3)"/><rect class="on" x="80.4" y="53.6" width="15" height="26" transform="rotate(323.3 87.9 66.6)"/><rect class="on" x="109.8" y="38.3" width="15" height="26" transform="rotate(341.7 117.3 51.3)"/><rect class="on" x="142.5" y="33.0" width="15" height="26" transform="rotate(360.0 150.0 46.0)"/><rect class="off" x="175.2" y="38.3" width="15" height="26" transform="rotate(378.3 182.7 51.3)"/><rect class="off" x="204.6" y="53.6" width="15" height="26" transform="rotate(396.7 212.1 66.6)"/><rect class="warn" x="227.7" y="77.3" width="15" height="26" transform="rotate(415.0 235.2 90.3)"/><rect class="off" x="242.1" y="107.2" width="15" height="26" transform="rotate(433.3 249.6 120.2)"/><rect class="off" x="246.5" y="140.0" width="15" height="26" transform="rotate(451.7 254.0 153.0)"/><rect class="crit" x="240.2" y="172.6" width="15" height="26" transform="rotate(470.0 247.7 185.6)"/><rect class="needle" x="166.0" y="77.6" width="12" height="12"/><rect class="hub" x="141" y="141" width="18" height="18"/></svg>
+        <div class="scale"><span>×0,5</span><span>1×</span><span>×8</span></div>
+        <div class="tiles">
+          <div class="tile"><div class="k">ФОН МЕСТА</div><div class="v">0,12</div></div>
+          <div class="tile"><div class="k">ЗА ЧАС</div><div class="v">+0,01</div></div>
+          <div class="tile"><div class="k">ЗА СУТКИ</div><div class="v">2,8</div></div>
+        </div>
+        <div class="plotwrap">
+          <div class="plot"><i class="" style="height:38%"></i><i class="" style="height:52%"></i><i class="" style="height:44%"></i><i class="" style="height:61%"></i><i class="hi" style="height:78%"></i><i class="" style="height:57%"></i><i class="" style="height:49%"></i><i class="" style="height:66%"></i><i class="max" style="height:92%"></i><i class="" style="height:58%"></i><i class="" style="height:41%"></i><i class="" style="height:47%"></i><i class="" style="height:55%"></i><i class="" style="height:63%"></i><i class="" style="height:44%"></i><i class="" style="height:39%"></i><i class="" style="height:51%"></i><i class="" style="height:72%"></i></div>
+          <div class="plotcap"><span>16:16</span><span>МОЩНОСТЬ ДОЗЫ · 5 МИН</span><span>16:20</span></div>
+        </div>
+        <div class="status"><span class="sq"></span>ВЫШЕ ОБЫЧНОГО · 4 МИН</div>
+      </div>
+      <div class="nav"><span class="on">ПРИБОР</span><span>СПЕКТР</span><span>ЖУРНАЛ</span><span>КАРТА</span></div>
+    </div></div>
+      </div>
+      <div class="screen-wrap">
+        <p class="screen-cap">Поиск · точка отсчёта задана</p>
+        <div class="phone"><div class="screen">
+      <div class="rail">
+        <span class="chip">⌂ ДОМ · АВТО</span><span class="sp"></span>
+        <span class="chip on">СВЯЗЬ</span><span class="chip">ЗВУК</span><span class="lam">λ</span>
+      </div>
+      <div class="seg"><span>НАБЛЮДЕНИЕ</span><span class="on">ПОИСК</span></div>
+      <div class="card grow">
+        <div class="center">
+          <span class="klabel">К ТОЧКЕ ОТСЧЁТА</span>
+          <span class="value warn">2,4×</span>
+          <span class="foot">52,3 ИМП/С · ОТСЧЁТ 21,8</span>
+        </div>
+        <svg class="dial" viewBox="0 0 300 178"><rect class="on" x="44.8" y="172.6" width="15" height="26" transform="rotate(250.0 52.3 185.6)"/><rect class="on" x="38.5" y="140.0" width="15" height="26" transform="rotate(268.3 46.0 153.0)"/><rect class="on" x="42.9" y="107.2" width="15" height="26" transform="rotate(286.7 50.4 120.2)"/><rect class="on" x="57.3" y="77.3" width="15" height="26" transform="rotate(305.0 64.8 90.3)"/><rect class="on" x="80.4" y="53.6" width="15" height="26" transform="rotate(323.3 87.9 66.6)"/><rect class="on" x="109.8" y="38.3" width="15" height="26" transform="rotate(341.7 117.3 51.3)"/><rect class="on" x="142.5" y="33.0" width="15" height="26" transform="rotate(360.0 150.0 46.0)"/><rect class="on" x="175.2" y="38.3" width="15" height="26" transform="rotate(378.3 182.7 51.3)"/><rect class="on" x="204.6" y="53.6" width="15" height="26" transform="rotate(396.7 212.1 66.6)"/><rect class="on" x="227.7" y="77.3" width="15" height="26" transform="rotate(415.0 235.2 90.3)"/><rect class="warn" x="242.1" y="107.2" width="15" height="26" transform="rotate(433.3 249.6 120.2)"/><rect class="off" x="246.5" y="140.0" width="15" height="26" transform="rotate(451.7 254.0 153.0)"/><rect class="crit" x="240.2" y="172.6" width="15" height="26" transform="rotate(470.0 247.7 185.6)"/><rect class="needle" x="211.1" y="123.9" width="12" height="12"/><rect class="hub" x="141" y="141" width="18" height="18"/></svg>
+        <div class="scale"><span>×0,25</span><span>1×</span><span>×4</span></div>
+        <div class="refrow">
+          <span class="grow">ОТСЧЁТ 21,8 ИМП/С · 16:14</span>
+          <span class="btn">УБРАТЬ</span><span class="btn">⋮</span>
+        </div>
+        <div class="why">
+          <span>ОЦЕНОЧНЫЙ ИНТЕРВАЛ</span><span>2,11–2,74×</span>
+          <span>КРИТЕРИЙ</span><span>P &lt; 0,05</span>
+          <span>ЗАМЕТИЛИ БЫ ОТ</span><span>×1,18</span>
+        </div>
+        <div class="plotwrap">
+          <div class="plot"><i class="" style="height:38%"></i><i class="" style="height:52%"></i><i class="" style="height:44%"></i><i class="" style="height:61%"></i><i class="" style="height:78%"></i><i class="" style="height:57%"></i><i class="" style="height:49%"></i><i class="" style="height:66%"></i><i class="" style="height:92%"></i><i class="" style="height:58%"></i><i class="hi" style="height:41%"></i><i class="" style="height:47%"></i><i class="" style="height:55%"></i><i class="" style="height:63%"></i><i class="" style="height:44%"></i><i class="" style="height:39%"></i><i class="" style="height:51%"></i><i class="max" style="height:72%"></i></div>
+          <div class="plotcap"><span>−60 С</span><span>СКОРОСТЬ СЧЁТА</span><span>СЕЙЧАС</span></div>
+        </div>
+        <div class="status crit"><span class="sq crit"></span>РАЗЛИЧИЕ ПОДТВЕРЖДЕНО</div>
+      </div>
+      <div class="nav"><span class="on">ПРИБОР</span><span>СПЕКТР</span><span>ЖУРНАЛ</span><span>КАРТА</span></div>
+    </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="skin" style="--d-bg:#000000;--d-surface:#101010;--d-surface2:#1C1C1C;--d-line:#3A3A3A;--d-ink:#FFFFFF;--d-ink2:#00D8D8;--d-muted:#767676;--d-ok:#00D800;--d-warn:#D8D800;--d-crit:#D80000;--d-data:#00D8D8;--d-datatext:#00FFFF;--d-ondata:#000000;--d-field:#080808">
+    <div class="skin-head">
+      <div>
+        <p class="num">05</p>
+        <h3>Спектрум</h3>
+        <p class="lineage">ZX Spectrum · восемь цветов, две яркости, чёрная бумага</p>
+        <p class="body">Восемь чистых цветов на чёрном, каждый — «включён» или «ярче». Никаких полутонов и никаких приглушений: элемент либо горит, либо его нет. Самая графичная и самая резкая — и самая узнаваемая тем, кто застал.</p>
+        <p class="verdict"><b>Годится для прибора лучше, чем ожидаешь.</b> Чёрный фон даёт максимум контраста на солнце, а восьми цветов ровно хватает на смыслы. Цена — отсутствие приглушения: второстепенное придётся уводить размером и разрядкой, а не серым.</p>
+      </div>
+      <div class="pal">
+        <div class="tokens"><div class="tok"><b style="background:#000000"></b>фон 000000</div><div class="tok"><b style="background:#FFFFFF"></b>текст FFFFFF</div><div class="tok"><b style="background:#00D8D8"></b>данные 00D8D8</div><div class="tok"><b style="background:#00D800"></b>норма 00D800</div><div class="tok"><b style="background:#D8D800"></b>внимание D8D800</div><div class="tok"><b style="background:#D80000"></b>тревога D80000</div></div>
+        <div class="light-strip"><i style="background:#FFFFFF"></i><i style="background:#D8D8D8"></i><i style="background:#0000D8"></i><i style="background:#008000"></i><i style="background:#A08000"></i><i style="background:#D80000"></i></div>
+        <p class="light-cap">светлый вариант: белая бумага, те же восемь</p>
+      </div>
+    </div>
+    <div class="screens">
+      <div class="screen-wrap">
+        <p class="screen-cap">Наблюдение</p>
+        <div class="phone"><div class="screen">
+      <div class="rail">
+        <span class="chip">⌂ ДОМ · АВТО</span><span class="sp"></span>
+        <span class="chip on">СВЯЗЬ</span><span class="chip">1 ГЦ</span><span class="lam">λ</span>
+      </div>
+      <div class="seg"><span class="on">НАБЛЮДЕНИЕ</span><span>ПОИСК</span></div>
+      <div class="card grow">
+        <div class="center">
+          <span class="klabel">МОЩНОСТЬ ДОЗЫ</span>
+          <span class="value">0,15</span>
+          <span class="foot">МКЗВ/Ч · ×1,2 К ОБЫЧНОМУ ЗДЕСЬ</span>
+        </div>
+        <svg class="dial" viewBox="0 0 300 178"><rect class="on" x="44.8" y="172.6" width="15" height="26" transform="rotate(250.0 52.3 185.6)"/><rect class="on" x="38.5" y="140.0" width="15" height="26" transform="rotate(268.3 46.0 153.0)"/><rect class="on" x="42.9" y="107.2" width="15" height="26" transform="rotate(286.7 50.4 120.2)"/><rect class="on" x="57.3" y="77.3" width="15" height="26" transform="rotate(305.0 64.8 90.3)"/><rect class="on" x="80.4" y="53.6" width="15" height="26" transform="rotate(323.3 87.9 66.6)"/><rect class="on" x="109.8" y="38.3" width="15" height="26" transform="rotate(341.7 117.3 51.3)"/><rect class="on" x="142.5" y="33.0" width="15" height="26" transform="rotate(360.0 150.0 46.0)"/><rect class="off" x="175.2" y="38.3" width="15" height="26" transform="rotate(378.3 182.7 51.3)"/><rect class="off" x="204.6" y="53.6" width="15" height="26" transform="rotate(396.7 212.1 66.6)"/><rect class="warn" x="227.7" y="77.3" width="15" height="26" transform="rotate(415.0 235.2 90.3)"/><rect class="off" x="242.1" y="107.2" width="15" height="26" transform="rotate(433.3 249.6 120.2)"/><rect class="off" x="246.5" y="140.0" width="15" height="26" transform="rotate(451.7 254.0 153.0)"/><rect class="crit" x="240.2" y="172.6" width="15" height="26" transform="rotate(470.0 247.7 185.6)"/><rect class="needle" x="166.0" y="77.6" width="12" height="12"/><rect class="hub" x="141" y="141" width="18" height="18"/></svg>
+        <div class="scale"><span>×0,5</span><span>1×</span><span>×8</span></div>
+        <div class="tiles">
+          <div class="tile"><div class="k">ФОН МЕСТА</div><div class="v">0,12</div></div>
+          <div class="tile"><div class="k">ЗА ЧАС</div><div class="v">+0,01</div></div>
+          <div class="tile"><div class="k">ЗА СУТКИ</div><div class="v">2,8</div></div>
+        </div>
+        <div class="plotwrap">
+          <div class="plot"><i class="" style="height:38%"></i><i class="" style="height:52%"></i><i class="" style="height:44%"></i><i class="" style="height:61%"></i><i class="hi" style="height:78%"></i><i class="" style="height:57%"></i><i class="" style="height:49%"></i><i class="" style="height:66%"></i><i class="max" style="height:92%"></i><i class="" style="height:58%"></i><i class="" style="height:41%"></i><i class="" style="height:47%"></i><i class="" style="height:55%"></i><i class="" style="height:63%"></i><i class="" style="height:44%"></i><i class="" style="height:39%"></i><i class="" style="height:51%"></i><i class="" style="height:72%"></i></div>
+          <div class="plotcap"><span>16:16</span><span>МОЩНОСТЬ ДОЗЫ · 5 МИН</span><span>16:20</span></div>
+        </div>
+        <div class="status"><span class="sq"></span>ВЫШЕ ОБЫЧНОГО · 4 МИН</div>
+      </div>
+      <div class="nav"><span class="on">ПРИБОР</span><span>СПЕКТР</span><span>ЖУРНАЛ</span><span>КАРТА</span></div>
+    </div></div>
+      </div>
+      <div class="screen-wrap">
+        <p class="screen-cap">Поиск · точка отсчёта задана</p>
+        <div class="phone"><div class="screen">
+      <div class="rail">
+        <span class="chip">⌂ ДОМ · АВТО</span><span class="sp"></span>
+        <span class="chip on">СВЯЗЬ</span><span class="chip">ЗВУК</span><span class="lam">λ</span>
+      </div>
+      <div class="seg"><span>НАБЛЮДЕНИЕ</span><span class="on">ПОИСК</span></div>
+      <div class="card grow">
+        <div class="center">
+          <span class="klabel">К ТОЧКЕ ОТСЧЁТА</span>
+          <span class="value warn">2,4×</span>
+          <span class="foot">52,3 ИМП/С · ОТСЧЁТ 21,8</span>
+        </div>
+        <svg class="dial" viewBox="0 0 300 178"><rect class="on" x="44.8" y="172.6" width="15" height="26" transform="rotate(250.0 52.3 185.6)"/><rect class="on" x="38.5" y="140.0" width="15" height="26" transform="rotate(268.3 46.0 153.0)"/><rect class="on" x="42.9" y="107.2" width="15" height="26" transform="rotate(286.7 50.4 120.2)"/><rect class="on" x="57.3" y="77.3" width="15" height="26" transform="rotate(305.0 64.8 90.3)"/><rect class="on" x="80.4" y="53.6" width="15" height="26" transform="rotate(323.3 87.9 66.6)"/><rect class="on" x="109.8" y="38.3" width="15" height="26" transform="rotate(341.7 117.3 51.3)"/><rect class="on" x="142.5" y="33.0" width="15" height="26" transform="rotate(360.0 150.0 46.0)"/><rect class="on" x="175.2" y="38.3" width="15" height="26" transform="rotate(378.3 182.7 51.3)"/><rect class="on" x="204.6" y="53.6" width="15" height="26" transform="rotate(396.7 212.1 66.6)"/><rect class="on" x="227.7" y="77.3" width="15" height="26" transform="rotate(415.0 235.2 90.3)"/><rect class="warn" x="242.1" y="107.2" width="15" height="26" transform="rotate(433.3 249.6 120.2)"/><rect class="off" x="246.5" y="140.0" width="15" height="26" transform="rotate(451.7 254.0 153.0)"/><rect class="crit" x="240.2" y="172.6" width="15" height="26" transform="rotate(470.0 247.7 185.6)"/><rect class="needle" x="211.1" y="123.9" width="12" height="12"/><rect class="hub" x="141" y="141" width="18" height="18"/></svg>
+        <div class="scale"><span>×0,25</span><span>1×</span><span>×4</span></div>
+        <div class="refrow">
+          <span class="grow">ОТСЧЁТ 21,8 ИМП/С · 16:14</span>
+          <span class="btn">УБРАТЬ</span><span class="btn">⋮</span>
+        </div>
+        <div class="why">
+          <span>ОЦЕНОЧНЫЙ ИНТЕРВАЛ</span><span>2,11–2,74×</span>
+          <span>КРИТЕРИЙ</span><span>P &lt; 0,05</span>
+          <span>ЗАМЕТИЛИ БЫ ОТ</span><span>×1,18</span>
+        </div>
+        <div class="plotwrap">
+          <div class="plot"><i class="" style="height:38%"></i><i class="" style="height:52%"></i><i class="" style="height:44%"></i><i class="" style="height:61%"></i><i class="" style="height:78%"></i><i class="" style="height:57%"></i><i class="" style="height:49%"></i><i class="" style="height:66%"></i><i class="" style="height:92%"></i><i class="" style="height:58%"></i><i class="hi" style="height:41%"></i><i class="" style="height:47%"></i><i class="" style="height:55%"></i><i class="" style="height:63%"></i><i class="" style="height:44%"></i><i class="" style="height:39%"></i><i class="" style="height:51%"></i><i class="max" style="height:72%"></i></div>
+          <div class="plotcap"><span>−60 С</span><span>СКОРОСТЬ СЧЁТА</span><span>СЕЙЧАС</span></div>
+        </div>
+        <div class="status crit"><span class="sq crit"></span>РАЗЛИЧИЕ ПОДТВЕРЖДЕНО</div>
+      </div>
+      <div class="nav"><span class="on">ПРИБОР</span><span>СПЕКТР</span><span>ЖУРНАЛ</span><span>КАРТА</span></div>
+    </div></div>
+      </div>
+    </div>
+  </section>
+  <footer>
+    <h2 style="margin-top:0">Что я бы взял</h2>
+    <p><b>Спектрум</b> — если шкура должна остаться прибором: чёрный фон читается на солнце лучше
+      всех пяти, восьми цветов хватает на все смыслы, и характер ни с чем не спутать.
+      <b>Фосфор</b> — если хочется меньше риска: это уже работающая шкура, доведённая до конца.</p>
+    <p><b>Карманную</b> брать нельзя без отдельной работы над заливками: в четырёх тонах «выше
+      обычного» и «тревога» неразличимы, а это уже не оформление, а подмена показания. Экран Поиска
+      показывает это нагляднее всего — стрелка, риска порога и вывод там одного цвета.</p>
+    <p>Скажите номер — сделаю палитру, метрики и типографику в коде, с обоими вариантами темы.</p>
+  </footer>
+</div>

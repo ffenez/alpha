@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0441Title: String
+    val v0441Summary: String
+
     val v0440Title: String
     val v0440Summary: String
 
@@ -393,6 +396,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0441Title = "Накопленная доза встала на общую сетку"
+    override val v0441Summary =
+        "Экран накопленной дозы рисовался в обход общего контейнера и уходил под строку состояния: " +
+        "теперь у него тот же системный отступ и та же шапка, что у остальных экранов записи. " +
+        "Заодно число мощности дозы с плитками выключается в настройках — на Главной можно " +
+        "оставить одни графики."
 
     override val v0440Title = "Точка отсчёта снимается кнопкой, доза — с оценкой за год"
     override val v0440Summary =
@@ -1259,6 +1269,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0441Title = "Accumulated dose joins the common grid"
+    override val v0441Summary =
+        "The accumulated dose screen was drawn outside the shared container and slid under the " +
+        "status bar: it now takes the same system inset and the same header as every other record " +
+        "screen. The dose rate value with its tiles can also be switched off, leaving Главная " +
+        "with charts alone."
 
     override val v0440Title = "The reference clears with a button, dose gains a year estimate"
     override val v0440Summary =

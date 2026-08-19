@@ -660,6 +660,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             countRateChart = prefs[MONITOR_SHOW_CPS_CHART] ?: false,
             hardnessChart = prefs[MONITOR_SHOW_HARDNESS_CHART] ?: false,
             doseChart = prefs[MONITOR_SHOW_DOSE_CHART] ?: true,
+            hero = prefs[MONITOR_SHOW_HERO] ?: true,
         )
     }
 
@@ -671,6 +672,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             it[MONITOR_SHOW_CPS_CHART] = blocks.countRateChart
             it[MONITOR_SHOW_HARDNESS_CHART] = blocks.hardnessChart
             it[MONITOR_SHOW_DOSE_CHART] = blocks.doseChart
+            it[MONITOR_SHOW_HERO] = blocks.hero
         }
     }
 
@@ -684,6 +686,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             it.remove(MONITOR_SHOW_CPS_CHART)
             it.remove(MONITOR_SHOW_HARDNESS_CHART)
             it.remove(MONITOR_SHOW_DOSE_CHART)
+            it.remove(MONITOR_SHOW_HERO)
         }
     }
 
@@ -849,6 +852,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val MONITOR_SHOW_STATS = booleanPreferencesKey("monitor_show_stats")
         private val MONITOR_SHOW_CPS_CHART = booleanPreferencesKey("monitor_show_cps_chart")
         private val MONITOR_SHOW_DOSE_CHART = booleanPreferencesKey("monitor_show_dose_chart")
+        private val MONITOR_SHOW_HERO = booleanPreferencesKey("monitor_show_hero")
         private val JOURNAL_EPISODES = booleanPreferencesKey("journal_episodes")
         private val MONITOR_SHOW_HARDNESS_CHART =
             booleanPreferencesKey("monitor_show_hardness_chart")
@@ -881,6 +885,15 @@ data class MonitorBlocks(
      * картинка»: рядом стоит само число, а график нужен не всем.
      */
     val doseChart: Boolean = true,
+    /**
+     * Число мощности дозы со шкалой и плитками под ним.
+     *
+     * Выключается целым блоком, а не по частям: плитки поясняют главное
+     * число, и оставлять их без него значило бы оставить подписи без подписи.
+     * Предупреждение об уровне при этом никуда не девается — оно критическое
+     * и живёт независимо от того, показано ли само число.
+     */
+    val hero: Boolean = true,
 )
 
 /**
