@@ -527,9 +527,9 @@ object EnStrings : Strings {
     override val scaleReset = "Back to 100 %"
     override val crystalOrganicPlastic = "organic plastic"
     override val modeOff = "off"
-    override val modeClicks = "clicks"
-    override val modeTone = "tone"
-    override val modeVibro = "vibration"
+    override val modeClicks = "Clicks"
+    override val modeTone = "Search tone"
+    override val modeVibro = "Vibration"
     override val themeTitle = "Theme"
     override val alarmsIntro =
         "An alarm is not triggered by a single spike: the level has to cross a threshold — " +

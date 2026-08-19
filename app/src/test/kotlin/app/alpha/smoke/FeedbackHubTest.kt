@@ -84,4 +84,38 @@ class FeedbackHubTest {
             hub.stop()
         }
     }
+
+    /**
+     * Полевой отчёт: включил тон, выключил — и щелчки больше не вернулись.
+     *
+     * Режим тона в движке эксклюзивный, поэтому «залипший» тон означает
+     * молчание всех щелчков. Проверяется именно возврат.
+     */
+    @Test
+    fun `turning the tone off brings the clicks back`() = runBlocking {
+        val graph = Smoke.graph()
+        val hub = graph.feedbackHub
+        hub.start()
+        try {
+            graph.settings.setSearchFeedbackChannels(
+                SearchFeedbackChannels(clicks = true, tone = true),
+            )
+            delay(300)
+            graph.settings.setSearchFeedbackChannels(SearchFeedbackChannels(clicks = true))
+            graph.serviceStatus.onSample(sample(25f))
+            repeat(20) {
+                if (hub.output.value.toneHz == null && hub.output.value.clicksPerSecond > 0f) {
+                    return@repeat
+                }
+                delay(50)
+            }
+            assertEquals(null, hub.output.value.toneHz)
+            assertTrue(
+                "щелчки не вернулись после выключения тона: ${hub.output.value}",
+                hub.output.value.clicksPerSecond > 0f,
+            )
+        } finally {
+            hub.stop()
+        }
+    }
 }

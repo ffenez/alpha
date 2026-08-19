@@ -188,6 +188,11 @@ class MeasurementService : Service() {
             // Sessions a killed process left open end at the last real sample.
             graph.sessionRepository.closeStale()
         }
+        // Отклик поиска принадлежит ИЗМЕРЕНИЮ, а не экрану: прибор ведут по
+        // звуку с телефоном в кармане, и погашенный экран не означает, что
+        // искать перестали. Поэтому хаб живёт вместе со службой, а каналы
+        // выключаются там же, где включаются, — в настройках.
+        graph.feedbackHub.start()
         // Wi-Fi context: no GPS involved (spec §3.3).
         graph.contextController.start(scope)
         // Versioned pre-aggregation of ADR 004: minute scalars and hourly
@@ -326,6 +331,9 @@ class MeasurementService : Service() {
 
     override fun onDestroy() {
         graph.serviceStatus.onServiceStopped()
+        // Отклик уходит вместе с измерением: щёлкать после остановки службы
+        // означало бы говорить о данных, которых больше нет.
+        graph.feedbackHub.stop()
         graph.contextController.stop()
         stopTracking()
         val current = device

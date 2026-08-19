@@ -212,33 +212,11 @@ private fun MainScaffoldContent(graph: AppGraph) {
     // stream; survives tab switches until the user turns it off.
     var continueSpectrumId by rememberSaveable { mutableStateOf<Long?>(null) }
 
-    // Отклик поиска живёт на всех экранах: прибор ведут на слух и на ощупь, и
-    // уход с одного экрана на другой не имеет права его обрывать. Глохнет он
-    // вместе с интерфейсом — щёлкать в кармане при заблокированном экране
-    // никто не просил.
-    val feedback = graph.feedbackHub
-    val feedbackOwner = LocalLifecycleOwner.current
-    DisposableEffect(feedbackOwner) {
-        // Наблюдатель получает только БУДУЩИЕ события: к моменту подписки
-        // приложение уже запущено, ON_START прошёл, и отклик молчал бы до
-        // первого сворачивания. Поэтому текущее состояние проверяется явно.
-        if (feedbackOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-            feedback.start()
-        }
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START -> feedback.start()
-                Lifecycle.Event.ON_STOP -> feedback.stop()
-                else -> Unit
-            }
-        }
-        feedbackOwner.lifecycle.addObserver(observer)
-        onDispose {
-            feedbackOwner.lifecycle.removeObserver(observer)
-            feedback.stop()
-        }
-    }
-
+    // Откликом владеет служба измерений: он живёт, пока идёт измерение, —
+    // в том числе при погашенном экране и свёрнутом приложении, потому что
+    // прибор ведут по звуку с телефоном в кармане. Интерфейс его не включает
+    // и не выключает; если службы нет (прибор не подключён), отклику всё
+    // равно нечего озвучивать.
     BackHandler(
         enabled = showSettings || showLiveChart || fullSpectrum || showSpectrogram || showRadon ||
             showLineTrend || showDose ||

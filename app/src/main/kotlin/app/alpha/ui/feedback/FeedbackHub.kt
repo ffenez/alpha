@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -139,19 +140,33 @@ class FeedbackHub(
             }
     }
 
-    /** Тон: высота несёт отношение к тому, с чем сравнивают. */
+    /**
+     * Тон: высота несёт отношение к тому, с чем сравнивают.
+     *
+     * `collectLatest`, а не `collect`: внутри крутится бесконечный цикл, и
+     * обычный коллектор не получил бы следующее значение настройки — выключив
+     * тон, человек оставался бы с включённым тоном навсегда, а вместе с ним и
+     * без щелчков, потому что режим тона в движке эксклюзивный.
+     */
     private suspend fun runTone() {
-        settings.searchFeedbackChannels.distinctUntilChanged().collect { channels ->
+        settings.searchFeedbackChannels.distinctUntilChanged().collectLatest { channels ->
             if (!channels.tone) {
                 clicker.setSearchTone(enabled = false, targetHz = null)
                 _output.value = _output.value.copy(toneHz = null)
-                return@collect
+                return@collectLatest
             }
-            while (running && channels.tone) {
-                val hz = SearchTone.frequencyHz(ratio())
-                clicker.setSearchTone(enabled = true, targetHz = hz)
-                _output.value = _output.value.copy(toneHz = hz)
-                delay(TICK_MILLIS)
+            try {
+                while (running) {
+                    val hz = SearchTone.frequencyHz(ratio())
+                    clicker.setSearchTone(enabled = true, targetHz = hz)
+                    _output.value = _output.value.copy(toneHz = hz)
+                    delay(TICK_MILLIS)
+                }
+            } finally {
+                // Отмена ветки — это и есть выключение тона: движок обязан
+                // вернуться к щелчкам, чем бы цикл ни закончился.
+                clicker.setSearchTone(enabled = false, targetHz = null)
+                _output.value = _output.value.copy(toneHz = null)
             }
         }
     }
@@ -161,11 +176,11 @@ class FeedbackHub(
      * отношение, что высота тона. Внутри фона пульса нет по построению.
      */
     private suspend fun runPulse() {
-        settings.searchFeedbackChannels.distinctUntilChanged().collect { channels ->
-            if (!channels.vibro) return@collect
+        settings.searchFeedbackChannels.distinctUntilChanged().collectLatest { channels ->
+            if (!channels.vibro) return@collectLatest
             var dndCheckedAt = 0L
             var dndAllows = true
-            while (running && channels.vibro) {
+            while (running) {
                 val now = System.currentTimeMillis()
                 if (now - dndCheckedAt >= DND_POLL_MILLIS) {
                     dndCheckedAt = now
