@@ -2,6 +2,7 @@ package app.alpha.ui.logic
 
 import app.alpha.ui.text.MapRu
 import app.alpha.ui.text.MapStrings
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.ceil
@@ -63,7 +64,7 @@ object MapAnchors {
         } else {
             String.format(java.util.Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
         }
-        text.replace('.', ',')
+        text.uiDecimal()
     }
 }
 
@@ -489,7 +490,7 @@ object TrackMap {
         meters >= 10_000 ->
             String.format(Locale.US, "%.0f", meters / 1000) + " " + s.unitKilometers
         meters >= 1_000 ->
-            String.format(Locale.US, "%.1f", meters / 1000).replace('.', ',') +
+            String.format(Locale.US, "%.1f", meters / 1000).uiDecimal() +
                 " " + s.unitKilometers
         else -> String.format(Locale.US, "%.0f", meters) + " " + s.unitMeters
     }
@@ -497,7 +498,7 @@ object TrackMap {
     /** CPS with one decimal below 10 («9,4»), whole above («27»). */
     fun formatCps(cps: Float): String =
         if (cps < 10f) {
-            String.format(Locale.US, "%.1f", cps).replace('.', ',')
+            String.format(Locale.US, "%.1f", cps).uiDecimal()
         } else {
             String.format(Locale.US, "%.0f", cps)
         }

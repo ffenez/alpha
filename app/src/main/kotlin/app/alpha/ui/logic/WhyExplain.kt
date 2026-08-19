@@ -7,6 +7,7 @@ import app.alpha.data.DoseUnitSetting
 import app.alpha.data.ExclusionSummary
 import app.alpha.ui.text.MonitorRu
 import app.alpha.ui.text.MonitorStrings
+import app.alpha.ui.text.uiDecimal
 
 /**
  * One line of the «Почему?» sheet: what it is, its value, how sure we are.
@@ -94,7 +95,7 @@ fun durationWording(seconds: Long, s: MonitorStrings = MonitorRu): String = when
         val text = if (hours >= 10 || hours == Math.floor(hours)) {
             "${hours.toLong()}"
         } else {
-            String.format(java.util.Locale.US, "%.1f", hours).replace('.', ',')
+            String.format(java.util.Locale.US, "%.1f", hours).uiDecimal()
         }
         s.hoursShort(text)
     }

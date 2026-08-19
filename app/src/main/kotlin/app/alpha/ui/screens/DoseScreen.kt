@@ -40,6 +40,7 @@ import app.alpha.ui.logic.DosePeriods
 import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.text.HistoryCatalogue
 import app.alpha.ui.text.LocalStrings
+import app.alpha.ui.text.uiDecimal
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
@@ -272,7 +273,7 @@ fun DoseScreen(graph: AppGraph, onBack: () -> Unit) {
 
 /** Доля в процентах с одним знаком: покрытие бывает и долями процента. */
 private fun percent(fraction: Float): String =
-    String.format(Locale.US, "%.1f", fraction * 100).replace('.', ',')
+    String.format(Locale.US, "%.1f", fraction * 100).uiDecimal()
 
 /** Что показывает экран; считается один раз при открытии. */
 private data class DoseModel(

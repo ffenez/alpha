@@ -6,6 +6,7 @@ import app.alpha.ui.text.ChartAxisStrings
 import app.alpha.analysis.AlgorithmVersions
 import app.alpha.analysis.quantiles.KllSketch
 import app.alpha.data.JsonMap
+import app.alpha.ui.text.uiDecimal
 
 /**
  * How the quantiles of a chart column (or of the window statistics) were
@@ -143,7 +144,7 @@ object QuantileMetadata {
     /** «≈ 1,8 %» — the nominal rank error of the sketch for an accuracy k. */
     fun errorPercentLabel(k: Int): String {
         val percent = RANK_ERROR_CONSTANT / k * 100.0
-        return String.format(java.util.Locale.ROOT, "%.1f", percent).replace('.', ',') + " %"
+        return String.format(java.util.Locale.ROOT, "%.1f", percent).uiDecimal() + " %"
     }
 
     /**

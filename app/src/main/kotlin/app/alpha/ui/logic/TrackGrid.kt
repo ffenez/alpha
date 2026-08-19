@@ -2,6 +2,7 @@ package app.alpha.ui.logic
 
 import app.alpha.ui.text.MapRu
 import app.alpha.ui.text.MapStrings
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.cos
@@ -325,10 +326,10 @@ object TrackGrid {
             if (km >= 10) {
                 String.format(Locale.US, "%.0f", km) + " " + s.unitKilometers
             } else {
-                String.format(Locale.US, "%.1f", km).replace('.', ',') + " " + s.unitKilometers
+                String.format(Locale.US, "%.1f", km).uiDecimal() + " " + s.unitKilometers
             }
         }
         meters >= 1 -> String.format(Locale.US, "%.0f", meters) + " " + s.unitMeters
-        else -> String.format(Locale.US, "%.1f", meters).replace('.', ',') + " " + s.unitMeters
+        else -> String.format(Locale.US, "%.1f", meters).uiDecimal() + " " + s.unitMeters
     }
 }

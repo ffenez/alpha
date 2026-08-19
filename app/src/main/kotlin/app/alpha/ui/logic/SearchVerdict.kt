@@ -9,6 +9,7 @@ import app.alpha.analysis.Dispersion
 import app.alpha.analysis.RateComparisonResult
 import app.alpha.analysis.RateTest
 import app.alpha.analysis.UncertaintyModel
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -361,7 +362,7 @@ object SearchVerdict {
     private fun num3(value: Double): String = decimal(value, 3)
 
     private fun decimal(value: Double, digits: Int): String =
-        String.format(Locale.US, "%.${digits}f", value).replace('.', ',')
+        String.format(Locale.US, "%.${digits}f", value).uiDecimal()
 }
 
 /** Everything the Поиск «Почему?» sheet shows; assembled by the screen. */

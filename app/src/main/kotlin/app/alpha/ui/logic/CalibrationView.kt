@@ -13,6 +13,7 @@ import app.alpha.ui.text.CalibrationRu
 import app.alpha.ui.text.CalibrationStrings
 import app.alpha.ui.text.HistoryRu
 import app.alpha.ui.text.HistoryStrings
+import app.alpha.ui.text.uiDecimal
 import java.time.ZoneId
 import java.util.Locale
 
@@ -40,7 +41,7 @@ object CalibrationView {
 
     /** Десятичная запятая — общая для всего приложения, не языковая. */
     fun number(value: Double, digits: Int): String =
-        String.format(Locale.US, "%.${digits}f", value).replace('.', ',')
+        String.format(Locale.US, "%.${digits}f", value).uiDecimal()
 
     fun signed(value: Double, digits: Int): String =
         (if (value >= 0.0) "+" else "−") + number(kotlin.math.abs(value), digits)

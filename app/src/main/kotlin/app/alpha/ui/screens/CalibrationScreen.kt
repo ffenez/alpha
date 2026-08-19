@@ -57,6 +57,7 @@ import app.alpha.ui.text.CalibrationStrings
 import app.alpha.ui.text.HistoryCatalogue
 import app.alpha.ui.text.HistoryStrings
 import app.alpha.ui.text.LocalStrings
+import app.alpha.ui.text.uiDecimal
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
@@ -715,7 +716,7 @@ private fun CalibrationDataset.Accumulation.toEngine(id: String) = CalibrationAc
 
 /** Одна десятая — общий вид чисел этого экрана. */
 private fun oneDecimal(value: Double): String =
-    String.format(java.util.Locale.US, "%.1f", value).replace('.', ',')
+    String.format(java.util.Locale.US, "%.1f", value).uiDecimal()
 
 /** То же со знаком: сдвиг без знака не читается. */
 private fun signedOneDecimal(value: Double): String =

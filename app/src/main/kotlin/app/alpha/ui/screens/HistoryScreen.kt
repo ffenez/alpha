@@ -11,6 +11,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import app.alpha.ui.text.uiDecimal
 import app.alpha.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1545,7 +1546,7 @@ private fun EpisodeSheet(
                             Text(
                                 text = h.episodeRatio(
                                     String.format(java.util.Locale.US, "%.1f", ratio)
-                                        .replace('.', ','),
+                                        .uiDecimal(),
                                 ),
                                 style = type.footnote,
                                 color = colors.ink2,

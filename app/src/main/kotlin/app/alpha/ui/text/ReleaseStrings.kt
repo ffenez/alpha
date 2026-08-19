@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0461Title: String
+    val v0461Summary: String
+
     val v0460Title: String
     val v0460Summary: String
 
@@ -411,6 +414,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0461Title = "Английский интерфейс печатает числа по-английски"
+    override val v0461Summary =
+        "На английском языке числа шли с русской запятой, которая в английском тексте читается " +
+        "перечислением: разделитель теперь следует за языком приложения везде, где показано " +
+        "число, а подпись плитки фона перестала обрезаться на середине слова."
 
     override val v0460Title = "Выгруженный спектр больше не называет ваш прибор"
     override val v0460Summary =
@@ -1319,6 +1328,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0461Title = "The English interface prints numbers the English way"
+    override val v0461Summary =
+        "In English the numbers carried a Russian comma, which in English text reads as a list: " +
+        "the separator now follows the app language everywhere a number is shown, and the " +
+        "background tile label is no longer cut off in the middle of a word."
 
     override val v0460Title = "An exported spectrum no longer names your detector"
     override val v0460Summary =

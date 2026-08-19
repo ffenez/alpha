@@ -3,6 +3,7 @@ package app.alpha.ui.logic
 import app.alpha.ui.text.ChartAxisRu
 import app.alpha.ui.text.ChartAxisStrings
 
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 
 /**
@@ -57,7 +58,7 @@ object CursorReadout {
         denominator: RatioDenominator,
         s: ChartAxisStrings = ChartAxisRu,
     ): String {
-        val number = String.format(Locale.US, "%.1f", ratio).replace('.', ',')
+        val number = String.format(Locale.US, "%.1f", ratio).uiDecimal()
         return s.ratio(number, denominatorWording(denominator, s))
     }
 

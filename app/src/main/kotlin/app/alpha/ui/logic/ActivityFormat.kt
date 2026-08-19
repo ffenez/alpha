@@ -2,6 +2,7 @@ package app.alpha.ui.logic
 
 import app.alpha.ui.text.EfficiencyRu
 import app.alpha.ui.text.EfficiencyStrings
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -52,6 +53,6 @@ object ActivityFormat {
             value >= 10.0 -> 1
             else -> 2
         }
-        return String.format(Locale.US, "%.${decimals}f", value).replace('.', ',')
+        return String.format(Locale.US, "%.${decimals}f", value).uiDecimal()
     }
 }

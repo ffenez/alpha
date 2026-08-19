@@ -4,6 +4,7 @@ import app.alpha.analysis.NuclideTrend
 import app.alpha.analysis.PeakDetection
 import app.alpha.analysis.RadonTrend
 import app.alpha.ui.text.SessionRadonStrings
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 
 /**
@@ -160,7 +161,7 @@ private fun measurement(intervals: Int, spanText: String?, t: SessionRadonString
 }
 
 private fun num1(value: Float): String =
-    String.format(Locale.US, "%.1f", value).replace('.', ',')
+    String.format(Locale.US, "%.1f", value).uiDecimal()
 
 private fun num2(value: Float): String =
-    String.format(Locale.US, "%.2f", value).replace('.', ',')
+    String.format(Locale.US, "%.2f", value).uiDecimal()

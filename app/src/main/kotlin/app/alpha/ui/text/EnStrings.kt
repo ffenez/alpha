@@ -41,7 +41,7 @@ object EnStrings : Strings {
             "leaves more of the screen to the chart."
     override val modeObserve = "Observe"
     override val modeSearchShort = "Search"
-    override val tilePlaceBackground = "place background"
+    override val tilePlaceBackground = "background"
     override val tilePerHour = "per hour"
     override val tilePerDay = "per day"
     override val doseToday = "Today"

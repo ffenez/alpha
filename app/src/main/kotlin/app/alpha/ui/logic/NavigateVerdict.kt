@@ -5,6 +5,7 @@ import app.alpha.analysis.RateComparisonResult
 import app.alpha.analysis.RateTest
 import app.alpha.ui.text.SearchRu
 import app.alpha.ui.text.SearchStrings
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -261,7 +262,7 @@ object NavigateVerdict {
         return if (percent >= 1.0) {
             String.format(Locale.US, "%.0f", percent)
         } else {
-            String.format(Locale.US, "%.1f", percent).replace('.', ',')
+            String.format(Locale.US, "%.1f", percent).uiDecimal()
         }
     }
 
@@ -297,8 +298,8 @@ object NavigateVerdict {
     private fun signed(percent: Int): String = if (percent >= 0) "+$percent" else "−${-percent}"
 
     private fun num1(value: Double): String =
-        String.format(Locale.US, "%.1f", value).replace('.', ',')
+        String.format(Locale.US, "%.1f", value).uiDecimal()
 
     private fun num2(value: Double): String =
-        String.format(Locale.US, "%.2f", value).replace('.', ',')
+        String.format(Locale.US, "%.2f", value).uiDecimal()
 }

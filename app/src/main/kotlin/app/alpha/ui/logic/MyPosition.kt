@@ -2,6 +2,7 @@ package app.alpha.ui.logic
 
 import app.alpha.ui.text.MapRu
 import app.alpha.ui.text.MapStrings
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 
 /**
@@ -96,7 +97,7 @@ object MyPosition {
     fun accuracy(meters: Float, s: MapStrings = MapRu): String = when {
         meters <= 0f || !meters.isFinite() -> s.accuracyUnknown
         meters < 10f ->
-            String.format(Locale.US, "±%.1f", meters).replace('.', ',') + " " + s.unitMeters
+            String.format(Locale.US, "±%.1f", meters).uiDecimal() + " " + s.unitMeters
         else -> String.format(Locale.US, "±%.0f", meters) + " " + s.unitMeters
     }
 }

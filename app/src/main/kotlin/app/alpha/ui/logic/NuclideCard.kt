@@ -9,6 +9,7 @@ import app.alpha.analysis.evidence.EvidenceClass
 import app.alpha.analysis.evidence.LineObservability
 import app.alpha.ui.text.NuclideRu
 import app.alpha.ui.text.NuclideStrings
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -450,7 +451,7 @@ object NuclideCard {
     }
 
     private fun decimal(value: Float, digits: Int): String =
-        String.format(Locale.US, "%.${digits}f", value).replace('.', ',')
+        String.format(Locale.US, "%.${digits}f", value).uiDecimal()
 
     /** «1120» — энергия линии в статусной фразе, где доли кэВ ничего не решают. */
     private fun round0(value: Float): String = value.roundToInt().toString()

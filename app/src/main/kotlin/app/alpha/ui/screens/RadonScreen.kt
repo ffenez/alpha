@@ -49,6 +49,7 @@ import app.alpha.ui.text.LocalStrings
 import app.alpha.ui.logic.RadonReport
 import app.alpha.ui.text.SessionRadonCatalogue
 import app.alpha.ui.text.SessionRadonStrings
+import app.alpha.ui.text.uiDecimal
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
@@ -232,11 +233,11 @@ private fun RadonContent(m: RadonModel?, t: SessionRadonStrings) {
 }
 
 private fun rate(cps: Float): String =
-    String.format(Locale.US, "%.2f", cps).replace('.', ',')
+    String.format(Locale.US, "%.2f", cps).uiDecimal()
 
 private fun relativeLabel(current: Float?, median: Float?): String {
     if (current == null || median == null || median <= 0f) return "—"
-    return "×" + String.format(Locale.US, "%.1f", current / median).replace('.', ',')
+    return "×" + String.format(Locale.US, "%.1f", current / median).uiDecimal()
 }
 
 private fun edgeLabel(

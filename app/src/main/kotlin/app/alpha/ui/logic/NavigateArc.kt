@@ -1,5 +1,6 @@
 package app.alpha.ui.logic
 
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.ln
@@ -162,7 +163,7 @@ object NavigateArc {
         if (value >= 1.0) {
             String.format(Locale.US, "%.0f", value)
         } else {
-            String.format(Locale.US, "%.2f", value).replace('.', ',').trimEnd('0').trimEnd(',')
+            String.format(Locale.US, "%.2f", value).uiDecimal().trimEnd('0').trimEnd(',')
         }
 
     /** Smallest frame on [LADDER] that still holds every one of [ratios]. */

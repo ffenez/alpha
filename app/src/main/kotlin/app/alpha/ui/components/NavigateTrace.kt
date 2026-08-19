@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import app.alpha.ui.logic.NavigateTraceScale
 import app.alpha.ui.logic.RateChartModel
 import app.alpha.ui.logic.SearchPoint
+import app.alpha.ui.text.uiDecimal
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppMetrics
 import app.alpha.ui.theme.LocalAppTypography
@@ -154,5 +155,5 @@ fun NavigateTrace(
 
 private fun tick(value: Float): String = when {
     value >= 10f -> String.format(java.util.Locale.US, "%.0f", value)
-    else -> String.format(java.util.Locale.US, "%.1f", value).replace('.', ',')
+    else -> String.format(java.util.Locale.US, "%.1f", value).uiDecimal()
 }
