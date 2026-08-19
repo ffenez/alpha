@@ -179,8 +179,8 @@ object EnergyTone {
  * Booleans only, so the wording is pure and JVM-testable.
  */
 data class FeedbackState(
-    /** The single feedback channel the user chose (redesign §7). */
-    val mode: SearchFeedbackMode,
+    /** Каналы отклика, включённые человеком; выключены все — тишина. */
+    val channels: SearchFeedbackChannels,
     val deviceConnected: Boolean,
     /** A sample arrived recently enough to drive clicks. */
     val dataFresh: Boolean,
@@ -199,12 +199,10 @@ data class FeedbackState(
      */
     val insideBackground: Boolean = false,
 ) {
-    val usesSound: Boolean
-        get() = mode == SearchFeedbackMode.CLICKS || mode == SearchFeedbackMode.TONE
+    val usesSound: Boolean get() = channels.usesSound
 
-    /** Modes that describe the rate *relative to* the recorded background. */
-    val usesBackground: Boolean
-        get() = mode == SearchFeedbackMode.TONE || mode == SearchFeedbackMode.VIBRO
+    /** Каналы, которые описывают счёт ОТНОСИТЕЛЬНО того, с чем сравнивают. */
+    val usesBackground: Boolean get() = channels.usesReference
 }
 
 /**
@@ -215,22 +213,26 @@ data class FeedbackState(
 object FeedbackReason {
 
     fun line(state: FeedbackState, t: SearchStrings = SearchRu): String? = when {
-        state.mode == SearchFeedbackMode.OFF -> t.reasonOff
+        state.channels.silent -> t.reasonOff
         !state.deviceConnected -> t.reasonNoDevice
         !state.dataFresh -> t.reasonNoData
         state.dndBlocked -> t.reasonDnd
         state.usesSound && state.audioUnavailable -> t.reasonNoAudio
         state.usesSound && state.volumeZero -> t.reasonVolumeZero
-        state.usesBackground && !state.backgroundRecorded ->
-            t.reasonNoBackground(channel(state.mode, t))
-        state.usesBackground && state.insideBackground ->
-            t.reasonInsideBackground(channel(state.mode, t))
+        // Щелчки слышны всегда: они про импульсы, а не про отношение. Поэтому
+        // молчание «относительных» каналов объясняется, только когда щелчков
+        // нет и слушать больше нечего.
+        !state.channels.clicks && state.usesBackground && !state.backgroundRecorded ->
+            t.reasonNoBackground(channel(state.channels, t))
+        !state.channels.clicks && state.usesBackground && state.insideBackground ->
+            t.reasonInsideBackground(channel(state.channels, t))
         else -> null
     }
 
-    private fun channel(mode: SearchFeedbackMode, t: SearchStrings): String = when (mode) {
-        SearchFeedbackMode.TONE -> t.channelTone
-        SearchFeedbackMode.VIBRO -> t.channelVibro
+    /** Как назвать молчащий канал: одним словом, когда он один. */
+    private fun channel(channels: SearchFeedbackChannels, t: SearchStrings): String = when {
+        channels.tone && !channels.vibro -> t.channelTone
+        channels.vibro && !channels.tone -> t.channelVibro
         else -> t.channelFeedback
     }
 }

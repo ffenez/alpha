@@ -63,8 +63,16 @@ data class NavigateGaugeSpec(
      */
     val bandLow: Double? = null,
     val bandHigh: Double? = null,
-    /** Порог тревоги на той же шкале и его подпись; null — порога нет. */
+    /**
+     * Пороги тревоги на той же шкале и подпись первого из них.
+     *
+     * Уровней два, и на шкале их тоже два: настроив второй, человек ищет его
+     * глазами, а одна риска отвечала бы «сколько осталось» только про первый.
+     * Подписан первый — иначе две подписи в соседних точках сливаются; второй
+     * узнаётся по цвету тревоги.
+     */
     val threshold: Double? = null,
+    val threshold2: Double? = null,
     val thresholdLabel: String? = null,
     /**
      * Строка состояния под осью — «отсчёт не задан», «сигнал выше отсчёта».
@@ -239,22 +247,28 @@ fun NavigateGauge(
         // Порог — своя риска ПОВЕРХ шкалы, с подписью снаружи: он не деление
         // и не показание, а граница, о которой договорились. За концом шкалы
         // не рисуется вовсе — прижатая к краю риска врала бы о расстоянии.
-        val threshold = spec.threshold
-        if (threshold != null && !NavigateArc.offScale(threshold, spec.scale)) {
+        for ((threshold, color) in listOf(
+            spec.threshold to colors.warn,
+            spec.threshold2 to colors.crit,
+        )) {
+            if (threshold == null || NavigateArc.offScale(threshold, spec.scale)) continue
             val at = NavigateArc.angleDegrees(threshold, spec.scale)
             drawLine(
-                color = colors.warn,
+                color = color,
                 start = point(at, radius + arcWidth / 2f + 2.dp.toPx()),
                 end = point(at, tickInner),
                 strokeWidth = 2.dp.toPx(),
                 cap = StrokeCap.Butt,
             )
+            // Подписан только первый порог: у второго риска стоит рядом, и две
+            // подписи в соседних точках сливаются в кашу.
+            if (threshold != spec.threshold) continue
             spec.thresholdLabel?.let { text ->
                 val measured = textMeasurer.measure(text, axisStyle)
                 val at2 = point(at, radius + arcWidth / 2f + 4.dp.toPx() + measured.size.height / 2f)
                 drawText(
                     textLayoutResult = measured,
-                    color = colors.warn,
+                    color = color,
                     topLeft = Offset(
                         (at2.x - measured.size.width / 2f)
                             .coerceIn(0f, size.width - measured.size.width),

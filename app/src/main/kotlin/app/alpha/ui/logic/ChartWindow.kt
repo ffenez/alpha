@@ -63,16 +63,6 @@ object ChartWindows {
     fun periodLabel(index: Int, s: ChartAxisStrings = ChartAxisRu): String =
         stepLabel(STEPS[index], s)
 
-    /**
-     * Подпись окна по его длительности — «5м», «6ч».
-     *
-     * Null, если окно не совпадает ни с одной ступенью: после щипка окно
-     * произвольное, и назвать его ближайшей ступенью значило бы подписать
-     * картинку длительностью, которой на ней нет. Тогда окно читается по
-     * подписям оси времени, как и раньше.
-     */
-    fun spanLabel(spanMillis: Long?, s: ChartAxisStrings = ChartAxisRu): String? =
-        STEPS.firstOrNull { it.millis == spanMillis }?.let { stepLabel(it, s) }
 
     /** Ступени в прежнем виде «подпись → длительность» (подпись русская). */
     val PERIODS: List<Pair<String, Long>> = STEPS.map { stepLabel(it) to it.millis }

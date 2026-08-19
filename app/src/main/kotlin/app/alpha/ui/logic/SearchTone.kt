@@ -10,41 +10,6 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-/**
- * How Поиск sounds and buzzes (search redesign §7).
- *
- * The mode is **one** choice, not three independent switches: the user is
- * walking with the instrument and choosing how to hear the signal, and the four
- * states of the redesign — «нет», «клики», «тон», «вибро» — are alternatives to
- * each other, not options to combine.
- */
-enum class SearchFeedbackMode(val id: String, val label: String) {
-    // `label` остаётся русским: его печатает отладочный отчёт, который не
-    // зависит от языка интерфейса. Подпись на экране — [title].
-    /** Nothing: the screen is the only channel. */
-    OFF("off", "нет"),
-
-    /** The Geiger-style tick per registered event ([ClickEngine]). */
-    CLICKS("clicks", "клики"),
-
-    /** A continuous tone whose pitch follows the ratio to the background. */
-    TONE("tone", "тон"),
-
-    /** The same signal without sound: pulse cadence follows the ratio. */
-    VIBRO("vibro", "вибро");
-
-    /** Подпись сегмента на языке интерфейса. */
-    fun title(s: Strings = RuStrings): String = when (this) {
-        OFF -> s.modeOff
-        CLICKS -> s.modeClicks
-        TONE -> s.modeTone
-        VIBRO -> s.modeVibro
-    }
-
-    companion object {
-        fun of(id: String?): SearchFeedbackMode? = entries.firstOrNull { it.id == id }
-    }
-}
 
 /**
  * The search tone: pitch as a function of **how much above the recorded

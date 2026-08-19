@@ -462,7 +462,6 @@ interface Strings {
     val searchFeedbackTitle: String
 
     /** Раздел выбора вида индикатора «Наведения». */
-    val feedbackOnScreenOnly: String
     val feedbackClicks: String
     val feedbackTone: String
     val feedbackVibro: String
@@ -772,7 +771,7 @@ fun Strings.allTexts(): List<String> = listOf(
     exclusionAfterEvent, fromEndOfDeviation, criteriaNote, notEvaluated,
     notEnoughStatistics, noChangeDetected, changeDetected, spectralNoReference,
     spectralComparison,
-    searchFeedbackTitle, feedbackOnScreenOnly, feedbackClicks,
+    searchFeedbackTitle, feedbackClicks,
     feedbackTone, feedbackVibro, energyTone,
     energyToneNote, alarmTitle, archiveSaved,
     archiveFailed, debugTitle, stateReport,

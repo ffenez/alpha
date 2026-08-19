@@ -145,7 +145,7 @@ import app.alpha.data.export.TrackDiagnostics
 import app.alpha.data.export.SpectrumTraffic
 import app.alpha.device.DoseUnits
 import app.alpha.ui.logic.MonitorStatus
-import app.alpha.ui.logic.SearchFeedbackMode
+import app.alpha.ui.logic.SearchFeedbackChannels
 import app.alpha.ui.logic.statusDetail
 import app.alpha.ui.logic.statusHeadline
 import java.time.Instant
@@ -569,7 +569,9 @@ private fun settingsSummaries(graph: AppGraph): SettingsSummaries {
     val strings = LocalStrings.current
     val sensitivity by graph.settings.alarmSensitivity
         .collectAsState(initial = AlarmSensitivity.NORMAL)
-    val feedbackId by graph.settings.searchFeedbackMode.collectAsState(initial = null)
+    val channels by graph.settings.searchFeedbackChannels.collectAsState(
+        initial = SearchFeedbackChannels(),
+    )
     val theme by graph.settings.themeSetting.collectAsState(initial = ThemeSetting.SYSTEM)
     val fontScale by graph.settings.fontScalePercent.collectAsState(initial = 100)
     val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
@@ -586,7 +588,12 @@ private fun settingsSummaries(graph: AppGraph): SettingsSummaries {
             AlarmSensitivity.CUSTOM -> strings.sensitivityCustom
         },
         profiles = profileName ?: strings.settingsProfilesNone,
-        sound = (SearchFeedbackMode.of(feedbackId) ?: SearchFeedbackMode.OFF).title(strings),
+        // Сводка перечисляет включённые каналы: их может быть несколько.
+        sound = listOfNotNull(
+            strings.modeClicks.takeIf { channels.clicks },
+            strings.modeTone.takeIf { channels.tone },
+            strings.modeVibro.takeIf { channels.vibro },
+        ).joinToString(" · ").ifEmpty { strings.modeOff },
         view = listOfNotNull(
             theme.title(strings),
             "$fontScale %".takeIf { fontScale != 100 },
@@ -628,51 +635,32 @@ private class SettingsSummaries(
 
 @Composable
 private fun SoundSection(graph: AppGraph) {
-    val colors = LocalAppColors.current
     val strings = LocalStrings.current
-    val type = LocalAppTypography.current
     val scope = rememberCoroutineScope()
-    val modeId by graph.settings.searchFeedbackMode.collectAsState(initial = null)
-    val mode = SearchFeedbackMode.of(modeId) ?: SearchFeedbackMode.OFF
+    val channels by graph.settings.searchFeedbackChannels.collectAsState(
+        initial = SearchFeedbackChannels(),
+    )
     val energyTone by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
 
+    fun update(next: SearchFeedbackChannels) {
+        scope.launch { graph.settings.setSearchFeedbackChannels(next) }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
+        // Каналы независимы: щелчки и вибрация вместе — обычный случай в поле,
+        // а не исключение. Выключены все три — это и есть тишина, поэтому
+        // отдельного «нет» здесь нет (`settings_ui_restructure.md` §2).
         SettingsSection(title = strings.searchFeedbackTitle) {
-            Column(
-                modifier = Modifier.padding(
-                    horizontal = Dimens.space3,
-                    vertical = Dimens.space2,
-                ),
-                verticalArrangement = Arrangement.spacedBy(Dimens.space2),
-            ) {
-                // Отклик меняют в поле, поэтому выбор стоит здесь целиком.
-                Segmented(
-                    options = SearchFeedbackMode.entries.map { it.title(strings) },
-                    selectedIndex = SearchFeedbackMode.entries.indexOf(mode),
-                    onSelect = { index ->
-                        scope.launch {
-                            graph.settings.setSearchFeedbackMode(
-                                SearchFeedbackMode.entries[index].id,
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Hint(
-                    text = when (mode) {
-                        SearchFeedbackMode.OFF -> strings.feedbackOnScreenOnly
-                        SearchFeedbackMode.CLICKS -> strings.feedbackClicks
-                        SearchFeedbackMode.TONE -> strings.feedbackTone
-                        SearchFeedbackMode.VIBRO -> strings.feedbackVibro
-                    },
-                    style = type.footnote,
-                    color = colors.muted,
-                )
-            }
-            // Зависимая настройка появляется, а не тускнеет: высота тона
-            // относится только к кликам.
+            SwitchSettingRow(
+                title = strings.modeClicks,
+                subtitle = strings.feedbackClicks,
+                checked = channels.clicks,
+                onChange = { on -> update(channels.copy(clicks = on)) },
+            )
+            // Высота тона относится только к щелчкам, поэтому появляется под
+            // ними — и только когда они включены.
             AnimatedVisibility(
-                visible = mode == SearchFeedbackMode.CLICKS,
+                visible = channels.clicks,
                 enter = expandVertically(Motion.springy()) + fadeIn(Motion.normal()),
                 exit = shrinkVertically(Motion.springy()) + fadeOut(Motion.fast()),
             ) {
@@ -688,7 +676,23 @@ private fun SoundSection(graph: AppGraph) {
                     )
                 }
             }
+            SettingsDivider()
+            SwitchSettingRow(
+                title = strings.modeTone,
+                subtitle = strings.feedbackTone,
+                checked = channels.tone,
+                onChange = { on -> update(channels.copy(tone = on)) },
+            )
+            SettingsDivider()
+            SwitchSettingRow(
+                title = strings.modeVibro,
+                subtitle = strings.feedbackVibro,
+                checked = channels.vibro,
+                onChange = { on -> update(channels.copy(vibro = on)) },
+            )
         }
+        // Тревога — не отклик: это событие превышения порога, а не постоянная
+        // обратная связь во время работы (§5).
         SettingsSection(title = strings.alarmTitle) {
             AlarmSoundRow()
         }
@@ -968,9 +972,15 @@ private suspend fun buildDebugReport(
         hourSketchCount = graph.database.preAggregateDao().hourCount(0, now),
         doseUnit = DoseFormat.rateUnitLabel(unit),
         theme = graph.settings.themeSetting.first().label,
-        searchFeedbackMode = SearchFeedbackMode.of(
-            graph.settings.searchFeedbackMode.first(),
-        )?.label ?: "нет",
+        // Отчёт печатает ВКЛЮЧЁННЫЕ каналы: их бывает несколько, и «клики»
+        // вместо «клики + вибро» скрыли бы половину настройки при разборе.
+        searchFeedbackMode = graph.settings.searchFeedbackChannels.first().let { channels ->
+            listOfNotNull(
+                "клики".takeIf { channels.clicks },
+                "тон".takeIf { channels.tone },
+                "вибро".takeIf { channels.vibro },
+            ).joinToString(" + ").ifEmpty { "нет" }
+        },
         searchBackgroundWording = background
             ?.let { "${it.cps} с⁻¹ · ${it.window.samples}" }
             ?: "не записан",
@@ -1545,12 +1555,15 @@ private fun DeviceSignalRow(
                 },
             )
         }
-        Segmented(
-            options = listOf(strings.off, strings.on),
-            selectedIndex = if ((asked ?: state) == true) 1 else 0,
-            onSelect = { if (enabled) onSet(it == 1) },
-            enabled = { enabled },
-            modifier = Modifier.weight(1f),
+        // Обычное «да/нет» — переключатель, а не два сегмента: сегменты
+        // означают выбор из взаимоисключающих РЕЖИМОВ, и boolean ими не
+        // описывается (`settings_ui_restructure.md` §10, §16). Пока состояние
+        // прибора неизвестно, переключатель показывает запрошенное — то, чего
+        // человек попросил, — а фактическое названо строкой под заголовком.
+        AppSwitch(
+            checked = (asked ?: state) == true,
+            onChange = { if (enabled) onSet(it) },
+            enabled = enabled,
         )
     }
 }

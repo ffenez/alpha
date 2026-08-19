@@ -112,7 +112,6 @@ import app.alpha.data.export.DebugSnapshot
 import app.alpha.data.export.SpectrumTraffic
 import app.alpha.device.DoseUnits
 import app.alpha.ui.logic.MonitorStatus
-import app.alpha.ui.logic.SearchFeedbackMode
 import app.alpha.ui.logic.statusDetail
 import app.alpha.ui.logic.statusHeadline
 import java.time.Instant

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0370Title: String
+    val v0370Summary: String
+
     val v0360Title: String
     val v0360Summary: String
 
@@ -351,6 +354,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0370Title = "Щелчки и вибрация — вместе"
+    override val v0370Summary =
+        "Отклик поиска перестал быть выбором одного из четырёх: щелчки, тон и вибрация — три " +
+        "независимых переключателя, и включить их можно в любом сочетании (выключены все — " +
+        "тишина). Заодно сигналы прибора стали переключателями вместо пары «выкл|вкл», с " +
+        "мини-графиков ушла подпись окна, а на шкале места видны оба заданных порога, а не " +
+        "только первый."
 
     override val v0360Title = "Поиск и проверка стали одним делом"
     override val v0360Summary =
@@ -1115,6 +1126,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0370Title = "Clicks and vibration, together"
+    override val v0370Summary =
+        "Search feedback stopped being one choice out of four: clicks, tone and vibration are " +
+        "three independent switches now, usable in any combination (all off is silence). The " +
+        "instrument's own signals became switches instead of an off|on pair, the window label " +
+        "left the mini charts, and the place scale shows both configured thresholds rather " +
+        "than the first one only."
 
     override val v0360Title = "Search and verification became one job"
     override val v0360Summary =

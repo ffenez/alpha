@@ -30,6 +30,7 @@ import app.alpha.ui.theme.AppSkin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import app.alpha.ui.logic.SearchFeedbackChannels
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -94,18 +95,45 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
-     * Search feedback channel, as the id of `ui/logic/SearchFeedbackMode`:
-     * нет / клики / тон / вибро (redesign §7 — one choice, not three switches).
+     * Каналы отклика поиска — три независимых выключателя.
      *
-     * Until the user touches it, the value is derived from the two pre-redesign
-     * booleans, so an existing setup keeps sounding the way it did: sound on →
-     * клики, sound off with vibration on → вибро, neither → нет.
+     * Хранятся тремя булевыми, а не одним режимом: щелчки, тон и вибрация не
+     * спорят друг с другом, и запрет их сочетать был ограничением модели
+     * данных, а не прибора (`settings_ui_restructure.md` §3).
+     *
+     * Пока человек не трогал новые выключатели, значения выводятся из прежнего
+     * одиночного режима, а до него — из двух ещё более старых булевых: настройка
+     * не имеет права молча замолчать при обновлении.
      */
-    val searchFeedbackMode: Flow<String?> = dataStore.data.map { prefs ->
-        prefs[SEARCH_FEEDBACK_MODE] ?: when {
-            prefs[SEARCH_SOUND] == true -> "clicks"
-            prefs[SEARCH_VIBRATION] == true -> "vibro"
-            else -> null
+    val searchFeedbackChannels: Flow<SearchFeedbackChannels> = dataStore.data.map { prefs ->
+        val stored = prefs[SEARCH_CLICKS] != null ||
+            prefs[SEARCH_TONE] != null ||
+            prefs[SEARCH_VIBRO] != null
+        if (stored) {
+            SearchFeedbackChannels(
+                clicks = prefs[SEARCH_CLICKS] ?: false,
+                tone = prefs[SEARCH_TONE] ?: false,
+                vibro = prefs[SEARCH_VIBRO] ?: false,
+            )
+        } else {
+            val legacy = prefs[SEARCH_FEEDBACK_MODE] ?: when {
+                prefs[SEARCH_SOUND] == true -> "clicks"
+                prefs[SEARCH_VIBRATION] == true -> "vibro"
+                else -> "off"
+            }
+            SearchFeedbackChannels.ofLegacyMode(legacy)
+        }
+    }
+
+    suspend fun setSearchFeedbackChannels(channels: SearchFeedbackChannels) {
+        dataStore.edit {
+            it[SEARCH_CLICKS] = channels.clicks
+            it[SEARCH_TONE] = channels.tone
+            it[SEARCH_VIBRO] = channels.vibro
+            // Прежние ключи больше не читаются: один источник истины на диске.
+            it.remove(SEARCH_FEEDBACK_MODE)
+            it.remove(SEARCH_SOUND)
+            it.remove(SEARCH_VIBRATION)
         }
     }
 
@@ -117,18 +145,6 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         it[SEARCH_SOUND_FLAVOUR] ?: "clicks"
     }
 
-    suspend fun setSearchFeedbackMode(id: String) {
-        dataStore.edit {
-            it[SEARCH_FEEDBACK_MODE] = id
-            // The legacy booleans are no longer read once a mode is chosen;
-            // dropping them keeps one source of truth on disk.
-            it.remove(SEARCH_SOUND)
-            it.remove(SEARCH_VIBRATION)
-            // Выбор звукового канала запоминается отдельно: кнопка «звук»
-            // возвращает то, что выбрано в настройках.
-            if (id == "clicks" || id == "tone") it[SEARCH_SOUND_FLAVOUR] = id
-        }
-    }
 
     /**
      * Вопрос экрана Поиска (`ui/logic/SearchMode`): «Наведение» или
@@ -700,6 +716,9 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         /** Pre-redesign toggles; read once for migration, then removed. */
         private val SEARCH_SOUND = booleanPreferencesKey("search_sound")
         private val SEARCH_VIBRATION = booleanPreferencesKey("search_vibration")
+        private val SEARCH_CLICKS = booleanPreferencesKey("search_clicks")
+        private val SEARCH_TONE = booleanPreferencesKey("search_tone")
+        private val SEARCH_VIBRO = booleanPreferencesKey("search_vibro")
         private val SEARCH_FEEDBACK_MODE = stringPreferencesKey("search_feedback_mode")
         private val SEARCH_SOUND_FLAVOUR = stringPreferencesKey("search_sound_flavour")
         private val SEARCH_ENERGY_TONE = booleanPreferencesKey("search_energy_tone")

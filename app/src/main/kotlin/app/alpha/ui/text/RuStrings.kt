@@ -462,7 +462,6 @@ object RuStrings : Strings {
 
     override val searchFeedbackTitle = "Отклик в Поиске"
 
-    override val feedbackOnScreenOnly = "сигнал виден только на экране Поиска"
     override val feedbackClicks = "щелчок на каждый зарегистрированный импульс"
     override val feedbackTone = "непрерывный тон: выше — дальше от записанного фона"
     override val feedbackVibro = "то же без звука: чаще пульс — дальше от записанного фона"
