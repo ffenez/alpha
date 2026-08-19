@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.LedMeter
 import app.alpha.ui.components.AppButton
+import app.alpha.ui.components.ReadingHelpRow
 import app.alpha.ui.components.BreathingAura
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.InstrumentBar
@@ -176,6 +177,9 @@ fun NavigateSection(
         // бы занимать строку тем, что уже прочитано.
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                // Та же справка, что в Наблюдении: величины и правило чтения у
+                // режимов общие, различается только знаменатель шкалы.
+                ReadingHelpRow()
                 // Свечение обнимает ЧИСЛО И ШКАЛУ — ту часть карточки, которая
                 // отвечает «куда вести прибор». Захватив заодно ленту, оно
                 // сместило бы свой центр вниз, и ритм перестал бы читаться как
@@ -232,6 +236,22 @@ fun NavigateSection(
                                 referenceLabel = "1×",
                             ),
                         )
+                        // Знаменатель стрелки называется ВСЕГДА. Пока точки
+                        // отсчёта нет, сравнение идёт с уровнем, который
+                        // приложение считает само, и отношение без имени
+                        // знаменателя читалось бы как отношение к отсчёту.
+                        // Строка критическая: без неё число «×2,4» неверно.
+                        if (!ui.againstMark) {
+                            ui.ratioOrNull?.let { ratio ->
+                                Text(
+                                    text = t.navRatioToLocal(Uncertainty.num2(ratio.toFloat())),
+                                    style = type.footnote,
+                                    color = colors.ink2,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
                         // Набор подтверждения — полоска под шкалой: она
                         // отвечает не «сколько здесь», а «сколько ещё держать
                         // прибор на месте», и потому стоит отдельно от шкалы.

@@ -1292,8 +1292,12 @@ private fun SpectrumContent(
     }
 
     // --- peak table (E | нетто | значимость | кандидат) ---
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Отступы у таблицы теснее, чем у карточек с текстом: её содержимое —
+    // строки с собственными полями и разделителями, и общая рамка добавляла
+    // к ним ещё по двенадцать точек с каждой стороны. Карточка выглядела
+    // крупнее, чем то, что в ней написано.
+    Card(modifier = Modifier.fillMaxWidth(), contentPadding = Dimens.space2) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space1)) {
             when {
                 // У прибора без энергетического разрешения (органический
                 // пластик, RadiaCode Zero) пики и совпадения линий смысла не

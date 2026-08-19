@@ -265,8 +265,6 @@ interface SpectrumStrings {
 
     // --- спектральные диапазоны (спец §7) ---
     val windowsTitle: String
-    /** Свёрнутая сводка: «3 диапазона · отношение 17,15». */
-    fun rangesSummary(count: Int, ratio: String?): String
     val boundsChip: String
     val columnWindow: String
     val columnCounts: String
@@ -617,17 +615,6 @@ object SpectrumRu : SpectrumStrings {
 
     override val windowsTitle = "Спектральные диапазоны"
 
-    override fun rangesSummary(count: Int, ratio: String?): String {
-        val mod100 = count % 100
-        val mod10 = count % 10
-        val word = when {
-            mod100 in 11..14 -> "диапазонов"
-            mod10 == 1 -> "диапазон"
-            mod10 in 2..4 -> "диапазона"
-            else -> "диапазонов"
-        }
-        return if (ratio == null) "$count $word" else "$count $word · отношение $ratio"
-    }
 
     override val boundsChip = "настроить…"
     override val columnWindow = "диапазон, кэВ"
@@ -1046,10 +1033,6 @@ object SpectrumEn : SpectrumStrings {
 
     override val windowsTitle = "Spectral ranges"
 
-    override fun rangesSummary(count: Int, ratio: String?): String {
-        val word = if (count == 1) "range" else "ranges"
-        return if (ratio == null) "$count $word" else "$count $word · ratio $ratio"
-    }
 
     override val boundsChip = "configure…"
     override val columnWindow = "range, keV"
@@ -1303,7 +1286,7 @@ fun SpectrumStrings.allTexts(): List<String> = listOf(
 ) + windowTexts() + formatTexts() + refusalTexts()
 
 private fun SpectrumStrings.windowTexts(): List<String> = listOf(
-    windowsTitle, rangesSummary(1, null), rangesSummary(3, "17,15"), rangesSummary(5, null),
+    windowsTitle,
     boundsChip, columnWindow, columnCounts, columnRate, columnShare,
     indexNote, windowsEdgeNote, boundsTitle, boundsHint, defaults,
     ratioTitle, ratioFormula("100–300", "700–1500"), ratioWhat, ratioNotHardness,

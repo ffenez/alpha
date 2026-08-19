@@ -93,6 +93,7 @@ import app.alpha.ui.components.Chip
 import app.alpha.ui.components.NavigateGaugeSpec
 import app.alpha.ui.components.ProfilePickerDialog
 import app.alpha.ui.components.MetricTile
+import app.alpha.ui.components.ReadingHelpRow
 import app.alpha.ui.components.MetricTileBox
 import app.alpha.ui.components.StatCell
 import app.alpha.ui.components.StatGrid
@@ -955,6 +956,9 @@ internal fun HeroCard(
             // и без него они — подписи без подписи. Предупреждение об уровне
             // ниже остаётся при любом положении выключателя.
             if (blocks.hero) {
+            // Справка о том, что значат оба числа, — у левого верхнего угла
+            // карточки и та же самая, что в Поиске.
+            ReadingHelpRow()
             BreathingAura(live = stream.live, tint = heroTint) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
