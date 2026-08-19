@@ -19,6 +19,27 @@ interface HistoryStrings {
     val openOnMap: String
     val openOnChart: String
 
+    /**
+     * Эпизод журнала: название вида, интервал, пределы и порог.
+     *
+     * «Отклонение» на всё сразу не годилось: разница с обычным, подтверждённое
+     * изменение и достижение назначенного порога — разные утверждения
+     * (`history_semantic_events_redesign.md`).
+     */
+    val filterEvents: String
+
+    /** Пустое состояние вкладки событий. */
+    val noEventsYet: String
+    val eventsExplained: String
+    val levelChangeTitle: String
+    val thresholdTitle: String
+    fun episodeSpan(from: String, to: String, duration: String): String
+    fun episodeOngoing(from: String, duration: String): String
+    fun episodeRange(low: String, high: String): String
+    fun episodeUsually(rate: String): String
+    val episodeThresholdLabel: String
+    fun episodeRatio(times: String): String
+
     /** Сокращения месяцев, 12 штук, январь первым. */
     val months: List<String>
 
@@ -225,6 +246,20 @@ object HistoryRu : HistoryStrings {
 
     override val openOnMap = "на карте ›"
     override val openOnChart = "на графике ›"
+    override val filterEvents = "События"
+    override val noEventsYet = "Событий пока нет"
+    override val eventsExplained = "Сюда попадает подтверждённое изменение уровня и " +
+        "достижение назначенного порога — один эпизод одной записью. Обычные колебания фона " +
+        "событием не становятся: они видны на графике."
+    override val levelChangeTitle = "Изменение уровня"
+    override val thresholdTitle = "Превышение порога"
+    override fun episodeSpan(from: String, to: String, duration: String) =
+        "$from–$to · $duration"
+    override fun episodeOngoing(from: String, duration: String) = "с $from · $duration · идёт"
+    override fun episodeRange(low: String, high: String) = "$low–$high"
+    override fun episodeUsually(rate: String) = "обычно $rate"
+    override val episodeThresholdLabel = "порог"
+    override fun episodeRatio(times: String) = "×$times к обычному"
     override val months = listOf(
         "янв", "фев", "мар", "апр", "мая", "июн",
         "июл", "авг", "сен", "окт", "ноя", "дек",
@@ -436,6 +471,21 @@ object HistoryEn : HistoryStrings {
 
     override val openOnMap = "on the map ›"
     override val openOnChart = "on the chart ›"
+    override val filterEvents = "Events"
+    override val noEventsYet = "No events yet"
+    override val eventsExplained = "A confirmed level change and a reached threshold land " +
+        "here — one episode as one record. Ordinary background fluctuation does not become an " +
+        "event: it is visible on the chart."
+    override val levelChangeTitle = "Level change"
+    override val thresholdTitle = "Threshold reached"
+    override fun episodeSpan(from: String, to: String, duration: String) =
+        "$from–$to · $duration"
+    override fun episodeOngoing(from: String, duration: String) =
+        "since $from · $duration · ongoing"
+    override fun episodeRange(low: String, high: String) = "$low–$high"
+    override fun episodeUsually(rate: String) = "usually $rate"
+    override val episodeThresholdLabel = "threshold"
+    override fun episodeRatio(times: String) = "×$times of usual"
     override val months = listOf(
         "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -637,6 +687,11 @@ val HistoryCatalogue = AreaCatalogue(ru = HistoryRu, en = HistoryEn)
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
     openOnMap, openOnChart,
+    filterEvents, noEventsYet, eventsExplained,
+    levelChangeTitle, thresholdTitle,
+    episodeSpan("14:31", "14:47", "16 мин"), episodeOngoing("14:31", "16 мин"),
+    episodeRange("0,14", "0,17"), episodeUsually("0,16 мкЗв/ч"),
+    episodeThresholdLabel, episodeRatio("1,4"),
     today, yesterday,
     spectrumTitle,
     routeComparePlaces(91), routeCompareDiffering(34), routeCompareHigherOn(19, 1),

@@ -42,7 +42,13 @@ data class RouteSummary(
 }
 
 /** Что показывает журнал: всё вместе или один вид записей. */
-enum class HistoryFilter { ALL, SESSIONS, ROUTES, SPECTRA, FOOD }
+/**
+ * Вкладки Истории. `EVENTS` показывает журнал целиком — включая точечные
+ * записи прежних версий, которых нет в общей ленте: данные измерений не
+ * удаляются ради чистой ленты, но и не засоряют её
+ * (`history_semantic_events_redesign.md`).
+ */
+enum class HistoryFilter { ALL, SESSIONS, ROUTES, SPECTRA, FOOD, EVENTS }
 
 object RouteFormat {
 

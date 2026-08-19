@@ -639,6 +639,35 @@ interface EventDao {
     )
     suspend fun existingTimestamps(timestamps: List<Long>, source: String): List<Long>
 
+    /**
+     * Обновить идущий эпизод: пределы, среднее, конец и вид.
+     *
+     * Вид меняется, потому что эпизод, начавшийся как изменение уровня, может
+     * дойти до порога — и тогда это одно и то же событие, а не второе.
+     */
+    @Query(
+        "UPDATE events SET source = :source, endTimestamp = :endTimestamp, " +
+            "doseRate = :doseRate, minMicroSvH = :minMicroSvH, maxMicroSvH = :maxMicroSvH, " +
+            "meanMicroSvH = :meanMicroSvH, sampleCount = :sampleCount WHERE id = :id",
+    )
+    suspend fun updateEpisode(
+        id: Long,
+        source: String,
+        endTimestamp: Long?,
+        doseRate: Float,
+        minMicroSvH: Float,
+        maxMicroSvH: Float,
+        meanMicroSvH: Float,
+        sampleCount: Int,
+    )
+
+    /** Эпизоды без конца — их закрывают при следующем запуске службы. */
+    @Query(
+        "SELECT * FROM events WHERE sampleCount IS NOT NULL AND endTimestamp IS NULL " +
+            "ORDER BY timestamp",
+    )
+    suspend fun ongoingEpisodes(): List<EventEntity>
+
     @Query("DELETE FROM events")
     suspend fun clear()
 

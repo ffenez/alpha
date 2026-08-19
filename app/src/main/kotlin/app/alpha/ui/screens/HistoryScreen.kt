@@ -239,6 +239,8 @@ fun HistoryScreen(
     // Что показывает журнал: сессия, маршрут и снимок спектра — разные вещи,
     // и фильтр отвечает на вопрос «нужно вот это».
     var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
+    /** Раскрытый эпизод журнала; null — лист закрыт. */
+    var openedEpisode by remember { mutableStateOf<EventEntity?>(null) }
     var pages by remember { mutableIntStateOf(1) }
     var model by remember { mutableStateOf<HistoryModel?>(null) }
     var reload by remember { mutableIntStateOf(0) }
@@ -775,6 +777,9 @@ fun HistoryScreen(
                         HistoryFilter.ROUTES -> h.routes(routes.size)
                         HistoryFilter.SPECTRA -> h.spectra(savedSpectra.size)
                         HistoryFilter.FOOD -> h.studies(foodExperiments.size)
+                        HistoryFilter.EVENTS -> h.events(
+                            m.items.count { it is HistoryItem.Deviation },
+                        )
                     }
                     Chip(text = total, color = colors.ink2)
                 }
@@ -812,7 +817,7 @@ fun HistoryScreen(
             }
         }
 
-        // Пять вкладок; ряд прокручивается: пять равных долей на узком экране
+        // Шесть вкладок; ряд прокручивается: равные доли на узком экране
         // превращают подписи в огрызки.
         Segmented(
             options = listOf(
@@ -821,6 +826,7 @@ fun HistoryScreen(
                 h.filterRoutes,
                 h.filterSpectra,
                 h.filterFood,
+                h.filterEvents,
             ),
             selectedIndex = HistoryFilter.entries.indexOf(filter),
             onSelect = { filter = HistoryFilter.entries[it] },
@@ -837,14 +843,23 @@ fun HistoryScreen(
             val now = System.currentTimeMillis()
             val visibleRoutes = routes.filter { it.id !in deletingRoutes }
             val showSessions = filter == HistoryFilter.ALL || filter == HistoryFilter.SESSIONS
+            val showEvents = filter == HistoryFilter.ALL || filter == HistoryFilter.EVENTS
             // Одна лента: сессии, маршруты, снимки и исследования стоят в том
             // порядке, в каком произошли, и различаются содержанием строки.
             val entries = buildList {
-                if (showSessions) {
-                    m.items.forEach { item ->
-                        when (item) {
-                            is HistoryItem.Session -> add(FeedEntry.Session(item.group))
-                            is HistoryItem.Deviation -> add(FeedEntry.Deviation(item.event))
+                m.items.forEach { item ->
+                    when (item) {
+                        is HistoryItem.Session -> if (showSessions) {
+                            add(FeedEntry.Session(item.group))
+                        }
+                        // Точечные записи прежних версий живут только во
+                        // вкладке событий: в общей ленте они и создавали
+                        // десятки одинаковых строк.
+                        is HistoryItem.Deviation -> {
+                            val legacy = item.event.source == EventEntity.SOURCE_DEVIATION
+                            if (showEvents && (!legacy || filter == HistoryFilter.EVENTS)) {
+                                add(FeedEntry.Deviation(item.event))
+                            }
                         }
                     }
                 }
@@ -857,6 +872,22 @@ fun HistoryScreen(
                 if (filter == HistoryFilter.ALL || filter == HistoryFilter.FOOD) {
                     foodExperiments.forEach { add(FeedEntry.Study(it, foodResults[it.id])) }
                 }
+            }
+
+            openedEpisode?.let { episode ->
+                EpisodeSheet(
+                    event = episode,
+                    unit = unit,
+                    onOpenChart = onOpenChart?.let { open ->
+                        {
+                            open(
+                                episode.timestamp - EVENT_CHART_MARGIN,
+                                (episode.endTimestamp ?: episode.timestamp) + EVENT_CHART_MARGIN,
+                            )
+                        }
+                    },
+                    onClose = { openedEpisode = null },
+                )
             }
 
             if (entries.isEmpty()) {
@@ -1080,6 +1111,12 @@ fun HistoryScreen(
                                     is FeedEntry.Deviation -> DeviationRow(
                                         event = entry.event,
                                         unit = unit,
+                                        // Эпизод раскрывается разбором: числа,
+                                        // которых нет в строке, живут там, а
+                                        // не в третьем этаже ленты.
+                                        onOpenSheet = entry.event
+                                            .takeIf { it.sampleCount != null }
+                                            ?.let { { openedEpisode = it } },
                                         // Событие ведёт туда, где его видно:
                                         // с координатами — на карту, без них
                                         // — на график того же времени.
@@ -1092,9 +1129,15 @@ fun HistoryScreen(
                                                     { { onOpenPlace(lat, lon) } }
                                                 onOpenChart != null -> {
                                                     {
+                                                        // Окно охватывает ВЕСЬ
+                                                        // эпизод: у точечной
+                                                        // записи конца нет, и
+                                                        // остаётся поле вокруг
+                                                        // момента.
                                                         onOpenChart(
                                                             event.timestamp - EVENT_CHART_MARGIN,
-                                                            event.timestamp + EVENT_CHART_MARGIN,
+                                                            (event.endTimestamp ?: event.timestamp) +
+                                                                EVENT_CHART_MARGIN,
                                                         )
                                                     }
                                                 }
@@ -1414,32 +1457,171 @@ private fun DataItem(label: String, value: String, valueColor: Color? = null) {
     }
 }
 
+/**
+ * Разбор эпизода: то, что в строку не помещается, но без чего число нельзя
+ * истолковать — представительное значение, отношение к обычному, порог.
+ *
+ * Лист, а не отдельный экран: у эпизода нет ни своих действий, ни вложенного
+ * содержимого, и заводить ради шести чисел ещё одну точку навигации значило бы
+ * растить каркас там, где хватает раскрытия по нажатию.
+ */
+@Composable
+private fun EpisodeSheet(
+    event: EventEntity,
+    unit: DoseUnitSetting,
+    onOpenChart: (() -> Unit)?,
+    onClose: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    val h = HistoryCatalogue.of(strings.language)
+    val now = System.currentTimeMillis()
+    val end = event.endTimestamp
+    Dialog(onDismissRequest = onClose) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(
+                    text = when (event.source) {
+                        EventEntity.SOURCE_THRESHOLD -> "⚠ ${h.thresholdTitle}"
+                        else -> h.levelChangeTitle
+                    },
+                    style = type.label,
+                    color = if (event.source == EventEntity.SOURCE_THRESHOLD) {
+                        colors.warn
+                    } else {
+                        colors.ink
+                    },
+                )
+                Text(
+                    text = if (end == null) {
+                        h.episodeOngoing(
+                            from = HistoryFormat.timeOfDay(event.timestamp),
+                            duration = HistoryFormat.duration((now - event.timestamp) / 1000L, h),
+                        )
+                    } else {
+                        h.episodeSpan(
+                            from = HistoryFormat.timeOfDay(event.timestamp),
+                            to = HistoryFormat.timeOfDay(end),
+                            duration = HistoryFormat.duration(
+                                (end - event.timestamp) / 1000L,
+                                h,
+                            ),
+                        )
+                    },
+                    style = type.bodySmall,
+                    color = colors.ink2,
+                )
+                val low = event.minMicroSvH
+                val high = event.maxMicroSvH
+                val mean = event.meanMicroSvH
+                if (low != null && high != null) {
+                    Text(
+                        text = "${h.episodeRange(
+                            DoseFormat.rate(low, unit),
+                            DoseFormat.rate(high, unit),
+                        )} ${DoseFormat.rateUnitLabel(unit, s = strings)}",
+                        style = type.value,
+                        color = colors.ink,
+                    )
+                }
+                mean?.let {
+                    Text(
+                        text = DoseFormat.rateWithUnit(it, unit, strings),
+                        style = type.footnoteMono,
+                        color = colors.ink2,
+                    )
+                }
+                if (event.param1 > 0) {
+                    Text(
+                        text = h.episodeUsually(DoseFormat.rateWithUnit(event.param1 / 1000f, unit, strings)),
+                        style = type.footnote,
+                        color = colors.ink2,
+                    )
+                    // Отношение — к обычному верху места, и знаменатель назван.
+                    mean?.takeIf { event.param1 > 0 }?.let { value ->
+                        val ratio = value / (event.param1 / 1000f)
+                        if (ratio.isFinite() && ratio > 0f) {
+                            Text(
+                                text = h.episodeRatio(
+                                    String.format(java.util.Locale.US, "%.1f", ratio)
+                                        .replace('.', ','),
+                                ),
+                                style = type.footnote,
+                                color = colors.ink2,
+                            )
+                        }
+                    }
+                }
+                event.thresholdMicroSvH?.takeIf {
+                    event.source == EventEntity.SOURCE_THRESHOLD
+                }?.let {
+                    Text(
+                        text = "${h.episodeThresholdLabel} " +
+                            DoseFormat.rateWithUnit(it, unit, strings),
+                        style = type.footnote,
+                        color = colors.ink2,
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    if (onOpenChart != null) {
+                        Chip(
+                            text = h.openOnChart,
+                            color = colors.dataText,
+                            selected = true,
+                            onClick = { onOpenChart(); onClose() },
+                        )
+                    }
+                    Chip(text = strings.close, color = colors.ink2, onClick = onClose)
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DeviationRow(
     event: EventEntity,
     unit: DoseUnitSetting,
     onClick: (() -> Unit)? = null,
+    /** Раскрытие эпизода; null — у записи нет интервала (старая или точка). */
+    onOpenSheet: (() -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
     val h = HistoryCatalogue.of(strings.language)
     val type = LocalAppTypography.current
     val now = System.currentTimeMillis()
+    // Вид события называет, ЧТО утверждается. Треугольник стоит только у
+    // достижения назначенного порога: разница с обычным — не тревога, и метка
+    // тревоги на ней обесценивала бы саму метку.
+    val episode = event.sampleCount != null
     val kind = when (event.source) {
+        EventEntity.SOURCE_THRESHOLD -> h.thresholdTitle
+        EventEntity.SOURCE_LEVEL_CHANGE -> h.levelChangeTitle
         EventEntity.SOURCE_DEVIATION -> strings.deviation
         else -> strings.excursionPoint
     }
+    val alarming = event.source != EventEntity.SOURCE_LEVEL_CHANGE
     val located = event.latitude != null && event.longitude != null
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(
+                (onOpenSheet ?: onClick)
+                    ?.let { Modifier.clickable(onClick = it) }
+                    ?: Modifier,
+            )
             .padding(vertical = 9.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "⚠ $kind", style = type.label, color = colors.warn)
+            Text(
+                text = if (alarming) "⚠ $kind" else kind,
+                style = type.label,
+                color = if (alarming) colors.warn else colors.ink,
+            )
             Spacer(Modifier.weight(1f))
             Text(
                 text = HistoryFormat.dayTime(event.timestamp, now, s = h),
@@ -1457,20 +1639,62 @@ private fun DeviationRow(
                 )
             }
         }
+        // Интервал — критическая строка эпизода: без длительности «максимум
+        // 0,37» ничего не значит.
+        if (episode) {
+            val end = event.endTimestamp
+            Text(
+                text = if (end == null) {
+                    h.episodeOngoing(
+                        from = HistoryFormat.timeOfDay(event.timestamp),
+                        duration = HistoryFormat.duration((now - event.timestamp) / 1000L, h),
+                    )
+                } else {
+                    h.episodeSpan(
+                        from = HistoryFormat.timeOfDay(event.timestamp),
+                        to = HistoryFormat.timeOfDay(end),
+                        duration = HistoryFormat.duration((end - event.timestamp) / 1000L, h),
+                    )
+                },
+                style = type.footnote,
+                color = colors.ink2,
+            )
+        }
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(Dimens.space3),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            event.doseRate?.let {
+            val low = event.minMicroSvH
+            val high = event.maxMicroSvH
+            if (episode && low != null && high != null) {
                 DataItem(
                     label = DoseFormat.rateUnitLabel(unit, s = strings),
-                    value = DoseFormat.rate(DoseUnits.rawToMicroSievertPerHour(it), unit),
-                    valueColor = colors.warn,
+                    value = h.episodeRange(
+                        low = DoseFormat.rate(low, unit),
+                        high = DoseFormat.rate(high, unit),
+                    ),
+                    valueColor = if (alarming) colors.warn else colors.ink,
                 )
+            } else {
+                event.doseRate?.let {
+                    DataItem(
+                        label = DoseFormat.rateUnitLabel(unit, s = strings),
+                        value = DoseFormat.rate(DoseUnits.rawToMicroSievertPerHour(it), unit),
+                        valueColor = colors.warn,
+                    )
+                }
             }
-            // param1 of a deviation stores the baseline typical high, nSv/h.
-            if (event.source == EventEntity.SOURCE_DEVIATION && event.param1 > 0) {
+            // param1 события хранит обычный верх места, нСв/ч.
+            if (event.param1 > 0 &&
+                (episode || event.source == EventEntity.SOURCE_DEVIATION)
+            ) {
                 DataItem(strings.usually, DoseFormat.rate(event.param1 / 1000f, unit))
+            }
+            // Порог называется числом только там, где он и был критерием.
+            if (event.source == EventEntity.SOURCE_THRESHOLD) {
+                event.thresholdMicroSvH?.let {
+                    DataItem(h.episodeThresholdLabel, DoseFormat.rate(it, unit))
+                }
             }
         }
     }
@@ -1911,6 +2135,7 @@ private fun EmptyFeedCard(filter: HistoryFilter) {
         HistoryFilter.ROUTES -> h.noRoutesYet to h.routesExplained
         HistoryFilter.FOOD -> h.noFoodYet to h.foodExplained
         HistoryFilter.SPECTRA -> strings.noSpectraYet to strings.spectrumExplained
+        HistoryFilter.EVENTS -> h.noEventsYet to h.eventsExplained
         else -> strings.noSessionsYet to strings.sessionExplained
     }
     Card(modifier = Modifier.fillMaxWidth()) {

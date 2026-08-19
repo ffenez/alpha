@@ -28,6 +28,23 @@ object MigrationSql {
      * Только добавление и NULL для старых строк: профиль съёмки прошлогоднего
      * снимка неизвестен, и подставить сегодняшний нельзя.
      */
+    /**
+     * v17 → v18: событие журнала становится ИНТЕРВАЛОМ.
+     *
+     * Только добавление и только NULL для старых строк: у записи, сделанной
+     * прежней версией, интервала не было, и выдумывать его нечем. Старые
+     * `deviation` остаются как есть — это измерения, а не мусор
+     * (`history_semantic_events_redesign.md`, раздел о миграции).
+     */
+    val FROM_17_TO_18: List<String> = listOf(
+        "ALTER TABLE `events` ADD COLUMN `endTimestamp` INTEGER DEFAULT NULL",
+        "ALTER TABLE `events` ADD COLUMN `minMicroSvH` REAL DEFAULT NULL",
+        "ALTER TABLE `events` ADD COLUMN `maxMicroSvH` REAL DEFAULT NULL",
+        "ALTER TABLE `events` ADD COLUMN `meanMicroSvH` REAL DEFAULT NULL",
+        "ALTER TABLE `events` ADD COLUMN `sampleCount` INTEGER DEFAULT NULL",
+        "ALTER TABLE `events` ADD COLUMN `thresholdMicroSvH` REAL DEFAULT NULL",
+    )
+
     val FROM_16_TO_17: List<String> = listOf(
         "ALTER TABLE `spectra` ADD COLUMN `profileId` INTEGER DEFAULT NULL",
         "ALTER TABLE `spectra` ADD COLUMN `profileName` TEXT DEFAULT NULL",

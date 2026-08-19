@@ -16,8 +16,20 @@ interface NotificationStrings {
     val alarmChannel: String
     val alarmChannelDescription: String
     val levelChanged: String
+
+    /** Заголовок уведомления о превышении назначенного порога. */
+    val thresholdCrossed: String
     fun nowRate(rate: String): String
     fun usuallyUpTo(rate: String): String
+
+    /** Порог, который назвал сам человек: число обязано стоять рядом. */
+    fun thresholdIs(rate: String): String
+
+    /**
+     * Эпизод закончился: длительность и максимум. Одно уведомление на эпизод
+     * обновляется, а не заводится второе.
+     */
+    fun episodeOver(duration: String, peak: String): String
 
     /** Подпись источника «эксперимента» в статусе службы: экран Поиска. */
     val searchSource: String
@@ -29,6 +41,12 @@ object NotificationRu : NotificationStrings {
     override val alarmChannelDescription =
         "Устойчивое превышение уровня, подтверждённое по величине и длительности"
     override val levelChanged = "Уровень радиации изменился"
+    override val thresholdCrossed = "Достигнут назначенный порог"
+
+    override fun thresholdIs(rate: String) = " · порог $rate"
+
+    override fun episodeOver(duration: String, peak: String) =
+        "Закончилось · $duration · максимум $peak"
 
     override fun nowRate(rate: String) = "Сейчас $rate"
 
@@ -43,6 +61,12 @@ object NotificationEn : NotificationStrings {
     override val alarmChannelDescription =
         "A sustained excess of the level, confirmed by both magnitude and duration"
     override val levelChanged = "The radiation level changed"
+    override val thresholdCrossed = "The set threshold was reached"
+
+    override fun thresholdIs(rate: String) = " · threshold $rate"
+
+    override fun episodeOver(duration: String, peak: String) =
+        "Over · $duration · peak $peak"
 
     override fun nowRate(rate: String) = "Now $rate"
 
@@ -55,6 +79,7 @@ val NotificationCatalogue = AreaCatalogue(ru = NotificationRu, en = Notification
 
 /** Все строки области — для проверки, действующей на каждую формулировку. */
 fun NotificationStrings.allTexts(): List<String> = listOf(
-    measurementChannel, alarmChannel, alarmChannelDescription, levelChanged,
-    nowRate("0,30 мкЗв/ч"), usuallyUpTo("0,18 мкЗв/ч"), searchSource,
+    measurementChannel, alarmChannel, alarmChannelDescription, levelChanged, thresholdCrossed,
+    nowRate("0,30 мкЗв/ч"), usuallyUpTo("0,18 мкЗв/ч"), thresholdIs("0,30 мкЗв/ч"),
+    episodeOver("16 мин", "0,37 мкЗв/ч"), searchSource,
 )

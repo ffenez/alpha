@@ -93,7 +93,27 @@ data class EventEntity(
     val doseRate: Float? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
+    /**
+     * Конец эпизода, мс эпохи. null у точечных записей (событие прибора,
+     * снимок) и у эпизода, который ИДЁТ прямо сейчас — их различает
+     * [sampleCount]: у эпизода он не null.
+     */
+    val endTimestamp: Long? = null,
+    /** Минимум за эпизод, мкЗв/ч. */
+    val minMicroSvH: Float? = null,
+    /** Максимум за эпизод, мкЗв/ч. */
+    val maxMicroSvH: Float? = null,
+    /** Среднее за эпизод, мкЗв/ч — представительное значение. */
+    val meanMicroSvH: Float? = null,
+    /** Сколько отсчётов вошло в эпизод; null — запись не интервальная. */
+    val sampleCount: Int? = null,
+    /** Назначенный порог L1 на момент эпизода, мкЗв/ч. */
+    val thresholdMicroSvH: Float? = null,
 ) {
+
+    /** Идёт ли эпизод: интервальная запись без конца. */
+    val ongoing: Boolean get() = sampleCount != null && endTimestamp == null
+
     companion object {
         const val SOURCE_DEVICE = "device"
 
@@ -114,6 +134,22 @@ data class EventEntity(
 
         /** User saved a spectrum snapshot ([param1] = accumulation seconds). */
         const val SOURCE_SPECTRUM = "spectrum"
+
+        /**
+         * Подтверждённое изменение уровня — ИНТЕРВАЛ, а не точка
+         * ([app.alpha.baseline.LevelEventKind.LEVEL_CHANGE]). Значение вышло
+         * за обычное для места, назначенного порога не достигнув.
+         */
+        const val SOURCE_LEVEL_CHANGE = "level_change"
+
+        /**
+         * Превышение назначенного порога — тоже интервал
+         * ([app.alpha.baseline.LevelEventKind.THRESHOLD]).
+         */
+        const val SOURCE_THRESHOLD = "threshold"
+
+        /** Интервальные виды событий: у них есть начало, конец и пределы. */
+        val EPISODE_SOURCES = listOf(SOURCE_LEVEL_CHANGE, SOURCE_THRESHOLD)
     }
 }
 

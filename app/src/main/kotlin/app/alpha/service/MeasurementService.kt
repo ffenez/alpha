@@ -28,6 +28,10 @@ import app.alpha.baseline.BaselineAdmission
 import app.alpha.baseline.BaselineState
 import app.alpha.baseline.QuarantineWindow
 import app.alpha.baseline.DeviationSnapshot
+import app.alpha.baseline.LevelEvent
+import app.alpha.baseline.LevelEventKind
+import app.alpha.baseline.LevelEventTracker
+import app.alpha.baseline.LevelEventTransition
 import app.alpha.baseline.PersistenceTracker
 import app.alpha.baseline.aboveUsualMagnitude
 import app.alpha.baseline.alarmThresholds
@@ -38,6 +42,9 @@ import app.alpha.data.SpectrumPollPolicy
 import app.alpha.ui.text.AppLanguage
 import app.alpha.ui.text.NotificationCatalogue
 import app.alpha.ui.text.NotificationEn
+import app.alpha.ui.logic.HistoryFormat
+import app.alpha.ui.text.HistoryEn
+import app.alpha.ui.text.HistoryRu
 import app.alpha.ui.text.NotificationRu
 import app.alpha.ui.text.NotificationStrings
 import app.alpha.ui.feedback.Feedback
@@ -175,6 +182,16 @@ class MeasurementService : Service() {
     private var aboveUsualTracker = PersistenceTracker(persistenceMillis = 0)
     private var alertTracker = PersistenceTracker(persistenceMillis = 0)
 
+    /** Жизненный цикл эпизода: одна строка журнала на превышение. */
+    private var episodes = LevelEventTracker(persistenceMillis = 0)
+
+    /** Строка идущего эпизода; null — эпизода нет. */
+    private var episodeRowId: Long? = null
+
+    /** Когда эпизод последний раз писался на диск. */
+    @Volatile
+    private var episodeFlushedAt = 0L
+
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph.get(this)
@@ -187,6 +204,9 @@ class MeasurementService : Service() {
             graph.profileRepository.ensureDefaultProfiles()
             // Sessions a killed process left open end at the last real sample.
             graph.sessionRepository.closeStale()
+            // Эпизод, оставшийся без конца после гибели процесса, закрывается
+            // последним известным отсчётом, а не «идёт до сих пор».
+            graph.measurementRepository.closeOngoingEpisodes(System.currentTimeMillis())
         }
         // Отклик поиска принадлежит ИЗМЕРЕНИЮ, а не экрану: прибор ведут по
         // звуку с телефоном в кармане, и погашенный экран не означает, что
@@ -363,6 +383,12 @@ class MeasurementService : Service() {
             alertTracker = PersistenceTracker(
                 persistenceMillis = thresholds.persistenceSeconds * 1000L,
             )
+            // Порог сменился — прежний эпизод судился по другому правилу и
+            // продолжаться под новым не может.
+            episodes.closeNow(System.currentTimeMillis()).let { onEpisodeTransition(it, 0L) }
+            episodes = LevelEventTracker(
+                persistenceMillis = thresholds.persistenceSeconds * 1000L,
+            )
             graph.serviceStatus.onDeviation(DeviationSnapshot())
         }
     }
@@ -454,6 +480,18 @@ class MeasurementService : Service() {
             deviationActive = snapshot.aboveUsualSince != null || snapshot.alertSince != null,
         )
         graph.serviceStatus.onAdmission(admissionOf(sample, System.currentTimeMillis()))
+        // Эпизод: журнал получает ОДНУ строку на превышение и обновляет её,
+        // пока оно идёт (`history_semantic_events_redesign.md`).
+        val transition = synchronized(alarmLock) {
+            episodes.onSample(
+                nowMillis = now,
+                microSvH = microSvH,
+                baselineHighMicroSvH = baseline?.doseHighMicroSvH,
+                thresholds = thresholds,
+            )
+        }
+        onEpisodeTransition(transition, now)
+
         if (alertFired) {
             // Once per deviation episode: PersistenceTracker fires the rising
             // edge exactly once and re-arms only after the excursion ends.
@@ -465,18 +503,97 @@ class MeasurementService : Service() {
                     Feedback.alarmPattern(this@MeasurementService)
                 }
             }
-            postAlarmNotification(
-                doseMicroSvH = microSvH,
-                typicalHighMicroSvH = baseline?.doseHighMicroSvH,
-            )
-            scope.launch {
-                graph.measurementRepository.recordDeviation(
-                    timestamp = now,
-                    doseRate = sample.doseRate,
-                    baselineHighMicroSvH = baseline?.doseHighMicroSvH,
-                )
+        }
+    }
+
+    /**
+     * Одна строка журнала и одно уведомление на эпизод.
+     *
+     * Запись обновляется не на каждом отсчёте, а раз в [EPISODE_FLUSH_MILLIS]:
+     * при отсчёте раз в секунду поэлементная запись била бы по диску тысячу
+     * раз за эпизод, ничего не добавляя — а при закрытии эпизод пишется
+     * обязательно.
+     */
+    private fun onEpisodeTransition(transition: LevelEventTransition, nowMillis: Long) {
+        when (transition) {
+            LevelEventTransition.None -> Unit
+            is LevelEventTransition.Opened -> {
+                episodeFlushedAt = nowMillis
+                postEpisodeNotification(transition.event)
+                scope.launch {
+                    val id = graph.measurementRepository.openEpisode(transition.event)
+                    synchronized(alarmLock) { episodeRowId = id }
+                }
+            }
+            is LevelEventTransition.Updated -> {
+                if (nowMillis - episodeFlushedAt < EPISODE_FLUSH_MILLIS) return
+                episodeFlushedAt = nowMillis
+                postEpisodeNotification(transition.event)
+                val id = synchronized(alarmLock) { episodeRowId } ?: return
+                scope.launch {
+                    graph.measurementRepository.updateEpisode(id, transition.event)
+                }
+            }
+            is LevelEventTransition.Closed -> {
+                val id = synchronized(alarmLock) { episodeRowId.also { episodeRowId = null } }
+                postEpisodeNotification(transition.event)
+                if (id == null) return
+                scope.launch {
+                    graph.measurementRepository.updateEpisode(id, transition.event)
+                }
             }
         }
+    }
+
+    /**
+     * Одно уведомление на эпизод: тот же идентификатор обновляется, пока
+     * эпизод идёт, и получает итог, когда он закончился. Второго уведомления
+     * об одном превышении не появляется.
+     */
+    private fun postEpisodeNotification(event: LevelEvent) {
+        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return
+        val s = texts
+        val title = when (event.kind) {
+            LevelEventKind.THRESHOLD -> s.thresholdCrossed
+            LevelEventKind.LEVEL_CHANGE -> s.levelChanged
+        }
+        val text = if (!event.active) {
+            s.episodeOver(
+                duration = HistoryFormat.duration(
+                    event.durationMillis / 1000L,
+                    if (texts === NotificationEn) HistoryEn else HistoryRu,
+                ),
+                peak = DoseFormat.rate(event.maxMicroSvH, doseUnit),
+            )
+        } else {
+            buildString {
+                append(s.nowRate(DoseFormat.rate(event.maxMicroSvH, doseUnit)))
+                when (event.kind) {
+                    LevelEventKind.THRESHOLD ->
+                        append(s.thresholdIs(DoseFormat.rate(event.thresholdMicroSvH, doseUnit)))
+                    LevelEventKind.LEVEL_CHANGE -> event.baselineHighMicroSvH
+                        ?.takeIf { it > 0f }
+                        ?.let { append(s.usuallyUpTo(DoseFormat.rate(it, doseUnit))) }
+                }
+            }
+        }
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(this, Notifications.ALARM_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_measurement)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(contentIntent)
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .build()
+        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .notify(ALARM_NOTIFICATION_ID, notification)
     }
 
     /**
@@ -485,6 +602,7 @@ class MeasurementService : Service() {
      * channel «Тревога»: default system alarm sound + vibration, tunable by
      * the user in the channel's system settings.
      */
+    @Suppress("unused")
     private fun postAlarmNotification(doseMicroSvH: Float, typicalHighMicroSvH: Float?) {
         if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return
         val s = texts
@@ -1177,6 +1295,15 @@ class MeasurementService : Service() {
 
         const val CHANNEL_ID = Notifications.MEASUREMENT_CHANNEL_ID
         private const val NOTIFICATION_ID = 1
+        /**
+         * Как часто идущий эпизод переписывается на диск, мс. **Инженерный
+         * параметр**: минута — прибор отдаёт отсчёт раз в секунду, и запись на
+         * каждый била бы по диску тысячу раз за эпизод, ничего не добавляя к
+         * записи. Потеря при гибели процесса ограничена этой минутой, а конец
+         * эпизода пишется всегда.
+         */
+        private const val EPISODE_FLUSH_MILLIS = 60_000L
+
         private const val ALARM_NOTIFICATION_ID = 2
         private const val LOCATION_INTERVAL_MILLIS = 1_000L
 

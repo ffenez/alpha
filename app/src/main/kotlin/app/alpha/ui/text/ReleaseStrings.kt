@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0420Title: String
+    val v0420Summary: String
+
     val v0412Title: String
     val v0412Summary: String
 
@@ -381,6 +384,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0420Title = "Журнал стал журналом, а не логом детектора"
+    override val v0420Summary =
+        "Превышение теперь занимает ОДНУ запись — от начала до возврата, с длительностью, " +
+        "пределами и обычным для места, — вместо десятков одинаковых «Отклонений»; обычные " +
+        "колебания фона записью не становятся вовсе. «Изменение уровня» и «Превышение порога» " +
+        "разделены, треугольник остался только у порога, а прежние записи живут во вкладке " +
+        "«События»."
 
     override val v0412Title = "Строка пика открывается любая"
     override val v0412Summary =
@@ -1219,6 +1230,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0420Title = "The journal is a journal, not a detector log"
+    override val v0420Summary =
+        "An excess now takes ONE record — from its start to its recovery, with duration, range " +
+        "and what is usual here — instead of dozens of identical «deviations»; ordinary " +
+        "background fluctuation makes no record at all. «Level change» and «Threshold reached» " +
+        "are separated, the warning triangle stays with the threshold alone, and older records " +
+        "live in the «Events» tab."
 
     override val v0412Title = "Every peak row opens"
     override val v0412Summary =

@@ -245,15 +245,28 @@ class SessionRepository(
         )
     }
 
-    /** Deviation/hotspot events inside a time range, newest first. */
+    /**
+     * События ленты Истории за интервал, новые сверху.
+     *
+     * Прежние точечные `deviation` сюда НЕ входят: журнал показывает
+     * подтверждённые эпизоды, а не каждое срабатывание детектора
+     * (`history_semantic_events_redesign.md`). Сами записи остаются в базе и в
+     * экспорте — данные измерений не удаляются ради чистой ленты; их видно во
+     * вкладке событий и в резервной копии.
+     */
     suspend fun deviationEvents(
         from: Long,
         to: Long,
         limit: Int = 200,
+        includeLegacy: Boolean = false,
     ): List<EventEntity> = eventDao.inRangeBySource(
         from = from,
         to = to,
-        sources = listOf(EventEntity.SOURCE_HOTSPOT, EventEntity.SOURCE_DEVIATION),
+        sources = buildList {
+            add(EventEntity.SOURCE_HOTSPOT)
+            addAll(EventEntity.EPISODE_SOURCES)
+            if (includeLegacy) add(EventEntity.SOURCE_DEVIATION)
+        },
         limit = limit,
     )
 
