@@ -31,26 +31,6 @@ object EnStrings : Strings {
     override val doseRate = "Dose rate"
     override val cpsUnit = "s⁻¹"
     override val countRate = "Count rate"
-    override val readingHelpTitle = "What these numbers mean"
-    override val readingHelpDoseRate =
-        "Dose rate, µSv/h, is the pace at which dose accumulates: how much would build up over an " +
-            "hour if you stayed here. It is a speed, not a total. The natural background in most " +
-            "places is 0.08–0.20 µSv/h, which is 2–5 µSv over a day."
-    override val readingHelpCountRate =
-        "Count rate, counts per second, is how many particles the instrument registered in a " +
-            "second. It responds faster — it moves in seconds where the dose rate averages for " +
-            "longer — which is why searching goes by it. In exchange it depends on the crystal " +
-            "and on the energy, so it cannot be compared with another instrument."
-    override val readingHelpNoise =
-        "Both numbers jump on their own: decay is random, and neighbouring seconds differ even " +
-            "when the level does not change. So a single value means little; what means something " +
-            "is whether it holds. The app compares windows of measurements and speaks of a " +
-            "difference only when a test confirms it."
-    override val readingHelpScale =
-        "The scale under the number shows the ratio to whatever the comparison runs against: in " +
-            "observation, to what is usual for this place; in search, to the reference you set, " +
-            "or to the recent level while there is none. The denominator is always named beside " +
-            "the scale."
     override val hardness = "Hardness"
     override val trendPerHour = "Trend"
     override val indicatorTitle = "Instrument scale"

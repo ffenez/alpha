@@ -408,10 +408,10 @@ object ReleaseRu : ReleaseStrings {
 
     override val v0450Title = "У прибора появилась справка, у счёта — стрелка с первой секунды"
     override val v0450Summary =
-        "При включённых пояснениях в углу карточки прибора стоит «i»: одна справка на наблюдение " +
-        "и поиск — что значат мощность дозы и скорость счёта и как их читать. Стрелка у счёта " +
-        "теперь стоит сразу, сравнивая с недавним уровнем, пока точка отсчёта не поставлена; " +
-        "«Удалить» у неё стало «Остановить», «Информация» — «Справкой»."
+        "При включённых пояснениях в правом углу карточки прибора стоит «i» — своя справка у " +
+        "наблюдения и своя у поиска: что за величина на экране, почему она скачет и с чем её " +
+        "сравнивают. Стрелка у счёта теперь стоит сразу, сравнивая с недавним уровнем, пока " +
+        "точка отсчёта не поставлена; «Удалить» у неё стало «Остановить», «Информация» — «Справкой»."
 
     override val v0443Title = "Серые пояснения ушли под переключатель"
     override val v0443Summary =
@@ -1302,10 +1302,10 @@ object ReleaseEn : ReleaseStrings {
 
     override val v0450Title = "The instrument gained help, the count rate a needle from the start"
     override val v0450Summary =
-        "With explanations on, an «i» sits in the corner of the instrument card: one help for both " +
-        "observation and search — what dose rate and count rate mean and how to read them. The " +
-        "needle now stands from the first second, comparing against the recent level until a " +
-        "reference is set; its «Delete» became «Stop», and «Information» became «Help»."
+        "With explanations on, an «i» sits in the right corner of the instrument card — its own " +
+        "help for observation and its own for search: what the quantity on screen is, why it " +
+        "jumps and what it is compared against. The needle now stands from the first second, " +
+        "comparing against the recent level until a reference is set; its «Delete» became «Stop»."
 
     override val v0443Title = "Grey explanations moved under the switch"
     override val v0443Summary =

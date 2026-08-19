@@ -74,19 +74,6 @@ interface Strings {
     val doseRate: String
     val countRate: String
 
-    /**
-     * Справка прибора: что значат оба числа и как их читать.
-     *
-     * Одна на Наблюдение и Поиск — величины и правило чтения у них общие,
-     * меняется только знаменатель шкалы, и о нём здесь тоже сказано. Пояснение
-     * по категориям интерфейса: открывается кнопкой «i», которой нет при
-     * выключенных пояснениях.
-     */
-    val readingHelpTitle: String
-    val readingHelpDoseRate: String
-    val readingHelpCountRate: String
-    val readingHelpNoise: String
-    val readingHelpScale: String
 
     /** Единица скорости счёта: «с⁻¹» / «s⁻¹» — она принадлежит языку. */
     val cpsUnit: String
@@ -767,8 +754,6 @@ fun Strings.allTexts(): List<String> = listOf(
     cancel, edgeCounts("8 421"),
     noSpectrumBackground,
     sessionsCount(12), selectAll, clearAll, selectedCount(3), readingJournal, noSessionsYet,
-    readingHelpTitle, readingHelpDoseRate, readingHelpCountRate, readingHelpNoise,
-    readingHelpScale,
     sessionExplained, showMore, journalEpisodes, journalEpisodesNote, accumulatedDose, days7, days30, doseProjection, noProfile,
     runningCannotDelete, running, avg, max, dose, track, spectrum, flight,
     noSamplesInSession, profileEllipsis, sessionProfileTitle, sessionProfileBody("12:00"),

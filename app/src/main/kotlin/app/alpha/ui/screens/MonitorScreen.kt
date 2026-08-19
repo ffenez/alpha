@@ -956,9 +956,12 @@ internal fun HeroCard(
             // и без него они — подписи без подписи. Предупреждение об уровне
             // ниже остаётся при любом положении выключателя.
             if (blocks.hero) {
-            // Справка о том, что значат оба числа, — у левого верхнего угла
-            // карточки и та же самая, что в Поиске.
-            ReadingHelpRow()
+            // Справка Наблюдения: своя, про мощность дозы и про то, с чем
+            // её здесь сравнивают.
+            ReadingHelpRow(
+                title = t.readingTitle,
+                notes = listOf(t.readingRate, t.readingNoise, t.readingScale, t.readingTiles),
+            )
             BreathingAura(live = stream.live, tint = heroTint) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
