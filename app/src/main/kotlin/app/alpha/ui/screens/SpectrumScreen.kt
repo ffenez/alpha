@@ -301,16 +301,22 @@ fun SpectrumScreen(
     // Полноэкранный режим: поле владеет экраном, остальное — панелями поверх.
     // Показывать нечего — режим закрывает сам себя.
     if (fullscreenOptions != null) {
-        if (spectrum != null && spectrum.counts.isNotEmpty()) {
-            SpectrumFullScreen(
+        // Снимок читается из базы асинхронно, и на первом кадре его ещё нет.
+        // Закрывать полный экран по «нет данных» в этот момент нельзя: он
+        // закрывался мгновенно после тапа, и по снимку график не открывался
+        // вовсе. Отсутствие данных подтверждается только тогда, когда чтение
+        // ЗАВЕРШИЛОСЬ и снимка действительно нет.
+        val loadingSnapshot = viewing && snapshotEntity == null && !snapshotMissing
+        when {
+            spectrum != null && spectrum.counts.isNotEmpty() -> SpectrumFullScreen(
                 graph = graph,
                 spectrum = spectrum,
                 options = fullscreenOptions,
                 viewingSnapshot = viewing,
                 onBack = onCloseFullscreen,
             )
-        } else {
-            LaunchedEffect(Unit) { onCloseFullscreen() }
+            loadingSnapshot -> Unit
+            else -> LaunchedEffect(Unit) { onCloseFullscreen() }
         }
         return
     }

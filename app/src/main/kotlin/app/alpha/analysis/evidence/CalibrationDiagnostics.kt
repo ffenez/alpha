@@ -20,6 +20,19 @@ enum class CalibrationVerdict {
 
     /** Сдвиг выделен: значение и его неопределённость в [shiftKeV]/[shiftUncertaintyKeV]. */
     POSSIBLE_SYSTEMATIC_SHIFT,
+
+    /**
+     * Разброс шкалы не оценён, поэтому значимость сдвига определить нечем.
+     *
+     * Остаток отклоняется от нуля не только из-за статистики центроида:
+     * заводская калибровка задана тремя коэффициентами на весь диапазон,
+     * усиление плывёт, отклик кристалла нелинеен. Эта систематическая часть
+     * (σ_cal) и есть главный вклад в разброс остатков, а оценивается она
+     * только по трём линиям и более. Без неё знаменатель значимости занижен, и
+     * «выделенным» оказался бы почти любой сдвиг — поэтому он не объявляется
+     * вовсе.
+     */
+    SIGMA_NOT_ESTIMATED,
 }
 
 /**
@@ -35,6 +48,13 @@ data class CalibrationDiagnostic(
     val shiftUncertaintyKeV: Double?,
     val slopePerKeV: Double?,
     val verdict: CalibrationVerdict,
+    /**
+     * χ² однородности остатков вокруг взвешенного среднего и его число
+     * степеней свободы: по ним видно, имеет ли среднее смысл. Null — остатков
+     * меньше двух, считать нечего.
+     */
+    val chiSquare: Double? = null,
+    val degreesOfFreedom: Int? = null,
 )
 
 /**
@@ -86,6 +106,8 @@ object CalibrationDiagnostics {
     /** Во сколько σ должен уложиться сдвиг, чтобы считаться выделенным. */
     const val SHIFT_SIGNIFICANCE = 2.0
 
+
+
     /**
      * Нижняя граница σ остатка, кэВ — **инженерный параметр**. Формула σ
      * центроида при большой статистике даёт сотые доли кэВ; на сцинтилляторе
@@ -105,22 +127,52 @@ object CalibrationDiagnostics {
         return maxOf(sqrt(sigmaObs * sigmaObs + sigmaRef * sigmaRef), MIN_RESIDUAL_SIGMA_KEV)
     }
 
-    fun evaluate(residuals: List<CalibrationResidual>): CalibrationDiagnostic {
+    /**
+     * @param systematicSigmaKeV σ_cal как функция энергии — систематическая
+     *   часть отклонения остатка от нуля. Null означает, что её взять неоткуда
+     *   (измеренного разброса нет): тогда значимость сдвига не считается,
+     *   потому что её знаменатель был бы заведомо занижен.
+     */
+    fun evaluate(
+        residuals: List<CalibrationResidual>,
+        systematicSigmaKeV: ((Double) -> Double)? = null,
+    ): CalibrationDiagnostic {
         val usable = residuals.filter { it.sigmaKeV.isFinite() && it.sigmaKeV > 0.0 }
         if (usable.size < MIN_RESIDUALS) {
             return CalibrationDiagnostic(usable, null, null, null, CalibrationVerdict.NOT_EVALUATED)
         }
-        // Взвешенное среднее с весами 1/σ²: остаток по слабому пику не должен
-        // тянуть оценку так же сильно, как по сильному.
+        if (systematicSigmaKeV == null) {
+            return CalibrationDiagnostic(
+                residuals = usable,
+                shiftKeV = null,
+                shiftUncertaintyKeV = null,
+                slopePerKeV = slope(usable),
+                verdict = CalibrationVerdict.SIGMA_NOT_ESTIMATED,
+            )
+        }
+        // Веса 1/σ², где σ² = σ_стат² + σ_cal²: систематическая часть входит в
+        // знаменатель наравне со статистикой, иначе яркая линия получила бы
+        // почти бесконечный вес, а значимость сдвига — заниженный знаменатель.
         var weightSum = 0.0
         var weighted = 0.0
         for (r in usable) {
-            val w = 1.0 / (r.sigmaKeV * r.sigmaKeV)
+            val systematic = systematicSigmaKeV(r.energyKeV)
+            val total = r.sigmaKeV * r.sigmaKeV + systematic * systematic
+            val w = 1.0 / total
             weightSum += w
             weighted += w * r.deltaKeV
         }
         val shift = weighted / weightSum
         val sigmaShift = sqrt(1.0 / weightSum)
+        // χ² однородности остатков вокруг среднего — при тех же полных σ. Он
+        // не решает вердикт, а сопровождает его числом: по нему видно, описан
+        // ли уход шкалы одной постоянной или расходится по энергии.
+        val degreesOfFreedom = usable.size - 1
+        val chiSquare = usable.sumOf {
+            val d = it.deltaKeV - shift
+            val systematic = systematicSigmaKeV(it.energyKeV)
+            d * d / (it.sigmaKeV * it.sigmaKeV + systematic * systematic)
+        }
         val verdict = if (abs(shift) > SHIFT_SIGNIFICANCE * sigmaShift) {
             CalibrationVerdict.POSSIBLE_SYSTEMATIC_SHIFT
         } else {
@@ -132,6 +184,8 @@ object CalibrationDiagnostics {
             shiftUncertaintyKeV = sigmaShift,
             slopePerKeV = slope(usable),
             verdict = verdict,
+            chiSquare = chiSquare,
+            degreesOfFreedom = degreesOfFreedom,
         )
     }
 

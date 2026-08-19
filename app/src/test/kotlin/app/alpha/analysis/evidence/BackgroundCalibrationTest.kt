@@ -137,9 +137,9 @@ class BackgroundCalibrationTest {
         assertTrue(scale.shiftKeV!! > 3.0, "сдвиг ${scale.shiftKeV}")
         assertEquals(CalibrationVerdict.POSSIBLE_SYSTEMATIC_SHIFT, scale.verdict)
         // Разброс задан руками (4, 6, 9, 5) — SD около 2,2 кэВ.
-        assertTrue(scale.sigmaKeV in 1.0..4.0, "σ_cal ${scale.sigmaKeV}")
+        assertTrue(scale.sigmaKeV!! in 1.0..4.0, "σ_cal ${scale.sigmaKeV}")
         assertTrue(!scale.statisticalOnly, "разброс заметно больше статистики")
-        assertTrue(scale.sigmaFraction > 0.0 && scale.sigmaFraction < 0.01)
+        assertTrue(scale.sigmaFraction!! > 0.0 && scale.sigmaFraction!! < 0.01)
     }
 
     @Test
