@@ -694,6 +694,14 @@ private fun SoundSection(graph: AppGraph) {
         // Тревога — не отклик: это событие превышения порога, а не постоянная
         // обратная связь во время работы (§5).
         SettingsSection(title = strings.alarmTitle) {
+            val alarmVibration by graph.settings.alarmVibration.collectAsState(initial = true)
+            SwitchSettingRow(
+                title = strings.alarmVibration,
+                subtitle = strings.alarmVibrationNote,
+                checked = alarmVibration,
+                onChange = { on -> scope.launch { graph.settings.setAlarmVibration(on) } },
+            )
+            SettingsDivider()
             AlarmSoundRow()
         }
     }

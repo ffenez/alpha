@@ -40,6 +40,7 @@ import app.alpha.ui.text.NotificationCatalogue
 import app.alpha.ui.text.NotificationEn
 import app.alpha.ui.text.NotificationRu
 import app.alpha.ui.text.NotificationStrings
+import app.alpha.ui.feedback.Feedback
 import app.alpha.ui.text.stringsFor
 import app.alpha.analysis.SpectrumEpoch
 import app.alpha.protocol.Spectrum
@@ -448,6 +449,14 @@ class MeasurementService : Service() {
         if (alertFired) {
             // Once per deviation episode: PersistenceTracker fires the rising
             // edge exactly once and re-arms only after the excursion ends.
+            // Вибрация по НАШЕМУ порогу — из службы, а не из канала
+            // уведомлений: у канала своя настройка вибрации, и порог,
+            // поставленный в приложении, не должен молчать из-за неё.
+            scope.launch {
+                if (graph.settings.alarmVibration.first()) {
+                    Feedback.alarmPattern(this@MeasurementService)
+                }
+            }
             postAlarmNotification(
                 doseMicroSvH = microSvH,
                 typicalHighMicroSvH = baseline?.doseHighMicroSvH,

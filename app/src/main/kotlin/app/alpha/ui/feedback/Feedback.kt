@@ -66,4 +66,36 @@ object Feedback {
         }
 
     private const val PULSE_MILLIS = 40L
+
+    /**
+     * Тревожная серия толчков: превышение порога, заданного В ЭТОМ приложении.
+     *
+     * Отдельно от [pulse] по двум причинам. Во-первых, это событие, а не
+     * ведение: серия из трёх толчков ощущается иначе, чем поисковый пульс, и
+     * их нельзя спутать. Во-вторых, она НЕ спрашивает тихий режим: порог
+     * поставил сам человек, и молча проглотить его срабатывание значило бы
+     * подменить его решение системной настройкой. Отключается тревога там же,
+     * где включается, — в настройках приложения.
+     */
+    fun alarmPattern(context: Context): Boolean {
+        val vibrator = vibrator(context) ?: return false
+        if (!vibrator.hasVibrator()) return false
+        vibrator.vibrate(
+            VibrationEffect.createWaveform(ALARM_PATTERN_MILLIS, ALARM_AMPLITUDES, -1),
+        )
+        return true
+    }
+
+    /**
+     * Пауза-толчок-пауза-толчок-пауза-толчок, мс.
+     *
+     * **Инженерный параметр**: три толчка по 220 мс с промежутком 160 мс —
+     * узнаваемая серия, которая заметна в кармане и не сливается с поисковым
+     * пульсом (одиночные 40 мс).
+     */
+    private val ALARM_PATTERN_MILLIS =
+        longArrayOf(0L, 220L, 160L, 220L, 160L, 220L)
+
+    private val ALARM_AMPLITUDES =
+        intArrayOf(0, 255, 0, 255, 0, 255)
 }

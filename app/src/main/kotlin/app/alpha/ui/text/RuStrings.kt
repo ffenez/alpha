@@ -468,6 +468,10 @@ object RuStrings : Strings {
     override val energyTone = "тон по энергии"
     override val energyToneNote = "высота щелчка по средней энергии гамма-квантов"
     override val alarmTitle = "Тревога"
+    override val alarmVibration = "Вибрация при превышении"
+    override val alarmVibrationNote =
+        "Телефон вибрирует по порогу, заданному здесь, — не дожидаясь настроек системного " +
+            "канала уведомлений."
     override val archiveSaved = "архив сохранён"
     override val archiveFailed = "архив не записался — попробуйте другую папку"
     override val debugTitle = "Отладка"

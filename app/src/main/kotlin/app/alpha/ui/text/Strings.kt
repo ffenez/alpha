@@ -468,6 +468,10 @@ interface Strings {
     val energyTone: String
     val energyToneNote: String
     val alarmTitle: String
+
+    /** Вибрация телефона по порогу, заданному в приложении. */
+    val alarmVibration: String
+    val alarmVibrationNote: String
     val archiveSaved: String
     val archiveFailed: String
     val debugTitle: String
