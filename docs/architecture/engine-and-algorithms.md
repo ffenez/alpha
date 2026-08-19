@@ -294,10 +294,10 @@ JVM, куда `Context` не приходит.
 ## 8. Проверки
 
 ```
-JAVA_HOME=/home/dev/.local/jdk ./gradlew test           # JVM: protocol + app
-JAVA_HOME=/home/dev/.local/jdk ./gradlew :app:smokeTest # Robolectric, все экраны
-JAVA_HOME=/home/dev/.local/jdk ./gradlew :app:lintDebug
-JAVA_HOME=/home/dev/.local/jdk ./gradlew :app:assembleDebug   # APK → apk/app-debug.apk
+./gradlew test           # JVM: protocol + app
+./gradlew :app:smokeTest # Robolectric, все экраны
+./gradlew :app:lintDebug
+./gradlew :app:assembleDebug   # APK → apk/app-debug.apk
 ```
 
 Тесты здесь пинят не только числа, но и **формулировки**: запрещённые слова,

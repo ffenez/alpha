@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ни облачная копия, ни перенос «телефон→телефон» не забирают ничего.
+
+  `android:allowBackup="false"` выключает облачную копию, но на Android 12+
+  (API 31) НЕ выключает device-to-device: без секции `<device-transfer>` этот
+  режим включён для всего содержимого, кроме `no-backup` и `cache`
+  (developer.android.com/guide/topics/data/autobackup). В базе приложения
+  лежат измерения и координаты — то, что по инварианту проекта не покидает
+  устройство иначе как по явной команде человека, поэтому исключены оба
+  режима целиком.
+
+  Перенос на новый телефон делает своя копия приложения (Настройки → Копия):
+  человек сам выбирает файл и его судьбу.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

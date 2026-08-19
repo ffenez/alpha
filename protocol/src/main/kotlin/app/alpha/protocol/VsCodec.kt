@@ -38,7 +38,8 @@ object VsCodec {
         }
         val len = reader.readU32().toInt()
         var payload = reader.bytes()
-        // HACK from cdump: workaround for new firmware bug(?) - extra trailing 0x00
+        // Из cdump/radiacode: новые прошивки дописывают лишний 0x00 в хвост
+        // ответа. Байт отбрасывается — без этого разбор кадра съезжает.
         if (payload.size == len + 1 && payload[payload.size - 1] == 0.toByte()) {
             payload = payload.copyOfRange(0, len)
         }

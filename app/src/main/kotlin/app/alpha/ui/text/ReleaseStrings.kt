@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0451Title: String
+    val v0451Summary: String
+
     val v0450Title: String
     val v0450Summary: String
 
@@ -405,6 +408,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0451Title = "Перенос на новый телефон больше не забирает измерения"
+    override val v0451Summary =
+        "Выключенная системная копия не мешала Android 12+ передавать базу приложения при переносе " +
+        "«телефон→телефон»: этот режим управляется отдельными правилами, и без них он был включён. " +
+        "Теперь закрыты оба пути — измерения и координаты уезжают на другой телефон только вашей " +
+        "копией из настроек."
 
     override val v0450Title = "У прибора появилась справка, у счёта — стрелка с первой секунды"
     override val v0450Summary =
@@ -1299,6 +1309,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0451Title = "Moving to a new phone no longer takes your measurements"
+    override val v0451Summary =
+        "Switching off system backup did not stop Android 12+ from handing the app's database to a " +
+        "device-to-device transfer: that mode is governed by separate rules, and without them it " +
+        "was on. Both paths are closed now — measurements and coordinates reach another phone only " +
+        "through your own backup from the settings."
 
     override val v0450Title = "The instrument gained help, the count rate a needle from the start"
     override val v0450Summary =

@@ -18,3 +18,7 @@ captures/
 report.txt
 *.png
 *.zip
+
+# Исключение: картинки README живут в репозитории и проверены на приватные
+# данные вручную (см. README_VERIFICATION.md).
+!docs/images/*.png

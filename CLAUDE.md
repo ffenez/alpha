@@ -19,19 +19,18 @@ Alpha — самостоятельное Android-приложение для д�
 
 ## Commands
 
-- Сборка: `JAVA_HOME=/home/dev/.local/jdk ./gradlew :app:assembleRelease` — **отдаётся только release**. Релизная сборка выходит неподписанной, поэтому её выравнивают и подписывают отладочным ключом (своего релизного ключа у проекта нет):
+- Сборка: `./gradlew :app:assembleRelease` — **отдаётся только release**. Релизная сборка выходит неподписанной, поэтому её выравнивают и подписывают отладочным ключом (своего релизного ключа у проекта нет):
 
   ```
-  BT=/home/dev/Android/sdk/build-tools/35.0.0
+  BT=$ANDROID_HOME/build-tools/35.0.0
   $BT/zipalign -f -p 4 app/build/outputs/apk/release/app-release-unsigned.apk /tmp/aligned.apk
-  JAVA_HOME=/home/dev/.local/jdk PATH=/home/dev/.local/jdk/bin:$PATH \
-    $BT/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android \
+  $BT/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android \
     --ks-key-alias androiddebugkey --out apk/app-release.apk /tmp/aligned.apk
   ```
 
   Debug-сборку (`:app:assembleDebug`, копируется в `apk/app-debug.apk`) собирают только под отладчик или логи и в `apk/` не оставляют.
-- Тесты: `JAVA_HOME=/home/dev/.local/jdk ./gradlew test` (JVM-тесты :protocol и :app)
-- Lint: `JAVA_HOME=/home/dev/.local/jdk ./gradlew :app:lintDebug`
+- Тесты: `./gradlew test` (JVM-тесты :protocol и :app)
+- Lint: `./gradlew :app:lintDebug`
 
 ## Правила, которые нельзя нарушать
 
@@ -135,10 +134,10 @@ Alpha — самостоятельное Android-приложение для д�
 ### Проверки перед «готово»
 
 ```
-JAVA_HOME=/home/dev/.local/jdk ./gradlew test
-JAVA_HOME=/home/dev/.local/jdk ./gradlew :app:smokeTest
-JAVA_HOME=/home/dev/.local/jdk ./gradlew :app:lintDebug
-JAVA_HOME=/home/dev/.local/jdk ./gradlew :app:assembleRelease
+./gradlew test
+./gradlew :app:smokeTest
+./gradlew :app:lintDebug
+./gradlew :app:assembleRelease
 ```
 
 Упавший тест на формулировку — сначала повод подумать, не сломано ли утверждение,
