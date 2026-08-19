@@ -42,11 +42,9 @@ object SpectrumExport {
 
     fun toRcSpectrum(
         entity: SpectrumSnapshotEntity,
-        serialNumber: String?,
         name: String,
     ): RcSpectrum = RcSpectrum(
         name = name,
-        serialNumber = serialNumber,
         a0 = entity.a0,
         a1 = entity.a1,
         a2 = entity.a2,
@@ -84,6 +82,9 @@ object SpectrumExport {
      * `SampleInfo/Note` always carries the processing metadata of spec §22
      * (normalization, background method, calibration, algorithm versions) —
      * it is built from the row itself, so no export path can omit it.
+     *
+     * [serialNumber] служит ТОЛЬКО источником названия модели
+     * ([modelFromSerial]); в документ он не попадает.
      */
     fun toResultData(
         entity: SpectrumSnapshotEntity,
@@ -100,9 +101,9 @@ object SpectrumExport {
             sampleNote = ProcessingMetadata.of(entity, appVersion).asText(),
             startMillis = entity.timestamp - entity.durationSeconds * 1000L,
             endMillis = entity.timestamp,
-            spectrum = toRcSpectrum(entity, serial, name),
+            spectrum = toRcSpectrum(entity, name),
             background = background?.let {
-                toRcSpectrum(it, serial, "Фон " + title(it, zone).removePrefix("Спектр "))
+                toRcSpectrum(it, "Фон " + title(it, zone).removePrefix("Спектр "))
             },
         )
     }

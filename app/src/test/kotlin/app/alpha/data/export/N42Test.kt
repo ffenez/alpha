@@ -59,7 +59,7 @@ class N42Test {
     @Test
     fun `document is well-formed with the N42-2011 namespace`() {
         val document = parse(
-            N42.write(foreground(), background(), "RC-110-000042", "RadiaCode-110",
+            N42.write(foreground(), background(), "RadiaCode-110",
                 "0.1.0-alpha", zone, uuid),
         )
         val root = document.documentElement
@@ -77,7 +77,7 @@ class N42Test {
     @Test
     fun `top-level element order follows the schema sequence`() {
         val document = parse(
-            N42.write(foreground(), background(), "RC-110-000042", "RadiaCode-110",
+            N42.write(foreground(), background(), "RadiaCode-110",
                 "0.1.0-alpha", zone, uuid),
         )
         val names = childElements(document.documentElement).map { it.localName }
@@ -96,15 +96,14 @@ class N42Test {
     }
 
     @Test
-    fun `instrument block carries manufacturer, serial, model, class and software`() {
+    fun `instrument block carries manufacturer, model, class and software`() {
         val root = parse(
-            N42.write(foreground(), null, "RC-110-000042", "RadiaCode-110",
+            N42.write(foreground(), null, "RadiaCode-110",
                 "0.1.0-alpha", zone, uuid),
         ).documentElement
         val info = assertNotNull(child(root, "RadInstrumentInformation"))
 
         assertEquals("RadiaCode", child(info, "RadInstrumentManufacturerName")?.textContent)
-        assertEquals("RC-110-000042", child(info, "RadInstrumentIdentifier")?.textContent)
         assertEquals("RadiaCode-110", child(info, "RadInstrumentModelName")?.textContent)
         assertEquals(
             "Spectroscopic Personal Radiation Detector",
@@ -189,8 +188,12 @@ class N42Test {
     }
 
     @Test
-    fun `omitted serial keeps the identifier out instead of inventing one`() {
-        val root = parse(N42.write(foreground(), zone = zone)).documentElement
+    fun `the instrument identifier is never written`() {
+        // <RadInstrumentIdentifier> по стандарту называет конкретный экземпляр
+        // прибора; выгружаемый файл предназначен для передачи.
+        val root = parse(
+            N42.write(foreground(), background(), "RadiaCode-110", "0.1.0-alpha", zone, uuid),
+        ).documentElement
         val info = assertNotNull(child(root, "RadInstrumentInformation"))
         assertNull(child(info, "RadInstrumentIdentifier"))
     }

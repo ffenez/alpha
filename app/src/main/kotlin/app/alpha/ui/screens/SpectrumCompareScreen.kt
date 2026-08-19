@@ -382,7 +382,6 @@ private fun intervalResultData(
     endMillis = outcome.endMillis,
     spectrum = RcSpectrum(
         name = label,
-        serialNumber = null,
         a0 = outcome.calibration.a0,
         a1 = outcome.calibration.a1,
         a2 = outcome.calibration.a2,

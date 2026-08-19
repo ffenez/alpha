@@ -62,7 +62,6 @@ class SpectrumValidationTest {
         assertEquals(3.8714128e-4f, s.a2, 1e-9f)
         // Фона в файле нет — и выдумывать его нельзя.
         assertNull(RcXml.parse(fixture).data.background)
-        assertNull(s.serialNumber)
     }
 
     @Test

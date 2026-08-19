@@ -18,7 +18,6 @@ class DebugReportTest {
         appVersion = "0.1.0-alpha",
         androidSdk = 34,
         deviceModel = "Google Pixel 7",
-        instrumentSerial = "RC-110-000123",
         instrumentFirmware = "4.8",
         instrumentModel = "RadiaCode-110",
         instrumentModelKnown = true,
@@ -198,14 +197,12 @@ class DebugReportTest {
             doseRateMicroSvH = null,
             countRate = null,
             sampleAgeSeconds = null,
-            instrumentSerial = null,
             instrumentFirmware = null,
             alarmConditionSinceMillis = null,
             aboveUsualSinceMillis = null,
         )
         val text = DebugReport.build(blank) { stamp(it) }
         assertTrue(text.contains("мощность дозы: — мкЗв/ч"), text)
-        assertTrue(text.contains("серийный номер: —"), text)
         assertTrue(text.contains("условие тревоги выполняется с: нет"), text)
     }
 
@@ -214,7 +211,6 @@ class DebugReportTest {
         // Разбор «не работает на другом приборе» невозможен без модели,
         // формата спектра, калибровки и причины отказа связи.
         val unknown = snapshot.copy(
-            instrumentSerial = "SN-777",
             instrumentModel = "RadiaCode",
             instrumentModelKnown = false,
             spectrumFormatVersion = 2,

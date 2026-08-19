@@ -19,6 +19,10 @@ to look — not a reminder to "be careful".
 - [ ] No developer paths: `git grep -nIE "/home/[a-z]+/|/Users/[A-Za-z]+/"`
 - [ ] No real device serial: `git grep -niE "serialnumber"` — fixtures must use
       the dummy `RC-101-000000`.
+- [ ] No export path writes a serial: `RcXml` must not emit `<SerialNumber>`,
+      `N42` must not emit `<RadInstrumentIdentifier>`, `DebugReport` must not
+      print one. Guarded by tests, listed here because a format field is easy
+      to re-add "for completeness".
 - [ ] Nothing new and non-source in history:
       `git log --all --diff-filter=A --name-only --pretty=format: | sort -u | grep -viE '\.(kt|kts|md|json|xml|txt|ttf|pro|properties|toml|jar|bat|html)$'`
 - [ ] Any image added since the last release passed `docs/images/README.md`

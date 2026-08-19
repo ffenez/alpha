@@ -41,6 +41,14 @@ spare-time project.
   switched on. The measurement service is not exported.
 - **File output.** Every export goes through the system file picker; the app
   does not write to shared storage on its own and ships no `FileProvider`.
+- **What an exported file says about you.** Spectra (RadiaCode XML, N42.42) and
+  the debug archive carry the instrument **model** but never its serial number,
+  even though both formats have a field for it — a serial identifies your unit
+  and an exported file is meant to be shared. The serial is still kept inside
+  the app, where it distinguishes one detector from another. The app's own
+  backup is the exception: it is your data going back to your phone, and it
+  keeps the serial so restored records stay attached to the right instrument.
+  Exports of tracks and routes contain coordinates by their nature.
 - **BLE.** The device link is unauthenticated by the protocol itself — anything
   in range that speaks it can present itself as a RadiaCode. The app treats
   device data as untrusted input, but cannot verify the device's identity.
