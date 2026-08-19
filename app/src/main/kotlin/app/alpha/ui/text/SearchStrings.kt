@@ -474,7 +474,7 @@ object SearchRu : SearchStrings {
 
     override val navWhy = "Почему?"
 
-    override val navWhyTitle = "Информация"
+    override val navWhyTitle = "Справка"
     override val navWhyNow = "Сейчас"
     override val navWhyReference = "Точка отсчёта"
     override val navWhyRatio = "Отношение к точке отсчёта"
@@ -515,7 +515,7 @@ object SearchRu : SearchStrings {
     override fun navReferenceSet(rate: String, time: String) = "Точка отсчёта: $rate · $time"
 
     override val navMarkUpdate = "Задать заново"
-    override val navMarkClear = "Удалить"
+    override val navMarkClear = "Остановить"
     override val navMore = "⋯"
     override val navResetPeak = "Сбросить максимум"
 
@@ -676,7 +676,7 @@ object SearchRu : SearchStrings {
         "тон: <300 кэВ — ниже · 300–1000 — обычный · >1000 — выше; " +
             "по среднему кэВ спектра за 5 с, без потока спектра — обычные клики"
 
-    override val whyTitle = "Информация"
+    override val whyTitle = "Справка"
 
     override val evidenceLegend =
         "Источник значения: изм. — измерено прибором · расчёт — арифметика из измерений · " +
@@ -868,7 +868,7 @@ object SearchEn : SearchStrings {
 
     override val navWhy = "Why?"
 
-    override val navWhyTitle = "Information"
+    override val navWhyTitle = "Help"
     override val navWhyNow = "Now"
     override val navWhyReference = "Reference point"
     override val navWhyRatio = "Ratio to the reference point"
@@ -910,7 +910,7 @@ object SearchEn : SearchStrings {
     override fun navReferenceSet(rate: String, time: String) = "Reference point: $rate · $time"
 
     override val navMarkUpdate = "Set again"
-    override val navMarkClear = "Delete"
+    override val navMarkClear = "Stop"
     override val navMore = "⋯"
     override val navResetPeak = "Reset the maximum"
 
@@ -1076,7 +1076,7 @@ object SearchEn : SearchStrings {
         "pitch: <300 keV — lower · 300–1000 — as usual · >1000 — higher; " +
             "by the mean keV of the spectrum over 5 s, without a spectrum stream — plain clicks"
 
-    override val whyTitle = "Information"
+    override val whyTitle = "Help"
 
     override val evidenceLegend =
         "Source of the value: meas. — measured by the instrument · calc. — arithmetic on " +

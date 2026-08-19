@@ -30,8 +30,20 @@ sealed interface SearchUiState {
     /** Прибор на связи, но свежего отсчёта нет — единственный случай «ждём». */
     data object WaitingForLiveData : SearchUiState
 
-    /** Данные идут, точки отсчёта нет: прибор пуст, стрелки нет, есть действие. */
-    data class LiveNoReference(val cps: Float) : SearchUiState
+    /**
+     * Данные идут, точки отсчёта нет.
+     *
+     * Стрелка всё равно стоит, если приложению есть с чем сравнивать само:
+     * [localRatio] — отношение короткого окна к предыдущему, тому самому
+     * «недавнему уровню», по которому уже считается направление. Пустой прибор
+     * до нажатия кнопки означал, что человек видит стрелку только после
+     * действия, хотя сравнение шло с первой секунды. Знаменатель при этом
+     * ДРУГОЙ, и экран обязан его называть.
+     */
+    data class LiveNoReference(
+        val cps: Float,
+        val localRatio: Double? = null,
+    ) : SearchUiState
 
     /**
      * Данные идут и точка отсчёта стоит.
@@ -50,11 +62,24 @@ sealed interface SearchUiState {
     /** Идёт ли поток прямо сейчас — общий признак для рисования. */
     val live: Boolean get() = this !is NoDevice && this !is WaitingForLiveData
 
-    /** Отношение к точке отсчёта; null — точки нет либо считать нечего. */
-    val ratioOrNull: Double? get() = (this as? ReferenceReady)?.ratio
+    /**
+     * Отношение, которое показывает стрелка; null — сравнивать не с чем.
+     *
+     * У поставленной точки отсчёта это отношение к ней, без неё — к недавнему
+     * уровню. Что именно в знаменателе, говорит [againstMark].
+     */
+    val ratioOrNull: Double?
+        get() = when (this) {
+            is ReferenceReady -> ratio
+            is LiveNoReference -> localRatio
+            else -> null
+        }
+
+    /** В знаменателе поставленная рукой точка, а не собственный расчёт приложения. */
+    val againstMark: Boolean get() = this is ReferenceReady
 
     /** Стоит ли стрелка. Ровно одно условие, и оно не про статистику. */
-    val needleVisible: Boolean get() = this is ReferenceReady
+    val needleVisible: Boolean get() = ratioOrNull != null
 
     /** Показывать ли большое действие «запомнить уровень». */
     val offersReference: Boolean get() = this is LiveNoReference
@@ -110,7 +135,16 @@ object SearchUiStates {
             return if (connected) SearchUiState.WaitingForLiveData else SearchUiState.NoDevice
         }
         val reference = navigate.reference?.ratePerSecond?.takeIf { it > 0.0 && it.isFinite() }
-            ?: return SearchUiState.LiveNoReference(cps!!)
+            ?: return SearchUiState.LiveNoReference(
+                cps = cps!!,
+                // Пока точки нет, знаменатель считает сам движок: короткое
+                // окно против предыдущего. Это то же сравнение, по которому
+                // уже показано направление, поэтому второй арифметики здесь
+                // не заводится.
+                localRatio = navigate.trendComparison?.ratio?.takeIf {
+                    it.isFinite() && it > 0.0
+                },
+            )
         // Числитель — лучшая оценка текущей скорости: короткое окно, если оно
         // набрано, иначе сам отсчёт. Ждать окна нельзя — стрелка обязана стоять
         // с первой секунды после того, как точка отсчёта поставлена.
