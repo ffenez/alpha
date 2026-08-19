@@ -25,7 +25,7 @@ object RuStrings : Strings {
     override val countRate = "Скорость счёта"
     override val hardness = "Жёсткость"
     override val trendPerHour = "Динамика"
-    override val scaleThresholdTick = "порог"
+    override val scaleThresholdTick = "L1"
     override val indicatorTitle = "Шкала прибора"
     override val indicatorDial = "Циферблат"
     override val indicatorBar = "Прямая"

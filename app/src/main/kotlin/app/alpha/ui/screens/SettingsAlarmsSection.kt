@@ -267,11 +267,9 @@ internal fun AlarmsSection(graph: AppGraph) {
                         color = colors.muted,
                     )
                 }
-                Text(
-                    text = strings.alarmSoundElsewhere,
-                    style = type.footnote,
-                    color = colors.muted,
-                )
+                // Где искать мелодию и вибрацию — подсказка по устройству
+                // настроек, а не состояние тревоги.
+                Hint(text = strings.alarmSoundElsewhere)
             }
         }
     }

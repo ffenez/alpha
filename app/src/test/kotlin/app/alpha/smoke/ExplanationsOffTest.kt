@@ -72,4 +72,24 @@ class ExplanationsOffTest {
         compose.showScreen(UiVariant.ALL.first()) { SettingsScreen(g, onBack = {}) }
         assertAnyVisible("раздел", "прибор", "вид")
     }
+
+    /** Ни одной строки не должно остаться на экране. */
+    private fun assertNoneVisible(vararg texts: String) {
+        val left = texts.filter {
+            compose.onAllNodesWithText(it, substring = true, ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(left.isEmpty(), "с выключенными пояснениями осталось: $left")
+    }
+
+    @Test
+    fun `alarms drop the tip about where the melody lives and keep the state`() {
+        val g = graph()
+        runBlocking { g.settings.setHintsVisible(false) }
+        compose.showScreen(UiVariant.ALL.first()) { SettingsScreen(g, onBack = {}) }
+        // Подсказка «мелодия и вибрация — в разделе Звук» учит устройству
+        // настроек и уходит вместе с пояснениями; сам порог и его число —
+        // основное и остаются.
+        assertNoneVisible("в разделе «Звук»")
+    }
 }

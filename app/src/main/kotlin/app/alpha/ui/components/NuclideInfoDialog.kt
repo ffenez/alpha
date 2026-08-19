@@ -154,7 +154,9 @@ private fun CardBody(model: NuclideCardModel, onShowOnSpectrum: ((Float) -> Unit
         model.ratio.forEach { line ->
             Text(text = line, style = type.footnote, color = colors.muted)
         }
-        Text(text = model.yieldNote, style = type.footnote, color = colors.muted)
+        // Что такое выход — определение термина; сами проценты линий
+        // остаются на экране при любом положении переключателя.
+        Hint(text = model.yieldNote)
     }
 
     // 3. Свойства нуклида — один компактный блок, без повторов происхождения.
