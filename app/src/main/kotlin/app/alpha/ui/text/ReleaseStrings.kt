@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0442Title: String
+    val v0442Summary: String
+
     val v0441Title: String
     val v0441Summary: String
 
@@ -396,6 +399,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0442Title = "Значок снова читается буквой"
+    override val v0442Summary =
+        "Пиксельная α занимала 84dp из 108 и вылезала за видимую область: маска лаунчера срезала " +
+        "ей верх и хвост, и на экране оставалась горсть клеток. Буква перерисована под ключевые " +
+        "линии значка и теперь узнаётся даже в самом мелком размере."
 
     override val v0441Title = "Накопленная доза встала на общую сетку"
     override val v0441Summary =
@@ -1269,6 +1278,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0442Title = "The icon reads as a letter again"
+    override val v0442Summary =
+        "The pixel α took 84dp of 108 and reached past the visible area: the launcher mask cut off " +
+        "its top and tail, leaving a handful of loose cells. The letter is redrawn to the icon " +
+        "keylines and now reads even at the smallest size."
 
     override val v0441Title = "Accumulated dose joins the common grid"
     override val v0441Summary =
