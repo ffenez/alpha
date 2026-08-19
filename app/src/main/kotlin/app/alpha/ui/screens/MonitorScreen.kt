@@ -928,9 +928,19 @@ internal fun HeroCard(
         animationSpec = Motion.normal(),
         label = "doseTint",
     )
+    // Пустой рамки не остаётся: выключенное число без предупреждения — это
+    // карточка ни о чём, и место она занимать не имеет права.
+    val alarmVisible = DoseAlarm.of(doseMicroSvH) != DoseAlarmLevel.NONE
+    if (!blocks.hero && !alarmVisible) return
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.heightIn(min = minContentHeight),
+            modifier = if (blocks.hero) {
+                Modifier.heightIn(min = minContentHeight)
+            } else {
+                // Без числа карточке незачем держать высоту экрана: она
+                // сжимается до самого предупреждения.
+                Modifier
+            },
             // Излишек высоты уходит НАД числом и ПОД строку состояния поровну:
             // растянутая карточка держит ту же вёрстку, только по центру.
             verticalArrangement = Arrangement.spacedBy(
@@ -941,6 +951,11 @@ internal fun HeroCard(
             // 1. Главная величина, по центру. За ней дышит свечение, пока
             // идут измерения ([BreathingAura]): движение здесь означает «поток
             // жив», и на замолчавшем приборе оно замирает.
+            //
+            // Число и плитки выключаются ОДНИМ блоком: плитки поясняют число,
+            // и без него они — подписи без подписи. Предупреждение об уровне
+            // ниже остаётся при любом положении выключателя.
+            if (blocks.hero) {
             BreathingAura(live = stream.live, tint = heroTint) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -1076,6 +1091,7 @@ internal fun HeroCard(
                         MetricTileBox(tile, Modifier.weight(1f))
                     }
                 }
+            }
             }
 
             // 3. Состояние фона во всю ширину. Красный — только подтверждённая
