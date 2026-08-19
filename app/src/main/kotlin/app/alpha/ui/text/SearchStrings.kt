@@ -146,6 +146,15 @@ interface SearchStrings {
     val navWhyReference: String
     val navWhyRatio: String
     val navWhyInterval: String
+
+    /**
+     * Минимально заметное превышение за набранное время и оговорка к нему.
+     *
+     * Отвечает на вопрос, который отказ оставляет открытым: «не подтверждено»
+     * при какой чувствительности.
+     */
+    val navWhyDetectable: String
+    val navWhyDetectableNote: String
     val navWhyIntervalNote: String
     val navWhyDifference: String
     val navWhyRecent: String
@@ -302,6 +311,14 @@ interface SearchStrings {
     val whyRatio: String
     val whyCriterion: String
     val whySignificance: String
+    /**
+     * Минимально заметное превышение за набранное время, оговорка к нему и
+     * оценка выдержки для уже наблюдаемого отношения.
+     */
+    val whyDetectable: String
+    fun detectableNote(sigmas: String): String
+    fun detectableTimeNote(ratio: String, seconds: String): String
+
     val whyScatter: String
     val whyHold: String
     val whyStream: String
@@ -462,6 +479,11 @@ object SearchRu : SearchStrings {
     override val navWhyReference = "Точка отсчёта"
     override val navWhyRatio = "Отношение к точке отсчёта"
     override val navWhyInterval = "Оценочный интервал"
+    override val navWhyDetectable = "Заметили бы превышение от"
+    override val navWhyDetectableNote =
+        "Меньшее превышение за это время неотличимо от статистики счёта: это граница " +
+            "чувствительности замера, а не утверждение о том, что здесь ничего нет. " +
+            "Дольше держите прибор — граница ниже."
     override val navWhyIntervalNote =
         "Значение 1× лежит внутри интервала: данных пока не хватает, чтобы " +
             "уверенно сказать, что уровень изменился."
@@ -675,6 +697,15 @@ object SearchRu : SearchStrings {
     override val whyRatio = "Отношение скоростей"
     override val whyCriterion = "Критерий"
     override val whySignificance = "Значимость"
+    override val whyDetectable = "Заметили бы превышение от"
+    override fun detectableNote(sigmas: String) =
+        "Граница различимости по Кюри при $sigmas σ для этих двух выдержек: меньшее " +
+            "превышение неотличимо от статистики счёта. Это чувствительность замера, а не " +
+            "утверждение о том, что здесь есть или чего здесь нет."
+    override fun detectableTimeNote(ratio: String, seconds: String) =
+        "Чтобы наблюдаемое ×$ratio стало отличимым от статистики, нужно около $seconds с " +
+            "при этом фоне."
+
     override val whyScatter = "Разброс показаний"
     override val whyHold = "Длительность отклонения"
     override val whyStream = "Поток данных"
@@ -842,6 +873,11 @@ object SearchEn : SearchStrings {
     override val navWhyReference = "Reference point"
     override val navWhyRatio = "Ratio to the reference point"
     override val navWhyInterval = "Estimated interval"
+    override val navWhyDetectable = "An excess would be seen from"
+    override val navWhyDetectableNote =
+        "A smaller excess is indistinguishable from counting statistics over this time: it " +
+            "is the sensitivity limit of the measurement, not a claim that there is nothing " +
+            "here. The longer you hold the instrument, the lower the limit."
     override val navWhyIntervalNote =
         "The value 1× lies inside the interval: there is not enough data yet " +
             "to say the level has changed."
@@ -1061,6 +1097,15 @@ object SearchEn : SearchStrings {
     override val whyRatio = "Rate ratio"
     override val whyCriterion = "Criterion"
     override val whySignificance = "Significance"
+    override val whyDetectable = "An excess would be seen from"
+    override fun detectableNote(sigmas: String) =
+        "Currie limit at $sigmas σ for these two exposures: a smaller excess is " +
+            "indistinguishable from counting statistics. It is the sensitivity of the " +
+            "measurement, not a statement about what is or is not here."
+    override fun detectableTimeNote(ratio: String, seconds: String) =
+        "Making the observed ×$ratio distinguishable from statistics takes about $seconds s " +
+            "at this background."
+
     override val whyScatter = "Scatter of the readings"
     override val whyHold = "Length of the difference"
     override val whyStream = "Data stream"
@@ -1161,7 +1206,7 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     navConfidenceNoDifference,
     navConfidenceAbove, navConfidenceBelow, navReferenceRow("23,6", "21:48"),
     navSetupTitle, navSetupBody, navWhy, navWhyTitle, navWhyNow, navWhyReference, navWhyRatio,
-    navWhyInterval, navWhyIntervalNote, navWhyDifference, navWhyRecent, navWhyRecentNote,
+    navWhyInterval, navWhyDetectable, navWhyDetectableNote, navWhyIntervalNote, navWhyDifference, navWhyRecent, navWhyRecentNote,
     navWhyWindows, navWhyCriterion, navWhyCriterionValue("1"), navWhyCriterionNote, navWhyLimit,
     navTrendLine(navTrendNoChange, "1,01×"), navPeakValue("47,6", 18), navTraceStart, navMark, navReferenceSet("26,0", "11:44"), navMarkUpdate, navMarkClear,
     navMore, navResetPeak, navMeasureHere(10), navSpotProgress(6, 10), navSpotNote,
@@ -1185,10 +1230,12 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     channelTone, channelVibro, channelFeedback,    energyToneHint, energyToneScale,
     whyTitle, evidenceLegend, understood, spikes(2, "×4,2"),
     whyCountRateNow, whyBackground, whyComparison, whyDecisionWindow, whyBackgroundWindow,
-    whyDifference, whyRatio, whyCriterion, whySignificance, whyScatter, whyHold, whyStream,
+    whyDifference, whyRatio, whyCriterion, whySignificance, whyDetectable, whyScatter,
+    whyHold, whyStream,
     whyShape,
     valueNoData, valueNotRecorded, valueNotPerformed, valueScatterNotEvaluated, valueNoHold,
     valueStreamRunning, valueStreamBroken, valueShapeNotEvaluated,
+    detectableNote("1,65"), detectableTimeNote("1,15", "90"),
     backgroundWindowNote("0,5", 45, "45,0", qualityGood),
     secondsValue("2,8"),
     noBackgroundToCompare, noReadingsInWindow, countsInWindow("180", 3), counts("180"),

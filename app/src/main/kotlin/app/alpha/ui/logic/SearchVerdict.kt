@@ -4,6 +4,7 @@ import app.alpha.ui.text.RuStrings
 import app.alpha.ui.text.SearchRu
 import app.alpha.ui.text.SearchStrings
 import app.alpha.ui.text.Strings
+import app.alpha.analysis.DetectionLimitsMath
 import app.alpha.analysis.Dispersion
 import app.alpha.analysis.RateComparisonResult
 import app.alpha.analysis.RateTest
@@ -242,6 +243,29 @@ object SearchVerdict {
                 z = comparison.zEquivalent?.let { num2(it) },
             ),
         )
+        // Чувствительность этого замера. Без неё «превышение не подтверждено»
+        // не имеет границы: за десять секунд не подтверждается почти ничто.
+        DetectionLimitsMath.of(comparison.current, comparison.background)?.let { limits ->
+            val detectable = limits.detectableRatio?.takeIf { it.isFinite() } ?: return@let
+            lines += WhyLine(
+                label = t.whyDetectable,
+                value = "×${num2(detectable)}",
+                evidence = Evidence.STATISTICALLY_DETECTED,
+                critical = t.detectableNote(
+                    sigmas = num2(DetectionLimitsMath.DEFAULT_SIGMAS),
+                ),
+                // Целевое отношение здесь — НАБЛЮДАЕМОЕ, а не выдуманное:
+                // сколько нужно стоять, чтобы то, что уже видно, стало
+                // отличимо от статистики счёта.
+                note = comparison.ratio
+                    .takeIf { it.isFinite() && it > 1.0 && it < detectable }
+                    ?.let { observed ->
+                        DetectionLimitsMath
+                            .secondsFor(limits.backgroundRate, observed)
+                            ?.let { t.detectableTimeNote(num2(observed), num0(it)) }
+                    },
+            )
+        }
         lines += WhyLine(
             label = t.whyScatter,
             value = comparison.fanoFactor?.let { "F = ${num2(it)}" } ?: t.valueScatterNotEvaluated,

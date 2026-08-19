@@ -71,6 +71,8 @@ import app.alpha.ui.components.ConfirmDialog
 import app.alpha.ui.components.EntityHeader
 import app.alpha.ui.components.DisclosureArrow
 import app.alpha.ui.components.EntityMenuItem
+import app.alpha.ui.text.EfficiencyCatalogue
+import app.alpha.ui.text.EfficiencyStrings
 import app.alpha.ui.text.ExportStrings
 import app.alpha.ui.text.Strings
 import app.alpha.ui.components.RenameDialog
@@ -96,6 +98,8 @@ import app.alpha.ui.logic.involves
 import app.alpha.ui.logic.primaryNuclide
 import app.alpha.ui.logic.SpectrumHighlight
 import app.alpha.ui.logic.Evidence
+import app.alpha.ui.logic.EfficiencyRecord
+import app.alpha.ui.logic.ScaleCorrectionRecord
 import app.alpha.ui.logic.SpectrumFormat
 import app.alpha.ui.logic.SpectrumBackgroundView
 import app.alpha.ui.logic.SpectrumFrames
@@ -297,6 +301,12 @@ fun SpectrumScreen(
         SpectrumSource.NONE -> null
     }
     val connected = connection is ConnectionState.Connected
+
+    // Эталонный источник — действие над ТЕМ спектром, что на экране: он и
+    // задаёт время накопления, шкалу и найденные линии.
+    var referenceOpen by remember { mutableStateOf(false) }
+    val efficiencyRaw by graph.settings.efficiencyRaw.collectAsState(initial = null)
+    val efficiencyRecord = remember(efficiencyRaw) { EfficiencyRecord.decode(efficiencyRaw) }
 
     // Полноэкранный режим: поле владеет экраном, остальное — панелями поверх.
     // Показывать нечего — режим закрывает сам себя.
@@ -534,6 +544,7 @@ fun SpectrumScreen(
                     t = t,
                     strings = strings,
                     export = exportStrings,
+                    efficiency = EfficiencyCatalogue.of(strings.language),
                     hasSpectrum = spectrum != null,
                     connected = connected,
                     onSnapshot = { onSaveMerged?.invoke() ?: hub.request(SpectrumHub.Command.SAVE_SNAPSHOT) },
@@ -541,6 +552,7 @@ fun SpectrumScreen(
                     onExport = { exportingLive = true },
                     onImport = { importingLive = true },
                     onTechnical = { technicalOpen = true },
+                    onReference = { referenceOpen = true },
                     onHelp = { helpOpen = true },
                     onReset = { confirmReset = true },
                 ),
@@ -618,6 +630,30 @@ fun SpectrumScreen(
                 onCloseTechnical = { technicalOpen = false },
                 helpOpen = helpOpen,
                 onCloseHelp = { helpOpen = false },
+            )
+        }
+
+        if (referenceOpen) {
+            EfficiencySheet(
+                counts = spectrum?.counts,
+                seconds = spectrum?.durationSeconds ?: 0L,
+                calibration = spectrum?.let {
+                    EnergyCalibration(it.a0, it.a1, it.a2)
+                },
+                // У снимка это его время, у живого накопления — сейчас: распад
+                // эталона считается на МОМЕНТ измерения, а не на момент, когда
+                // спектр открыли.
+                measuredAtMillis = snapshotEntity?.timestamp ?: System.currentTimeMillis(),
+                model = SpectrumSources.analysisModel(
+                    connectedModel = (connection as? ConnectionState.Connected)?.info?.model,
+                    viewingSnapshot = viewing,
+                ),
+                existing = efficiencyRecord,
+                onSave = { record ->
+                    scope.launch { graph.settings.setEfficiencyRaw(record.encode()) }
+                    referenceOpen = false
+                },
+                onDismiss = { referenceOpen = false },
             )
         }
 
@@ -858,6 +894,10 @@ private fun SpectrumContent(
         )
     }
     var smoothing by rememberSaveable { mutableStateOf(false) }
+    // Континуум — способ ПОСМОТРЕТЬ, как выглядит подложка; он не
+    // участвует ни в одном выводе о спектре, поэтому живёт рядом со
+    // сглаживанием, а не в настройках.
+    var continuumOn by rememberSaveable { mutableStateOf(false) }
     var window by remember { mutableStateOf<EnergyWindow?>(null) }
 
     val backgroundEntity by graph.measurementRepository.backgroundReference()
@@ -867,8 +907,17 @@ private fun SpectrumContent(
     val subtractOn = backgroundView.subtract && hasBackground
     val overlayOn = backgroundView.overlay && hasBackground
 
-    val calibration = remember(spectrum.a0, spectrum.a1, spectrum.a2) {
-        EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2)
+    // Принятая поправка шкалы складывается с калибровкой прибора ЗДЕСЬ, в
+    // одном месте: дальше весь экран — график, пики, сопоставление линий —
+    // работает с одной и той же шкалой. Проверка калибровки при этом
+    // по-прежнему смотрит на СЫРУЮ шкалу прибора: она диагностирует прибор.
+    val correctionRaw by graph.settings.scaleCorrectionRaw.collectAsState(initial = null)
+    val correction = remember(correctionRaw) {
+        ScaleCorrectionRecord.decode(correctionRaw)?.correction()
+    }
+    val calibration = remember(spectrum.a0, spectrum.a1, spectrum.a2, correction) {
+        val instrument = EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2)
+        correction?.applyTo(instrument) ?: instrument
     }
     // Разрешение — свойство кристалла прибора: у 103G 7,4 %, у 103 и 110
     // 8,4 %. Ширина окна поиска пиков и допуск на совпадение линии
@@ -946,7 +995,7 @@ private fun SpectrumContent(
     // меняются: «минус фон» с нормировкой по времени и сглаживание —
     // преобразования показа.
     val frame = remember(
-        spectrum, background, subtractOn, smoothing, window, scale, overlayOn,
+        spectrum, background, subtractOn, smoothing, continuumOn, window, scale, overlayOn,
     ) {
         SpectrumFrames.build(
             counts = spectrum.counts,
@@ -958,6 +1007,8 @@ private fun SpectrumContent(
             subtract = subtractOn,
             overlayBackground = overlayOn,
             smoothing = smoothing,
+            continuum = continuumOn,
+            resolution662 = model.peakResolution662,
             scale = scale,
         )
     }
@@ -1090,6 +1141,7 @@ private fun SpectrumContent(
                 spec = SpectrumChartSpec(
                     columns = columns,
                     overlay = overlayColumns,
+                    continuum = frame.continuum,
                     scale = scale,
                     yTop = yTop,
                     peaks = peakMarks,
@@ -1124,6 +1176,7 @@ private fun SpectrumContent(
                                 minusBackground = subtractOn,
                                 overlayBackground = overlayOn,
                                 smoothing = smoothing,
+                                continuum = continuumOn,
                                 window = visible,
                                 // Энергию вне шкалы прибора нести некуда.
                                 highlightKeV = aliveMark
@@ -1180,6 +1233,12 @@ private fun SpectrumContent(
                             selected = smoothing,
                             onClick = { smoothing = !smoothing },
                         )
+                        Chip(
+                            text = t.continuumChip,
+                            color = if (continuumOn) colors.dataText else colors.ink2,
+                            selected = continuumOn,
+                            onClick = { continuumOn = !continuumOn },
+                        )
                     }
                 },
             )
@@ -1187,6 +1246,18 @@ private fun SpectrumContent(
             // графиком. Масштаб меняется щипком; двойной тап на полном экране
             // возвращает всю шкалу.
             Column(modifier = Modifier.padding(horizontal = Dimens.space1)) {
+                // Поправка шкалы меняет физический смысл подписей оси, поэтому
+                // стоит НА КАРТИНКЕ и видна всегда, а не только при пояснениях.
+                if (correction != null) {
+                    Text(
+                        text = t.scaleCorrected,
+                        style = type.footnote,
+                        color = colors.warn,
+                    )
+                }
+                // Пунктир без объяснения читался бы как вывод о спектре;
+                // строка — пояснение и прячется вместе с ними.
+                if (continuumOn) Hint(t.continuumHint)
                 // Отметка объясняет себя строкой: пунктир без подписи читался
                 // бы как вывод о спектре. Строка живёт столько же, сколько
                 // отметка.
@@ -1391,6 +1462,7 @@ internal fun liveSpectrumMenu(
     t: SpectrumStrings,
     strings: Strings,
     export: ExportStrings,
+    efficiency: EfficiencyStrings,
     hasSpectrum: Boolean,
     connected: Boolean,
     onSnapshot: () -> Unit,
@@ -1398,6 +1470,7 @@ internal fun liveSpectrumMenu(
     onExport: () -> Unit,
     onImport: () -> Unit,
     onTechnical: () -> Unit,
+    onReference: () -> Unit,
     onHelp: () -> Unit,
     onReset: () -> Unit,
 ): List<EntityMenuItem> = listOf(
@@ -1406,6 +1479,7 @@ internal fun liveSpectrumMenu(
     EntityMenuItem(export.export, enabled = hasSpectrum, onClick = onExport),
     EntityMenuItem(strings.importAction, onClick = onImport),
     EntityMenuItem(t.technicalTitle, enabled = hasSpectrum, onClick = onTechnical),
+    EntityMenuItem(efficiency.sheetTitle, enabled = hasSpectrum, onClick = onReference),
     EntityMenuItem(t.infoTitle, onClick = onHelp),
     EntityMenuItem(t.resetAccumulation, enabled = connected, onClick = onReset),
 )

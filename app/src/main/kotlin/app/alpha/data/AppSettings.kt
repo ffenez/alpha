@@ -279,6 +279,37 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         }
     }
 
+    /**
+     * Калибровка эффективности регистрации ([app.alpha.ui.logic.EfficiencyRecord]).
+     *
+     * Хранится сырой строкой по той же причине, что и измеренное разрешение:
+     * разбирает её чистый JVM-код, проверяемый без Android.
+     */
+    val efficiencyRaw: Flow<String?> = dataStore.data.map { it[EFFICIENCY] }
+
+    /** `null` — калибровки нет, и активность нигде не называется. */
+    suspend fun setEfficiencyRaw(encoded: String?) {
+        dataStore.edit { prefs ->
+            if (encoded == null) prefs.remove(EFFICIENCY) else prefs[EFFICIENCY] = encoded
+        }
+    }
+
+    /**
+     * Принятая поправка энергетической шкалы
+     * ([app.alpha.ui.logic.ScaleCorrectionRecord]).
+     *
+     * `null` — шкала показывается как её отдаёт прибор.
+     */
+    val scaleCorrectionRaw: Flow<String?> = dataStore.data.map { it[SCALE_CORRECTION] }
+
+    suspend fun setScaleCorrectionRaw(encoded: String?) {
+        dataStore.edit { prefs ->
+            if (encoded == null) prefs.remove(SCALE_CORRECTION) else {
+                prefs[SCALE_CORRECTION] = encoded
+            }
+        }
+    }
+
     /** Язык интерфейса; `system` = язык телефона. */
     val language: Flow<AppLanguage> =
         dataStore.data.map { AppLanguage.of(it[LANGUAGE]) }
@@ -764,6 +795,8 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")
         private val DEBUG_REPORT = booleanPreferencesKey("debug_report")
         private val MEASURED_RESOLUTION = stringPreferencesKey("measured_resolution")
+        private val EFFICIENCY = stringPreferencesKey("efficiency_curve")
+        private val SCALE_CORRECTION = stringPreferencesKey("scale_correction")
         private val CHART_SPANS = stringPreferencesKey("chart_spans")
 
         /** «dose:21600000,cps:3600000» — плоский формат, читается тестом. */

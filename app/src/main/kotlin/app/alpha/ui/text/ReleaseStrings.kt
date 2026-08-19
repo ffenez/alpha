@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0410Title: String
+    val v0410Summary: String
+
     val v0400Title: String
     val v0400Summary: String
 
@@ -372,6 +375,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0410Title = "Спектр научился говорить в беккерелях"
+    override val v0410Summary =
+        "По эталонному источнику строится кривая эффективности, и у линии появляется " +
+        "активность с неопределённостью или верхняя граница; центр линии берётся из " +
+        "подогнанной формы с хвостом, под спектром можно показать континуум, а шкалу — " +
+        "поправить по опорным линиям, увидев «до и после». В Поиске появилась граница " +
+        "чувствительности: какое превышение вообще было бы замечено за набранное время."
 
     override val v0400Title = "Отклик работает в кармане"
     override val v0400Summary =
@@ -1189,6 +1200,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0410Title = "The spectrum learned to speak in becquerels"
+    override val v0410Summary =
+        "A reference source builds an efficiency curve, and a line gets an activity with its " +
+        "uncertainty or an upper bound; the line centre now comes from a fitted tailed shape, " +
+        "the continuum can be drawn under the spectrum, and the energy scale can be corrected " +
+        "from reference lines with a before-and-after. Search gained a sensitivity limit: what " +
+        "excess would have been seen in the time collected."
 
     override val v0400Title = "The feedback works from a pocket"
     override val v0400Summary =
