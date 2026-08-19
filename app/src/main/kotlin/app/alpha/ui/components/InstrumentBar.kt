@@ -153,19 +153,6 @@ fun InstrumentBar(
                 end = Offset(at, axisY + trackWidth),
                 strokeWidth = 2.dp.toPx(),
             )
-            if (threshold != spec.threshold) continue
-            spec.thresholdLabel?.let { text ->
-                val measured = textMeasurer.measure(text, axisStyle)
-                drawText(
-                    textLayoutResult = measured,
-                    color = color,
-                    topLeft = Offset(
-                        (at - measured.size.width / 2f)
-                            .coerceIn(0f, size.width - measured.size.width),
-                        axisY + trackWidth + 3.dp.toPx(),
-                    ),
-                )
-            }
         }
 
         // Маркер показания — чернильная риска поверх заливки, как стрелка у
