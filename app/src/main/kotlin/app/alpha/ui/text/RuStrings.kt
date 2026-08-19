@@ -666,6 +666,7 @@ object RuStrings : Strings {
             "остальное — по вашему выбору."
     override val blockTrend = "Тренд/ч"
     override val blockDoseToday = "Доза сегодня"
+    override val blockDoseChart = "График мощности дозы"
     override val blockCountChart = "График скорости счёта"
     override val blockHardnessChart = "График жёсткости"
     override val blockStats = "Статистика под графиком (мин/медиана/макс/SD/n)"

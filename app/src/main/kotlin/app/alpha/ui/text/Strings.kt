@@ -638,6 +638,7 @@ interface Strings {
     val monitorBlocksNote: String
     val blockTrend: String
     val blockDoseToday: String
+    val blockDoseChart: String
     val blockCountChart: String
     val blockHardnessChart: String
     val blockStats: String
@@ -824,7 +825,7 @@ fun Strings.allTexts(): List<String> = listOf(
     atLeastOneTab,
     colorsTitle, homeLayoutTitle, hintsNote, doseTintNote,
     monitorBlocksNote, blockTrend, blockDoseToday,
-    blockCountChart, blockHardnessChart, blockStats,
+    blockDoseChart, blockCountChart, blockHardnessChart, blockStats,
     resetInterface, visible, hidden,
     onShort, offShort, licencesUnreadable,
     licencesTitle, licencesBody, hideLicences,

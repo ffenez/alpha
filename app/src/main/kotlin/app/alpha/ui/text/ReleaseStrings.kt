@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0421Title: String
+    val v0421Summary: String
+
     val v0420Title: String
     val v0420Summary: String
 
@@ -384,6 +387,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0421Title = "График на Главной остаётся там, куда его увели"
+    override val v0421Summary =
+        "Сдвинутый в прошлое мини-график отскакивал обратно к «сейчас»: инерция после отпускания " +
+        "пальца считала сдвиг от окна, каким оно было ДО жеста. Заодно график мощности дозы " +
+        "теперь выключается в настройках, как и остальные блоки Главной."
 
     override val v0420Title = "Журнал стал журналом, а не логом детектора"
     override val v0420Summary =
@@ -1230,6 +1239,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0421Title = "The card chart stays where it was dragged"
+    override val v0421Summary =
+        "A mini chart dragged into the past sprang back to «now»: after the finger lifted, the " +
+        "inertia measured its shift from the window as it was BEFORE the gesture. The dose rate " +
+        "chart can also be switched off in settings now, like the other blocks of Главная."
 
     override val v0420Title = "The journal is a journal, not a detector log"
     override val v0420Summary =
