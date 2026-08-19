@@ -192,6 +192,14 @@ class MeasurementService : Service() {
     @Volatile
     private var episodeFlushedAt = 0L
 
+    /**
+     * Писать ли эпизоды в журнал. Тревога от этого не зависит: звук и
+     * вибрация нужны В МОМЕНТ превышения, запись — чтобы вернуться к нему
+     * потом, и выключается только второе.
+     */
+    @Volatile
+    private var journalEpisodes = true
+
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph.get(this)
@@ -248,6 +256,9 @@ class MeasurementService : Service() {
         }
         scope.launch {
             graph.settings.doseUnit.collect { doseUnit = it }
+        }
+        scope.launch {
+            graph.settings.journalEpisodes.collect { journalEpisodes = it }
         }
         scope.launch {
             graph.settings.language.collect { setting ->
@@ -520,6 +531,7 @@ class MeasurementService : Service() {
             is LevelEventTransition.Opened -> {
                 episodeFlushedAt = nowMillis
                 postEpisodeNotification(transition.event)
+                if (!journalEpisodes) return
                 scope.launch {
                     val id = graph.measurementRepository.openEpisode(transition.event)
                     synchronized(alarmLock) { episodeRowId = id }

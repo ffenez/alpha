@@ -95,6 +95,39 @@ class DosePeriodTest {
     }
 
     @Test
+    fun `короткая история названа короткой`() {
+        // Двое суток измерений при выбранных тридцати: все три периода дадут
+        // одно число, и экран обязан сказать почему.
+        val days = List(28) { day(0f, 0.0) } + day(1f, 24.0) + day(1f, 24.0)
+        val month = DosePeriods.of(days, 30, fullDay)
+        assertTrue(month.shorterThanPeriod, "история короче периода не отмечена")
+        assertEquals(2, month.measuredDays)
+
+        // Ровно столько суток, сколько период: оговорки быть не должно.
+        val full = DosePeriods.of(List(7) { day(1f, 24.0) }, 7, fullDay)
+        assertTrue(!full.shorterThanPeriod)
+
+        // Измерений нет вовсе — говорить «за 0 суток из 30» незачем: об этом
+        // уже сказало пустое поле графика.
+        val empty = DosePeriods.of(List(7) { day(0f, 0.0) }, 7, fullDay)
+        assertTrue(!empty.shorterThanPeriod)
+    }
+
+    @Test
+    fun `годовая оценка растягивает средние полные сутки`() {
+        val days = listOf(day(3.0f, 24.0), day(3.0f, 24.0), day(0.1f, 0.5))
+        val period = DosePeriods.of(days, 7, fullDay)
+        // 3,0 мкЗв в сутки × 365 = 1095 мкЗв; огрызок в оценку не входит.
+        assertEquals(1095f, period.projectedYearMicroSv!!, 0.5f)
+    }
+
+    @Test
+    fun `без полных суток годовой оценки нет`() {
+        val days = listOf(day(0.1f, 1.0), day(0.2f, 2.0))
+        assertNull(DosePeriods.of(days, 7, fullDay).projectedYearMicroSv)
+    }
+
+    @Test
     fun `переключение периода меняет число, а не только картинку`() {
         val days = List(30) { day(1.0f, 24.0) }
         val week = DosePeriods.of(days, 7, fullDay)

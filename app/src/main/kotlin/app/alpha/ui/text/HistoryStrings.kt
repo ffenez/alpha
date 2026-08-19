@@ -85,6 +85,9 @@ interface HistoryStrings {
     val averageFullDay: String
     val maxDay: String
     val tapDayHint: String
+    fun measuredOnlyDays(measured: Int, period: Int): String
+    fun projectedYear(dose: String): String
+    val projectedYearNote: String
 
     /** Заголовок раскрываемой годовой оценки — условие, а не термин. */
 
@@ -308,6 +311,12 @@ object HistoryRu : HistoryStrings {
     override val averageFullDay = "в среднем за полные сутки"
     override val maxDay = "больше всего за сутки"
     override val tapDayHint = "Нажмите на столбец, чтобы увидеть день."
+    override fun measuredOnlyDays(measured: Int, period: Int) =
+        "измерения есть за $measured ${plural(measured, "сутки", "суток", "суток")} из $period — " +
+            "поэтому за более длинные периоды выходит то же число"
+    override fun projectedYear(dose: String) = "при таком уровне за год ≈ $dose"
+    override val projectedYearNote = "Оценка, а не измерение: средние полные сутки, растянутые " +
+        "на 365 дней. Настоящая доза зависит от того, где вы будете и сколько времени."
 
     override fun mergedPieces(pieces: Int, gap: String) = "с перерывами · $gap без записи"
     override fun startedAt(moment: String) = "начата $moment"
@@ -541,6 +550,12 @@ object HistoryEn : HistoryStrings {
     override val averageFullDay = "average over full days"
     override val maxDay = "most in a day"
     override val tapDayHint = "Tap a bar to see the day."
+    override fun measuredOnlyDays(measured: Int, period: Int) =
+        "measurements cover $measured of $period days — this is why longer periods give the " +
+            "same number"
+    override fun projectedYear(dose: String) = "at this level a year comes to ≈ $dose"
+    override val projectedYearNote = "An estimate, not a measurement: an average full day " +
+        "stretched over 365 days. The real dose depends on where you are and for how long."
 
     override fun mergedPieces(pieces: Int, gap: String) = "with breaks · $gap not recorded"
     override fun startedAt(moment: String) = "started $moment"
@@ -741,7 +756,8 @@ fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
     doseGlance("2,36", "2,36", "2,36"), days90,
     forDays(30), measuredWithCoverage("49 ч 46 мин", "6,9"),
     dayDose("18 авг", "2,32 мкЗв", "15 ч 47 мин"), dayWithoutData,
-    averageFullDay, maxDay, tapDayHint, mergedPieces(3, "12 мин"), infoTitle,
+    averageFullDay, maxDay, tapDayHint,
+    measuredOnlyDays(2, 30), projectedYear("1,2 мЗв"), projectedYearNote, mergedPieces(3, "12 мин"), infoTitle,
     doseProjection("1,4 мЗв"), doseProjectionBasis("0,155", hours(23)),
     doseProjectionCaveatShort, doseProjectionCaveat, doseProjectionUnavailable(minutes(12)),
     delete, deleteCount(3), deleteSelectedTitle, deleteSpectraTitle(2), deleteSessionsTitle(3),

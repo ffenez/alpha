@@ -467,6 +467,10 @@ object EnStrings : Strings {
     override val energyTone = "pitch by energy"
     override val energyToneNote = "click pitch follows the mean gamma energy"
     override val alarmTitle = "Alarm"
+    override val journalEpisodes = "Record excesses in the journal"
+    override val journalEpisodesNote =
+        "Every excess stays in History as one record: start, end and range. Switched off, the " +
+            "alarm still sounds but nothing is written down."
     override val alarmVibration = "Vibrate on excess"
     override val alarmVibrationNote =
         "The phone vibrates on the threshold set here, without waiting for the system " +

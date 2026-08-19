@@ -471,6 +471,8 @@ interface Strings {
     /** Вибрация телефона по порогу, заданному в приложении. */
     val alarmVibration: String
     val alarmVibrationNote: String
+    val journalEpisodes: String
+    val journalEpisodesNote: String
     val archiveSaved: String
     val archiveFailed: String
     val debugTitle: String
@@ -755,7 +757,7 @@ fun Strings.allTexts(): List<String> = listOf(
     cancel, edgeCounts("8 421"),
     noSpectrumBackground,
     sessionsCount(12), selectAll, clearAll, selectedCount(3), readingJournal, noSessionsYet,
-    sessionExplained, showMore, accumulatedDose, days7, days30, doseProjection, noProfile,
+    sessionExplained, showMore, journalEpisodes, journalEpisodesNote, accumulatedDose, days7, days30, doseProjection, noProfile,
     runningCannotDelete, running, avg, max, dose, track, spectrum, flight,
     noSamplesInSession, profileEllipsis, sessionProfileTitle, sessionProfileBody("12:00"),
     deviation, excursionPoint, usually, fileSaved, spectraTitle, compare,

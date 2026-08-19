@@ -63,7 +63,11 @@ import kotlinx.coroutines.withContext
  * ## Что здесь есть и чего нет
  *
  * Есть накопленное по измерениям, время, за которое это накоплено, и его доля
- * от периода. Нет ни годовой оценки, ни проекции: «мЗв/год» рядом с
+ * от периода.
+ *
+ * Годовая оценка есть, но ОТДЕЛЬНОЙ карточкой и названа оценкой: год никто не
+ * мерил, это средние полные сутки, растянутые на 365 дней. Стоять рядом с
+ * измеренным числом она не имеет права — «мЗв/год» в одной строке с
  * накопленным читается как измеренная доза человека, чем она не является.
  */
 @Composable
@@ -135,6 +139,18 @@ fun DoseScreen(graph: AppGraph, onBack: () -> Unit) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = Dimens.space1),
                 )
+                // Пока история короче периода, все три периода дают одно
+                // число — и это верно: складывать больше нечего. Сказать это
+                // обязано САМО ЧИСЛО, иначе три одинаковых значения читаются
+                // как поломка.
+                if (period.shorterThanPeriod) {
+                    Text(
+                        text = h.measuredOnlyDays(period.measuredDays, periodDays),
+                        style = type.footnote,
+                        color = colors.warn,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
         }
 
@@ -209,6 +225,27 @@ fun DoseScreen(graph: AppGraph, onBack: () -> Unit) {
                     }
                 } else {
                     Text(text = strings.noData, style = type.bodySmall, color = colors.muted)
+                }
+            }
+        }
+
+        // Оценка стоит ОТДЕЛЬНО от измеренного и подписана оценкой: год
+        // никто не мерил, это средние полные сутки, растянутые на 365 дней.
+        period.projectedYearMicroSv?.let { year ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = h.projectedYear(
+                            DoseFormat.doseWithUnit(year.toDouble(), unit, strings),
+                        ),
+                        style = type.bodySmall,
+                        color = colors.ink2,
+                    )
+                    Hint(
+                        text = h.projectedYearNote,
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
                 }
             }
         }

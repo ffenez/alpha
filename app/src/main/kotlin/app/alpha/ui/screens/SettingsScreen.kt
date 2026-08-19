@@ -724,6 +724,14 @@ private fun SoundSection(graph: AppGraph) {
                 onChange = { on -> scope.launch { graph.settings.setAlarmVibration(on) } },
             )
             SettingsDivider()
+            val journal by graph.settings.journalEpisodes.collectAsState(initial = true)
+            SwitchSettingRow(
+                title = strings.journalEpisodes,
+                subtitle = strings.journalEpisodesNote,
+                checked = journal,
+                onChange = { on -> scope.launch { graph.settings.setJournalEpisodes(on) } },
+            )
+            SettingsDivider()
             AlarmSoundRow()
         }
     }
