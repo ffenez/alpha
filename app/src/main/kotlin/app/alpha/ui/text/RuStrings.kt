@@ -304,7 +304,6 @@ object RuStrings : Strings {
     override val showMore = "Показать ещё"
     override val accumulatedDose = "Накопленная доза"
 
-    override fun todayWithUnit(unit: String) = "сегодня, $unit"
 
     override val days7 = "7 дней"
     override val days30 = "30 дней"

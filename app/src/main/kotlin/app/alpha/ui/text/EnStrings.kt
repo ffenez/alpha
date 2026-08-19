@@ -304,7 +304,6 @@ object EnStrings : Strings {
     override val showMore = "Show more"
     override val accumulatedDose = "Accumulated dose"
 
-    override fun todayWithUnit(unit: String) = "today, $unit"
 
     override val days7 = "7 days"
     override val days30 = "30 days"

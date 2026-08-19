@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0430Title: String
+    val v0430Summary: String
+
     val v0421Title: String
     val v0421Summary: String
 
@@ -387,6 +390,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0430Title = "Накопленная доза отвечает за выбранный период"
+    override val v0430Summary =
+        "Переключатель 7 / 30 / 90 суток теперь меняет весь экран: главным числом стоит доза " +
+        "именно за выбранный период, а рядом — за сколько измеренного времени она набралась и " +
+        "какую долю периода это составляет. Столбики — календарные сутки, нажатие показывает " +
+        "дозу и запись за день, а дни без измерений остаются пустыми, а не нулевыми."
 
     override val v0421Title = "График на Главной остаётся там, куда его увели"
     override val v0421Summary =
@@ -1239,6 +1249,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0430Title = "Accumulated dose answers for the chosen period"
+    override val v0430Summary =
+        "The 7 / 30 / 90 day switch now drives the whole screen: the headline is the dose over " +
+        "the chosen period, next to how much measured time it took and what share of the period " +
+        "that is. The bars are calendar days, a tap shows a day's dose and recording, and days " +
+        "without measurements stay empty instead of reading as zero."
 
     override val v0421Title = "The card chart stays where it was dragged"
     override val v0421Summary =

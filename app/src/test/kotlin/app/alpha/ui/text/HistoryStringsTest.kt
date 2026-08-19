@@ -106,9 +106,15 @@ class HistoryStringsTest {
     @Test
     fun `the collapsed dose lines stay short`() {
         for (catalogue in catalogues) {
-            assertTrue(catalogue.measuredFor("15 ч 33 мин").length <= 32)
-            assertTrue(catalogue.recordedOfPeriod("15 ч 33 мин").length <= 48)
             assertTrue(catalogue.doseGlance("2,36", "2,36", "2,36").length <= 48)
+            // Строка покрытия на экране дозы — критическая, и она обязана
+            // помещаться в одну: без неё число за период читается как доза за
+            // весь период, а не за измеренное внутри него время.
+            assertTrue(
+                catalogue.measuredWithCoverage("49 ч 46 мин", "6,9").length <= 48,
+                catalogue.measuredWithCoverage("49 ч 46 мин", "6,9"),
+            )
+            assertTrue(catalogue.forDays(30).length <= 20, catalogue.forDays(30))
             assertTrue(catalogue.infoTitle.isNotBlank())
         }
     }

@@ -1,11 +1,14 @@
 package app.alpha.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -58,6 +61,13 @@ data class BarChartSpec(
     val partial: List<Boolean> = emptyList(),
     val xStartLabel: String? = null,
     val xEndLabel: String? = null,
+    /**
+     * Выбранный столбец: обведён рамкой цвета данных. null — выбора нет.
+     *
+     * Подсветка, а не подпись: постоянные числа над всеми столбцами
+     * превращают картинку в таблицу, а ответ нужен об одном из них.
+     */
+    val selectedIndex: Int? = null,
 )
 
 @Composable
@@ -65,12 +75,38 @@ fun BarChart(
     spec: BarChartSpec,
     modifier: Modifier = Modifier,
     height: Dp = 85.dp,
+    /** Тап по полю: индекс столбца под пальцем; null — поле не нажимается. */
+    onSelect: ((Int) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val axisStyle = LocalAppTypography.current.axis
     val textMeasurer = rememberTextMeasurer()
 
-    Canvas(modifier = modifier.fillMaxWidth().height(height).chartField()) {
+    val select = rememberUpdatedState(onSelect)
+    val slots = spec.values.size
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height)
+            .chartField()
+            .then(
+                if (onSelect == null || slots == 0) {
+                    Modifier
+                } else {
+                    Modifier.pointerInput(slots) {
+                        detectTapGestures { offset ->
+                            // Столбцы делят ширину поровну, поэтому индекс —
+                            // это доля ширины: попадание в промежуток между
+                            // столбцами отдаётся ближайшему, иначе в узкий
+                            // столбик суточного графика не попасть пальцем.
+                            val fraction = (offset.x / size.width.coerceAtLeast(1))
+                                .coerceIn(0f, 0.999f)
+                            select.value?.invoke((fraction * slots).toInt())
+                        }
+                    }
+                },
+            ),
+    ) {
         val hasLabels = spec.xStartLabel != null || spec.xEndLabel != null
         val labelHeight = if (hasLabels) {
             textMeasurer.measure("0", axisStyle).size.height + 3.dp.toPx()
@@ -112,9 +148,22 @@ fun BarChart(
 
         // Bars.
         val n = spec.values.size
+        val selected = spec.selectedIndex?.takeIf { it in 0 until n }
         val gap = 2.dp.toPx()
         val barWidth = ((size.width - gap * (n - 1)) / n).coerceAtLeast(1.5.dp.toPx())
         val radius = CornerRadius(2.dp.toPx())
+        // Рамка выбранного дня — до столбиков и во всю высоту поля: у дня без
+        // измерений столбика нет вовсе, а выбрать его можно, и подсветка
+        // обязана быть видна.
+        selected?.let { index ->
+            drawRoundRect(
+                color = colors.dataText.copy(alpha = 0.5f),
+                topLeft = Offset(index * (barWidth + gap) - gap / 2f, padT),
+                size = Size(barWidth + gap, plotH),
+                cornerRadius = radius,
+                style = Stroke(width = 1.dp.toPx()),
+            )
+        }
         spec.values.forEachIndexed { index, value ->
             if (value == null) return@forEachIndexed
             val level = y(value)
