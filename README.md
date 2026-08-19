@@ -1,7 +1,7 @@
 <h1 align="center">Alpha</h1>
 
 <p align="center">
-  An Android app for RadiaCode detectors.
+  A modern, convenient Android app for RadiaCode detectors.
 </p>
 
 <p align="center">
@@ -47,15 +47,6 @@ Alpha keeps that context for you. It shows how far the current value is from
 what is usual here, always naming what the comparison is against. When there is
 no visible difference it says so — and adds how large a difference it would
 have caught in that measuring time.
-
-## How it differs from the official app
-
-The official app shows what the detector sees right now: readings, spectrum,
-spectrogram, a map with the track. Alpha adds the memory of a place — a
-comparison against what was here before, a statistical test instead of
-eyeballing, and a sensitivity limit when no difference shows. None of that is
-on the official features page, which does not prove it is absent from the app
-itself.
 
 ## What it does
 
@@ -122,8 +113,6 @@ You need JDK 17 and the Android SDK with compileSdk 35 (build-tools 35.0.0).
 Gradle comes with the repository.
 
 ```bash
-git clone <repository-url>
-cd alpha
 ./gradlew test                 # JVM tests
 ./gradlew :app:smokeTest       # screen tests
 ./gradlew :app:lintDebug
@@ -178,7 +167,7 @@ Settings → About.
 
 ## Sources
 
-- RadiaCode software features — <https://www.radiacode.com/software> (checked 19.08.2026)
+- RadiaCode software features — <https://www.radiacode.com/software>
 - `cdump/radiacode`, MIT — the community protocol work this Kotlin port follows —
   <https://github.com/cdump/radiacode>
 - L. A. Currie, Anal. Chem. 40 (1968) 586 — detection limits
