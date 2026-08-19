@@ -462,11 +462,19 @@ object RuStrings : Strings {
 
     override val searchFeedbackTitle = "Отклик в Поиске"
 
-    override val feedbackClicks = "щелчок на каждый зарегистрированный импульс"
-    override val feedbackTone = "непрерывный тон: выше — дальше от записанного фона"
-    override val feedbackVibro = "то же без звука: чаще пульс — дальше от записанного фона"
-    override val energyTone = "тон по энергии"
-    override val energyToneNote = "высота щелчка по средней энергии гамма-квантов"
+    override val feedbackClicks =
+        "щелчок на каждый импульс, как у счётчика Гейгера: чаще щёлкает — больше излучения"
+    override val feedbackTone =
+        "поёт непрерывно, и чем выше тон, тем дальше счёт ушёл от точки отсчёта (а без неё — " +
+            "от фона места). Ищут на слух: ведёшь прибором и слышишь «теплее — холоднее». " +
+            "На уровне фона молчит; щелчки на это время выключаются — звук один"
+    override val feedbackVibro =
+        "то же «теплее — холоднее» без звука: чем чаще толчки, тем дальше счёт от точки " +
+            "отсчёта. Для прибора в кармане и для тишины"
+    override val energyTone = "щелчки по энергии"
+    override val energyToneNote =
+        "щелчок звучит выше, если пришедшие кванты были жёстче: слышно не только сколько их, " +
+            "но и какие. Подкрашивает щелчки и работает, пока открыт спектр"
     override val alarmTitle = "Тревога"
     override val alarmVibration = "Вибрация при превышении"
     override val alarmVibrationNote =
@@ -526,9 +534,9 @@ object RuStrings : Strings {
     override val scaleReset = "Вернуть 100 %"
     override val crystalOrganicPlastic = "органический пластик"
     override val modeOff = "нет"
-    override val modeClicks = "клики"
-    override val modeTone = "тон"
-    override val modeVibro = "вибро"
+    override val modeClicks = "Щелчки"
+    override val modeTone = "Поисковый тон"
+    override val modeVibro = "Вибрация"
     override val themeTitle = "Тема"
     override val alarmsIntro =
         "Тревога срабатывает не от одиночного скачка: уровень должен превысить порог — " +

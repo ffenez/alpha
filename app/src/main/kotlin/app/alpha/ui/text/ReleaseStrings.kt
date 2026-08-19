@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0400Title: String
+    val v0400Summary: String
+
     val v0391Title: String
     val v0391Summary: String
 
@@ -369,6 +372,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0400Title = "Отклик работает в кармане"
+    override val v0400Summary =
+        "Отклик перешёл к службе измерений: щелчки, тон и вибрация идут и при погашенном " +
+        "экране, и при свёрнутом приложении — прибор ведут по звуку, а не по картинке. " +
+        "Выключенный тон больше не отнимает щелчки, тревожная вибрация стала двумя короткими " +
+        "толчками, а тон и щелчки по энергии наконец объяснены человеческими словами."
 
     override val v0391Title = "Отклик наконец включается"
     override val v0391Summary =
@@ -1179,6 +1189,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0400Title = "The feedback works from a pocket"
+    override val v0400Summary =
+        "The feedback moved to the measurement service: clicks, tone and vibration keep going " +
+        "with the screen off and the app minimised — an instrument is guided by ear, not by " +
+        "a picture. A tone switched off no longer takes the clicks with it, the alarm buzz is " +
+        "two short pulses, and the tone and the energy clicks are finally explained in plain words."
 
     override val v0391Title = "The feedback finally switches on"
     override val v0391Summary =
