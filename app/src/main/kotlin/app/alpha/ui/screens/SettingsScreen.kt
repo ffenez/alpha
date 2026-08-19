@@ -16,6 +16,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
+import app.alpha.ui.logic.ProfileName
 import app.alpha.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -602,7 +603,8 @@ private fun settingsSummaries(graph: AppGraph): SettingsSummaries {
     val rareData by graph.measurementRepository.latestRareData().collectAsState(initial = null)
     val connected = connection as? ConnectionState.Connected
     val battery = rareData?.batteryPercent?.toInt()
-    val profileName = profiles.firstOrNull { it.id == activeProfileId }?.name
+    val profileName = profiles.firstOrNull { it.id == activeProfileId }
+        ?.let { ProfileName.of(it, strings) }
     return SettingsSummaries(
         alarms = when (sensitivity) {
             AlarmSensitivity.NORMAL -> strings.sensitivityNormal

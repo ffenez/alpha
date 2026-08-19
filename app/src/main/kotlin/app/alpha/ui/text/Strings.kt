@@ -101,6 +101,20 @@ interface Strings {
     val tilePlaceBackground: String
     val tilePerHour: String
     val tilePerDay: String
+
+    /**
+     * Имена готовых мест (spec §3.1) и двух служебных ролей.
+     *
+     * Их придумывает приложение, а не человек, поэтому они переводятся:
+     * английский экран с местом «Дом» выглядит недоделанным. Имя, которое
+     * человек ввёл сам, не трогается никогда.
+     */
+    val presetHome: String
+    val presetOffice: String
+    val presetCottage: String
+    val presetParents: String
+    val presetTransit: String
+    val presetNoPlace: String
     val doseToday: String
 
     /**
@@ -714,6 +728,7 @@ fun Strings.allTexts(): List<String> = listOf(
     settingsNotifications, settingsNotificationsSub, settingsView, settingsViewSub,
     settingsDevice, settingsDeviceSub, settingsAbout, settingsAboutSub,
     cpsUnit, languageTitle, languageSystem,
+    presetHome, presetOffice, presetCottage, presetParents, presetTransit, presetNoPlace,
     statusNoData, statusMeasuring, statusAboveL1, statusUsual, statusUsualShort,
     explainMeasuring("0,30 мкЗв/ч"),
     statusAboveUsual, statusAboveThreshold, statusAboveThresholdShort,

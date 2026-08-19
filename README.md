@@ -153,12 +153,6 @@ storage by itself.
   can still kill it.
 - The map needs network the first time an area is opened.
 
-## Contributing
-
-Issues and pull requests are welcome. Two rules that reviews enforce: wording
-never turns a statistic into a verdict about danger, and measurement data never
-leaves the device. Both are held by tests.
-
 ## License
 
 MIT — see [`LICENSE`](LICENSE). Third-party components and the notices they
