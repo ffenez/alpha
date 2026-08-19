@@ -92,8 +92,18 @@ class SpectrumValidationTest {
         // 2583 кэВ — область 2614,5 кэВ Tl-208.
         assertEquals(3, found.size, "найдено: ${found.map { it.energyKeV }}")
         assertEquals(83.66f, found[0].energyKeV, 0.2f)
-        assertEquals(1430.44f, found[1].energyKeV, 0.5f)
-        assertEquals(2584.55f, found[2].energyKeV, 1.0f)
+        assertEquals(1430.61f, found[1].energyKeV, 0.5f)
+        // 2591,7, а не прежние 2584,6: центр берётся из подогнанной формы
+        // ([PeakShapeFit]), а не из центра тяжести нетто-импульсов. У линии с
+        // хвостом центр тяжести смещён В ХВОСТ, и поправка идёт К истинной
+        // энергии 2614,5 кэВ, а не от неё: расхождение с ней уменьшилось с 30
+        // до 23 кэВ. Остаток — сдвиг самой шкалы этого файла, форма его не
+        // лечит.
+        assertEquals(2591.73f, found[2].energyKeV, 1.0f)
+        assertTrue(
+            abs(found[2].energyKeV - 2614.5f) < abs(2584.55f - 2614.5f),
+            "подгонка формы увела центр от 2614,5: ${found[2].energyKeV}",
+        )
         assertEquals(43.38f, found[0].significance, 0.3f)
         assertEquals(20.03f, found[1].significance, 0.3f)
         assertEquals(5.76f, found[2].significance, 0.3f)

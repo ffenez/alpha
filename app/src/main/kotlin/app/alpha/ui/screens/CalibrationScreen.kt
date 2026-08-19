@@ -31,6 +31,8 @@ import app.alpha.AppGraph
 import app.alpha.analysis.CalibrationDataset
 import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.RadonTrend
+import app.alpha.analysis.ScaleCorrection
+import app.alpha.analysis.ScaleCorrectionMath
 import app.alpha.analysis.evidence.BackgroundCalibration
 import app.alpha.analysis.evidence.CalibrationAccumulation
 import app.alpha.analysis.evidence.CalibrationReport
@@ -49,6 +51,7 @@ import app.alpha.ui.components.ChartNotesDialog
 import app.alpha.ui.components.Chip
 import app.alpha.ui.logic.CalibrationChart
 import app.alpha.ui.logic.CalibrationView
+import app.alpha.ui.logic.ScaleCorrectionRecord
 import app.alpha.ui.text.CalibrationCatalogue
 import app.alpha.ui.text.CalibrationStrings
 import app.alpha.ui.text.HistoryCatalogue
@@ -171,6 +174,8 @@ fun CalibrationScreen(graph: AppGraph, onBack: () -> Unit) {
         loaded = true
     }
     val acceptedRaw by graph.settings.measuredResolutionRaw.collectAsState(initial = null)
+    val correctionRaw by graph.settings.scaleCorrectionRaw.collectAsState(initial = null)
+    val correctionRecord = remember(correctionRaw) { ScaleCorrectionRecord.decode(correctionRaw) }
     val accepted = remember(acceptedRaw) { AcceptedResolution.decode(acceptedRaw) }
 
     // Без собственной прокрутки: экран живёт внутри прокручиваемой колонки
@@ -234,6 +239,19 @@ fun CalibrationScreen(graph: AppGraph, onBack: () -> Unit) {
                 onRevert = {
                     scope.launch { graph.settings.setMeasuredResolutionRaw(null) }
                 },
+                correction = correctionRecord,
+                onAcceptCorrection = { offer ->
+                    scope.launch {
+                        graph.settings.setScaleCorrectionRaw(
+                            ScaleCorrectionRecord
+                                .of(offer, System.currentTimeMillis())
+                                .encode(),
+                        )
+                    }
+                },
+                onRevertCorrection = {
+                    scope.launch { graph.settings.setScaleCorrectionRaw(null) }
+                },
             )
         }
     }
@@ -250,6 +268,10 @@ internal fun CalibrationContent(
     h: HistoryStrings,
     onAccept: (AcceptedResolution) -> Unit,
     onRevert: () -> Unit,
+    /** Принятая поправка шкалы; null — шкала показывается как у прибора. */
+    correction: ScaleCorrectionRecord? = null,
+    onAcceptCorrection: (ScaleCorrection) -> Unit = {},
+    onRevertCorrection: () -> Unit = {},
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -280,6 +302,65 @@ internal fun CalibrationContent(
         // повторял сам себя слово в слово.
         blendNote(model.report, s)?.let {
             Text(text = it, style = type.footnote, color = colors.muted)
+        }
+    }
+
+    // Поправка шкалы — ЯВНОЕ действие: предложение с числами «до и после»
+    // и кнопка. Пока её не нажали, ничего не меняется.
+    Section(s.correctionTitle) {
+        val offer = remember(model.report) {
+            ScaleCorrectionMath.of(
+                model.report.measurements.map {
+                    ScaleCorrection.Reference(
+                        tableKeV = it.line.energyKeV,
+                        measuredKeV = it.observedKeV,
+                        nuclide = it.line.nuclide,
+                    )
+                },
+            )
+        }
+        Text(text = s.correctionNote, style = type.footnote, color = colors.muted)
+        if (correction != null) {
+            Text(
+                text = s.correctionAcceptedState(
+                    date = app.alpha.ui.logic.HistoryFormat.day(correction.acceptedAtMillis),
+                    lines = correction.referenceCount,
+                ),
+                style = type.bodySmall,
+                color = colors.ink,
+            )
+            Text(text = s.correctionAcceptedNote, style = type.footnote, color = colors.muted)
+            Chip(text = s.correctionRevert, color = colors.ink2, onClick = onRevertCorrection)
+        } else if (offer != null) {
+            Text(
+                text = s.correctionOffer(
+                    before = oneDecimal(offer.residualBeforeKeV),
+                    after = oneDecimal(offer.residualAfterKeV),
+                    lines = offer.references.size,
+                ),
+                style = type.bodySmall,
+                color = colors.ink,
+            )
+            // Сдвиг называется на конкретной энергии: «множитель 1,021» не
+            // говорит человеку ничего, «на 1460,8 кэВ сдвиг +30,8» — говорит.
+            offer.references.maxByOrNull { it.tableKeV }?.let { reference ->
+                Text(
+                    text = s.correctionShift(
+                        energyKeV = oneDecimal(reference.measuredKeV),
+                        shift = signedOneDecimal(offer.shiftAt(reference.measuredKeV)),
+                    ),
+                    style = type.footnoteMono,
+                    color = colors.ink2,
+                )
+            }
+            Chip(
+                text = s.correctionAccept,
+                color = colors.dataText,
+                selected = true,
+                onClick = { onAcceptCorrection(offer) },
+            )
+        } else {
+            Text(text = s.correctionNotOffered, style = type.bodySmall, color = colors.ink2)
         }
     }
 
@@ -626,3 +707,11 @@ private fun CalibrationDataset.Accumulation.toEngine(id: String) = CalibrationAc
     fromMillis = fromMillis,
     toMillis = toMillis,
 )
+
+/** Одна десятая — общий вид чисел этого экрана. */
+private fun oneDecimal(value: Double): String =
+    String.format(java.util.Locale.US, "%.1f", value).replace('.', ',')
+
+/** То же со знаком: сдвиг без знака не читается. */
+private fun signedOneDecimal(value: Double): String =
+    (if (value >= 0.0) "+" else "") + oneDecimal(value)

@@ -61,7 +61,8 @@ object SpectrumFormat {
     fun rangeCovered(window: EnergyWindows.WindowResult): String =
         "${oneDecimal(window.coveredStartKeV)}–${oneDecimal(window.coveredEndKeV)}"
 
-    private fun oneDecimal(value: Float): String =
+    /** Значение с одним знаком после запятой — общий вид для долей и отношений. */
+    fun oneDecimal(value: Float): String =
         String.format(Locale.US, "%.1f", value).replace('.', ',')
 
     @Deprecated("Экран читает движок доказательств: см. matchCell/matchNotes")

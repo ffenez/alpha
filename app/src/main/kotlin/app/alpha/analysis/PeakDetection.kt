@@ -3,6 +3,7 @@ package app.alpha.analysis
 import app.alpha.analysis.evidence.ResolutionSource
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -26,6 +27,15 @@ data class Peak(
      * пика.
      */
     val fwhmKeV: Float? = null,
+    /**
+     * Подогнанная форма линии ([PeakShapeFit]); null — подгонка не выполнялась
+     * или ей нельзя верить (окно мало, дублет, центр ушёл).
+     *
+     * Когда форма подогнана, [energyKeV] считается по её центру, а не по
+     * центру тяжести нетто-импульсов: у линии с хвостом центр тяжести смещён в
+     * хвост, и это смещение — систематическое.
+     */
+    val shape: PeakShapeFit.Result? = null,
 )
 
 /**
@@ -346,15 +356,34 @@ object PeakDetection {
                 weightedChannel += weight.toDouble() * j
             }
             val centroid = if (weightSum > 0) (weightedChannel / weightSum).toFloat() else i.toFloat()
+
+            // Форма уточняет центр там, где линия несимметрична. Окно берётся
+            // шире окна площади (3·half), иначе хвост целиком остаётся за
+            // границей подгонки и его параметр не определён данными. Отказ
+            // подгонки не отменяет пик: центр тяжести остаётся запасным
+            // ответом, а его смещение в хвост — известная систематика.
+            val fitRange = max(i - 3 * half, 0)..min(i + 3 * half, n - 1)
+            val fit = PeakShapeFit.fit(
+                counts = counts,
+                range = fitRange,
+                continuumAt = { j -> continuumAt(j).toDouble() },
+                centerGuess = centroid.toDouble(),
+                sigmaGuess = (observedFwhm?.div(2.3548f) ?: (half / 1.18f)).toDouble(),
+            )
+            val center = fit?.shape?.centerChannel?.toFloat() ?: centroid
             candidates += Peak(
                 channel = i,
-                energyKeV = calibration.energyAt(centroid),
+                energyKeV = calibration.energyAt(center),
                 netCounts = net,
                 significance = significance,
+                shape = fit,
                 // Ширина канала на шкале меняется, поэтому каналы переводятся
                 // в кэВ производной калибровки в самом пике. null — высота
                 // центра не измерима: спуск до полувысоты пошёл бы по шуму, и
                 // число было бы шириной случайного провала, а не структуры.
+                // Ширина — ИЗМЕРЕННАЯ по отсчётам; подогнанная форма её не
+                // заменяет: у подгонки FWHM берётся из модели, а гейт формы
+                // проверял именно то, что видно в данных.
                 fwhmKeV = observedFwhm
                     ?.takeIf { shapeMeasurable }
                     ?.times(max(calibration.a1 + 2f * calibration.a2 * i, 0.01f)),

@@ -37,6 +37,19 @@ interface SpectrumStrings {
     val showBackgroundCurve: String
 
     /**
+     * Чип «континуум» и его пояснение: подложка — оценка формы, а не измерение,
+     * и в выводах о линиях не участвует.
+     */
+    /**
+     * Ограничение НА КАРТИНКЕ: энергии показаны с принятой поправкой шкалы,
+     * а не так, как их отдаёт прибор.
+     */
+    val scaleCorrected: String
+
+    val continuumChip: String
+    val continuumHint: String
+
+    /**
      * Нажали то, что работает от записанного фона, а фона нет.
      *
      * Действие остаётся живым и объясняет свой вход: что оно делает, чего ему
@@ -119,6 +132,15 @@ interface SpectrumStrings {
 
     /** Курсор: пик найден, но ширину этих отсчётов измерить не удалось. */
     fun cursorPeakNoWidth(significance: String): String
+
+    /**
+     * Подогнанная форма линии: во сколько раз левый хвост длиннее правого и
+     * согласие модели с отсчётами (C/ndf).
+     */
+    fun cursorShape(asymmetry: String, agreement: String): String
+
+    /** Форму одной линией описать не удалось — центр взят по центру тяжести. */
+    val cursorShapeNone: String
 
     // --- отметка линии из справки о нуклиде ---
 
@@ -401,6 +423,12 @@ interface SpectrumStrings {
 object SpectrumRu : SpectrumStrings {
 
     override val showBackgroundCurve = "фон"
+    override val scaleCorrected = "энергии с поправкой шкалы"
+    override val continuumChip = "континуум"
+    override val continuumHint =
+        "Пунктир — оценка гладкой подложки под линиями (SNIP). Это форма, а не измерение: " +
+            "площадь и значимость линий считаются по боковым полосам, и пунктир на них не " +
+            "влияет."
     override fun backgroundRecordedAt(time: String) = "фон записан · $time"
 
     override val needBackgroundTitle = "Фон ещё не записан"
@@ -459,6 +487,9 @@ object SpectrumRu : SpectrumStrings {
         "пик: значимость $significance · ширина $widthKeV $unitKeV"
     override fun cursorPeakNoWidth(significance: String) =
         "пик: значимость $significance · ширина не измерена"
+    override fun cursorShape(asymmetry: String, agreement: String) =
+        "форма: хвост слева ×$asymmetry · C/ndf $agreement"
+    override val cursorShapeNone = "форма: одной линией не описана, центр по центру тяжести"
     override fun lineMarkLabel(keV: String) = "линия $keV $unitKeV"
     override val lineMarkNote = "Отметка показывает, где эта линия ожидается по калибровке " +
         "прибора. Это не найденный пик и не вывод о спектре."
@@ -802,6 +833,12 @@ object SpectrumRu : SpectrumStrings {
 object SpectrumEn : SpectrumStrings {
 
     override val showBackgroundCurve = "background"
+    override val scaleCorrected = "energies with the scale correction"
+    override val continuumChip = "continuum"
+    override val continuumHint =
+        "The dashed line estimates the smooth continuum under the lines (SNIP). It is a shape, " +
+            "not a measurement: line areas and significance come from the side bands and are " +
+            "unaffected by it."
     override fun backgroundRecordedAt(time: String) = "background recorded · $time"
 
     override val needBackgroundTitle = "No background recorded yet"
@@ -862,6 +899,9 @@ object SpectrumEn : SpectrumStrings {
         "peak: significance $significance · width $widthKeV $unitKeV"
     override fun cursorPeakNoWidth(significance: String) =
         "peak: significance $significance · width not measured"
+    override fun cursorShape(asymmetry: String, agreement: String) =
+        "shape: left tail ×$asymmetry · C/ndf $agreement"
+    override val cursorShapeNone = "shape: not described by one line, center from the centroid"
     override fun lineMarkLabel(keV: String) = "line $keV $unitKeV"
     override val lineMarkNote = "The mark shows where this line is expected by the energy " +
         "calibration. It is not a peak found in the spectrum and not a conclusion about it."
@@ -1224,6 +1264,7 @@ fun SpectrumStrings.allTexts(): List<String> = listOf(
     unitMillions, unitThousands, analysisRow, technicalTitle, makeSnapshot,
     resetConfirmTitle, resetConfirmBody,
     toolLineTitle, toolLineSubtitle, infoActionsTitle, showBackgroundCurve,
+    scaleCorrected, continuumChip, continuumHint,
     backgroundRecordedAt("14:32"), needBackgroundTitle, needBackgroundCurve, needBackgroundHow,
     needBackgroundNoDevice,
     decayFamilyRadon("Pb-214, Bi-214"), decayFamilyChain("Pb-212, Tl-208", "Th-232"),
@@ -1232,6 +1273,7 @@ fun SpectrumStrings.allTexts(): List<String> = listOf(
     saveSnapshot, saveSnapshotNote, setAsBackground, setAsBackgroundNote,
     cursorEnergy("661,9"), cursorChannel(316), cursorCounts("12 480"),
     cursorMergedChannels(314, 318), cursorPeak("8,2σ", "47"), cursorPeakNoWidth("8,2σ"),
+    cursorShape("2,1", "1,2"), cursorShapeNone,
     infoCursor, infoFullscreen,
     lineMarkLabel("661,7"), lineMarkNote, lineMarkWindowMoved, lineMarkOutOfScale,
     infoTitle, infoWhatTitle, infoAxisX, infoAxisY,

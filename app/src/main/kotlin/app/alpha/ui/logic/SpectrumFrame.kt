@@ -3,6 +3,8 @@ package app.alpha.ui.logic
 import androidx.compose.runtime.Immutable
 import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.EnergyWindow
+import app.alpha.analysis.PeakDetection
+import app.alpha.analysis.SnipContinuum
 import app.alpha.analysis.SpectrumDisplay
 import app.alpha.analysis.SpectrumEdge
 import kotlin.math.max
@@ -53,6 +55,13 @@ object SpectrumFrames {
         val columns: List<Float>,
         /** Записанный фон, приведённый к времени накопления; null — не рисуется. */
         val overlay: List<Float>?,
+        /**
+         * Континуум SNIP в тех же колонках; null — не показан.
+         *
+         * Считается по ПОКАЗАННОМУ ряду (после вычитания фона и сглаживания):
+         * подложка описывает ту картинку, под которой нарисована.
+         */
+        val continuum: List<Float>? = null,
         /** Верх оси значений для выбранного масштаба. */
         val yTop: Float,
     ) {
@@ -81,6 +90,10 @@ object SpectrumFrames {
         /** Рисовать ли записанный фон серой кривой поверх спектра. */
         overlayBackground: Boolean = true,
         smoothing: Boolean = false,
+        /** Рисовать ли континуум SNIP под спектром. */
+        continuum: Boolean = false,
+        /** Разрешение ЭТОГО прибора — от него ширина окна отсечения SNIP. */
+        resolution662: Float = PeakDetection.RESOLUTION_662,
         scale: SpectrumScale = SpectrumScale.Log,
         columnCount: Int = COLUMN_COUNT,
     ): Frame {
@@ -132,6 +145,14 @@ object SpectrumFrames {
             )
         }
 
+        val continuumColumns = if (!continuum) {
+            null
+        } else {
+            SnipContinuum.ofValues(series, calibration, resolution662)
+                .takeIf { it.isNotEmpty() }
+                ?.let { SpectrumDisplay.aggregateMax(it, channels, effectiveColumns) }
+        }
+
         // NaN — «нет данных», и в максимум он не входит.
         val dataMax = max(
             SpectrumDisplay.columnsMax(columns),
@@ -145,6 +166,6 @@ object SpectrumFrames {
         } else {
             max(dataMax * 1.15f, 10f)
         }
-        return Frame(full, visible, channels, columns, overlay, yTop)
+        return Frame(full, visible, channels, columns, overlay, continuumColumns, yTop)
     }
 }

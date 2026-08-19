@@ -122,6 +122,7 @@ import app.alpha.ui.text.AppLanguage
 import app.alpha.ui.text.BackupCatalogue
 import app.alpha.ui.text.LocalStrings
 import app.alpha.ui.text.CalibrationCatalogue
+import app.alpha.ui.text.EfficiencyCatalogue
 import app.alpha.ui.text.NotificationCatalogue
 import app.alpha.ui.text.ReleaseCatalogue
 import app.alpha.ui.text.RuStrings
@@ -214,9 +215,16 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
     // поэтому системный жест закрывает сначала её.
     var calibrationOpen by rememberSaveable { mutableStateOf(false) }
 
+    // Калибровка эффективности — второй такой же экран внутри «Прибора».
+    var efficiencyOpen by rememberSaveable { mutableStateOf(false) }
+
     // Системная «назад» делает один шаг вверх, как и кнопка на экране.
     BackHandler(enabled = category != null) {
-        if (calibrationOpen) calibrationOpen = false else category = null
+        when {
+            calibrationOpen -> calibrationOpen = false
+            efficiencyOpen -> efficiencyOpen = false
+            else -> category = null
+        }
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -261,15 +269,23 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                         SettingsTopBar(
                             title = open.title(strings),
                             onBack = {
-                                if (calibrationOpen) calibrationOpen = false else category = null
+                                when {
+                                    calibrationOpen -> calibrationOpen = false
+                        efficiencyOpen -> efficiencyOpen = false
+                                    efficiencyOpen -> efficiencyOpen = false
+                                    else -> category = null
+                                }
                             },
                         )
                         SettingsDetail(
                             graph = graph,
                             category = open,
                             calibrationOpen = calibrationOpen,
+                            efficiencyOpen = efficiencyOpen,
                             onOpenCalibration = { calibrationOpen = true },
                             onCloseCalibration = { calibrationOpen = false },
+                            onOpenEfficiency = { efficiencyOpen = true },
+                            onCloseEfficiency = { efficiencyOpen = false },
                         )
                     }
                 }
@@ -313,8 +329,11 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                             graph = graph,
                             category = openCategory,
                             calibrationOpen = calibrationOpen,
+                            efficiencyOpen = efficiencyOpen,
                             onOpenCalibration = { calibrationOpen = true },
                             onCloseCalibration = { calibrationOpen = false },
+                            onOpenEfficiency = { efficiencyOpen = true },
+                            onCloseEfficiency = { efficiencyOpen = false },
                         )
                     }
                 }
@@ -339,8 +358,11 @@ private fun SettingsDetail(
     graph: AppGraph,
     category: SettingsCategory,
     calibrationOpen: Boolean,
+    efficiencyOpen: Boolean,
     onOpenCalibration: () -> Unit,
     onCloseCalibration: () -> Unit,
+    onOpenEfficiency: () -> Unit,
+    onCloseEfficiency: () -> Unit,
 ) {
     when (category) {
         SettingsCategory.ALARMS -> AlarmsSection(graph)
@@ -352,10 +374,10 @@ private fun SettingsDetail(
         SettingsCategory.SOUND -> SoundSection(graph)
         SettingsCategory.VIEW -> InterfaceScreen(graph)
         SettingsCategory.DEVICE -> {
-            if (calibrationOpen) {
-                CalibrationScreen(graph, onCloseCalibration)
-            } else {
-                DeviceScreen(graph, onOpenCalibration)
+            when {
+                calibrationOpen -> CalibrationScreen(graph, onCloseCalibration)
+                efficiencyOpen -> EfficiencySection(graph, onCloseEfficiency)
+                else -> DeviceScreen(graph, onOpenCalibration, onOpenEfficiency)
             }
         }
         // Перенос данных: копия целиком, восстановление, занятое место.
@@ -1343,7 +1365,11 @@ private fun BaselineSection(graph: AppGraph) {
  * батарея, температура, поток).
  */
 @Composable
-private fun DeviceScreen(graph: AppGraph, onOpenCalibration: () -> Unit) {
+private fun DeviceScreen(
+    graph: AppGraph,
+    onOpenCalibration: () -> Unit,
+    onOpenEfficiency: () -> Unit,
+) {
     val strings = LocalStrings.current
     val scope = rememberCoroutineScope()
     val startOnBoot by graph.settings.startOnBoot.collectAsState(initial = false)
@@ -1359,7 +1385,7 @@ private fun DeviceScreen(graph: AppGraph, onOpenCalibration: () -> Unit) {
             )
         }
         DeviceSignalsSection(graph)
-        SpectralAnalysisSection(graph, onOpenCalibration)
+        SpectralAnalysisSection(graph, onOpenCalibration, onOpenEfficiency)
     }
 }
 
@@ -1506,9 +1532,14 @@ private fun DeviceSignalsSection(graph: AppGraph) {
  * настройки о том, как читается спектр.
  */
 @Composable
-private fun SpectralAnalysisSection(graph: AppGraph, onOpenCalibration: () -> Unit) {
+private fun SpectralAnalysisSection(
+    graph: AppGraph,
+    onOpenCalibration: () -> Unit,
+    onOpenEfficiency: () -> Unit,
+) {
     val strings = LocalStrings.current
     val c = CalibrationCatalogue.of(LocalStrings.current.language)
+    val e = EfficiencyCatalogue.of(LocalStrings.current.language)
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
         SpectralRangesSection(graph)
         SettingsSection {
@@ -1516,6 +1547,11 @@ private fun SpectralAnalysisSection(graph: AppGraph, onOpenCalibration: () -> Un
                 title = c.entryTitle,
                 subtitle = c.entrySubtitle,
                 onClick = onOpenCalibration,
+            )
+            SettingRow(
+                title = e.entryTitle,
+                subtitle = e.entrySubtitle,
+                onClick = onOpenEfficiency,
             )
         }
     }

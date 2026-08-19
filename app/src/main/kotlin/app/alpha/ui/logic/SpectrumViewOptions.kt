@@ -18,6 +18,8 @@ data class SpectrumViewOptions(
     /** Серая кривая записанного фона поверх спектра. */
     val overlayBackground: Boolean = false,
     val smoothing: Boolean = false,
+    /** Континуум SNIP пунктиром под спектром. */
+    val continuum: Boolean = false,
     /** Границы зума; startKeV ≥ endKeV означает «вся шкала». */
     val startKeV: Float = 0f,
     val endKeV: Float = 0f,
@@ -47,12 +49,14 @@ data class SpectrumViewOptions(
             minusBackground: Boolean,
             overlayBackground: Boolean = false,
             smoothing: Boolean,
+            continuum: Boolean = false,
             window: EnergyWindow?,
             highlightKeV: Float? = null,
         ): SpectrumViewOptions = SpectrumViewOptions(
             minusBackground = minusBackground,
             overlayBackground = overlayBackground,
             smoothing = smoothing,
+            continuum = continuum,
             startKeV = window?.startKeV ?: 0f,
             endKeV = window?.endKeV ?: 0f,
             highlightKeV = highlightKeV ?: 0f,

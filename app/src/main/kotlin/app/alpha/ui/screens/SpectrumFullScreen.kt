@@ -32,6 +32,9 @@ import androidx.compose.ui.unit.dp
 import app.alpha.AppGraph
 import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.Peak
+import app.alpha.analysis.IsotopeHint
+import app.alpha.analysis.IsotopeMatcher
+import app.alpha.analysis.EfficiencyCurve
 import app.alpha.analysis.PeakDetection
 import app.alpha.analysis.SpectrumDisplay
 import app.alpha.analysis.SpectrumEdge
@@ -50,6 +53,10 @@ import app.alpha.ui.components.SpectrumPeakMark
 import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.logic.PeakEvidenceBridge
 import app.alpha.ui.logic.SpectrumHighlight
+import app.alpha.ui.logic.ActivityFormat
+import app.alpha.ui.logic.EfficiencyRecord
+import app.alpha.ui.logic.PeakActivity
+import app.alpha.ui.logic.ScaleCorrectionRecord
 import app.alpha.ui.logic.SpectrumFormat
 import app.alpha.ui.logic.SpectrumFrames
 import app.alpha.ui.logic.SpectrumPlot
@@ -57,6 +64,7 @@ import app.alpha.ui.logic.SpectrumScale
 import app.alpha.ui.logic.SpectrumSources
 import app.alpha.ui.logic.SpectrumViewOptions
 import app.alpha.ui.text.LocalStrings
+import app.alpha.ui.text.EfficiencyCatalogue
 import app.alpha.ui.text.SpectrumCatalogue
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
@@ -119,8 +127,15 @@ fun SpectrumFullScreen(
     val background = remember(backgroundEntity) { backgroundEntity?.toSpectrum() }
     val subtractOn = options.minusBackground && background != null
 
-    val calibration = remember(spectrum.a0, spectrum.a1, spectrum.a2) {
-        EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2)
+    // Та же поправка, что на вкладке: полный экран обязан показывать ту же
+    // шкалу, иначе энергия менялась бы от нажатия на график.
+    val correctionRaw by graph.settings.scaleCorrectionRaw.collectAsState(initial = null)
+    val correction = remember(correctionRaw) {
+        ScaleCorrectionRecord.decode(correctionRaw)?.correction()
+    }
+    val calibration = remember(spectrum.a0, spectrum.a1, spectrum.a2, correction) {
+        val instrument = EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2)
+        correction?.applyTo(instrument) ?: instrument
     }
     // Крайний канал не нарисован и не выброшен молча: число живёт в
     // технических данных справки, как и на вкладке.
@@ -138,7 +153,9 @@ fun SpectrumFullScreen(
     // карточка, поэтому скраб не пересобирает экран.
     val cursorFraction = remember { mutableStateOf<Float?>(null) }
 
-    val frame = remember(spectrum, background, subtractOn, options.smoothing, window, scale) {
+    val frame = remember(
+        spectrum, background, subtractOn, options.smoothing, options.continuum, window, scale,
+    ) {
         SpectrumFrames.build(
             counts = spectrum.counts,
             durationSeconds = spectrum.durationSeconds,
@@ -149,6 +166,8 @@ fun SpectrumFullScreen(
             subtract = subtractOn,
             overlayBackground = options.overlayBackground,
             smoothing = options.smoothing,
+            continuum = options.continuum,
+            resolution662 = model.peakResolution662,
             scale = scale,
         )
     }
@@ -167,6 +186,15 @@ fun SpectrumFullScreen(
         } else {
             emptyList()
         }
+    }
+    // Кандидаты — тем же матчером, что и на вкладке: активность считается по
+    // выходу линии ТОГО нуклида, к которому пик отнесён.
+    val hints = remember(peaks, model) {
+        IsotopeMatcher.match(peaks, model.peakResolution662)
+    }
+    val efficiencyRaw by graph.settings.efficiencyRaw.collectAsState(initial = null)
+    val efficiencyCurve = remember(efficiencyRaw) {
+        EfficiencyRecord.decode(efficiencyRaw)?.curve()
     }
     // Отметка линии приезжает с вкладки вместе с режимом и окном: её поставили,
     // чтобы рассмотреть место линии, и полный экран открывают ровно за этим.
@@ -270,6 +298,7 @@ fun SpectrumFullScreen(
                     spec = SpectrumChartSpec(
                         columns = frame.columns,
                         overlay = frame.overlay,
+                        continuum = frame.continuum,
                         scale = scale,
                         yTop = frame.yTop,
                         peaks = peakMarks,
@@ -325,6 +354,10 @@ fun SpectrumFullScreen(
                     counts = spectrum.counts,
                     calibration = calibration,
                     peaks = peaks,
+                    hints = hints,
+                    efficiency = efficiencyCurve,
+                    seconds = spectrum.durationSeconds,
+                    resolution662 = model.peakResolution662,
                 )
             }
             Row(
@@ -443,6 +476,13 @@ private fun BoxScope.CursorCard(
     counts: List<Int>,
     calibration: EnergyCalibration,
     peaks: List<Peak>,
+    /** Кандидаты для пиков — по ним берётся квантовый выход линии. */
+    hints: List<IsotopeHint>,
+    /** Кривая эффективности этой геометрии; null — активности не будет. */
+    efficiency: EfficiencyCurve?,
+    /** Время накопления спектра, с. */
+    seconds: Long,
+    resolution662: Float,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -496,6 +536,51 @@ private fun BoxScope.CursorCard(
                     } ?: t.cursorPeakNoWidth(significance),
                     style = type.footnote,
                     color = colors.dataText,
+                )
+                // Асимметрия — свойство ЭТОЙ линии, а не модели: по ней видно,
+                // почему центр стоит там, где стоит.
+                // Активность — только когда есть кривая эффективности, кандидат
+                // и его выход. Нет чего-то одного — строки нет вовсе: «примерно
+                // столько» здесь означало бы ошибку в разы.
+                PeakActivity.of(
+                    peak = peak,
+                    nuclide = hints.firstOrNull { it.peak.energyKeV == peak.energyKeV }?.isotope,
+                    curve = efficiency,
+                    seconds = seconds,
+                    resolution662 = resolution662,
+                )?.let { activity ->
+                    val eff = EfficiencyCatalogue.of(LocalStrings.current.language)
+                    Text(
+                        text = activity.becquerel
+                            ?.let {
+                                eff.activityValue(
+                                    becquerel = ActivityFormat.value(it, eff),
+                                    percent = ActivityFormat.percent(activity.relativeSigma ?: 0.0),
+                                )
+                            }
+                            ?: eff.activityUpper(
+                                ActivityFormat.value(activity.upperBecquerel, eff),
+                            ),
+                        style = type.footnote,
+                        color = colors.dataText,
+                    )
+                    // Геометрия — критическая оговорка: без неё число читается
+                    // как свойство образца, а не этой укладки.
+                    Text(
+                        text = eff.activityGeometryNote,
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
+                Text(
+                    text = peak.shape?.let { fit ->
+                        t.cursorShape(
+                            asymmetry = SpectrumFormat.oneDecimal(fit.shape.asymmetry.toFloat()),
+                            agreement = SpectrumFormat.oneDecimal(fit.reducedC.toFloat()),
+                        )
+                    } ?: t.cursorShapeNone,
+                    style = type.footnote,
+                    color = colors.ink2,
                 )
             }
         }

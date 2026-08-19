@@ -83,6 +83,20 @@ interface CalibrationStrings {
     // --- принятие модели ---
     val accept: String
     val revert: String
+
+    /**
+     * Поправка энергетической шкалы: заголовок, предложение с числами,
+     * состояние принятой поправки и отказ.
+     */
+    val correctionTitle: String
+    val correctionNote: String
+    fun correctionOffer(before: String, after: String, lines: Int): String
+    fun correctionShift(energyKeV: String, shift: String): String
+    val correctionAccept: String
+    val correctionRevert: String
+    fun correctionAcceptedState(date: String, lines: Int): String
+    val correctionNotOffered: String
+    val correctionAcceptedNote: String
     fun acceptedState(date: String, points: Int): String
     val acceptedNote: String
     /**
@@ -235,6 +249,21 @@ object CalibrationRu : CalibrationStrings {
 
     override val accept = "Принять измеренную модель"
     override val revert = "Вернуть приближение"
+    override val correctionTitle = "Поправка энергетической шкалы"
+    override val correctionNote = "Приложение может показывать энергии со своей поправкой, " +
+        "совмещающей найденные линии с табличными. Калибровку самого прибора это не " +
+        "меняет: другой программе он отдаст прежние коэффициенты."
+    override fun correctionOffer(before: String, after: String, lines: Int) =
+        "По $lines линиям: расхождение с таблицей $before → $after кэВ"
+    override fun correctionShift(energyKeV: String, shift: String) = "на $energyKeV кэВ сдвиг $shift"
+    override val correctionAccept = "Применить поправку"
+    override val correctionRevert = "Снять поправку"
+    override fun correctionAcceptedState(date: String, lines: Int) =
+        "Поправка применяется с $date, посчитана по $lines линиям"
+    override val correctionNotOffered = "Поправка не предлагается: линии стоят на своих местах " +
+        "или их слишком мало, чтобы отличить сдвиг шкалы от разброса"
+    override val correctionAcceptedNote = "Пока поправка включена, энергии на всех экранах " +
+        "показаны с ней, и об этом сказано у шкалы спектра."
     override fun acceptedState(date: String, points: Int) =
         "действует измеренная модель · принята $date · по линиям: $points"
 
@@ -422,6 +451,22 @@ object CalibrationEn : CalibrationStrings {
 
     override val accept = "Use the measured model"
     override val revert = "Go back to the approximation"
+    override val correctionTitle = "Energy scale correction"
+    override val correctionNote = "The app can show energies with its own correction that lines " +
+        "the found peaks up with the table. This does not change the instrument's own " +
+        "calibration: another program will still read its original coefficients."
+    override fun correctionOffer(before: String, after: String, lines: Int) =
+        "Over $lines lines: departure from the table $before → $after keV"
+    override fun correctionShift(energyKeV: String, shift: String) =
+        "at $energyKeV keV the shift is $shift"
+    override val correctionAccept = "Apply the correction"
+    override val correctionRevert = "Drop the correction"
+    override fun correctionAcceptedState(date: String, lines: Int) =
+        "Applied since $date, computed over $lines lines"
+    override val correctionNotOffered = "No correction is offered: the lines sit where they " +
+        "should, or there are too few to tell a scale shift from scatter"
+    override val correctionAcceptedNote = "While the correction is on, energies on every screen " +
+        "are shown with it, and the spectrum scale says so."
     override fun acceptedState(date: String, points: Int) =
         "the measured model is in use · accepted $date · lines used: $points"
 
@@ -523,7 +568,10 @@ fun CalibrationStrings.allTexts(): List<String> = listOf(
     axisEnergy, axisFwhm,
     refusalNotEnoughLines(2, 3), refusalNarrowSpan("340", "500"),
     refusalNotMonotone, refusalNegativeNoise, refusalPrefix("…"),
-    accept, revert, acceptedState("12.08", 4), acceptedNote, approximationState("8,4", true), approximationState("8,4", false),
+    accept, revert, acceptedState("12.08", 4), acceptedNote,
+    correctionTitle, correctionNote, correctionOffer("31,2", "1,4", 3), correctionShift("1460,8", "+30,8"),
+    correctionAccept, correctionRevert, correctionAcceptedState("12.08", 3), correctionNotOffered,
+    correctionAcceptedNote, approximationState("8,4", true), approximationState("8,4", false),
     otherDevice("RC-110-000115"),
     scaleTitle, sigmaCal("4,1", "0,3 %"), sigmaCalUpperBound,
     scatterNotEvaluated(2, 3), shiftNeedsSigma,

@@ -76,6 +76,14 @@ data class SpectrumChartSpec(
     val columns: List<Float>,
     /** Background overlay series in the same columns; null = no overlay. */
     val overlay: List<Float>? = null,
+    /**
+     * Континуум SNIP в тех же колонках; null — не показан.
+     *
+     * Это ОЦЕНКА ФОРМЫ подложки, а не измерение: у неё нет дисперсии, и
+     * значимость линии по ней не считается ([app.alpha.analysis.SnipContinuum]).
+     * Поэтому она рисуется тонким пунктиром — линией другого рода, чем данные.
+     */
+    val continuum: List<Float>? = null,
     /** Как высота столбца получается из числа импульсов. */
     val scale: SpectrumScale = SpectrumScale.Log,
     /** Scale top: linear max or a power of ten for log (see [SpectrumDisplay.logTop]). */
@@ -286,6 +294,29 @@ fun SpectrumChart(
                     path = path,
                     color = colors.muted.copy(alpha = 0.7f),
                     style = Stroke(width = 1.2.dp.toPx(), join = StrokeJoin.Round),
+                )
+            }
+
+            spec.continuum?.let { continuum ->
+                val path = Path()
+                for (segment in segmentsOf(continuum)) {
+                    segment.forEachIndexed { position, index ->
+                        val point = Offset(x(index), y(continuum[index]))
+                        if (position == 0) path.moveTo(point.x, point.y) else {
+                            path.lineTo(point.x, point.y)
+                        }
+                    }
+                }
+                drawPath(
+                    path = path,
+                    color = colors.dataText.copy(alpha = 0.6f),
+                    style = Stroke(
+                        width = 1.dp.toPx(),
+                        join = StrokeJoin.Round,
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(4.dp.toPx(), 4.dp.toPx()),
+                        ),
+                    ),
                 )
             }
 

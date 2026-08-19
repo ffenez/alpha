@@ -1,5 +1,6 @@
 package app.alpha.ui.logic
 
+import app.alpha.analysis.DetectionLimitsMath
 import app.alpha.analysis.RateComparisonResult
 import app.alpha.analysis.RateTest
 import app.alpha.ui.text.SearchRu
@@ -227,6 +228,21 @@ object NavigateVerdict {
         // Процент печатается ТОЛЬКО когда тест разрешил различие: «+31 %»,
         // неотличимое от шума, хуже отсутствия числа.
         percentLabel(delta)?.let { lines += WhyLine(t.navWhyDifference, it) }
+        // Чувствительность этого измерения: какое превышение вообще было бы
+        // замечено за набранное время. Без неё «различие не подтверждено» —
+        // утверждение без границы: не подтверждено ПРИ КАКОЙ чувствительности?
+        DetectionLimitsMath.of(state.fast, state.reference?.window)?.let { limits ->
+            limits.detectableRatio?.takeIf { it.isFinite() }?.let { ratio ->
+                lines += WhyLine(
+                    label = t.navWhyDetectable,
+                    value = "${num2(ratio)}×",
+                    // Это КРИТИЧЕСКОЕ: без него отказ читается как «здесь
+                    // ничего нет», хотя он говорит лишь «меньшего мы бы не
+                    // увидели».
+                    critical = t.navWhyDetectableNote,
+                )
+            }
+        }
         state.local?.ratePerSecond?.let {
             lines += WhyLine(t.navWhyRecent, num1(it), note = t.navWhyRecentNote)
         }
