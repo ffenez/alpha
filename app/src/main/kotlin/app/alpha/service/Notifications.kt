@@ -2,6 +2,7 @@ package app.alpha.service
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import androidx.core.app.NotificationManagerCompat
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.RingtoneManager
@@ -56,5 +57,38 @@ object Notifications {
                 )
             },
         )
+    }
+
+    /**
+     * Состояние канала «Тревога» глазами системы.
+     *
+     * Включить канал программно НЕЛЬЗЯ: Android разрешает приложению создать
+     * канал, но не воскресить выключенный человеком — отсюда системная фраза
+     * «at your request, Android is blocking this category». Единственное, что
+     * может приложение, — честно показать состояние и открыть его настройки.
+     */
+    enum class AlarmChannelState {
+        /** Канал звучит: уведомления разрешены и важность не нулевая. */
+        ENABLED,
+
+        /** Выключены уведомления приложения целиком. */
+        APP_BLOCKED,
+
+        /** Выключен именно этот канал. */
+        CHANNEL_BLOCKED,
+    }
+
+    fun alarmChannelState(context: Context): AlarmChannelState {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            return AlarmChannelState.APP_BLOCKED
+        }
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channel = manager.getNotificationChannel(ALARM_CHANNEL_ID)
+            ?: return AlarmChannelState.ENABLED
+        return if (channel.importance == NotificationManager.IMPORTANCE_NONE) {
+            AlarmChannelState.CHANNEL_BLOCKED
+        } else {
+            AlarmChannelState.ENABLED
+        }
     }
 }

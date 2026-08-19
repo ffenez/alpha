@@ -552,6 +552,10 @@ interface Strings {
     val alarmSoundElsewhere: String
     val alarmSoundTitle: String
     val alarmSoundNote: String
+
+    /** Канал тревоги выключен в системе — приложение включить его не может. */
+    val alarmChannelBlocked: String
+    val alarmNotificationsBlocked: String
     fun level1WithUnit(unit: String): String
     fun level2WithUnit(unit: String): String
     val saveLevels: String
@@ -797,7 +801,7 @@ fun Strings.allTexts(): List<String> = listOf(
     sensitivityCustom, sensitivityCustomNote, alarmSoundElsewhere,
     alarmModeTitle, thresholdNow, relativeCriterion("2"), howItWorks,
     sensitivityNormalNote("2 мин"), sensitivityHighNote("1 мин"),
-    alarmSoundTitle, alarmSoundNote, saveLevels,
+    alarmSoundTitle, alarmSoundNote, alarmChannelBlocked, alarmNotificationsBlocked, saveLevels,
     enterNumbers, level1MustBePositive, level2BelowLevel1,
     levelsNote, profilesTitle, profilesIntro,
     profileNameHint, add, ownProfile,

@@ -555,6 +555,13 @@ object RuStrings : Strings {
     override val alarmSoundTitle = "Звук и вибрация тревоги"
     override val alarmSoundNote =
         "мелодия и вибрация настраиваются в системных настройках уведомления «Тревога»"
+    override val alarmChannelBlocked =
+        "уведомление «Тревога» выключено в системе — звука не будет. Включить его может " +
+            "только система: нажмите и разрешите категорию. Вибрация приложения при этом " +
+            "работает."
+    override val alarmNotificationsBlocked =
+        "уведомления приложения выключены в системе — тревога не прозвучит. Вибрация " +
+            "приложения при этом работает."
 
     override fun level1WithUnit(unit: String) = "уровень 1, $unit"
 
@@ -683,8 +690,10 @@ object RuStrings : Strings {
     override val deviceSound = "Звук прибора"
     override val deviceVibro = "Вибрация прибора"
     override val deviceSignalsUnknownNote =
-        "Приложение умеет включить и выключить их, но не умеет спросить прибор, " +
-            "что в нём стоит сейчас: до первой команды состояние неизвестно."
+        "Это ВЫКЛЮЧАТЕЛИ самого прибора: они разрешают ему пищать и вибрировать по его " +
+            "собственным порогам, заданным в приборе. Порог этого приложения ими не " +
+            "управляет — по нему вибрирует телефон. Спросить прибор, что в нём стоит " +
+            "сейчас, приложение не умеет: до первой команды состояние неизвестно."
     override val deviceSignalsOfflineNote = "Прибор не подключён — команду отправить некуда."
 
     override fun baselineStats(median: String, iqr: String, mad: String, buckets: Int) =

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0391Title: String
+    val v0391Summary: String
+
     val v0390Title: String
     val v0390Summary: String
 
@@ -366,6 +369,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0391Title = "Отклик наконец включается"
+    override val v0391Summary =
+        "Отклик молчал: он ждал события «приложение запустилось», которое к моменту подписки " +
+        "уже прошло, — теперь он проверяет состояние сразу и включается при открытии. " +
+        "Заодно экран тревог честно показывает, что канал уведомлений выключен в системе " +
+        "(включить его приложение не может, вибрация при этом работает), а выключатели " +
+        "прибора названы своим смыслом: они разрешают ему сигналить по ЕГО порогам."
 
     override val v0390Title = "Отклик слышно на всех экранах"
     override val v0390Summary =
@@ -1168,6 +1179,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0391Title = "The feedback finally switches on"
+    override val v0391Summary =
+        "The feedback stayed silent: it waited for an «app started» event that had already " +
+        "passed by the time it subscribed — it now checks the current state and starts on " +
+        "open. The alarm screen also states plainly when the notification channel is disabled " +
+        "in the system (the app cannot re-enable it, and its own vibration still works), and " +
+        "the instrument switches are named for what they do: they allow ITS own signals."
 
     override val v0390Title = "The feedback is audible on every screen"
     override val v0390Summary =

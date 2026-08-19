@@ -219,6 +219,12 @@ private fun MainScaffoldContent(graph: AppGraph) {
     val feedback = graph.feedbackHub
     val feedbackOwner = LocalLifecycleOwner.current
     DisposableEffect(feedbackOwner) {
+        // Наблюдатель получает только БУДУЩИЕ события: к моменту подписки
+        // приложение уже запущено, ON_START прошёл, и отклик молчал бы до
+        // первого сворачивания. Поэтому текущее состояние проверяется явно.
+        if (feedbackOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            feedback.start()
+        }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> feedback.start()
