@@ -352,8 +352,15 @@ fun DoseChart(
                                     // Инерция принадлежит оси времени.
                                     continue
                                 }
-                                val transform = onTransform
-                                if (transform != null && abs(velocityX) >= MIN_FLING_VELOCITY) {
+                                // Через `transform.value`, а НЕ через параметр
+                                // `onTransform`: блок обработки указателя
+                                // создаётся один раз, и захваченная им лямбда
+                                // держит окно, каким оно было ДО жеста. Инерция
+                                // считала сдвиг от него, и картинка после
+                                // отпускания пальца отскакивала назад.
+                                if (transform.value != null &&
+                                    abs(velocityX) >= MIN_FLING_VELOCITY
+                                ) {
                                     flingJob = flingScope.launch {
                                         var previous = 0f
                                         androidx.compose.animation.core.Animatable(0f)
@@ -368,7 +375,7 @@ fun DoseChart(
                                                 // Окно двигает та же функция,
                                                 // что и палец: границы истории
                                                 // и «сейчас» соблюдаются.
-                                                transform(
+                                                transform.value?.invoke(
                                                     ChartGestureInput(
                                                         axis = GestureAxis.TIME,
                                                         panXFraction = delta /

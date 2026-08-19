@@ -257,9 +257,9 @@ fun MonitorScreen(
     // Графики Главной читаются тем же путём, что полноэкранный (ADR 004):
     // одно окно, один снимок, один кадр. Выключенные величины не читаются.
     val savedSpans by graph.settings.chartSpans.collectAsState(initial = emptyMap())
-    val chartMetrics = remember(blocks.countRateChart, blocks.hardnessChart) {
+    val chartMetrics = remember(blocks.doseChart, blocks.countRateChart, blocks.hardnessChart) {
         buildList {
-            add(ChartMetric.DOSE)
+            if (blocks.doseChart) add(ChartMetric.DOSE)
             if (blocks.countRateChart) add(ChartMetric.COUNT_RATE)
             if (blocks.hardnessChart) add(ChartMetric.HARDNESS)
         }
@@ -662,7 +662,11 @@ fun MonitorScreen(
                             // окно, окно идёт в загрузку и в кадр. Готовое изображение
                             // не растягивается — агрегация обязана отвечать масштабу.
                             // Щипок непрерывный, вокруг точки под пальцами.
-                            var next = gesture
+                            // Окно берётся ИЗ СОСТОЯНИЯ, а не из захваченного
+                            // значения: инерция вызывает этот обработчик после
+                            // отпускания пальца, и сдвиг обязан считаться от
+                            // того, куда жест уже увёл картинку.
+                            var next = gestures[metric] ?: gesture
                             if (input.zoom != 1f) {
                                 next = next.zoom(input.zoom, input.focusXFraction, bounds)
                             }

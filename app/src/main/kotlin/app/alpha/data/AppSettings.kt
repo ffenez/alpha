@@ -643,6 +643,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             stats = prefs[MONITOR_SHOW_STATS] ?: true,
             countRateChart = prefs[MONITOR_SHOW_CPS_CHART] ?: false,
             hardnessChart = prefs[MONITOR_SHOW_HARDNESS_CHART] ?: false,
+            doseChart = prefs[MONITOR_SHOW_DOSE_CHART] ?: true,
         )
     }
 
@@ -653,6 +654,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             it[MONITOR_SHOW_STATS] = blocks.stats
             it[MONITOR_SHOW_CPS_CHART] = blocks.countRateChart
             it[MONITOR_SHOW_HARDNESS_CHART] = blocks.hardnessChart
+            it[MONITOR_SHOW_DOSE_CHART] = blocks.doseChart
         }
     }
 
@@ -663,6 +665,9 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             it.remove(MONITOR_SHOW_TREND)
             it.remove(MONITOR_SHOW_DOSE_TODAY)
             it.remove(MONITOR_SHOW_STATS)
+            it.remove(MONITOR_SHOW_CPS_CHART)
+            it.remove(MONITOR_SHOW_HARDNESS_CHART)
+            it.remove(MONITOR_SHOW_DOSE_CHART)
         }
     }
 
@@ -827,6 +832,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val MONITOR_SHOW_DOSE_TODAY = booleanPreferencesKey("monitor_show_dose_today")
         private val MONITOR_SHOW_STATS = booleanPreferencesKey("monitor_show_stats")
         private val MONITOR_SHOW_CPS_CHART = booleanPreferencesKey("monitor_show_cps_chart")
+        private val MONITOR_SHOW_DOSE_CHART = booleanPreferencesKey("monitor_show_dose_chart")
         private val MONITOR_SHOW_HARDNESS_CHART =
             booleanPreferencesKey("monitor_show_hardness_chart")
         private val MAP_TRACK_SCOPE = stringPreferencesKey("map_track_scope")
@@ -851,6 +857,13 @@ data class MonitorBlocks(
      * needs accumulated spectra before it can draw anything.
      */
     val hardnessChart: Boolean = false,
+    /**
+     * График мощности дозы. Включён по умолчанию: это главная величина экрана.
+     * Выключатель есть по той же причине, что и у остальных блоков — экран
+     * принадлежит человеку, и «главная величина» не значит «обязательная
+     * картинка»: рядом стоит само число, а график нужен не всем.
+     */
+    val doseChart: Boolean = true,
 )
 
 /**
