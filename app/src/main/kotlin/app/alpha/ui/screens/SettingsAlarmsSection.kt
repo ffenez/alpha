@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,12 +42,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.res.stringResource
 import app.alpha.R
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import app.alpha.AppGraph
 import app.alpha.baseline.AlarmSensitivity
 import app.alpha.baseline.AlarmThresholds
@@ -305,6 +309,22 @@ internal fun AlarmSoundRow() {
     val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val context = LocalContext.current
+    // Состояние канала читается при каждой отрисовке строки: человек уходит в
+    // системные настройки и возвращается, и экран обязан показать новое
+    // состояние, а не то, что было при открытии.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var channelState by remember {
+        mutableStateOf(Notifications.alarmChannelState(context))
+    }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                channelState = Notifications.alarmChannelState(context)
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
@@ -334,11 +354,26 @@ internal fun AlarmSoundRow() {
     ) {
         Column(Modifier.weight(1f)) {
             Text(text = strings.alarmSoundTitle, style = type.label, color = colors.ink)
-            Hint(
-                text = strings.alarmSoundNote,
-                style = type.bodySmall,
-                color = colors.muted,
-            )
+            // Состояние канала — КРИТИЧЕСКОЕ: пока он выключен в системе, звука
+            // тревоги не будет, сколько ни настраивай пороги. Включить его
+            // приложение не может — только показать и открыть настройки.
+            when (channelState) {
+                Notifications.AlarmChannelState.ENABLED -> Hint(
+                    text = strings.alarmSoundNote,
+                    style = type.bodySmall,
+                    color = colors.muted,
+                )
+                Notifications.AlarmChannelState.CHANNEL_BLOCKED -> Text(
+                    text = strings.alarmChannelBlocked,
+                    style = type.bodySmall,
+                    color = colors.warn,
+                )
+                Notifications.AlarmChannelState.APP_BLOCKED -> Text(
+                    text = strings.alarmNotificationsBlocked,
+                    style = type.bodySmall,
+                    color = colors.warn,
+                )
+            }
         }
         NavArrow()
     }

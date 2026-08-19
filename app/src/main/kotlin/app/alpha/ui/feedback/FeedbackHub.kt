@@ -14,6 +14,9 @@ import app.alpha.ui.logic.SearchReferences
 import app.alpha.ui.logic.SearchTone
 import app.alpha.ui.logic.SearchVibro
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
@@ -54,6 +57,17 @@ class FeedbackHub(
     private val clicker = GeigerClicker(context)
     private val appContext = context.applicationContext
 
+    /**
+     * Что хаб сейчас отправляет в железо: темп щелчков, частота тона и
+     * промежуток между толчками.
+     *
+     * Наблюдаемое состояние, а не внутренние переменные: по нему экран
+     * объясняет молчание, а тест проверяет, что отклик действительно идёт, —
+     * звук из динамика тестом не поймать.
+     */
+    private val _output = MutableStateFlow(FeedbackOutput())
+    val output: StateFlow<FeedbackOutput> = _output.asStateFlow()
+
     private var running = false
     private var clicks: Job? = null
     private var tone: Job? = null
@@ -92,6 +106,7 @@ class FeedbackHub(
         tone = null
         pulse = null
         clicker.stop()
+        _output.value = FeedbackOutput()
     }
 
     /**
@@ -114,13 +129,13 @@ class FeedbackHub(
                     System.currentTimeMillis() - sample.receivedAtMillis <= STALE_MILLIS
                 // Замолчавший поток — тишина, а не последняя известная частота:
                 // щёлкающий прибор без данных врёт о том, что он измеряет.
-                clicker.setRate(
-                    if (fresh && channels.clicks) {
-                        ClickRate.clicksPerSecond(sample!!.countRate)
-                    } else {
-                        0f
-                    },
-                )
+                val rate = if (fresh && channels.clicks) {
+                    ClickRate.clicksPerSecond(sample!!.countRate)
+                } else {
+                    0f
+                }
+                clicker.setRate(rate)
+                _output.value = _output.value.copy(clicksPerSecond = rate)
             }
     }
 
@@ -129,13 +144,13 @@ class FeedbackHub(
         settings.searchFeedbackChannels.distinctUntilChanged().collect { channels ->
             if (!channels.tone) {
                 clicker.setSearchTone(enabled = false, targetHz = null)
+                _output.value = _output.value.copy(toneHz = null)
                 return@collect
             }
             while (running && channels.tone) {
-                clicker.setSearchTone(
-                    enabled = true,
-                    targetHz = SearchTone.frequencyHz(ratio()),
-                )
+                val hz = SearchTone.frequencyHz(ratio())
+                clicker.setSearchTone(enabled = true, targetHz = hz)
+                _output.value = _output.value.copy(toneHz = hz)
                 delay(TICK_MILLIS)
             }
         }
@@ -157,6 +172,7 @@ class FeedbackHub(
                     dndAllows = Feedback.dndAllowsFeedback(appContext)
                 }
                 val interval = SearchVibro.intervalMillis(ratio())
+                _output.value = _output.value.copy(pulseIntervalMillis = interval)
                 if (interval == null || !dndAllows) {
                     delay(SearchVibro.SLOW_INTERVAL_MILLIS / 2)
                     continue
@@ -219,3 +235,13 @@ class FeedbackHub(
         const val DND_POLL_MILLIS = 1_000L
     }
 }
+
+/** Что отклик отправляет в железо прямо сейчас. */
+data class FeedbackOutput(
+    /** Темп щелчков, 1/с; ноль — тишина. */
+    val clicksPerSecond: Float = 0f,
+    /** Частота поискового тона, Гц; null — тон молчит. */
+    val toneHz: Float? = null,
+    /** Промежуток между толчками, мс; null — пульса нет. */
+    val pulseIntervalMillis: Long? = null,
+)

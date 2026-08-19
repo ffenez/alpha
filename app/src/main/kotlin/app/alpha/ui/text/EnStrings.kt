@@ -560,6 +560,13 @@ object EnStrings : Strings {
     override val alarmSoundTitle = "Alarm sound and vibration"
     override val alarmSoundNote =
         "the melody and vibration are set in the Android settings of the «Alarm» channel"
+    override val alarmChannelBlocked =
+        "the «Тревога» notification is switched off in the system — there will be no sound. " +
+            "Only the system can re-enable it: tap here and allow the category. The app's own " +
+            "vibration keeps working."
+    override val alarmNotificationsBlocked =
+        "the app's notifications are switched off in the system — the alarm will not sound. " +
+            "The app's own vibration keeps working."
 
     override fun level1WithUnit(unit: String) = "level 1, $unit"
 
@@ -689,7 +696,9 @@ object EnStrings : Strings {
     override val deviceSound = "Instrument sound"
     override val deviceVibro = "Instrument vibration"
     override val deviceSignalsUnknownNote =
-        "The app can switch them on and off, but cannot ask the instrument what is set " +
+        "These are the INSTRUMENT's own switches: they allow it to beep and vibrate on the " +
+            "thresholds stored inside it. This app's threshold does not drive them — the " +
+            "phone vibrates on that one. The app cannot ask the instrument what is set " +
             "there right now: until the first command the state is unknown."
     override val deviceSignalsOfflineNote =
         "The instrument is not connected — there is nowhere to send the command."
