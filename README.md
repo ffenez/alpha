@@ -197,8 +197,6 @@ Issues and pull requests are welcome. Two rules that reviews enforce: wording
 never turns a statistic into a verdict about danger, and measurement data never
 leaves the device. Tests check both.
 
-Plans live in [`ROADMAP.md`](ROADMAP.md). Nothing there is a promise.
-
 ## License
 
 MIT — see [`LICENSE`](LICENSE). Third-party components and their required
