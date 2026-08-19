@@ -177,9 +177,16 @@ fun NavigateSection(
         // бы занимать строку тем, что уже прочитано.
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                // Та же справка, что в Наблюдении: величины и правило чтения у
-                // режимов общие, различается только знаменатель шкалы.
-                ReadingHelpRow()
+                // Справка Поиска: почему ведут по счёту и с чем сравнивают.
+                ReadingHelpRow(
+                    title = t.readingTitle,
+                    notes = listOf(
+                        t.readingCount,
+                        t.readingWhyCount,
+                        t.readingNoise,
+                        t.readingScale,
+                    ),
+                )
                 // Свечение обнимает ЧИСЛО И ШКАЛУ — ту часть карточки, которая
                 // отвечает «куда вести прибор». Захватив заодно ленту, оно
                 // сместило бы свой центр вниз, и ритм перестал бы читаться как

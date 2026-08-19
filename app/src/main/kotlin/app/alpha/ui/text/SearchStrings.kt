@@ -141,6 +141,18 @@ interface SearchStrings {
     val navWhy: String
 
     // --- Наведение: «Почему такой вывод» ---
+    /**
+     * Справка Поиска: почему ведут по счёту и с чем сравнивают.
+     *
+     * Своя, не общая с Наблюдением: там главная величина — мощность дозы и
+     * знаменатель — обычное для места, здесь всё другое.
+     */
+    val readingTitle: String
+    val readingCount: String
+    val readingWhyCount: String
+    val readingNoise: String
+    val readingScale: String
+
     val navWhyTitle: String
     val navWhyNow: String
     val navWhyReference: String
@@ -473,6 +485,24 @@ object SearchRu : SearchStrings {
             "показывает, становится сигнал сильнее или слабее."
 
     override val navWhy = "Почему?"
+
+    override val readingTitle = "Что показывает поиск"
+    override val readingCount =
+        "Скорость счёта, имп/с — сколько частиц прибор зарегистрировал за секунду. Это не доза: " +
+            "число зависит от кристалла прибора и от энергии излучения, поэтому с чужим прибором " +
+            "его не сравнить, а перевести в мкЗв/ч нельзя."
+    override val readingWhyCount =
+        "Поиск идёт по счёту, а не по мощности дозы, потому что он отзывчивее: реагирует за " +
+            "секунды там, где мощность дозы усредняется дольше. Ищут не «сколько здесь», а «где " +
+            "больше», и для этого важнее скорость отклика, чем единица."
+    override val readingNoise =
+        "Число скачет само по себе: распад случаен, и соседние секунды различаются даже над " +
+            "одним и тем же местом. Поэтому приложение сравнивает окна измерений и подтверждает " +
+            "различие критерием — одно значение выше соседнего ещё ничего не означает."
+    override val readingScale =
+        "Шкала и отклик ведут по ОТНОШЕНИЮ. В знаменателе — поставленная вами точка отсчёта, а " +
+            "пока её нет, недавний уровень; что именно, написано под шкалой. Щелчки идут от " +
+            "самих импульсов, а тон и вибрация — от этого отношения: выше тон значит теплее."
 
     override val navWhyTitle = "Справка"
     override val navWhyNow = "Сейчас"
@@ -868,6 +898,25 @@ object SearchEn : SearchStrings {
 
     override val navWhy = "Why?"
 
+    override val readingTitle = "What search shows"
+    override val readingCount =
+        "Count rate, counts per second, is how many particles the instrument registered in a " +
+            "second. It is not a dose: the number depends on the crystal and on the energy, so " +
+            "it cannot be compared with another instrument, nor converted into µSv/h."
+    override val readingWhyCount =
+        "Search goes by the count rate rather than the dose rate because it responds faster: it " +
+            "moves in seconds where the dose rate averages for longer. What is being looked for " +
+            "is not «how much is here» but «where is it stronger», and response beats units."
+    override val readingNoise =
+        "The number jumps on its own: decay is random, and neighbouring seconds differ over one " +
+            "and the same spot. So the app compares windows of measurements and confirms a " +
+            "difference with a test — one value above its neighbour means nothing yet."
+    override val readingScale =
+        "The scale and the feedback follow a RATIO. Its denominator is the reference you set, or " +
+            "the recent level while there is none; which one it is, is written under the scale. " +
+            "Clicks follow the pulses themselves, while tone and vibration follow that ratio: a " +
+            "higher tone means warmer."
+
     override val navWhyTitle = "Help"
     override val navWhyNow = "Now"
     override val navWhyReference = "Reference point"
@@ -1205,6 +1254,7 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     navScaleNoReference, navConfidenceInsufficient,
     navConfidenceNoDifference,
     navConfidenceAbove, navConfidenceBelow, navReferenceRow("23,6", "21:48"),
+    readingTitle, readingCount, readingWhyCount, readingNoise, readingScale,
     navSetupTitle, navSetupBody, navWhy, navWhyTitle, navWhyNow, navWhyReference, navWhyRatio,
     navWhyInterval, navWhyDetectable, navWhyDetectableNote, navWhyIntervalNote, navWhyDifference, navWhyRecent, navWhyRecentNote,
     navWhyWindows, navWhyCriterion, navWhyCriterionValue("1"), navWhyCriterionNote, navWhyLimit,

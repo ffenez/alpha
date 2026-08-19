@@ -113,6 +113,18 @@ interface MonitorStrings {
      * Заголовков на Главной три: собственный порог, повышенный уровень и
      * «уходите отсюда». Сравнение с обычным фоном места живёт в справке.
      */
+    /**
+     * Справка Наблюдения: что значит мощность дозы и как её читать здесь.
+     *
+     * Своя, не общая с Поиском: экраны отвечают на разные вопросы и сравнивают
+     * с разным, и половина общего текста была бы не об открытом экране.
+     */
+    val readingTitle: String
+    val readingRate: String
+    val readingNoise: String
+    val readingScale: String
+    val readingTiles: String
+
     val alarmElevated: String
     fun alarmElevatedNote(times: String): String
     val alarmLeave: String
@@ -306,6 +318,24 @@ object MonitorRu : MonitorStrings {
     // Окно объясняет не только числа: что происходит, почему фона ещё нет,
     // как идёт сравнение и по каким параметрам. Это справка, а не «информация».
     override val whyTitle = "Справка"
+
+    override val readingTitle = "Что показывает наблюдение"
+    override val readingRate =
+        "Мощность дозы, мкЗв/ч — темп, с которым набирается доза: сколько набежало бы за час, " +
+            "если остаться здесь. Это скорость, а не накопленное. Природный фон в большинстве " +
+            "мест — 0,08–0,20 мкЗв/ч, за сутки из них выходит 2–5 мкЗв."
+    override val readingNoise =
+        "Число скачет само по себе: распад случаен, и соседние секунды различаются даже при " +
+            "неизменном уровне. Поэтому смысл имеет не одно значение, а то, держится ли оно — " +
+            "приложение сравнивает окна измерений и говорит об изменении, только когда его " +
+            "подтверждает критерий."
+    override val readingScale =
+        "Шкала под числом показывает отношение к тому, что для этого места ОБЫЧНО: в знаменателе " +
+            "медиана изученного фона. Серый сектор — привычный разброс места, риска — ваш " +
+            "собственный уровень из настроек."
+    override val readingTiles =
+        "Плитки под шкалой отвечают на соседние вопросы: сколько здесь обычно, куда идёт уровень " +
+            "за час и сколько дозы набралось за сутки."
 
     override val alarmElevated = "Повышенный уровень"
     override fun alarmElevatedNote(times: String) = "$times к природному фону"
@@ -503,6 +533,24 @@ object MonitorEn : MonitorStrings {
 
     override val whyTitle = "Help"
 
+    override val readingTitle = "What observation shows"
+    override val readingRate =
+        "Dose rate, µSv/h, is the pace at which dose accumulates: how much would build up over an " +
+            "hour if you stayed here. It is a speed, not a total. The natural background in most " +
+            "places is 0.08–0.20 µSv/h, which comes to 2–5 µSv over a day."
+    override val readingNoise =
+        "The number jumps on its own: decay is random, and neighbouring seconds differ even when " +
+            "the level does not change. So a single value means little; what means something is " +
+            "whether it holds — the app compares windows of measurements and speaks of a change " +
+            "only when a test confirms it."
+    override val readingScale =
+        "The scale under the number shows the ratio to what is USUAL for this place: the " +
+            "denominator is the median of the learned background. The grey sector is the place's " +
+            "familiar spread, the tick is your own level from the settings."
+    override val readingTiles =
+        "The tiles under the scale answer the neighbouring questions: what is usual here, which " +
+            "way the level has gone over an hour, and how much dose has accumulated today."
+
     override val alarmElevated = "Elevated level"
     override fun alarmElevatedNote(times: String) = "$times the natural background"
     override val alarmLeave = "Leave this place"
@@ -636,6 +684,7 @@ val MonitorCatalogue = AreaCatalogue(ru = MonitorRu, en = MonitorEn)
  * области не проверяют.
  */
 fun MonitorStrings.allTexts(): List<String> = listOf(
+    readingTitle, readingRate, readingNoise, readingScale, readingTiles,
     alarmElevated, alarmElevatedNote("×70"), alarmLeave, alarmLeaveNote,
     backgroundCollecting,
     placeBackgroundTitle, collectedOf("0,9 ч", "3 ч"), comparisonTitle, comparisonNotEnough,

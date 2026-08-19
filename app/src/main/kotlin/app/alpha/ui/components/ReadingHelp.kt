@@ -9,55 +9,41 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import app.alpha.ui.text.LocalStrings
 
 /**
- * Справка прибора: что значат мощность дозы и скорость счёта и как их читать.
+ * Кнопка справки у левого края карточки прибора и сама справка за ней.
  *
- * ## Одна на оба режима
+ * ## Общий компонент, свой текст
  *
- * Наблюдение и Поиск показывают одни и те же две величины и подчиняются одному
- * правилу чтения — различается только знаменатель шкалы, и о нём в справке
- * сказано. Две отдельные справки об одном разошлись бы через полгода.
+ * Место кнопки, её вид и форма окна — часть дизайн-системы и одинаковы в обоих
+ * режимах; содержание — нет. Наблюдение и Поиск отвечают на разные вопросы и
+ * показывают разные величины с разными знаменателями, и одна справка на двоих
+ * либо говорила бы половину не о том экране, который открыт, либо расплывалась
+ * в общие слова. Текст приходит от экрана.
  *
- * ## Почему кнопка, а не текст на экране
+ * ## Почему за кнопкой
  *
  * Это обучающий текст: он нужен один раз и не меняет ни одного показания,
- * поэтому живёт за кнопкой «i» и исчезает вместе с пояснениями
- * ([ExplainInfoButton]). Рабочий экран от него не зависит.
+ * поэтому живёт за «i» и исчезает вместе с пояснениями ([ExplainInfoButton]).
+ * Рабочий экран от него не зависит.
  */
 @Composable
-fun ReadingHelpButton(modifier: Modifier = Modifier) {
+fun ReadingHelpRow(
+    title: String,
+    notes: List<String>,
+    modifier: Modifier = Modifier,
+) {
     var open by remember { mutableStateOf(false) }
-    val strings = LocalStrings.current
-    ExplainInfoButton(onClick = { open = true }, modifier = modifier)
-    if (open) {
-        ChartNotesDialog(
-            title = strings.readingHelpTitle,
-            notes = listOf(
-                strings.readingHelpDoseRate,
-                strings.readingHelpCountRate,
-                strings.readingHelpNoise,
-                strings.readingHelpScale,
-            ),
-            onClose = { open = false },
-        )
-    }
-}
-
-/**
- * Ряд с кнопкой справки у левого края карточки прибора.
- *
- * Отдельный компонент, а не голая кнопка в каждом экране: место кнопки —
- * часть дизайн-системы, и повторять выравнивание в двух режимах значило бы
- * дать им разойтись.
- */
-@Composable
-fun ReadingHelpRow(modifier: Modifier = Modifier) {
+    // Кнопка у ПРАВОГО края: слева она вставала над числом и читалась как
+    // часть показания. Место одно на оба режима — повторяющийся элемент не
+    // имеет права стоять в разных углах на соседних вкладках.
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start,
+        horizontalArrangement = Arrangement.End,
     ) {
-        ReadingHelpButton()
+        ExplainInfoButton(onClick = { open = true })
+    }
+    if (open) {
+        ChartNotesDialog(title = title, notes = notes, onClose = { open = false })
     }
 }
