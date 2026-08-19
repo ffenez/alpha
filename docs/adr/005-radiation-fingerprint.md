@@ -1,9 +1,9 @@
 # ADR 005. Radiation fingerprint: многомерное обнаружение изменений места
 
 Статус: принято (2026-08-11), реализация поэтапная.
-Контекст спецификаций: `docs/spec/scientific-instruction.md` §13 (spectral anomaly
-и radiation fingerprint), §4 (baseline и защита данных), §14 (change-point),
-`docs/SPEC.md` (персональный baseline).
+Контекст: требования проектной научной спецификации к spectral anomaly и
+radiation fingerprint, к baseline и защите данных, к change-point (документ
+рабочий, в репозиторий не входит), `docs/SPEC.md` (персональный baseline).
 
 ## Проблема
 

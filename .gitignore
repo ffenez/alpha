@@ -17,8 +17,25 @@ captures/
 # конкретному разговору, а не репозиторию, и однажды уже уехали в коммит.
 report.txt
 *.png
+*.jpg
+*.jpeg
+*.webp
 *.zip
 
 # Исключение: картинки README живут в репозитории и проверены на приватные
-# данные вручную (см. README_VERIFICATION.md).
+# данные вручную (см. docs/README_VERIFICATION.md).
 !docs/images/*.png
+!docs/images/*.webp
+!docs/images/*.webp
+
+# Рабочие документы: живут на диске и в работе, но публике не нужны — это
+# правила для ассистента, задания, журнал решений и внутренние методики.
+/CLAUDE.md
+/PUBLIC_RELEASE_AUDIT.md
+/README_RELEASE_TASK.md
+/docs/SPEC.md
+/docs/README_VERIFICATION.md
+/docs/RELEASE_CHECKLIST.md
+/docs/analysis/
+/docs/decisions/
+/docs/design/
