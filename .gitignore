@@ -30,6 +30,7 @@ report.txt
 # Рабочие документы: живут на диске и в работе, но публике не нужны — это
 # правила для ассистента, задания, ADR, журнал решений и внутренние методики.
 /CLAUDE.md
+/SECURITY.md
 /PUBLIC_RELEASE_AUDIT.md
 /README_RELEASE_TASK.md
 /docs/
