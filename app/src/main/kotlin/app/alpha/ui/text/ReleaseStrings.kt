@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0443Title: String
+    val v0443Summary: String
+
     val v0442Title: String
     val v0442Summary: String
 
@@ -399,6 +402,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0443Title = "Серые пояснения ушли под переключатель"
+    override val v0443Summary =
+        "Мелкие серые строки, которые объясняли устройство расчёта и терминов — поправка шкалы, " +
+        "срок хранения, выход линии, отнесение канала к окну, — теперь прячутся вместе с " +
+        "«Пояснениями»; единицы, неопределённости, отказы метода и предупреждения остались. " +
+        "На рабочем экране больше нет слова «порог»: свой уровень обозначен на шкале риской L1, " +
+        "как и на графике."
 
     override val v0442Title = "Значок снова читается буквой"
     override val v0442Summary =
@@ -1278,6 +1289,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0443Title = "Grey explanations moved under the switch"
+    override val v0443Summary =
+        "The small grey lines that explained how a calculation or a term works — the scale " +
+        "correction, the retention period, a line's yield, how a channel joins a window — now " +
+        "hide with «Пояснения»; units, uncertainties, method refusals and warnings stay. The " +
+        "working screen no longer says «threshold»: your own level is marked L1 on the scale, " +
+        "as it already is on the chart."
 
     override val v0442Title = "The icon reads as a letter again"
     override val v0442Summary =

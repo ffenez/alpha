@@ -64,11 +64,9 @@ fun EfficiencySection(graph: AppGraph, onBack: () -> Unit) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
                     Text(text = s.notCalibrated, style = type.bodySmall, color = colors.ink2)
-                    Text(
-                        text = s.notCalibratedWhy,
-                        style = type.bodySmall,
-                        color = colors.muted,
-                    )
+                    // Почему активности нет нигде — обучающий текст;
+                    // «Кривая не построена» строкой выше остаётся всегда.
+                    Hint(text = s.notCalibratedWhy, style = type.bodySmall)
                     Hint(text = s.addFromSpectrum, style = type.bodySmall, color = colors.muted)
                 }
             }

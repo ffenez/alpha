@@ -319,7 +319,10 @@ internal fun CalibrationContent(
                 },
             )
         }
-        Text(text = s.correctionNote, style = type.footnote, color = colors.muted)
+        // Что такое поправка и чего она не делает — обучающий текст:
+        // прячется вместе с пояснениями. Само предложение с числами и
+        // состояние принятой поправки остаются всегда.
+        Hint(text = s.correctionNote)
         if (correction != null) {
             Text(
                 text = s.correctionAcceptedState(
@@ -380,7 +383,9 @@ internal fun CalibrationContent(
         for (row in CalibrationView.scale(model.report, s)) {
             Text(text = row, style = type.valueSmall, color = colors.ink)
         }
-        Text(text = s.noCorrection, style = type.footnote, color = colors.muted)
+        // Почему приложение не правит шкалу само — пояснение, а не отказ
+        // метода: сами измеренные сдвиги выше остаются на экране.
+        Hint(text = s.noCorrection)
     }
 
     // Заголовок называет СОСТОЯНИЕ раздела, а не обещание: пока пар линий

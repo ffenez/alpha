@@ -50,7 +50,9 @@ fun RetentionRows(graph: AppGraph) {
         RetentionChoice(days) { chosen ->
             scope.launch { graph.settings.setRawRetentionDays(chosen) }
         }
-        Text(text = strings.retentionNote, style = type.footnote, color = colors.muted)
+        // Что именно удаляется и что остаётся — объяснение настройки
+        // (`settings_ui_restructure.md` §13), а не её состояние.
+        Hint(text = strings.retentionNote)
     }
 }
 

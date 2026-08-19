@@ -298,11 +298,9 @@ private fun RangesTable(
         if (i < analysis.windows.size - 1) AppDivider()
     }
     if (details) {
-        Text(
-            text = t.windowsEdgeNote,
-            style = LocalAppTypography.current.footnote,
-            color = colors.muted,
-        )
+        // Как канал относится к окну — метод, а не результат: строка живёт по
+        // тому же правилу, что и её близнец выше.
+        Hint(text = t.windowsEdgeNote)
     }
 }
 
