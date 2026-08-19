@@ -12,7 +12,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
@@ -182,31 +181,6 @@ fun InstrumentBar(
             )
         }
 
-        // Строка состояния — под шкалой, той же капителью, что гравировка на
-        // циферблате: это одно и то же сообщение в двух рисунках.
-        spec.statusText?.let { status ->
-            val style = TextStyle(
-                fontFamily = axisStyle.fontFamily,
-                fontSize = axisStyle.fontSize,
-                letterSpacing = axisStyle.fontSize * 0.14f,
-            )
-            val caps = status.uppercase()
-            val fits = textMeasurer.measure(caps, style).size.width <= width
-            val measured = if (fits) {
-                textMeasurer.measure(caps, style)
-            } else {
-                textMeasurer.measure(status, axisStyle)
-            }
-            drawText(
-                textLayoutResult = measured,
-                color = colors.muted,
-                topLeft = Offset(
-                    (size.width / 2f - measured.size.width / 2f)
-                        .coerceIn(0f, size.width - measured.size.width),
-                    axisY + trackWidth + labelHeight + 8.dp.toPx(),
-                ),
-            )
-        }
     }
 }
 

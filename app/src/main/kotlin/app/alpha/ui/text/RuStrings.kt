@@ -498,8 +498,10 @@ object RuStrings : Strings {
 
     override fun signalDbm(value: Int) = "$value дБм"
 
-    override fun alarmPreset(level: String, factor: String, held: String) =
-        "от $level или $factor× к P90 профиля, $held"
+    override fun alarmPreset(level: String, level2: String, factor: String, held: String) =
+        "от $level или $factor× к P90 профиля, $held; второй уровень $level2"
+
+    override val thresholdLevelsNote = "первый и второй уровни тревоги"
 
     override val retentionTitle = "История измерений"
     override val retentionKeepAll = "всё"

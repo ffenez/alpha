@@ -494,7 +494,10 @@ interface Strings {
     fun signalDbm(value: Int): String
 
     /** «от 0,30 мкЗв/ч или 2× к P90 профиля, держится 2 мин». */
-    fun alarmPreset(level: String, factor: String, held: String): String
+    fun alarmPreset(level: String, level2: String, factor: String, held: String): String
+
+    /** Подпись под двумя порогами: какой из них какой. */
+    val thresholdLevelsNote: String
 
     /** Режим отклика Поиска в сегменте Настроек: нет · клики · тон · вибро. */
     /** Материал сцинтиллятора, у которого нет химической формулы. */
@@ -780,7 +783,7 @@ fun Strings.allTexts(): List<String> = listOf(
     no, notRecorded, notCreated,
     skinTitle, skinTerminal, skinEightBit,
     themeSystem, themeDark, themeLight,
-    signalDbm(-72), alarmPreset("0,30", "2", held(minutes(2))),
+    signalDbm(-72), alarmPreset("0,30", "1,00", "2", held(minutes(2))), thresholdLevelsNote,
     retentionTitle, retentionKeepAll, retentionDays(90), retentionNote,
     scaleTitle, scaleFont, scaleElements, scalePercent(100), scaleReset,
     crystalOrganicPlastic, modeOff, modeClicks, modeTone, modeVibro,

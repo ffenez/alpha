@@ -439,6 +439,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                 )
                 AppTab.SPECTRUM -> SpectrumScreen(
                     graph = graph,
+                    onOpenImported = { spectrumSnapshotId = it },
                     onOpenSpectrogram = { showSpectrogram = true },
                     onOpenRadon = { showRadon = true },
                     onOpenLineTrend = { showLineTrend = true },
