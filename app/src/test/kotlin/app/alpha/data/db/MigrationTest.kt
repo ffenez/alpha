@@ -99,6 +99,49 @@ class MigrationTest {
     }
 
     @Test
+    fun `migration 17 to 18 produces exactly the exported v18 schema`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(17))
+            MigrationSql.FROM_17_TO_18.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            assertMatchesSchema(connection, schema(18))
+        }
+    }
+
+    @Test
+    fun `migration 17 to 18 keeps old records and leaves them without an interval`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            createFromSchema(connection, schema(17))
+            connection.createStatement().use { statement ->
+                statement.execute(
+                    "INSERT INTO events (timestamp, source, code, name, param1, flags, doseRate) " +
+                        "VALUES (1000, 'deviation', 0, 'DEVIATION', 180, 0, 0.4)",
+                )
+            }
+            MigrationSql.FROM_17_TO_18.forEach { sql ->
+                connection.createStatement().use { it.execute(sql) }
+            }
+            connection.createStatement().use { statement ->
+                statement.executeQuery(
+                    "SELECT timestamp, source, doseRate, endTimestamp, sampleCount FROM events",
+                ).use { rows ->
+                    assertTrue(rows.next(), "запись прежней версии исчезла")
+                    assertEquals(1000L, rows.getLong("timestamp"))
+                    assertEquals("deviation", rows.getString("source"))
+                    // Интервала у точечной записи не было и выдумывать его
+                    // нечем: оба поля остаются пустыми.
+                    rows.getLong("endTimestamp")
+                    assertTrue(rows.wasNull(), "конец эпизода выдуман")
+                    rows.getInt("sampleCount")
+                    assertTrue(rows.wasNull(), "число отсчётов выдумано")
+                    assertTrue(!rows.next(), "миграция размножила записи")
+                }
+            }
+        }
+    }
+
+    @Test
     fun `migration 1 to 2 produces exactly the exported v2 schema`() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             createFromSchema(connection, schema(1))

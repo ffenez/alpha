@@ -142,6 +142,30 @@ private class FakeEventDao : EventDao {
     }
     override suspend fun insert(event: EventEntity): Long { inserted += event; return inserted.size.toLong() }
     override suspend fun insertAll(events: List<EventEntity>) { inserted += events }
+    override suspend fun updateEpisode(
+        id: Long,
+        source: String,
+        endTimestamp: Long?,
+        doseRate: Float,
+        minMicroSvH: Float,
+        maxMicroSvH: Float,
+        meanMicroSvH: Float,
+        sampleCount: Int,
+    ) {
+        val index = id.toInt() - 1
+        if (index !in inserted.indices) return
+        inserted[index] = inserted[index].copy(
+            source = source,
+            endTimestamp = endTimestamp,
+            doseRate = doseRate,
+            minMicroSvH = minMicroSvH,
+            maxMicroSvH = maxMicroSvH,
+            meanMicroSvH = meanMicroSvH,
+            sampleCount = sampleCount,
+        )
+    }
+    override suspend fun ongoingEpisodes(): List<EventEntity> =
+        inserted.filter { it.sampleCount != null && it.endTimestamp == null }
     override fun observeRecent(limit: Int): Flow<List<EventEntity>> = flowOf(inserted.takeLast(limit))
     override fun observeRange(from: Long, to: Long): Flow<List<EventEntity>> = flowOf(emptyList())
     override suspend fun inRangeBySource(from: Long, to: Long, sources: List<String>, limit: Int): List<EventEntity> =

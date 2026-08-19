@@ -4,6 +4,8 @@ import app.alpha.data.db.DoseBucketAggregate
 import app.alpha.data.db.ValueBucketAggregate
 import app.alpha.data.db.DownsampledSample
 import app.alpha.data.db.EventDao
+import app.alpha.baseline.LevelEvent
+import app.alpha.baseline.LevelEventKind
 import app.alpha.data.db.EventEntity
 import app.alpha.data.db.RareDataDao
 import app.alpha.data.db.RareDataEntity
@@ -145,10 +147,82 @@ class MeasurementRepository(
     }
 
     /**
+     * Открыть эпизод: подтверждённое изменение уровня или превышение порога.
+     *
+     * Строка пишется ОДИН раз на эпизод и дальше обновляется
+     * ([updateEpisode]). Прежний `recordDeviation` писал точку на каждое
+     * срабатывание, и журнал превращался в лог детектора.
+     *
+     * @return id строки — по нему эпизод обновляется и закрывается
+     */
+    suspend fun openEpisode(event: LevelEvent): Long = eventDao.insert(
+        EventEntity(
+            timestamp = event.startMillis,
+            source = sourceOf(event.kind),
+            code = 0,
+            name = event.kind.name,
+            param1 = ((event.baselineHighMicroSvH ?: 0f) * 1000f).toInt(),
+            flags = 0,
+            doseRate = event.maxMicroSvH,
+            endTimestamp = null,
+            minMicroSvH = event.minMicroSvH,
+            maxMicroSvH = event.maxMicroSvH,
+            meanMicroSvH = event.meanMicroSvH,
+            sampleCount = event.sampleCount,
+            thresholdMicroSvH = event.thresholdMicroSvH,
+        ),
+    )
+
+    /**
+     * Обновить эпизод — идущий ([LevelEvent.active]) или закрываемый.
+     *
+     * `doseRate` держит максимум эпизода: карта и старые экраны читают именно
+     * его, и максимум там честнее последнего отсчёта.
+     */
+    suspend fun updateEpisode(id: Long, event: LevelEvent) {
+        eventDao.updateEpisode(
+            id = id,
+            source = sourceOf(event.kind),
+            endTimestamp = event.endMillis,
+            doseRate = event.maxMicroSvH,
+            minMicroSvH = event.minMicroSvH,
+            maxMicroSvH = event.maxMicroSvH,
+            meanMicroSvH = event.meanMicroSvH,
+            sampleCount = event.sampleCount,
+        )
+    }
+
+    /**
+     * Закрыть эпизоды, оставшиеся без конца: служба остановилась, не
+     * дождавшись возврата. Концом берётся последний известный отсчёт эпизода —
+     * выдумывать «идёт до сих пор» нельзя.
+     */
+    suspend fun closeOngoingEpisodes(atMillis: Long) {
+        for (row in eventDao.ongoingEpisodes()) {
+            eventDao.updateEpisode(
+                id = row.id,
+                source = row.source,
+                endTimestamp = maxOf(row.timestamp, atMillis),
+                doseRate = row.doseRate ?: 0f,
+                minMicroSvH = row.minMicroSvH ?: 0f,
+                maxMicroSvH = row.maxMicroSvH ?: 0f,
+                meanMicroSvH = row.meanMicroSvH ?: 0f,
+                sampleCount = row.sampleCount ?: 0,
+            )
+        }
+    }
+
+    private fun sourceOf(kind: LevelEventKind): String = when (kind) {
+        LevelEventKind.THRESHOLD -> EventEntity.SOURCE_THRESHOLD
+        LevelEventKind.LEVEL_CHANGE -> EventEntity.SOURCE_LEVEL_CHANGE
+    }
+
+    /**
      * Journal entry for a confirmed persistent baseline deviation (SPEC
      * «Radiation level changed»). `param1` carries the baseline typical high
      * in nSv/h at event time (0 = baseline was not active).
      */
+    @Deprecated("Событие журнала — эпизод: openEpisode/updateEpisode")
     suspend fun recordDeviation(
         timestamp: Long,
         doseRate: Float,
@@ -292,7 +366,11 @@ class MeasurementRepository(
         eventDao.inRangeBySource(
             from = from,
             to = to,
-            sources = listOf(EventEntity.SOURCE_DEVIATION, EventEntity.SOURCE_HOTSPOT),
+            // Прежние точечные `deviation` остаются: график рисует их как
+            // отметки прошлого, и стирать их с картинки значило бы прятать
+            // измерения.
+            sources = EventEntity.EPISODE_SOURCES +
+                listOf(EventEntity.SOURCE_DEVIATION, EventEntity.SOURCE_HOTSPOT),
             limit = limit,
         )
 
