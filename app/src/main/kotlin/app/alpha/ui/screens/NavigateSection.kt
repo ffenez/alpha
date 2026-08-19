@@ -230,10 +230,6 @@ fun NavigateSection(
                                 scale = ArcScale.around(factor),
                                 trend = state.trend,
                                 referenceLabel = "1×",
-                                statusText = verdict
-                                    ?: (ui as? SearchUiState.ReferenceReady)
-                                        ?.let { confidenceLine(it.confidence, t) }
-                                    ?: t.navScaleNoReference,
                             ),
                         )
                         // Набор подтверждения — полоска под шкалой: она

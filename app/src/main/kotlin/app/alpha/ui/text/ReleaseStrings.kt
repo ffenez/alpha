@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0371Title: String
+    val v0371Summary: String
+
     val v0370Title: String
     val v0370Summary: String
 
@@ -354,6 +357,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0371Title = "Меньше слов, честный импорт"
+    override val v0371Summary =
+        "Под шкалой и под плитками больше нет строк состояния — об этом говорят цвет числа и " +
+        "положение стрелки; предупреждение о превышении осталось. Импортированный спектр " +
+        "открывается сразу и берёт имя файла, когда внутри файла имени нет, а на экране " +
+        "тревог видны оба уровня — вторая риска на шкале перестала быть безымянной."
 
     override val v0370Title = "Щелчки и вибрация — вместе"
     override val v0370Summary =
@@ -1126,6 +1136,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0371Title = "Fewer words, an honest import"
+    override val v0371Summary =
+        "The state lines under the scale and under the tiles are gone — the colour of the " +
+        "reading and the needle say it already, while the excess warning stays. An imported " +
+        "spectrum opens at once and takes the file's name when the file carries none inside, " +
+        "and the alarm screen shows both levels, so the second mark on the scale is no longer " +
+        "nameless."
 
     override val v0370Title = "Clicks and vibration, together"
     override val v0370Summary =

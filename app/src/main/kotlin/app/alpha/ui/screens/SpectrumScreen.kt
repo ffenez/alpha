@@ -140,6 +140,14 @@ fun SpectrumScreen(
     onOpenLineTrend: () -> Unit = {},
     onOpenExperiments: () -> Unit = {},
     onOpenFood: () -> Unit = {},
+    /**
+     * Открыть импортированный снимок сразу после импорта.
+     *
+     * Файл импортируют, чтобы на него посмотреть, а снимок ложится в ленту по
+     * ВРЕМЕНИ СЪЁМКИ из файла: месячной давности запись пришлось бы искать
+     * руками в прошлом.
+     */
+    onOpenImported: (Long) -> Unit = {},
     /** Snapshot id to continue accumulating on top of (История → снимок). */
     continueSnapshotId: Long? = null,
     onStopContinuation: () -> Unit = {},
@@ -416,7 +424,11 @@ fun SpectrumScreen(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
-            scope.launch { fileNotice = importRcXmlFile(graph, context, uri, s = t) }
+            scope.launch {
+                val notice = importRcXmlFile(graph, context, uri, s = t)
+                fileNotice = notice
+                notice.importedSpectrumId?.let(onOpenImported)
+            }
         }
     }
     LaunchedEffect(importingLive) {

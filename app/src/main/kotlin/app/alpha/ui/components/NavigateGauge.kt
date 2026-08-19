@@ -16,7 +16,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
@@ -74,14 +73,6 @@ data class NavigateGaugeSpec(
     val threshold: Double? = null,
     val threshold2: Double? = null,
     val thresholdLabel: String? = null,
-    /**
-     * Строка состояния под осью — «отсчёт не задан», «сигнал выше отсчёта».
-     *
-     * Живёт внутри прибора, потому что описывает его показание, а не экран:
-     * без неё пустая шкала выглядела бы сломанной, а не ждущей. Null — строки
-     * нет.
-     */
-    val statusText: String? = null,
 )
 
 /**
@@ -301,32 +292,6 @@ fun NavigateGauge(
             center = Offset(centerX, centerY),
         )
 
-        // Строка состояния — под осью, в развале дуги: капителью, как
-        // гравировка на приборе. Она описывает показание, поэтому живёт внутри
-        // картинки. Не поместилась капителью — набирается как есть.
-        spec.statusText?.let { status ->
-            val style = TextStyle(
-                fontFamily = axisStyle.fontFamily,
-                fontSize = axisStyle.fontSize,
-                letterSpacing = axisStyle.fontSize * 0.14f,
-            )
-            val caps = status.uppercase()
-            val fits = textMeasurer.measure(caps, style).size.width <= size.width - 2 * padding
-            val measured = if (fits) {
-                textMeasurer.measure(caps, style)
-            } else {
-                textMeasurer.measure(status, axisStyle)
-            }
-            drawText(
-                textLayoutResult = measured,
-                color = colors.muted,
-                topLeft = Offset(
-                    (centerX - measured.size.width / 2f)
-                        .coerceIn(0f, size.width - measured.size.width),
-                    centerY + 14.dp.toPx(),
-                ),
-            )
-        }
     }
 }
 

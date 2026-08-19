@@ -121,8 +121,6 @@ import app.alpha.ui.logic.Uncertainty
 import app.alpha.ui.logic.WhyInput
 import app.alpha.ui.logic.DoseAlarm
 import app.alpha.ui.logic.DoseAlarmLevel
-import app.alpha.ui.logic.statusDetail
-import app.alpha.ui.logic.statusHeadline
 import app.alpha.ui.text.HistoryCatalogue
 import app.alpha.ui.text.HistoryRu
 import app.alpha.ui.text.HistoryStrings
@@ -1009,8 +1007,6 @@ internal fun HeroCard(
                         threshold2 = median?.let { m -> threshold2MicroSvH?.let { it / m } }
                             ?.toDouble(),
                         thresholdLabel = strings.scaleThresholdTick,
-                        statusText = statusHeadline(status, strings)
-                            ?: streamAgeLine(stream, strings),
                     ),
                 )
             }
@@ -1097,10 +1093,14 @@ internal fun HeroCard(
             //
             // Сравнение с местом живёт в справке по нажатию на числа.
             val alarmLevel = DoseAlarm.of(doseMicroSvH)
-            val ownThreshold = status is MonitorStatus.Alert
+            // Под плитками остаётся ТОЛЬКО предупреждение: «повышенный
+            // уровень» и «уходите отсюда» — критическая информация, её убирать
+            // нельзя. Спокойные состояния («в пределах обычного», «выше
+            // обычного») больше не пишутся словами: об этом уже говорят цвет
+            // числа и положение стрелки на шкале, а строка повторяла их
+            // третий раз.
             val headline = when {
                 alarmLevel != DoseAlarmLevel.NONE -> DoseAlarm.headline(alarmLevel, t)
-                ownThreshold -> statusHeadline(status, strings)
                 else -> null
             } ?: return@Column
             val headlineColor = when (alarmLevel) {
@@ -1140,10 +1140,10 @@ internal fun HeroCard(
                         modifier = Modifier.weight(1f, fill = false),
                     )
                 }
-                // Чем измеряется заголовок: отношение к природному фону со
-                // знаменателем или доза за час.
+                // Чем измеряется предупреждение: отношение к природному фону
+                // со знаменателем или доза за час. Это часть предупреждения, а
+                // не пояснение к нему.
                 val note = DoseAlarm.note(alarmLevel, doseMicroSvH, t)
-                    ?: statusDetail(status, unit, strings).takeIf { ownThreshold }
                 note?.let {
                     Text(
                         text = it,

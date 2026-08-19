@@ -499,8 +499,10 @@ object EnStrings : Strings {
 
     override fun signalDbm(value: Int) = "$value dBm"
 
-    override fun alarmPreset(level: String, factor: String, held: String) =
-        "from $level or ×$factor of the profile's P90, $held"
+    override fun alarmPreset(level: String, level2: String, factor: String, held: String) =
+        "from $level or $factor× the profile P90, $held; second level $level2"
+
+    override val thresholdLevelsNote = "first and second alarm levels"
 
     override val retentionTitle = "Measurement history"
     override val retentionKeepAll = "everything"

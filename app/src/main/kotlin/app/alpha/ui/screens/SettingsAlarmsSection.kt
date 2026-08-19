@@ -189,9 +189,14 @@ internal fun AlarmsSection(graph: AppGraph) {
         SettingRow(
             title = strings.thresholdNow,
             // Критерий порога — данные: он говорит, ОТ ЧЕГО считается «×N».
-            subtitle = strings.relativeCriterion(formatFactor(thresholds.relativeFactor)),
+            subtitle = strings.relativeCriterion(formatFactor(thresholds.relativeFactor)) +
+                " · " + strings.thresholdLevelsNote,
             subtitleIsExplanation = false,
-            value = DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit, s = strings),
+            // Уровня ДВА в любом режиме, включая пресеты, и на шкале места их
+            // тоже два. Показывая один, экран оставлял вторую риску без
+            // объяснения — она и выглядела «оставшейся от своих настроек».
+            value = DoseFormat.rate(thresholds.l1MicroSvH, unit) + " · " +
+                DoseFormat.rateWithUnit(thresholds.l2MicroSvH, unit, s = strings),
             valueHighlighted = true,
         )
         if (sensitivity == AlarmSensitivity.CUSTOM) {
@@ -345,7 +350,8 @@ internal fun presetDescription(
     unit: DoseUnitSetting,
     strings: Strings = RuStrings,
 ): String = strings.alarmPreset(
-    level = DoseFormat.rateWithUnit(thresholds.l1MicroSvH, unit, s = strings),
+    level = DoseFormat.rate(thresholds.l1MicroSvH, unit),
+    level2 = DoseFormat.rateWithUnit(thresholds.l2MicroSvH, unit, s = strings),
     factor = formatFactor(thresholds.relativeFactor),
     held = heldWording(thresholds.persistenceSeconds.toLong(), strings),
 )

@@ -2,6 +2,7 @@ package app.alpha.ui.screens
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,6 +41,12 @@ internal data class SpectrumFileNotice(
     val title: String,
     val lines: List<String>,
     val isError: Boolean = false,
+    /**
+     * Что открыть после успешного импорта. Файл импортируют, чтобы на него
+     * посмотреть, а снимок ложится в ленту по СВОЕЙ дате — если файл снят
+     * месяц назад, искать его пришлось бы вручную в прошлом.
+     */
+    val importedSpectrumId: Long? = null,
 )
 
 /** Outcome dialog shared by the Спектр and История file flows. */
@@ -172,11 +179,18 @@ internal suspend fun importRcXmlFile(
     // Метка снимка уезжает в базу (`spectra.label`) и в файл экспорта: она НЕ
     // переводится, иначе снимок, импортированный по-русски, после смены языка
     // остался бы русским — половина перевода хуже честного «по разделам».
-    val label = data.sampleName ?: data.spectrum.name ?: "Импортированный спектр"
+    //
+    // Имя берётся из содержимого файла, а если его там нет — ИЗ ИМЕНИ ФАЙЛА.
+    // Полевой дефект: человек называет файл по-своему, внутри RC-XML имя
+    // пустое или заводское, и снимок в списке оказывался «переименованным».
+    val label = data.sampleName
+        ?: data.spectrum.name
+        ?: displayFileName(context, uri)
+        ?: "Импортированный спектр"
     val main = data.spectrum
     val background = data.background
-    try {
-        graph.measurementRepository.importSpectrum(
+    val imported = try {
+        val entity = graph.measurementRepository.importSpectrum(
             spectrum = Spectrum(
                 durationSeconds = main.measurementSeconds,
                 a0 = main.a0,
@@ -201,6 +215,7 @@ internal suspend fun importRcXmlFile(
                 timestamp = data.endMillis,
             )
         }
+        entity
     } catch (e: Throwable) {
         // Запись в журнал — последний шаг, и он тоже не имеет права ронять
         // приложение: снимок не сохранён, об этом надо сказать, а не упасть.
@@ -226,5 +241,27 @@ internal suspend fun importRcXmlFile(
     }
     lines += parsed.warnings
     lines += s.importedInHistory
-    SpectrumFileNotice(title = s.importedTitle, lines = lines)
+    SpectrumFileNotice(
+        title = s.importedTitle,
+        lines = lines,
+        importedSpectrumId = imported.id,
+    )
 }
+
+/**
+ * Человеческое имя выбранного файла без расширения; null — провайдер его не
+ * отдаёт.
+ *
+ * Нужно ровно для одного: подписать импортированный снимок так, как файл
+ * назван у человека, когда внутри файла имени нет.
+ */
+private fun displayFileName(context: Context, uri: Uri): String? = runCatching {
+    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        if (index < 0 || !cursor.moveToFirst()) return@use null
+        cursor.getString(index)
+    }
+}.getOrNull()
+    ?.substringBeforeLast('.')
+    ?.trim()
+    ?.ifEmpty { null }
