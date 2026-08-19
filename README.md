@@ -26,22 +26,27 @@
 
 ## What it is
 
-Alpha connects to a RadiaCode detector over Bluetooth and runs as an
-instrument, not a viewer. It records all the time, remembers what each place
-usually reads, and only reports a change when a statistical test backs it up.
-Spectra, routes and history stay in the app's database on your phone.
+Alpha holds a Bluetooth link to a RadiaCode detector and records its readings
+without breaks: the measurement keeps running while the phone sits in your
+pocket, instead of starting over every time you open the screen. Spectra,
+tracks and the journal are stored in a database on the phone.
 
-It is a second workflow next to the official app, not a replacement. What it
-does differently: long measurements, comparison against your own reference,
-and analysis that shows how sure it is.
+From those records the app builds a profile of the place — what the detector
+read here before. Every new value is compared against that profile, and Alpha
+reports an excess when the difference passes a statistical test, not when a
+number happens to jump.
 
 ## Why
 
-A bare number tells you little. 0.17 µSv/h means nothing until you know what
-this room usually reads and how much two neighbouring seconds differ anyway.
-So Alpha keeps a baseline for each place, always names what a ratio is measured
-against, and says out loud when it cannot tell a difference — along with how
-big a difference it would have seen.
+Decay is random, so two readings a second apart differ on their own, with no
+cause behind it. That is why "0.17 µSv/h" on its own says little: to know
+whether it is a lot or an ordinary day, you need what this particular place
+gives and how widely its readings scatter anyway.
+
+Alpha keeps that context for you. It shows how far the current value is from
+what is usual here, always naming what the comparison is against. When there is
+no visible difference it says so — and adds how large a difference it would
+have caught in that measuring time.
 
 ## What it does
 
