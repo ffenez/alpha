@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.alpha.data.db.ProfileEntity
+import app.alpha.ui.logic.ProfileName
 import app.alpha.ui.logic.ProfileTree
 import app.alpha.ui.text.LocalStrings
 import app.alpha.ui.text.MonitorCatalogue
@@ -153,7 +154,8 @@ private fun ProfileRow(
     ) {
         RadioMark(selected)
         Text(
-            text = listOf(profile.icon, profile.name).filter { it.isNotBlank() }.joinToString(" "),
+            text = listOf(profile.icon, ProfileName.of(profile, LocalStrings.current))
+                .filter { it.isNotBlank() }.joinToString(" "),
             style = type.label,
             color = colors.ink,
         )

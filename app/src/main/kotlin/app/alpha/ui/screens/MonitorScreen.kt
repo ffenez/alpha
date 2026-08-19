@@ -132,6 +132,8 @@ import app.alpha.ui.text.LocalStrings
 import app.alpha.ui.text.MonitorCatalogue
 import app.alpha.ui.text.MonitorRu
 import app.alpha.ui.text.MonitorStrings
+import app.alpha.ui.text.RuStrings
+import app.alpha.ui.text.Strings
 import app.alpha.ui.theme.Motion
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppMetrics
@@ -742,8 +744,9 @@ internal fun profileChipText(
     profiles: List<ProfileEntity>,
     context: MeasurementContext,
     s: MonitorStrings = MonitorRu,
+    names: Strings = RuStrings,
 ): String {
-    val name = active?.let { ProfileTree.displayName(it, profiles) } ?: s.profileUnknown
+    val name = active?.let { ProfileTree.displayName(it, profiles, names) } ?: s.profileUnknown
     val icon = active?.icon.orEmpty()
     val prefix = if (icon.isBlank()) "" else "$icon "
     val mode = contextModeWord(context, s)

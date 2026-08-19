@@ -72,6 +72,7 @@ import app.alpha.ui.components.ConfirmDialog
 import app.alpha.ui.components.EntityHeader
 import app.alpha.ui.components.DisclosureArrow
 import app.alpha.ui.components.EntityMenuItem
+import app.alpha.ui.logic.ProfileName
 import app.alpha.ui.text.EfficiencyCatalogue
 import app.alpha.ui.text.EfficiencyStrings
 import app.alpha.ui.text.ExportStrings
@@ -532,7 +533,7 @@ fun SpectrumScreen(
                 title = strings.tabSpectrum,
                 subtitle = spectrum?.let {
                     t.spectrumSummary(
-                        profile = activeProfile?.name ?: t.noProfileShort,
+                        profile = activeProfile?.let { ProfileName.of(it, strings) } ?: t.noProfileShort,
                         accumulation = SpectrumFormat.accumulationClock(it.durationSeconds),
                         counts = SpectrumFormat.countsShort(
                             it.counts.sumOf { c -> c.toLong() },

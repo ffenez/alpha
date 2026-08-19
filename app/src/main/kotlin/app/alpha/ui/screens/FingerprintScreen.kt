@@ -96,7 +96,7 @@ fun FingerprintScreen(graph: AppGraph, onBack: () -> Unit) {
             } else {
                 val repository = graph.fingerprintRepository
                 FingerprintModel(
-                    profileName = ProfileTree.displayName(profile, profiles),
+                    profileName = ProfileTree.displayName(profile, profiles, strings),
                     comparison = Fingerprint.compare(
                         window = repository.window(profile.id),
                         reference = repository.reference(profile.id),

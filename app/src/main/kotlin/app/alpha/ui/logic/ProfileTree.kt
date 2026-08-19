@@ -1,6 +1,8 @@
 package app.alpha.ui.logic
 
 import app.alpha.data.db.ProfileEntity
+import app.alpha.ui.text.RuStrings
+import app.alpha.ui.text.Strings
 
 /** One root profile with its («Дом / Спальня») children. */
 data class ProfileNode(val profile: ProfileEntity, val children: List<ProfileEntity>)
@@ -31,7 +33,11 @@ data class ProfilePreset(
  */
 object ProfileTree {
 
-    /** Presets of spec §3.1, offered on an empty list and behind «+». */
+    /**
+     * Presets of spec §3.1 in their canonical form — the names a profile is
+     * SEEDED with. On screen they go through [presets]/[ProfileName], which
+     * translate them; the stored name stays as created.
+     */
     val PRESETS: List<ProfilePreset> = listOf(
         ProfilePreset("Дом", "⌂"),
         ProfilePreset("Офис", "▣"),
@@ -40,6 +46,10 @@ object ProfileTree {
         ProfilePreset("В пути", "→", ProfileEntity.ROLE_TRANSIT, baselineLearning = false),
         ProfilePreset("Без места", "○", ProfileEntity.ROLE_NO_PLACE, baselineLearning = false),
     )
+
+    /** Готовые места с именами на языке интерфейса. */
+    fun presets(s: Strings): List<ProfilePreset> =
+        PRESETS.map { it.copy(name = ProfileName.label(it.name, s)) }
 
     /** Roots (oldest first) each followed by their children (oldest first). */
     fun tree(profiles: List<ProfileEntity>): List<ProfileNode> {
@@ -59,9 +69,14 @@ object ProfileTree {
         tree(profiles.filter { !it.archived }).flatMap { listOf(it.profile) + it.children }
 
     /** «Дом / Спальня» for a child, plain name for a root. */
-    fun displayName(profile: ProfileEntity, profiles: List<ProfileEntity>): String {
+    fun displayName(
+        profile: ProfileEntity,
+        profiles: List<ProfileEntity>,
+        s: Strings = RuStrings,
+    ): String {
         val parent = profile.parentId?.let { id -> profiles.firstOrNull { it.id == id } }
-        return if (parent == null) profile.name else "${parent.name} / ${profile.name}"
+        val name = ProfileName.of(profile, s)
+        return if (parent == null) name else "${ProfileName.of(parent, s)} / $name"
     }
 
     /** Profiles that may become the parent of [childId] (see class KDoc). */

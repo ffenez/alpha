@@ -14,6 +14,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
+import app.alpha.ui.logic.ProfileName
 import app.alpha.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -219,8 +220,10 @@ internal fun ProfilesSection(graph: AppGraph) {
                 AppButton(text = strings.ownProfile, onClick = { adding = true })
             }
 
-            val missing = ProfileTree.PRESETS.filter { preset ->
-                profiles.none { it.name.equals(preset.name, ignoreCase = true) }
+            val missing = ProfileTree.presets(strings).filter { preset ->
+                profiles.none {
+                    ProfileName.of(it, strings).equals(preset.name, ignoreCase = true)
+                }
             }
             if (missing.isNotEmpty()) {
                 Text(text = strings.presets, style = type.footnote, color = colors.muted)
@@ -301,7 +304,10 @@ internal fun ProfileSettingsRow(
     val strings = LocalStrings.current
     val type = LocalAppTypography.current
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
-    var renameText by remember(profile.name, expanded) { mutableStateOf(profile.name) }
+    // В поле переименования стоит то, что человек видит на экране: готовое
+    // имя показано на его языке, и сохранение закрепляет именно эту строку.
+    val shownName = ProfileName.of(profile, strings)
+    var renameText by remember(shownName, expanded) { mutableStateOf(shownName) }
     var confirmingDelete by remember(profile.id) { mutableStateOf(false) }
     // Pure guard, recomputed from the live list: the button can explain itself.
     val deletion = ProfileDeletion.evaluate(allProfiles, profile.id)
@@ -332,7 +338,7 @@ internal fun ProfileSettingsRow(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = listOf(profile.icon, profile.name)
+                        text = listOf(profile.icon, ProfileName.of(profile, strings))
                             .filter { it.isNotBlank() }
                             .joinToString(" "),
                         style = type.label,
@@ -360,7 +366,7 @@ internal fun ProfileSettingsRow(
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             AppButton(
                 text = strings.saveName,
-                enabled = renameText.isNotBlank() && renameText.trim() != profile.name,
+                enabled = renameText.isNotBlank() && renameText.trim() != shownName,
                 onClick = {
                     scope.launch { graph.profileRepository.rename(profile.id, renameText.trim()) }
                     onCollapse()
@@ -500,7 +506,7 @@ internal fun ProfileSettingsRow(
     // panel it replaces still being on screen.
     if (confirmingDelete && deletion is ProfileDeletion.Allowed) {
         ConfirmDeleteProfileDialog(
-            profileName = profile.name,
+            profileName = ProfileName.of(profile, strings),
             onConfirm = {
                 confirmingDelete = false
                 scope.launch { graph.profileRepository.delete(profile.id) }

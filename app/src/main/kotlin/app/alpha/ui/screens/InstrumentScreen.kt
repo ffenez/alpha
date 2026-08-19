@@ -125,7 +125,7 @@ fun InstrumentScreen(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space2),
             ) {
                 Chip(
-                    text = profileChipText(activeProfile, profiles, contextState, t),
+                    text = profileChipText(activeProfile, profiles, contextState, t, strings),
                     color = colors.ink,
                     onClick = { showProfilePicker = true },
                 )

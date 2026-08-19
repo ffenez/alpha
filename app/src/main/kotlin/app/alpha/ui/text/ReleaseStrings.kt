@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0462Title: String
+    val v0462Summary: String
+
     val v0461Title: String
     val v0461Summary: String
 
@@ -414,6 +417,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0462Title = "Готовые места называются на языке приложения"
+    override val v0462Summary =
+        "Имена готовых мест — «Дом», «Офис», «Дача», «Родители», «В пути», «Без места» — "  +
+        "придумывает приложение, и в английском интерфейсе они оставались русскими: теперь они " +
+        "следуют языку приложения, а имя, которое вы ввели сами, не переводится никогда."
 
     override val v0461Title = "Английский интерфейс печатает числа по-английски"
     override val v0461Summary =
@@ -1328,6 +1337,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0462Title = "The ready-made places follow the app language"
+    override val v0462Summary =
+        "The names of the ready-made places — Home, Office, Cottage, Parents, In transit, " +
+        "No place — are made up by the app, and in the English interface they stayed Russian: " +
+        "they now follow the app language, while a name you typed yourself is never translated."
 
     override val v0461Title = "The English interface prints numbers the English way"
     override val v0461Summary =
