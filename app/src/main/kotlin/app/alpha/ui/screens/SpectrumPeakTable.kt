@@ -125,8 +125,12 @@ import kotlinx.coroutines.launch
 internal fun PeakTable(
     rows: List<PeakRow>,
     highlightedNuclide: String?,
-    /** Тап по строке открывает справку о нуклиде; null — строка без кандидата. */
-    onSelect: (String?) -> Unit,
+    /**
+     * Тап по строке: у строки с нуклидом открывается его справка, у строки с
+     * артефактом — разбор пика. Нажимается ЛЮБАЯ строка: артефакт объясняется
+     * не меньше, чем кандидат, и раньше его пометка не показывалась нигде.
+     */
+    onSelect: (PeakRow) -> Unit,
 ) {
     val colors = LocalAppColors.current
     val strings = LocalStrings.current
@@ -151,9 +155,7 @@ internal fun PeakTable(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = match.primaryNuclide != null) {
-                        onSelect(match.primaryNuclide)
-                    }
+                    .clickable { onSelect(row) }
                     .padding(vertical = 7.dp),
             ) {
                 TableCell(SpectrumFormat.energyCell(row.peak.energyKeV), 1f, colors.ink)

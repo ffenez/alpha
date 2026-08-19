@@ -63,6 +63,7 @@ import app.alpha.protocol.Spectrum
 import app.alpha.service.SpectrumHub
 import app.alpha.ui.components.AppCloseButton
 import app.alpha.ui.components.NavArrow
+import app.alpha.ui.components.ChartNotesDialog
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.AppDivider
@@ -1070,6 +1071,10 @@ private fun SpectrumContent(
     var highlightedIsotope by remember { mutableStateOf<String?>(null) }
     // Tapping a candidate row opens its offline reference card (спец §12).
     var infoIsotope by remember { mutableStateOf<String?>(null) }
+    // Разбор пика без нуклида: артефакт, неразрешимая группа или отсутствие
+    // объяснения. Числа пика и пометка движка живут здесь — в таблице им места
+    // нет, а до сих пор их не было нигде.
+    var explainedPeak by remember { mutableStateOf<PeakRow?>(null) }
     infoIsotope?.let { symbol ->
         // Карточка собирается на языке интерфейса; символ, энергии и выходы
         // от языка не зависят.
@@ -1314,12 +1319,31 @@ private fun SpectrumContent(
                 else -> PeakTable(
                     rows = peakVerdict.rows,
                     highlightedNuclide = highlightedNuclide,
-                    // Тап по строке открывает справку о нуклиде, если он у
-                    // строки есть.
-                    onSelect = { symbol ->
-                        highlightedIsotope = symbol
-                        infoIsotope = symbol
+                    // Тап по строке с нуклидом открывает его справку; тап по
+                    // строке с артефактом — разбор пика: до сих пор пометка
+                    // артефакта не показывалась нигде, и строка не нажималась.
+                    onSelect = { row ->
+                        val symbol = row.match.primaryNuclide
+                        if (symbol != null) {
+                            highlightedIsotope = symbol
+                            infoIsotope = symbol
+                        } else {
+                            explainedPeak = row
+                        }
                     },
+                )
+            }
+            explainedPeak?.let { row ->
+                ChartNotesDialog(
+                    title = "${SpectrumFormat.energyCell(row.peak.energyKeV)} ${t.unitKeV} · " +
+                        SpectrumFormat.matchCell(row.match, t),
+                    notes = listOf(
+                        t.peakDetails(
+                            netCounts = SpectrumFormat.netCell(row.peak.netCounts),
+                            significance = SpectrumFormat.significanceCell(row.peak.significance),
+                        ),
+                    ) + SpectrumFormat.matchNotes(row.match, t),
+                    onClose = { explainedPeak = null },
                 )
             }
             // Родство кандидатов: Pb-214 и Bi-214 — соседи по одному ряду.

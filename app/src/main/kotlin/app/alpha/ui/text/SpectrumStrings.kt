@@ -44,6 +44,12 @@ interface SpectrumStrings {
      * Ограничение НА КАРТИНКЕ: энергии показаны с принятой поправкой шкалы,
      * а не так, как их отдаёт прибор.
      */
+    /**
+     * Числа пика в его разборе: площадь и значимость — то, что до сих пор
+     * считалось и никуда не выводилось.
+     */
+    fun peakDetails(netCounts: String, significance: String): String
+
     val scaleCorrected: String
 
     val continuumChip: String
@@ -423,6 +429,8 @@ interface SpectrumStrings {
 object SpectrumRu : SpectrumStrings {
 
     override val showBackgroundCurve = "фон"
+    override fun peakDetails(netCounts: String, significance: String) =
+        "площадь $netCounts имп · значимость $significance"
     override val scaleCorrected = "энергии с поправкой шкалы"
     override val continuumChip = "континуум"
     override val continuumHint =
@@ -833,6 +841,8 @@ object SpectrumRu : SpectrumStrings {
 object SpectrumEn : SpectrumStrings {
 
     override val showBackgroundCurve = "background"
+    override fun peakDetails(netCounts: String, significance: String) =
+        "area $netCounts counts · significance $significance"
     override val scaleCorrected = "energies with the scale correction"
     override val continuumChip = "continuum"
     override val continuumHint =
@@ -1264,7 +1274,7 @@ fun SpectrumStrings.allTexts(): List<String> = listOf(
     unitMillions, unitThousands, analysisRow, technicalTitle, makeSnapshot,
     resetConfirmTitle, resetConfirmBody,
     toolLineTitle, toolLineSubtitle, infoActionsTitle, showBackgroundCurve,
-    scaleCorrected, continuumChip, continuumHint,
+    peakDetails("81 007", "87σ"), scaleCorrected, continuumChip, continuumHint,
     backgroundRecordedAt("14:32"), needBackgroundTitle, needBackgroundCurve, needBackgroundHow,
     needBackgroundNoDevice,
     decayFamilyRadon("Pb-214, Bi-214"), decayFamilyChain("Pb-212, Tl-208", "Th-232"),

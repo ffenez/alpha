@@ -25,13 +25,21 @@ import app.alpha.ui.theme.LocalAppTypography
  * которому относится.
  */
 @Composable
-fun ChartNotesDialog(notes: List<String>, onClose: () -> Unit) {
+fun ChartNotesDialog(
+    notes: List<String>,
+    /** Заголовок: чему относится объяснение; null — заголовка нет. */
+    title: String? = null,
+    onClose: () -> Unit,
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val strings = LocalStrings.current
     Dialog(onDismissRequest = onClose) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                title?.let {
+                    Text(text = it, style = type.label, color = colors.ink)
+                }
                 for (note in notes) {
                     Text(text = note, style = type.bodySmall, color = colors.ink2)
                 }
