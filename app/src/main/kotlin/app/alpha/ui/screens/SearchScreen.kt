@@ -89,7 +89,7 @@ import app.alpha.ui.logic.NavigateTrend
 import app.alpha.ui.logic.SearchMode
 import app.alpha.ui.logic.SearchBaseline
 import app.alpha.ui.logic.SearchEngine
-import app.alpha.ui.logic.SearchFeedbackMode
+import app.alpha.ui.logic.SearchFeedbackChannels
 import app.alpha.ui.logic.SearchLevel
 import app.alpha.ui.logic.SearchSpectrumHint
 import app.alpha.ui.logic.SearchState
@@ -190,8 +190,11 @@ fun SearchScreen(
     val sample by graph.serviceStatus.lastSample.collectAsState()
     val background by graph.searchBackground.collectAsState(initial = null)
     val activeProfileId by graph.contextHub.activeProfileId.collectAsState()
-    val feedbackModeId by graph.settings.searchFeedbackMode.collectAsState(initial = null)
-    val mode = SearchFeedbackMode.of(feedbackModeId) ?: SearchFeedbackMode.OFF
+    // Каналы отклика независимы: щелчки, тон и вибрация включаются в любом
+    // сочетании ([SearchFeedbackChannels]).
+    val channels by graph.settings.searchFeedbackChannels.collectAsState(
+        initial = SearchFeedbackChannels(),
+    )
     val soundFlavour by graph.settings.searchSoundFlavour.collectAsState(initial = "clicks")
     val energyToneEnabled by graph.settings.searchEnergyToneEnabled.collectAsState(initial = false)
     val connection by graph.serviceStatus.connection.collectAsState()
@@ -247,7 +250,7 @@ fun SearchScreen(
         if (resumed) graph.searchPresenceHub.attach()
         onDispose { if (resumed) graph.searchPresenceHub.detach() }
     }
-    val soundMode = mode == SearchFeedbackMode.CLICKS || mode == SearchFeedbackMode.TONE
+    val soundMode = channels.usesSound
     val clickerActive = soundMode && resumed
     // Silence must be explainable: these are polled once a second so the
     // screen can name the actual reason instead of just staying quiet.
@@ -274,7 +277,7 @@ fun SearchScreen(
     // slice's mean photon energy; stale/no data honestly falls back to the
     // plain default tick. It pitches the *clicks*, so it never runs together
     // with the search tone, whose pitch already carries the ratio.
-    val toneActive = clickerActive && mode == SearchFeedbackMode.CLICKS && energyToneEnabled
+    val toneActive = clickerActive && channels.clicks && energyToneEnabled
     // The 5 s spectrum poll stays attached for the whole time Поиск is on
     // screen, not only for «тон по энергии»: the spectral-shape question of
     // §13 needs the *minutes before* an excursion, which cannot be collected
@@ -412,9 +415,9 @@ fun SearchScreen(
     // прибор: знаменатель выбран один раз ([SearchReferences]), и пока точка
     // отсчёта стоит, счёт сравнивается с ней.
     val ratio = navigate.referenceRatio ?: search.comparison?.ratio
-    LaunchedEffect(mode, ratio, clickerActive) {
+    LaunchedEffect(channels, ratio, clickerActive) {
         clicker.setSearchTone(
-            enabled = clickerActive && mode == SearchFeedbackMode.TONE,
+            enabled = clickerActive && channels.tone,
             targetHz = SearchTone.frequencyHz(ratio),
         )
     }
@@ -428,14 +431,14 @@ fun SearchScreen(
     var lastTrend by remember { mutableStateOf(NavigateTrend.COLLECTING) }
     var pulsedPeak by remember { mutableStateOf(0.0) }
     var lastPulseAt by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(navigate.trend, navigate.peak, mode, resumed) {
+    LaunchedEffect(navigate.trend, navigate.peak, channels, resumed) {
         val trend = navigate.trend
         val peak = navigate.peak?.ratePerSecond ?: 0.0
         val rose = trend == NavigateTrend.RISING && lastTrend == NavigateTrend.NO_CHANGE
         val newPeak = pulsedPeak > 0.0 && peak > pulsedPeak * PEAK_PULSE_FACTOR
         lastTrend = trend
         if (peak > pulsedPeak) pulsedPeak = peak
-        val active = resumed && mode == SearchFeedbackMode.VIBRO
+        val active = resumed && channels.vibro
         if (!active || !(rose || newPeak)) return@LaunchedEffect
         val now = System.currentTimeMillis()
         if (now - lastPulseAt < MIN_PULSE_GAP_MILLIS) return@LaunchedEffect
@@ -544,12 +547,12 @@ fun SearchScreen(
         // Выключенный канал назван у самих кнопок. Остальные причины молчания
         // — состояния (нет прибора, нет потока, тихий режим), и они появляются
         // только когда наступили.
-        val reason = if (mode == SearchFeedbackMode.OFF) {
+        val reason = if (channels.silent) {
             null
         } else {
             FeedbackReason.line(
                 FeedbackState(
-                    mode = mode,
+                    channels = channels,
                     deviceConnected = connection is ConnectionState.Connected,
                     dataFresh = dataFresh,
                     dndBlocked = dndBlocked,
@@ -564,7 +567,7 @@ fun SearchScreen(
             )
         }
         val navSilence = when {
-            mode != SearchFeedbackMode.TONE -> null
+            !channels.tone -> null
             navigate.reference == null -> t.navToneNoReference
             SearchTone.frequencyHz(ratio) == null -> t.navToneAtReference
             else -> null
@@ -796,7 +799,7 @@ fun SearchScreen(
 
         // «Тон по энергии» is a research toggle on top of the *clicks*: it
         // steers their pitch, so it only appears in that mode.
-        if (mode == SearchFeedbackMode.CLICKS) {
+        if (channels.clicks) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Dimens.space2),

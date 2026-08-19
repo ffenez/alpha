@@ -461,7 +461,6 @@ object EnStrings : Strings {
 
     override val searchFeedbackTitle = "Search feedback"
 
-    override val feedbackOnScreenOnly = "the signal is shown on the Search screen only"
     override val feedbackClicks = "a click for every registered count"
     override val feedbackTone = "a continuous tone: higher means further from the background"
     override val feedbackVibro =

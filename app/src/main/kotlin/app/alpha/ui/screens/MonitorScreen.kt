@@ -1006,6 +1006,8 @@ internal fun HeroCard(
                         bandHigh = median?.let { m -> band.doseHighMicroSvH / m }?.toDouble(),
                         threshold = median?.let { m -> thresholdMicroSvH?.let { it / m } }
                             ?.toDouble(),
+                        threshold2 = median?.let { m -> threshold2MicroSvH?.let { it / m } }
+                            ?.toDouble(),
                         thresholdLabel = strings.scaleThresholdTick,
                         statusText = statusHeadline(status, strings)
                             ?: streamAgeLine(stream, strings),
@@ -1220,21 +1222,15 @@ private fun MetricChartCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                // В шапке — название картинки, длительность окна и знак
-                // раскрытия. Единица читается по значениям оси.
+                // В шапке — название картинки и знак раскрытия. Окно читается
+                // по подписям оси времени, единица — по значениям: повторять их
+                // в заголовке значит говорить то же самое дважды.
                 Text(
                     text = ChartMetrics.title(metric, strings).uppercase(),
                     style = type.label,
                     color = colors.ink,
                 )
                 Spacer(Modifier.weight(1f))
-                // Окно названо числом, пока оно ступень лестницы. После щипка
-                // окно произвольное, подписи нет, и его читают по оси времени.
-                ChartWindows.spanLabel(spanMillis, ChartAxisCatalogue.of(strings.language))
-                    ?.let { span ->
-                        Text(text = span, style = type.footnoteMono, color = colors.ink2)
-                        Spacer(Modifier.width(Dimens.space1))
-                    }
                 // «Сейчас» появляется, только когда график ушёл от живого края.
                 if (!following) {
                     Chip(text = t.backToNow, color = colors.dataText, onClick = onBackToNow)

@@ -240,7 +240,7 @@ class ClickEngineTest {
 class FeedbackReasonTest {
 
     private val running = FeedbackState(
-        mode = SearchFeedbackMode.CLICKS,
+        channels = SearchFeedbackChannels(clicks = true),
         deviceConnected = true,
         dataFresh = true,
         dndBlocked = false,
@@ -252,13 +252,26 @@ class FeedbackReasonTest {
     @Test
     fun `no reason when feedback really is running`() {
         assertEquals(null, FeedbackReason.line(running))
-        assertEquals(null, FeedbackReason.line(running.copy(mode = SearchFeedbackMode.TONE)))
-        assertEquals(null, FeedbackReason.line(running.copy(mode = SearchFeedbackMode.VIBRO)))
+        assertEquals(
+            null,
+            FeedbackReason.line(running.copy(channels = SearchFeedbackChannels(tone = true))),
+        )
+        assertEquals(
+            null,
+            FeedbackReason.line(running.copy(channels = SearchFeedbackChannels(vibro = true))),
+        )
+        // Сочетание каналов — обычный случай, а не исключение.
+        assertEquals(
+            null,
+            FeedbackReason.line(
+                running.copy(channels = SearchFeedbackChannels(clicks = true, vibro = true)),
+            ),
+        )
     }
 
     @Test
-    fun `the off mode is stated plainly`() {
-        val reason = FeedbackReason.line(running.copy(mode = SearchFeedbackMode.OFF))
+    fun `all channels off is stated plainly`() {
+        val reason = FeedbackReason.line(running.copy(channels = SearchFeedbackChannels()))
         assertEquals("отклик выключен — сигнал виден только на экране", reason)
     }
 
@@ -297,7 +310,11 @@ class FeedbackReasonTest {
     /** Audio problems belong to the audio modes only. */
     @Test
     fun `a dead audio channel is irrelevant to the silent mode`() {
-        val silent = running.copy(mode = SearchFeedbackMode.VIBRO, audioUnavailable = true, volumeZero = true)
+        val silent = running.copy(
+            channels = SearchFeedbackChannels(vibro = true),
+            audioUnavailable = true,
+            volumeZero = true,
+        )
         assertEquals(null, FeedbackReason.line(silent))
     }
 
@@ -305,12 +322,18 @@ class FeedbackReasonTest {
     @Test
     fun `the relative modes without a recorded background say so`() {
         val vibro = FeedbackReason.line(
-            running.copy(mode = SearchFeedbackMode.VIBRO, backgroundRecorded = false),
+            running.copy(
+                channels = SearchFeedbackChannels(vibro = true),
+                backgroundRecorded = false,
+            ),
         )
         assertEquals("фон не записан — вибрация включится после записи фона", vibro)
 
         val tone = FeedbackReason.line(
-            running.copy(mode = SearchFeedbackMode.TONE, backgroundRecorded = false),
+            running.copy(
+                channels = SearchFeedbackChannels(tone = true),
+                backgroundRecorded = false,
+            ),
         )
         assertEquals("фон не записан — тон включится после записи фона", tone)
     }
@@ -327,12 +350,28 @@ class FeedbackReasonTest {
     @Test
     fun `silence inside the background is explained, not left hanging`() {
         val tone = FeedbackReason.line(
-            running.copy(mode = SearchFeedbackMode.TONE, insideBackground = true),
+            running.copy(
+                channels = SearchFeedbackChannels(tone = true),
+                insideBackground = true,
+            ),
         )
         assertTrue(tone, tone!!.contains("в пределах записанного фона"))
         assertTrue(tone, tone.contains("тон"))
 
         // Clicks are absolute — they click at background level too.
         assertEquals(null, FeedbackReason.line(running.copy(insideBackground = true)))
+    }
+
+    /**
+     * Щелчки слышны всегда: пока они включены, экран не объясняет молчание
+     * относительных каналов — слушать есть что.
+     */
+    @Test
+    fun `clicks alongside a relative channel keep the screen quiet about silence`() {
+        val both = running.copy(
+            channels = SearchFeedbackChannels(clicks = true, tone = true),
+            backgroundRecorded = false,
+        )
+        assertEquals(null, FeedbackReason.line(both))
     }
 }

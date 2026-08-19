@@ -142,20 +142,24 @@ fun InstrumentBar(
         }
 
         // Порог — своя риска с подписью под осью; за концом шкалы не рисуется.
-        val threshold = spec.threshold
-        if (threshold != null && !NavigateArc.offScale(threshold, spec.scale)) {
+        for ((threshold, color) in listOf(
+            spec.threshold to colors.warn,
+            spec.threshold2 to colors.crit,
+        )) {
+            if (threshold == null || NavigateArc.offScale(threshold, spec.scale)) continue
             val at = x(NavigateArc.position(threshold, spec.scale))
             drawLine(
-                color = colors.warn,
+                color = color,
                 start = Offset(at, axisY - trackWidth),
                 end = Offset(at, axisY + trackWidth),
                 strokeWidth = 2.dp.toPx(),
             )
+            if (threshold != spec.threshold) continue
             spec.thresholdLabel?.let { text ->
                 val measured = textMeasurer.measure(text, axisStyle)
                 drawText(
                     textLayoutResult = measured,
-                    color = colors.warn,
+                    color = color,
                     topLeft = Offset(
                         (at - measured.size.width / 2f)
                             .coerceIn(0f, size.width - measured.size.width),

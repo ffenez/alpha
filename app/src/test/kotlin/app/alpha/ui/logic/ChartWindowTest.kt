@@ -281,14 +281,6 @@ class ChartWindowTest {
         }
     }
 
-    @Test
-    fun `the window is named only when it is a step of the ladder`() {
-        assertEquals("5м", ChartWindows.spanLabel(5L * 60_000L))
-        assertEquals("6ч", ChartWindows.spanLabel(6L * 3_600_000L))
-        // После щипка окно произвольное: подписи нет, окно читается по оси.
-        assertNull(ChartWindows.spanLabel(7L * 60_000L))
-        assertNull(ChartWindows.spanLabel(null))
-    }
 }
 
 class ExactPathBoundaryTest {

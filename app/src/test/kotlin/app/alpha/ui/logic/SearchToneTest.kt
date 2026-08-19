@@ -157,22 +157,3 @@ class SearchVibroTest {
 
 }
 
-class SearchFeedbackModeTest {
-
-    @Test
-    fun `ids round trip and unknown ids resolve to nothing`() {
-        for (mode in SearchFeedbackMode.entries) {
-            assertEquals(mode, SearchFeedbackMode.of(mode.id))
-        }
-        assertNull(SearchFeedbackMode.of("something-else"))
-        assertNull(SearchFeedbackMode.of(null))
-    }
-
-    @Test
-    fun `the four modes of the redesign are exactly these`() {
-        assertEquals(
-            listOf("off", "clicks", "tone", "vibro"),
-            SearchFeedbackMode.entries.map { it.id },
-        )
-    }
-}
