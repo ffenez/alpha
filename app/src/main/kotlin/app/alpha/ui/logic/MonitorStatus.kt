@@ -11,6 +11,7 @@ import app.alpha.baseline.Baseline
 import app.alpha.baseline.BaselineState
 import app.alpha.baseline.DeviationSnapshot
 import app.alpha.data.DoseUnitSetting
+import app.alpha.ui.text.uiDecimal
 
 /**
  * Main-screen status (SPEC «Главный экран» + «Главная идея продукта»).
@@ -232,6 +233,6 @@ private fun formatHours(seconds: Long): String {
     return if (hours >= 10 || hours == Math.floor(hours)) {
         "${hours.toLong()}"
     } else {
-        String.format(java.util.Locale.US, "%.1f", hours).replace('.', ',')
+        String.format(java.util.Locale.US, "%.1f", hours).uiDecimal()
     }
 }

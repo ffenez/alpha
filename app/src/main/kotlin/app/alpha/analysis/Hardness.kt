@@ -2,6 +2,7 @@ package app.alpha.analysis
 
 import app.alpha.ui.text.MonitorRu
 import app.alpha.ui.text.MonitorStrings
+import app.alpha.ui.text.uiDecimal
 import kotlin.math.sqrt
 
 /** Жёсткость одного окна: (мкрем/ч)/(имп/с) и её 1σ. */
@@ -179,5 +180,5 @@ object Hardness {
 
     /** «0,52» — two decimals, the way the official app shows it. */
     fun format(value: Double): String =
-        String.format(java.util.Locale.US, "%.2f", value).replace('.', ',')
+        String.format(java.util.Locale.US, "%.2f", value).uiDecimal()
 }

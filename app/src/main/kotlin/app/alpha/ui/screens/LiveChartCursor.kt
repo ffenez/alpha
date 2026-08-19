@@ -96,6 +96,7 @@ import app.alpha.ui.text.HistoryRu
 import app.alpha.ui.text.HistoryStrings
 import app.alpha.ui.text.LocalStrings
 import app.alpha.ui.text.Strings
+import app.alpha.ui.text.uiDecimal
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
@@ -291,7 +292,7 @@ internal fun diagnosticReport(
 }
 
 internal fun percent(value: Double): String =
-    String.format(java.util.Locale.ROOT, "%.2f %%", value * 100).replace('.', ',')
+    String.format(java.util.Locale.ROOT, "%.2f %%", value * 100).uiDecimal()
 
 // --- cursor readout -------------------------------------------------------
 

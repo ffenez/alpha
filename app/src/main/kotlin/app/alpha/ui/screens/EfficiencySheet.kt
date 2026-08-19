@@ -31,6 +31,7 @@ import app.alpha.ui.logic.ActivityFormat
 import app.alpha.ui.logic.EfficiencyRecord
 import app.alpha.ui.text.EfficiencyCatalogue
 import app.alpha.ui.text.LocalStrings
+import app.alpha.ui.text.uiDecimal
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
@@ -143,7 +144,7 @@ fun EfficiencySheet(
                     Text(
                         text = s.linesMissed(
                             result.missedKeV.joinToString(" · ") {
-                                String.format(Locale.US, "%.1f", it).replace('.', ',')
+                                String.format(Locale.US, "%.1f", it).uiDecimal()
                             },
                         ),
                         style = type.footnote,

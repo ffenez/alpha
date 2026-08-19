@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.alpha.ui.logic.RateChartModel
 import app.alpha.ui.logic.SearchPoint
+import app.alpha.ui.text.uiDecimal
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.chartField
 import app.alpha.ui.theme.LocalAppTypography
@@ -246,5 +247,5 @@ private fun niceStep(raw: Float): Float {
 
 private fun formatTick(value: Float): String = when {
     value >= 10f -> String.format(Locale.US, "%.0f", value)
-    else -> String.format(Locale.US, "%.1f", value).replace('.', ',')
+    else -> String.format(Locale.US, "%.1f", value).uiDecimal()
 }

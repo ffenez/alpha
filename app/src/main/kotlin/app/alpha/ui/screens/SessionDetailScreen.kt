@@ -61,6 +61,7 @@ import app.alpha.ui.text.HistoryStrings
 import app.alpha.ui.text.LocalStrings
 import app.alpha.ui.text.SessionRadonCatalogue
 import app.alpha.ui.text.SessionRadonStrings
+import app.alpha.ui.text.uiDecimal
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
@@ -593,7 +594,7 @@ private fun FlightCard(detail: SessionDetail, unit: DoseUnitSetting, t: SessionR
                     factor != null -> Text(
                         text = t.flightFactor(
                             factor = String.format(Locale.US, "%.1f", factor)
-                                .replace('.', ','),
+                                .uiDecimal(),
                             flightMedian =
                                 DoseFormat.rate(flight.flightMedianMicroSvH ?: 0f, unit),
                             groundMedian =

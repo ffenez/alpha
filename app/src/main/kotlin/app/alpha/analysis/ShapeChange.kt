@@ -2,6 +2,7 @@ package app.alpha.analysis
 
 import app.alpha.ui.text.SpectrumRu
 import app.alpha.ui.text.SpectrumStrings
+import app.alpha.ui.text.uiDecimal
 import kotlin.math.roundToInt
 
 /** What a shape comparison is allowed to conclude. */
@@ -193,7 +194,7 @@ object ShapeChange {
         )
         else -> s.shapeChiSquare(
             comparison.bins,
-            "${(comparison.z * 10).roundToInt() / 10.0}".replace('.', ','),
+            "${(comparison.z * 10).roundToInt() / 10.0}".uiDecimal(),
         )
     }
 }

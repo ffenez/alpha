@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import app.alpha.data.ThemeSetting
@@ -15,6 +16,7 @@ import androidx.compose.ui.unit.Density
 import app.alpha.ui.text.AppLanguage
 import app.alpha.ui.components.LocalHintsVisible
 import app.alpha.ui.text.LocalStrings
+import app.alpha.ui.text.UiNumber
 import app.alpha.ui.text.stringsFor
 import app.alpha.ui.AppRoot
 import app.alpha.ui.theme.AppSkin
@@ -71,8 +73,13 @@ class MainActivity : ComponentActivity() {
                 // новой карточке. Подробности развязки двух ползунков — в
                 // KDoc [UiScale].
                 val system = LocalDensity.current
+                val strings = stringsFor(AppLanguage.resolve(language, systemTag))
+                // Разделитель дробной части идёт за языком интерфейса, а не за
+                // локалью телефона: числа собираются в чистых функциях, куда
+                // язык не дотягивается (KDoc UiNumber).
+                SideEffect { UiNumber.apply(strings.language) }
                 CompositionLocalProvider(
-                    LocalStrings provides stringsFor(AppLanguage.resolve(language, systemTag)),
+                    LocalStrings provides strings,
                     LocalHintsVisible provides hintsVisible,
                     LocalDensity provides Density(
                         density = UiScale.density(system.density, elementPercent),

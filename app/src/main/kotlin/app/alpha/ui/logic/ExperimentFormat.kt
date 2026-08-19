@@ -7,6 +7,7 @@ import app.alpha.data.db.ExperimentEntity
 import app.alpha.ui.text.ExperimentRu
 import app.alpha.ui.text.ExperimentStrings
 import app.alpha.ui.text.SpectrumRu
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -173,7 +174,7 @@ object ExperimentFormat {
         (if (value < 0) "−" else "+") + decimal(abs(value))
 
     fun zLabel(z: Double): String {
-        val text = String.format(Locale.US, "%.1f", abs(z)).replace('.', ',')
+        val text = String.format(Locale.US, "%.1f", abs(z)).uiDecimal()
         return (if (z < 0) "−" else "+") + text + "σ"
     }
 
@@ -186,7 +187,7 @@ object ExperimentFormat {
             magnitude >= 0.01 -> 3
             else -> 4
         }
-        return String.format(Locale.US, "%.${digits}f", value).replace('.', ',')
+        return String.format(Locale.US, "%.${digits}f", value).uiDecimal()
     }
 
     fun duration(seconds: Long, s: ExperimentStrings = ExperimentRu): String {

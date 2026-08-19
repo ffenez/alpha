@@ -1,6 +1,7 @@
 package app.alpha.ui.logic
 
 import app.alpha.baseline.Baseline
+import app.alpha.ui.text.uiDecimal
 
 /**
  * Цвет главного числа — от обычного для этого места до заметно выше него.
@@ -85,6 +86,6 @@ object DoseTint {
         if (factor == factor.toInt().toFloat()) {
             factor.toInt().toString()
         } else {
-            String.format(java.util.Locale.US, "%.1f", factor).replace('.', ',')
+            String.format(java.util.Locale.US, "%.1f", factor).uiDecimal()
         }
 }

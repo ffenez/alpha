@@ -2,6 +2,7 @@ package app.alpha.analysis
 
 import app.alpha.ui.text.FingerprintRu
 import app.alpha.ui.text.FingerprintStrings
+import app.alpha.ui.text.uiDecimal
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -303,7 +304,7 @@ object Fingerprint {
     }
 
     private fun number(value: Float, decimals: Int): String =
-        String.format(java.util.Locale.US, "%.${decimals}f", value).replace('.', ',')
+        String.format(java.util.Locale.US, "%.${decimals}f", value).uiDecimal()
 
     // ------------------------------------------------------------- wording
 

@@ -14,6 +14,7 @@ import app.alpha.baseline.Baseline
 import app.alpha.baseline.BaselineAdmission
 import app.alpha.baseline.BaselineState
 import app.alpha.data.DoseUnitSetting
+import app.alpha.ui.text.uiDecimal
 
 /**
  * Colour of a statement (why-spec §14). Colour codes **state**, never a
@@ -246,7 +247,7 @@ object WhyReportBuilder {
         return if (value >= 10 || value == Math.floor(value)) {
             "${value.toLong()}"
         } else {
-            String.format(java.util.Locale.US, "%.1f", value).replace('.', ',')
+            String.format(java.util.Locale.US, "%.1f", value).uiDecimal()
         }
     }
 

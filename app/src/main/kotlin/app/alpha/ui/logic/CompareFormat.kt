@@ -3,6 +3,7 @@ package app.alpha.ui.logic
 import app.alpha.analysis.SpectrumCompare
 import app.alpha.ui.text.CompareRu
 import app.alpha.ui.text.CompareStrings
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -50,13 +51,13 @@ object CompareFormat {
             magnitude >= 0.01f -> 2
             else -> 3
         }
-        val text = String.format(Locale.US, "%.${digits}f", magnitude).replace('.', ',')
+        val text = String.format(Locale.US, "%.${digits}f", magnitude).uiDecimal()
         return (if (value < 0f) "−" else "+") + text
     }
 
     /** «+5,3σ» — signed significance. */
     fun zLabel(z: Float): String {
-        val text = String.format(Locale.US, "%.1f", abs(z)).replace('.', ',')
+        val text = String.format(Locale.US, "%.1f", abs(z)).uiDecimal()
         return (if (z < 0f) "−" else "+") + text + "σ"
     }
 
@@ -69,6 +70,6 @@ object CompareFormat {
             magnitude >= 0.01f -> 2
             else -> 3
         }
-        return String.format(Locale.US, "%.${digits}f", magnitude).replace('.', ',')
+        return String.format(Locale.US, "%.${digits}f", magnitude).uiDecimal()
     }
 }

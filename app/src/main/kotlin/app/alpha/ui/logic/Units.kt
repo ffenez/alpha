@@ -3,6 +3,7 @@ package app.alpha.ui.logic
 import app.alpha.data.DoseUnitSetting
 import app.alpha.ui.text.RuStrings
 import app.alpha.ui.text.Strings
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 
 /**
@@ -66,8 +67,8 @@ object DoseFormat {
         val text = when {
             value >= 1000.0 -> group((Math.round(value / 10.0) * 10L))
             value >= 100.0 -> Math.round(value).toString()
-            value >= 10.0 -> String.format(Locale.US, "%.1f", value).replace('.', ',')
-            else -> String.format(Locale.US, "%.2f", value).replace('.', ',')
+            value >= 10.0 -> String.format(Locale.US, "%.1f", value).uiDecimal()
+            else -> String.format(Locale.US, "%.2f", value).uiDecimal()
         }
         return "$text ${doseUnitLabel(unit, s)}"
     }
@@ -104,7 +105,7 @@ object DoseFormat {
             DoseUnitSetting.MICRO_SIEVERT -> 3
             DoseUnitSetting.MICRO_ROENTGEN -> 1
         }
-        val text = String.format(Locale.US, "%.${digits}f", value).replace('.', ',')
+        val text = String.format(Locale.US, "%.${digits}f", value).uiDecimal()
         return "$text ${rateUnitLabel(unit, s)}"
     }
 
@@ -134,5 +135,5 @@ object DoseFormat {
             value < 0.1f -> String.format(Locale.US, "%.3f", value)
             else -> String.format(Locale.US, "%.2f", value)
         }
-    }.replace('.', ',')
+    }.uiDecimal()
 }

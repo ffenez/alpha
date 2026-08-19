@@ -3,6 +3,7 @@ package app.alpha.ui.logic
 import app.alpha.data.SessionAdmission
 import app.alpha.ui.text.HistoryRu
 import app.alpha.ui.text.HistoryStrings
+import app.alpha.ui.text.uiDecimal
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -163,7 +164,7 @@ object HistoryFormat {
         val text = if (unit == 0 || size >= 100) {
             size.toLong().toString()
         } else {
-            String.format(java.util.Locale.US, "%.1f", size).replace('.', ',')
+            String.format(java.util.Locale.US, "%.1f", size).uiDecimal()
         }
         return "$text ${units[unit]}"
     }

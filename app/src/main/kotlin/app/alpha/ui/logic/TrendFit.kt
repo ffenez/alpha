@@ -7,6 +7,7 @@ import app.alpha.ui.text.HistoryStrings
 
 import app.alpha.analysis.AlgorithmVersions
 import app.alpha.data.DoseUnitSetting
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 
 /**
@@ -324,7 +325,7 @@ object TrendFit {
         val text = when (unit) {
             DoseUnitSetting.MICRO_SIEVERT -> String.format(Locale.US, "%+.3f", display)
             DoseUnitSetting.MICRO_ROENTGEN -> String.format(Locale.US, "%+.1f", display)
-        }.replace('.', ',').replace("-", "−")
+        }.uiDecimal().replace("-", "−")
         val arrow = when {
             slopeMicroSvHPerHour > FLAT_EPSILON_MICRO_SV -> "↗"
             slopeMicroSvHPerHour < -FLAT_EPSILON_MICRO_SV -> "↘"

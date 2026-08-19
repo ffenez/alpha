@@ -25,6 +25,7 @@ import app.alpha.ui.logic.ActivityFormat
 import app.alpha.ui.logic.EfficiencyRecord
 import app.alpha.ui.text.EfficiencyCatalogue
 import app.alpha.ui.text.LocalStrings
+import app.alpha.ui.text.uiDecimal
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
@@ -163,7 +164,7 @@ fun EfficiencySection(graph: AppGraph, onBack: () -> Unit) {
 private fun whole(value: Double): String = String.format(Locale.US, "%.0f", value)
 
 private fun oneDecimal(value: Double): String =
-    String.format(Locale.US, "%.1f", value).replace('.', ',')
+    String.format(Locale.US, "%.1f", value).uiDecimal()
 
 private fun twoDecimals(value: Double): String =
-    String.format(Locale.US, "%.2f", value).replace('.', ',')
+    String.format(Locale.US, "%.2f", value).uiDecimal()

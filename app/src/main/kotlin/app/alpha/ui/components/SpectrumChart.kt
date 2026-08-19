@@ -32,6 +32,7 @@ import app.alpha.analysis.SpectrumDisplay
 import androidx.compose.ui.platform.LocalDensity
 import app.alpha.ui.logic.SpectrumPlot
 import app.alpha.ui.logic.SpectrumScale
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.log10
 import kotlin.math.max
@@ -485,6 +486,6 @@ fun SpectrumChart(
 private fun compactCount(value: Float): String = when {
     value >= 10_000f -> "${(value / 1000f).toInt()}k"
     value >= 1_000f ->
-        String.format(Locale.US, "%.1f", value / 1000f).replace('.', ',') + "k"
+        String.format(Locale.US, "%.1f", value / 1000f).uiDecimal() + "k"
     else -> "${value.toInt()}"
 }

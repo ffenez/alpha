@@ -7,6 +7,7 @@ import app.alpha.analysis.HintConfidence
 import app.alpha.analysis.IsotopeHint
 import app.alpha.ui.text.SpectrumRu
 import app.alpha.ui.text.SpectrumStrings
+import app.alpha.ui.text.uiDecimal
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -63,7 +64,7 @@ object SpectrumFormat {
 
     /** Значение с одним знаком после запятой — общий вид для долей и отношений. */
     fun oneDecimal(value: Float): String =
-        String.format(Locale.US, "%.1f", value).replace('.', ',')
+        String.format(Locale.US, "%.1f", value).uiDecimal()
 
     @Deprecated("Экран читает движок доказательств: см. matchCell/matchNotes")
     fun confidenceLabel(
@@ -85,7 +86,7 @@ object SpectrumFormat {
 
     /** Peak-table energy cell: «661,9» (keV, one decimal, comma). */
     fun energyCell(energyKeV: Float): String =
-        String.format(Locale.US, "%.1f", energyKeV).replace('.', ',')
+        String.format(Locale.US, "%.1f", energyKeV).uiDecimal()
 
     /** Peak-table net-counts cell: «1 240» (rounded, thousands spaced). */
     fun netCell(netCounts: Float): String = groupThousands(netCounts.roundToInt().toLong())
@@ -97,7 +98,7 @@ object SpectrumFormat {
      * значимостью, а не «SNR»: signal-to-noise не говорит, что в знаменателе.
      */
     fun significanceCell(significance: Float): String =
-        String.format(Locale.US, "%.1f", significance).replace('.', ',') + "σ"
+        String.format(Locale.US, "%.1f", significance).uiDecimal() + "σ"
 
     /**
      * Peak-table candidate cell, cautious per SPEC — never «обнаружен»:
@@ -200,7 +201,7 @@ object SpectrumFormat {
         val text = when {
             totalCounts >= 1_000_000 ->
                 String.format(java.util.Locale.US, "%.1f", totalCounts / 1_000_000.0)
-                    .replace('.', ',') + " " + s.unitMillions
+                    .uiDecimal() + " " + s.unitMillions
             totalCounts >= 10_000 -> (totalCounts / 1000).toString() + " " + s.unitThousands
             else -> groupThousands(totalCounts)
         }
@@ -228,21 +229,21 @@ object SpectrumFormat {
         s: SpectrumStrings = SpectrumRu,
     ): String {
         val a0Text = String.format(Locale.US, "%.1f", a0)
-            .replace('.', ',').replace("-", "−")
+            .uiDecimal().replace("-", "−")
         val a1Term = signedTerm(a1, String.format(Locale.US, "%.2f", Math.abs(a1)))
         val a2Term = signedTerm(a2, scientific(Math.abs(a2).toDouble()))
         return s.calibrationLine("$a0Text$a1Term·ch$a2Term·ch²", s.channels(channelCount))
     }
 
     private fun signedTerm(value: Float, absText: String): String =
-        (if (value < 0f) " − " else " + ") + absText.replace('.', ',')
+        (if (value < 0f) " − " else " + ") + absText.uiDecimal()
 
     /** 4.1e-4 → «4,1·10⁻⁴». */
     private fun scientific(value: Double): String {
         if (value == 0.0) return "0"
         val exponent = Math.floor(Math.log10(value)).toInt()
         val mantissa = value / Math.pow(10.0, exponent.toDouble())
-        val mantissaText = String.format(Locale.US, "%.1f", mantissa).replace('.', ',')
+        val mantissaText = String.format(Locale.US, "%.1f", mantissa).uiDecimal()
         return "$mantissaText·10${superscript(exponent)}"
     }
 

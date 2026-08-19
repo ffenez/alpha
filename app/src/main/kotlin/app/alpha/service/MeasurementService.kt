@@ -48,6 +48,7 @@ import app.alpha.ui.text.HistoryRu
 import app.alpha.ui.text.NotificationRu
 import app.alpha.ui.text.NotificationStrings
 import app.alpha.ui.feedback.Feedback
+import app.alpha.ui.text.UiNumber
 import app.alpha.ui.text.stringsFor
 import app.alpha.analysis.SpectrumEpoch
 import app.alpha.protocol.Spectrum
@@ -618,7 +619,11 @@ class MeasurementService : Service() {
     private fun postAlarmNotification(doseMicroSvH: Float, typicalHighMicroSvH: Float?) {
         if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return
         val s = texts
-        val units = stringsFor(if (s === NotificationEn) AppLanguage.EN else AppLanguage.RU)
+        val language = if (s === NotificationEn) AppLanguage.EN else AppLanguage.RU
+        // Уведомление может уйти раньше первого запуска экранов, поэтому язык
+        // числа задаётся здесь же, а не только в MainActivity.
+        UiNumber.apply(language)
+        val units = stringsFor(language)
         val text = buildString {
             append(s.nowRate(DoseFormat.rate(doseMicroSvH, doseUnit)))
             if (typicalHighMicroSvH != null && typicalHighMicroSvH > 0f) {
