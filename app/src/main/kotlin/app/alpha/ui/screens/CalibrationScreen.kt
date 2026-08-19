@@ -71,6 +71,17 @@ data class CalibrationModel(
     val report: CalibrationReport,
     /** Разрешение прибора, от которого стартовал поиск линий. */
     val startResolution662: Float,
+    /**
+     * Опубликовал ли вендор разрешение ЭТОГО прибора. Нет — стартовое число
+     * консервативная оценка серии, и называть её вендорской нельзя.
+     */
+    val resolutionPublished: Boolean,
+    /**
+     * Считает ли прибор спектр по каналам. У пластикового сцинтиллятора
+     * (Zero) фотопиков нет, значит опорных линий не будет никогда, и обещать
+     * «материал соберётся сам» ему нельзя.
+     */
+    val spectrometer: Boolean,
     val deviceSerial: String?,
 )
 
@@ -111,7 +122,8 @@ suspend fun loadCalibration(graph: AppGraph): CalibrationModel {
     }
     val selection = CalibrationDataset.select(CalibrationDataset.intervals(snapshots))
     val connected = graph.serviceStatus.connection.value as? ConnectionState.Connected
-    val resolution662 = connected?.info?.model?.peakResolution662
+    val model = connected?.info?.model
+    val resolution662 = model?.peakResolution662
         ?: app.alpha.analysis.PeakDetection.RESOLUTION_662
     val accumulations = buildList {
         selection.long?.let { add(it.toEngine(CalibrationDataset.SOURCE_LONG)) }
@@ -126,6 +138,10 @@ suspend fun loadCalibration(graph: AppGraph): CalibrationModel {
             startResolution = SqrtResolution(resolution662.toDouble()),
         ),
         startResolution662 = resolution662,
+        resolutionPublished = model?.resolution662 != null,
+        // Прибор не подключён — модель неизвестна, и запрещать проверку по
+        // догадке нельзя: спектрометром считается всё, кроме опознанного Zero.
+        spectrometer = model?.isSpectrometer ?: true,
         deviceSerial = connected?.info?.serialNumber,
     )
 }
@@ -178,6 +194,24 @@ fun CalibrationScreen(graph: AppGraph, onBack: () -> Unit) {
         when {
             !loaded -> Card(modifier = Modifier.fillMaxWidth()) {
                 Text(text = s.readingMaterial, style = type.bodySmall, color = colors.muted)
+            }
+            // Прибор без спектрометрии (пластиковый сцинтиллятор): фотопиков
+            // он не даёт, значит опорных линий не будет никогда. Обещать, что
+            // «материал соберётся сам», такому прибору нельзя — это обещание
+            // не сбудется ни за какое время.
+            m != null && !m.spectrometer -> Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                    Text(
+                        text = s.notASpectrometer,
+                        style = type.bodySmall,
+                        color = colors.ink2,
+                    )
+                    Hint(
+                        text = s.notASpectrometerWhy,
+                        style = type.bodySmall,
+                        color = colors.muted,
+                    )
+                }
             }
             m == null || m.selection.long == null -> Card(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
@@ -331,7 +365,10 @@ private fun ResolutionSection(
         // Состояние: что действует ПРЯМО СЕЙЧАС — до кнопок, потому что это
         // ответ на вопрос, с которым сюда приходят.
         val state = when {
-            accepted == null -> s.approximationState
+            accepted == null -> s.approximationState(
+                percent = CalibrationView.number(model.startResolution662 * 100.0, 1),
+                vendorPublished = model.resolutionPublished,
+            )
             model.deviceSerial != null && accepted.deviceSerial != null &&
                 model.deviceSerial != accepted.deviceSerial ->
                 s.otherDevice(accepted.deviceSerial)

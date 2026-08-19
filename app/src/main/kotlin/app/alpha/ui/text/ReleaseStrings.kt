@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0381Title: String
+    val v0381Summary: String
+
     val v0380Title: String
     val v0380Summary: String
 
@@ -360,6 +363,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0381Title = "Вибрация вернулась, проверка знает прибор"
+    override val v0381Summary =
+        "Непрерывный пульс вибрации пропал при объединении режимов: он и был главным " +
+        "«холодно-горячо» для прибора в кармане, теперь он снова идёт, а частота несёт то же " +
+        "отношение, что высота тона. Проверка калибровки перестала говорить за всю серию: " +
+        "процент разрешения берётся у подключённой модели, а прибору без спектрометрии она " +
+        "честно отвечает, что опорных линий у него не будет никогда."
 
     override val v0380Title = "Калибровка говорит точнее"
     override val v0380Summary =
@@ -1147,6 +1158,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0381Title = "The pulse is back, the check knows the instrument"
+    override val v0381Summary =
+        "The continuous vibration pulse went missing when the modes merged — it was the main " +
+        "warmer-colder channel for an instrument in a pocket, and it is back, its cadence " +
+        "carrying the same ratio as the pitch. The calibration check stopped speaking for the " +
+        "whole series: the resolution percentage comes from the connected model, and an " +
+        "instrument without spectrometry is told plainly that reference lines will never appear."
 
     override val v0380Title = "The calibration speaks more precisely"
     override val v0380Summary =

@@ -61,6 +61,8 @@ class CalibrationNanRegressionTest {
         // Приближение прибора конечно — значит, ось строится и канва РИСУЕТ:
         // краш ловится только если рисование действительно выполняется.
         startResolution662 = 0.084f,
+        resolutionPublished = true,
+        spectrometer = true,
         deviceSerial = null,
     )
 

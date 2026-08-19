@@ -422,9 +422,36 @@ fun SearchScreen(
         )
     }
 
-    // Непрерывного пульса нет: он означал бы вибрацию всё время, пока прибор
-    // в руке. Вибро отвечает на СОБЫТИЯ — счёт начал расти, найден новый
-    // максимум, — и живёт в эффекте ниже.
+    // Вибрация — «холодно/горячо» на ощупь: пульс идёт непрерывно, а его
+    // частота несёт то же отношение, что высота тона. Это главный канал для
+    // прибора в кармане, и без него включённая вибрация ощущалась как
+    // выключенная — событийные толчки ниже слишком редки, чтобы вести.
+    //
+    // Внутри фона пульса нет по построению ([SearchVibro.intervalMillis]
+    // возвращает null): там нечего искать, и дрожь была бы постоянной.
+    LaunchedEffect(channels, resumed) {
+        if (!channels.vibro || !resumed) return@LaunchedEffect
+        // Do-Not-Disturb спрашивается раз в секунду, а не на каждый пульс: на
+        // самой быстрой частоте это восемь запросов в секунду ради ответа,
+        // который меняется раз в час.
+        var dndCheckedAt = 0L
+        var dndAllows = true
+        while (resumed) {
+            val now = System.currentTimeMillis()
+            if (now - dndCheckedAt >= 1_000L) {
+                dndCheckedAt = now
+                dndAllows = Feedback.dndAllowsFeedback(context)
+            }
+            val interval = SearchVibro.intervalMillis(ratio)
+            if (interval == null || !dndAllows) {
+                delay(SearchVibro.SLOW_INTERVAL_MILLIS / 2)
+                continue
+            }
+            Feedback.pulse(context)
+            delay(interval)
+        }
+    }
+
     // Вибро «Наведения»: отклик на событие, а не непрерывная дрожь. Событий
     // два — счёт начал расти и найден новый максимум; оба приглушены порогом
     // и паузой.

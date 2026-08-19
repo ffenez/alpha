@@ -36,6 +36,10 @@ interface CalibrationStrings {
     fun radonNotEnough(needHours: Int, haveHours: String): String
     val radonExplained: String
     val materialCollected: String
+    /** Прибор не спектрометр: проверка по гамма-линиям к нему неприменима. */
+    val notASpectrometer: String
+    val notASpectrometerWhy: String
+
     val noMaterial: String
     val noMaterialExplained: String
     val readingMaterial: String
@@ -81,7 +85,15 @@ interface CalibrationStrings {
     val revert: String
     fun acceptedState(date: String, points: Int): String
     val acceptedNote: String
-    val approximationState: String
+    /**
+     * Чем сейчас описывается ширина линий, пока измеренной модели нет.
+     *
+     * Процент приходит ОТ ПРИБОРА: у 103 и 110 это 8,4 %, у 103G — 7,4 %, а у
+     * приборов, для которых вендор разрешение не публиковал (101, 102,
+     * неопознанный), действует консервативная оценка серии — и она так и
+     * называется, вендорской её объявлять нельзя.
+     */
+    fun approximationState(percent: String, vendorPublished: Boolean): String
     fun otherDevice(serial: String): String
 
     // --- энергетическая шкала ---
@@ -150,6 +162,13 @@ object CalibrationRu : CalibrationStrings {
         "Собирается само: снимок спектра пишется раз в 10 минут, пока прибор на связи. " +
             "Складываются РАЗНОСТИ соседних снимков, поэтому одни и те же импульсы не " +
             "считаются дважды."
+    override val notASpectrometer = "Этот прибор не строит спектр по каналам"
+    override val notASpectrometerWhy =
+        "У органического пластикового сцинтиллятора фотопиков нет: импульс несёт долю энергии " +
+            "фотона, а не всю её. Опорных линий природного фона в таком спектре не появится " +
+            "ни за какое время, поэтому энергетическую шкалу и ширину линий здесь измерять " +
+            "не по чему."
+
     override val noMaterial = "Снимков спектра пока нет"
     override val noMaterialExplained =
         "Снимки появляются сами, пока прибор на связи. Первые опорные линии обычно " +
@@ -224,8 +243,13 @@ object CalibrationRu : CalibrationStrings {
             "ИЗМЕРЕННОЙ ширины вместо приближённой. Калибровку самого прибора это не " +
             "меняет и изменить не может: уточняется наша модель его разрешения, а не его " +
             "настройки."
-    override val approximationState =
-        "действует приближение √E по одной вендорской точке (8,4 % на 662 кэВ)"
+    override fun approximationState(percent: String, vendorPublished: Boolean) =
+        if (vendorPublished) {
+            "действует приближение √E по одной вендорской точке ($percent % на 662 кэВ)"
+        } else {
+            "разрешение этого прибора вендором не опубликовано: действует приближение √E по " +
+                "консервативной оценке серии ($percent % на 662 кэВ)"
+        }
 
     override fun otherDevice(serial: String) =
         "модель измерена на приборе $serial, сейчас подключён другой — она не действует"
@@ -323,6 +347,13 @@ object CalibrationEn : CalibrationStrings {
         "Collected on its own: a spectrum snapshot is written every 10 minutes while the " +
             "instrument is connected. What gets added up are the DIFFERENCES between " +
             "consecutive snapshots, so the same counts are never added twice."
+    override val notASpectrometer = "This instrument does not build a channel spectrum"
+    override val notASpectrometerWhy =
+        "An organic plastic scintillator has no photopeaks: a pulse carries a fraction of the " +
+            "photon energy rather than all of it. No natural background lines will ever appear " +
+            "in such a spectrum, so there is nothing here to measure the energy scale or the " +
+            "line width against."
+
     override val noMaterial = "No spectrum snapshots yet"
     override val noMaterialExplained =
         "Snapshots appear on their own while the instrument is connected. The first " +
@@ -399,8 +430,13 @@ object CalibrationEn : CalibrationStrings {
             "width instead of the approximated one. It does not change the instrument's own " +
             "calibration and cannot: what is refined is our model of its resolution, not its " +
             "settings."
-    override val approximationState =
-        "the √E approximation from a single vendor point is in use (8.4 % at 662 keV)"
+    override fun approximationState(percent: String, vendorPublished: Boolean) =
+        if (vendorPublished) {
+            "the √E approximation from a single vendor point is in use ($percent % at 662 keV)"
+        } else {
+            "this instrument's resolution is not published by the vendor: the √E approximation " +
+                "uses the conservative estimate for the series ($percent % at 662 keV)"
+        }
 
     override fun otherDevice(serial: String) =
         "the model was measured on instrument $serial and a different one is connected — " +
@@ -487,7 +523,7 @@ fun CalibrationStrings.allTexts(): List<String> = listOf(
     axisEnergy, axisFwhm,
     refusalNotEnoughLines(2, 3), refusalNarrowSpan("340", "500"),
     refusalNotMonotone, refusalNegativeNoise, refusalPrefix("…"),
-    accept, revert, acceptedState("12.08", 4), acceptedNote, approximationState,
+    accept, revert, acceptedState("12.08", 4), acceptedNote, approximationState("8,4", true), approximationState("8,4", false),
     otherDevice("RC-110-000115"),
     scaleTitle, sigmaCal("4,1", "0,3 %"), sigmaCalUpperBound,
     scatterNotEvaluated(2, 3), shiftNeedsSigma,
