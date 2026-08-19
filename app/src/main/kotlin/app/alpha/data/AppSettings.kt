@@ -109,6 +109,22 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
+     * Записывать ли превышения в журнал Истории.
+     *
+     * Отдельно от самой тревоги: звук и вибрация нужны В МОМЕНТ превышения, а
+     * запись — чтобы вернуться к нему потом, и это разные потребности. Кто
+     * ходит с прибором по местам с высоким фоном, получает журнал из эпизодов,
+     * которые ему не нужны; выключатель отвечает за журнал и НЕ трогает
+     * тревогу. По умолчанию включено — превышение стоит того, чтобы остаться
+     * записью.
+     */
+    val journalEpisodes: Flow<Boolean> = dataStore.data.map { it[JOURNAL_EPISODES] ?: true }
+
+    suspend fun setJournalEpisodes(on: Boolean) {
+        dataStore.edit { it[JOURNAL_EPISODES] = on }
+    }
+
+    /**
      * Каналы отклика поиска — три независимых выключателя.
      *
      * Хранятся тремя булевыми, а не одним режимом: щелчки, тон и вибрация не
@@ -833,6 +849,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val MONITOR_SHOW_STATS = booleanPreferencesKey("monitor_show_stats")
         private val MONITOR_SHOW_CPS_CHART = booleanPreferencesKey("monitor_show_cps_chart")
         private val MONITOR_SHOW_DOSE_CHART = booleanPreferencesKey("monitor_show_dose_chart")
+        private val JOURNAL_EPISODES = booleanPreferencesKey("journal_episodes")
         private val MONITOR_SHOW_HARDNESS_CHART =
             booleanPreferencesKey("monitor_show_hardness_chart")
         private val MAP_TRACK_SCOPE = stringPreferencesKey("map_track_scope")

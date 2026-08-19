@@ -395,10 +395,15 @@ fun NavigateSection(
                     color = colors.ink2,
                     modifier = Modifier.weight(1f),
                 )
+                // Снятие точки стоит РЯДОМ с ней, а не только в «⋮»: у
+                // единственного большого действия экрана должна быть видимая
+                // пара, иначе поставленную точку некуда деть, не догадавшись
+                // открыть меню. Кнопка спокойная — это отмена, а не действие
+                // ради которого сюда пришли.
+                AppButton(text = t.navMarkClear, onClick = onClearMark)
                 EntityMenuButton(
                     menu = listOf(
                         EntityMenuItem(t.navMarkUpdate, enabled = cps != null, onClick = onMark),
-                        EntityMenuItem(t.navMarkClear, onClick = onClearMark),
                         EntityMenuItem(
                             t.navMeasureHere(SpotMeasureMachine.TARGET_SECONDS),
                             enabled = spot !is SpotMeasure.Running,

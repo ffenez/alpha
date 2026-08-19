@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0440Title: String
+    val v0440Summary: String
+
     val v0430Title: String
     val v0430Summary: String
 
@@ -390,6 +393,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0440Title = "Точка отсчёта снимается кнопкой, доза — с оценкой за год"
+    override val v0440Summary =
+        "У точки отсчёта в Поиске появилась видимая пара к «запомнить» — снять её больше не надо " +
+        "искать в «⋮». На экране дозы сказано, за сколько суток измерения вообще есть (поэтому " +
+        "7, 30 и 90 дней и дают одно число), и отдельной карточкой стоит оценка за год; запись " +
+        "превышений в журнал теперь выключается в настройках тревоги."
 
     override val v0430Title = "Накопленная доза отвечает за выбранный период"
     override val v0430Summary =
@@ -1249,6 +1259,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0440Title = "The reference clears with a button, dose gains a year estimate"
+    override val v0440Summary =
+        "The search reference now has a visible counterpart to «remember» — clearing it is no " +
+        "longer hidden in «⋮». The dose screen says how many days measurements actually cover " +
+        "(which is why 7, 30 and 90 days give one number), and a separate card carries the year " +
+        "estimate; writing excesses to the journal can now be switched off in the alarm settings."
 
     override val v0430Title = "Accumulated dose answers for the chosen period"
     override val v0430Summary =
