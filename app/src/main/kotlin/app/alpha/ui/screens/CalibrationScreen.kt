@@ -241,9 +241,9 @@ internal fun CalibrationContent(
                 color = colors.muted,
             )
         }
-        CalibrationView.notFound(model.report, s)?.let {
-            Text(text = it, style = type.footnote, color = colors.muted)
-        }
+        // Список ненайденных линий живёт в разделе «Чего не хватает» — там он
+        // отвечает на вопрос «что сделать, чтобы стало больше». Здесь он
+        // повторял сам себя слово в слово.
         blendNote(model.report, s)?.let {
             Text(text = it, style = type.footnote, color = colors.muted)
         }
@@ -268,13 +268,20 @@ internal fun CalibrationContent(
         Text(text = s.noCorrection, style = type.footnote, color = colors.muted)
     }
 
-    Section(s.responseTitle) {
+    // Заголовок называет СОСТОЯНИЕ раздела, а не обещание: пока пар линий
+    // одного нуклида не измерено, отклик не считается вовсе, и слово
+    // «частично» в заголовке спорило с отказом в теле.
+    Section(
+        if (model.report.response.isEmpty()) s.responseTitleNone else s.responseTitle,
+    ) {
         for (row in CalibrationView.response(model.report, s)) {
             Text(text = row, style = type.valueSmall, color = colors.ink)
         }
         Hint(text = s.responseWhy)
         Text(text = s.responseCaveat, style = type.footnote, color = colors.warn)
-        Text(text = s.responsePointGeometry)
+        // Оговорка о точечной геометрии — такая же тихая строка, как и
+        // остальные: крупным шрифтом она читалась как заголовок раздела.
+        Text(text = s.responsePointGeometry, style = type.footnote, color = colors.muted)
     }
 
     val missing = CalibrationView.missing(model.report, s, h)

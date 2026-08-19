@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0380Title: String
+    val v0380Summary: String
+
     val v0371Title: String
     val v0371Summary: String
 
@@ -357,6 +360,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0380Title = "Калибровка говорит точнее"
+    override val v0380Summary =
+        "Разброс шкалы и её сдвиг — разные величины с разными требованиями: разброс считается " +
+        "от трёх линий, сдвиг — от двух, и нехватка одного больше не выдаётся за отсутствие " +
+        "другого. Сдвиг теперь взвешивается вместе с собственной ошибкой шкалы, поэтому " +
+        "«выделенным» называется только уход, который эту ошибку превышает; заодно ушли " +
+        "повтор списка ненайденных линий и заголовок, обещавший больше, чем в разделе есть."
 
     override val v0371Title = "Меньше слов, честный импорт"
     override val v0371Summary =
@@ -1136,6 +1147,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0380Title = "The calibration speaks more precisely"
+    override val v0380Summary =
+        "The scale scatter and its shift are different quantities with different data needs: " +
+        "the scatter takes three lines, the shift takes two, and missing one no longer passes " +
+        "for the absence of the other. The shift is now weighed together with the scale's own " +
+        "error, so only a drift exceeding that error is called resolved; the duplicated list " +
+        "of missing lines and the over-promising section title are gone too."
 
     override val v0371Title = "Fewer words, an honest import"
     override val v0371Summary =

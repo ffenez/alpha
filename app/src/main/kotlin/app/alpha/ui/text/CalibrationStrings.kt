@@ -91,11 +91,20 @@ interface CalibrationStrings {
     fun shiftResolved(value: String, sigma: String): String
     fun shiftNotResolved(value: String, sigma: String): String
     val shiftNotEvaluated: String
+
+    /** Разброса не оценить: линий меньше, чем нужно рассеянию. */
+    fun scatterNotEvaluated(have: Int, need: Int): String
+
+    /** Сдвиг не объявляется: разброс шкалы не оценён, значимость считать нечем. */
+    val shiftNeedsSigma: String
     val noCorrection: String
     fun scaleRange(from: String, to: String): String
 
     // --- относительный отклик ---
     val responseTitle: String
+
+    /** Заголовок того же раздела, когда считать нечего. */
+    val responseTitleNone: String
     fun responsePoint(nuclide: String, upper: String, lower: String, ratio: String, sigma: String): String
     val responseWhy: String
     val responseCaveat: String
@@ -234,6 +243,12 @@ object CalibrationRu : CalibrationStrings {
         "систематический сдвиг не выделен на фоне своей неопределённости: $value ± $sigma кэВ"
 
     override val shiftNotEvaluated = "остатков слишком мало, чтобы говорить о сдвиге"
+    override fun scatterNotEvaluated(have: Int, need: Int) =
+        "разброс шкалы не оценивается: линий $have из $need"
+    override val shiftNeedsSigma =
+        "сдвиг не объявляется: без оценённого разброса шкалы его значимость считать не по " +
+            "чему — сравнивать пришлось бы с одной статистикой центроида, а она заведомо " +
+            "меньше настоящей ошибки шкалы"
     override val noCorrection =
         "Шкала не правится ни здесь, ни где-либо ещё. Сдвиг оценён по совпадениям, " +
             "полученным при этой же калибровке, и тихая коррекция подтвердила бы любую " +
@@ -243,6 +258,7 @@ object CalibrationRu : CalibrationStrings {
         "проверено в диапазоне $from — $to кэВ; за его пределами шкала не проверялась"
 
     override val responseTitle = "Относительный отклик: частично"
+    override val responseTitleNone = "Относительный отклик"
     override fun responsePoint(
         nuclide: String,
         upper: String,
@@ -403,6 +419,12 @@ object CalibrationEn : CalibrationStrings {
         "no systematic shift stands out against its own uncertainty: $value ± $sigma keV"
 
     override val shiftNotEvaluated = "too few residuals to say anything about a shift"
+    override fun scatterNotEvaluated(have: Int, need: Int) =
+        "the scale scatter is not estimated: $have lines of $need"
+    override val shiftNeedsSigma =
+        "no shift is claimed: without an estimated scale scatter there is nothing to weigh its " +
+            "significance against — the centroid statistics alone are known to be smaller than " +
+            "the real error of the scale"
     override val noCorrection =
         "The scale is never corrected, here or anywhere else. The shift is estimated from " +
             "matches obtained under that same calibration, and a silent correction would " +
@@ -412,6 +434,7 @@ object CalibrationEn : CalibrationStrings {
         "checked over $from — $to keV; outside that range the scale was not checked"
 
     override val responseTitle = "Relative response: partial"
+    override val responseTitleNone = "Relative response"
     override fun responsePoint(
         nuclide: String,
         upper: String,
@@ -467,9 +490,10 @@ fun CalibrationStrings.allTexts(): List<String> = listOf(
     accept, revert, acceptedState("12.08", 4), acceptedNote, approximationState,
     otherDevice("RC-110-000115"),
     scaleTitle, sigmaCal("4,1", "0,3 %"), sigmaCalUpperBound,
+    scatterNotEvaluated(2, 3), shiftNeedsSigma,
     shiftResolved("−2,3", "0,8"), shiftNotResolved("−0,4", "0,8"), shiftNotEvaluated,
     noCorrection, scaleRange("1120", "2614"),
-    responseTitle, responsePoint("Bi-214", "1764,5", "1120,3", "0,62", "0,05"),
+    responseTitle, responseTitleNone, responsePoint("Bi-214", "1764,5", "1120,3", "0,62", "0,05"),
     responseWhy, responseCaveat, responsePointGeometry, responseFewPoints(1), responseNone,
     missingTitle, needHours("12 ч", 24), needLines("1460,8"), needMore,
 )

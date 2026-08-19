@@ -126,13 +126,18 @@ class EvidenceEngineTest {
 
     @Test
     fun `calibration diagnostics reports a systematic shift without correcting anything`() {
-        val shifted = analyse(listOf(peakAt(1470.8, netArea = 1000.0), peakAt(2624.5, netArea = 1000.0)))
+        // Сдвиг сравнивается с σ_cal(E) — инженерной оценкой ухода шкалы (1 %
+        // энергии): на 1460 кэВ это ≈15 кэВ, поэтому «выделенным» становится
+        // только уход в десятки кэВ. Десять кэВ на этих энергиях лежат внутри
+        // допуска самой калибровки, и называть их систематическим сдвигом
+        // значило бы измерять то, что меньше собственной ошибки метода.
+        val shifted = analyse(listOf(peakAt(1500.8, netArea = 1000.0), peakAt(2654.5, netArea = 1000.0)))
         val diagnostic = shifted.calibration
         assertEquals(CalibrationVerdict.POSSIBLE_SYSTEMATIC_SHIFT, diagnostic.verdict)
         val shift = assertNotNull(diagnostic.shiftKeV)
-        assertTrue(abs(shift - 10.0) < 0.5, "сдвиг $shift")
+        assertTrue(abs(shift - 40.0) < 2.0, "сдвиг $shift")
         // Энергии пиков остались нетронутыми — никакой тихой коррекции.
-        assertEquals(1470.8, shifted.peaks.first().centroidKeV)
+        assertEquals(1500.8, shifted.peaks.first().centroidKeV)
 
         val aligned = analyse(listOf(peakAt(1460.8, netArea = 1000.0), peakAt(2614.5, netArea = 1000.0)))
         assertEquals(CalibrationVerdict.CONSISTENT, aligned.calibration.verdict)

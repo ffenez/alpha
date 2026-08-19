@@ -222,8 +222,11 @@ class MeasurementRepository(
             origin = SpectrumSnapshotEntity.ORIGIN_IMPORT,
             label = label,
         )
-        spectrumDao.insert(entity)
-        return entity
+        // Идентификатор присваивает БАЗА (autoGenerate), и до вставки в
+        // объекте стоит ноль. Возвращать его значило бы отдать ссылку в
+        // никуда: открытый по такому id снимок оказывался пустым.
+        val id = spectrumDao.insert(entity)
+        return entity.copy(id = id)
     }
 
     /** Journal entry for an explicit user save on the Спектр screen. */

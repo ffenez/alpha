@@ -146,6 +146,11 @@ object EvidenceEngine {
                     sigmaKeV = CalibrationDiagnostics.residualSigmaKeV(it),
                 )
             },
+            // Систематическая часть здесь — инженерная оценка σ_cal(E)
+            // ([EnergyMatching]): измеренного разброса у движка нет, а без
+            // всякой систематики значимость сдвига считалась бы по одной
+            // статистике центроида и «выделяла» бы почти любой сдвиг.
+            systematicSigmaKeV = EnergyMatching::calibrationSigmaKeV,
         )
     }
 

@@ -4,6 +4,7 @@ import app.alpha.analysis.CalibrationDataset
 import app.alpha.analysis.evidence.BackgroundCalibration
 import app.alpha.analysis.evidence.CalibrationReport
 import app.alpha.analysis.evidence.CalibrationVerdict
+import app.alpha.analysis.evidence.ScaleUncertaintyEstimator
 import app.alpha.analysis.evidence.LineRejection
 import app.alpha.analysis.evidence.ResolutionFitOutcome
 import app.alpha.analysis.evidence.ResolutionFitRefusal
@@ -173,14 +174,29 @@ object CalibrationView {
         s: CalibrationStrings = CalibrationRu,
     ): List<String> {
         val scale = report.scale ?: return listOf(s.shiftNotEvaluated)
-        val rows = mutableListOf(
-            s.sigmaCal(number(scale.sigmaKeV, 1), number(scale.sigmaFraction * 100.0, 2) + " %"),
-        )
-        if (scale.statisticalOnly) rows += s.sigmaCalUpperBound
+        val rows = mutableListOf<String>()
+        // Разброс шкалы и сдвиг — разные величины: первая требует трёх линий,
+        // второй считается уже по двум. Пока разброса нет, так и сказано —
+        // молчание о нём не должно выглядеть отказом от всего раздела.
+        val sigmaKeV = scale.sigmaKeV
+        val sigmaFraction = scale.sigmaFraction
+        if (sigmaKeV != null && sigmaFraction != null) {
+            rows += s.sigmaCal(number(sigmaKeV, 1), number(sigmaFraction * 100.0, 2) + " %")
+            if (scale.statisticalOnly) rows += s.sigmaCalUpperBound
+        } else {
+            rows += s.scatterNotEvaluated(
+                have = scale.residuals.size,
+                need = ScaleUncertaintyEstimator.MIN_RESIDUALS_FOR_SCATTER,
+            )
+        }
         val shift = scale.shiftKeV
         val sigma = scale.shiftUncertaintyKeV
         rows += when {
+            scale.verdict == CalibrationVerdict.SIGMA_NOT_ESTIMATED -> s.shiftNeedsSigma
             shift == null || sigma == null -> s.shiftNotEvaluated
+            // Без оценённого разброса шкалы значимость сдвига считать нечем:
+            // знаменатель был бы занижен, и «выделенным» оказался бы любой.
+            scale.verdict == CalibrationVerdict.SIGMA_NOT_ESTIMATED -> s.shiftNeedsSigma
             scale.verdict == CalibrationVerdict.POSSIBLE_SYSTEMATIC_SHIFT ->
                 s.shiftResolved(signed(shift, 1), number(sigma, 1))
             else -> s.shiftNotResolved(signed(shift, 1), number(sigma, 1))
