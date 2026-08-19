@@ -3,8 +3,6 @@ package app.alpha.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -22,15 +20,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.alpha.AppGraph
 import app.alpha.data.DoseUnitSetting
-import app.alpha.ui.components.AppBackButton
-import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.BarChart
 import app.alpha.ui.components.BarChartSpec
 import app.alpha.ui.components.Card
-import app.alpha.ui.components.Chip
+import app.alpha.ui.components.EntityHeader
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.Segmented
 import app.alpha.ui.components.StatCell
@@ -38,30 +35,35 @@ import app.alpha.ui.components.StatGrid
 import app.alpha.ui.logic.ChartMapping
 import app.alpha.ui.logic.DailyDose
 import app.alpha.ui.logic.DoseFormat
+import app.alpha.ui.logic.DosePeriod
+import app.alpha.ui.logic.DosePeriods
 import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.text.HistoryCatalogue
 import app.alpha.ui.text.LocalStrings
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
+import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * «Сколько набралось» — отдельный экран вместо блока в Истории.
+ * «Сколько набралось» за выбранный период.
  *
- * ## Почему отдельный
+ * ## Один период на весь экран
  *
- * Накопленная доза занимала верх Истории, куда приходят за последними
- * записями, и мешала им — а спрашивают о ней редко и по конкретному поводу
- * («сколько за сегодня?»). Поэтому вход у неё там, где этот вопрос и
- * возникает: на плитке Главной с числом за сегодня.
+ * Переключатель 7 / 30 / 90 суток меняет ВСЁ: главное число, покрытие,
+ * подписи дат, столбики и статистику под ними. Прежде верхняя карточка жила
+ * своей жизнью — складывала скользящее окно «последние 7×24 ч», пока график
+ * рисовал календарные сутки, — и экран распадался на две несогласованные
+ * половины ([DosePeriod]).
  *
  * ## Что здесь есть и чего нет
  *
- * Есть числа за периоды, у которых ЕСТЬ история, столбики по дням и время,
- * за которое всё это измерено. Нет годовой оценки: «мЗв/год» рядом с
+ * Есть накопленное по измерениям, время, за которое это накоплено, и его доля
+ * от периода. Нет ни годовой оценки, ни проекции: «мЗв/год» рядом с
  * накопленным читается как измеренная доза человека, чем она не является.
  */
 @Composable
@@ -78,20 +80,18 @@ fun DoseScreen(graph: AppGraph, onBack: () -> Unit) {
     LaunchedEffect(Unit) { model = withContext(Dispatchers.IO) { loadDose(graph) } }
 
     var periodIndex by rememberSaveable { mutableIntStateOf(1) }
-    val periodDays = DOSE_PERIODS[periodIndex]
+    var selectedDay by remember { mutableStateOf<Int?>(null) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(Dimens.space3),
-        verticalArrangement = Arrangement.spacedBy(Dimens.space3),
+        verticalArrangement = Arrangement.spacedBy(Dimens.space2),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AppBackButton(onBack = onBack)
-            Spacer(Modifier.weight(1f))
-            Chip(text = strings.accumulatedDose, color = colors.ink)
-        }
+        // Шапка — общий компонент записи: стрелка и заголовок вместе, как на
+        // всех остальных экранах.
+        EntityHeader(title = strings.accumulatedDose, onBack = onBack)
 
         val m = model
         if (m == null) {
@@ -101,131 +101,178 @@ fun DoseScreen(graph: AppGraph, onBack: () -> Unit) {
             return@Column
         }
 
-        val days = m.dailyDose.takeLast(periodDays)
-        val measuredSeconds = days.sumOf { it.measuredSeconds }
-        // Период показывается, только если измерения ДО него были: иначе он
-        // повторяет число более короткого, и три одинаковых значения выглядят
-        // поломкой, хотя всё верно.
-        val depthDays = remember(m.dailyDose) { DailyDose.measuredDepthDays(m.dailyDose) }
+        val periodDays = DosePeriods.LENGTHS[periodIndex]
+        val period = remember(m.dailyDose, periodDays, m.todayElapsedSeconds) {
+            DosePeriods.of(m.dailyDose, periodDays, m.todayElapsedSeconds)
+        }
 
+        // Итог: одно число, его период и — критической строкой — за сколько
+        // измеренного времени оно набралось. Без неё «9,69 мкЗв за 30 дней»
+        // читается как доза за месяц, а это доза за 50 часов внутри месяца.
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                StatGrid(
-                    cells = buildList {
-                        add(
-                            StatCell(
-                                DoseFormat.dose(m.todayMicroSv, unit),
-                                strings.todayWithUnit(DoseFormat.doseUnitLabel(unit, s = strings)),
-                            ),
-                        )
-                        if (depthDays >= 1) {
-                            add(StatCell(DoseFormat.dose(m.week, unit), strings.days7))
-                        }
-                        if (depthDays >= 7) {
-                            add(StatCell(DoseFormat.dose(m.month, unit), strings.days30))
-                        }
-                    },
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = DoseFormat.doseWithUnit(period.microSv, unit, strings),
+                    style = type.valueLarge,
+                    color = colors.ink,
                 )
                 Text(
-                    text = h.measuredFor(
-                        HistoryFormat.duration(m.dailyDose.sumOf { it.measuredSeconds }, h),
-                    ),
+                    text = h.forDays(periodDays),
                     style = type.footnote,
                     color = colors.ink2,
+                )
+                Text(
+                    text = h.measuredWithCoverage(
+                        duration = HistoryFormat.duration(period.measuredSeconds, h),
+                        percent = percent(period.coverage),
+                    ),
+                    style = type.footnote,
+                    color = colors.muted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = Dimens.space1),
                 )
             }
         }
 
+        Segmented(
+            options = listOf(strings.days7, strings.days30, h.days90),
+            selectedIndex = periodIndex,
+            onSelect = {
+                periodIndex = it
+                // Выбранный день принадлежит прежнему набору столбцов, и
+                // после смены периода указывал бы на другую дату.
+                selectedDay = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
-                Segmented(
-                    options = listOf(strings.days7, strings.days30, h.days90),
-                    selectedIndex = periodIndex,
-                    onSelect = { periodIndex = it },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                val dailyMax = days.maxOfOrNull { it.microSv } ?: 0f
+                val dailyMax = period.maxDayMicroSv ?: 0f
                 if (dailyMax > 0f) {
                     BarChart(
                         spec = BarChartSpec(
                             // День без измерений — ПУСТОЕ место, а не нулевая
                             // доза: прибор в этот день не работал, и рисовать
                             // за него ноль значит утверждать, что дозы не было.
-                            values = days.map { it.microSv.takeIf { v -> v > 0f } },
+                            values = period.daily.map { it.microSv.takeIf { v -> v > 0f } },
                             // Полый столбик = день измерен не полностью.
-                            partial = days.map { !it.full },
+                            partial = period.daily.map { !it.full },
                             yMax = dailyMax * 1.15f,
                             emphasizeLast = true,
                             xStartLabel = HistoryFormat.day(
-                                m.toMillis - periodDays.toLong() * 86_400_000L,
+                                m.dayStartMillis(m.dailyDose.size - period.daily.size),
                                 s = h,
                             ),
                             xEndLabel = HistoryFormat.day(m.toMillis, s = h),
+                            selectedIndex = selectedDay,
                         ),
-                        height = 96.dp,
+                        height = 120.dp,
+                        onSelect = { index ->
+                            selectedDay = if (selectedDay == index) null else index
+                        },
                     )
+                    // Разбор одного дня — по нажатию и на месте вопроса.
+                    // Постоянные подписи над всеми столбцами превращают
+                    // картинку в таблицу.
+                    val chosen = selectedDay?.let { period.daily.getOrNull(it) }
+                    if (chosen == null) {
+                        Hint(text = h.tapDayHint, style = type.footnote, color = colors.muted)
+                    } else {
+                        val date = HistoryFormat.day(
+                            m.dayStartMillis(
+                                m.dailyDose.size - period.daily.size + selectedDay!!,
+                            ),
+                            s = h,
+                        )
+                        Text(
+                            text = if (chosen.measuredSeconds <= 0L) {
+                                "$date · ${h.dayWithoutData}"
+                            } else {
+                                h.dayDose(
+                                    date = date,
+                                    dose = DoseFormat.doseWithUnit(
+                                        chosen.microSv.toDouble(),
+                                        unit,
+                                        strings,
+                                    ),
+                                    duration = HistoryFormat.duration(chosen.measuredSeconds, h),
+                                )
+                            },
+                            style = type.footnoteMono,
+                            color = colors.ink,
+                        )
+                    }
                 } else {
-                    Text(
-                        text = strings.noData,
-                        style = type.bodySmall,
-                        color = colors.muted,
-                    )
+                    Text(text = strings.noData, style = type.bodySmall, color = colors.muted)
                 }
-                // Покрытие периода — данные, без которых столбики читаются
-                // как полные сутки.
-                Text(
-                    text = h.recordedOfPeriod(HistoryFormat.duration(measuredSeconds, h)),
-                    style = type.footnote,
-                    color = colors.muted,
-                )
             }
+        }
+
+        // Статистика — только та, у которой есть знаменатель: среднее берётся
+        // по полным суткам, иначе день, записанный двадцать минут, занижал бы
+        // его тем сильнее, чем чаще выключали прибор.
+        val average = period.averageFullDayMicroSv
+        val peak = period.maxDayMicroSv
+        if (average != null || peak != null) {
+            StatGrid(
+                cells = buildList {
+                    average?.let {
+                        add(StatCell(DoseFormat.dose(it.toDouble(), unit), h.averageFullDay))
+                    }
+                    peak?.let {
+                        add(StatCell(DoseFormat.dose(it.toDouble(), unit), h.maxDay))
+                    }
+                },
+            )
         }
     }
 }
 
+/** Доля в процентах с одним знаком: покрытие бывает и долями процента. */
+private fun percent(fraction: Float): String =
+    String.format(Locale.US, "%.1f", fraction * 100).replace('.', ',')
+
 /** Что показывает экран; считается один раз при открытии. */
 private data class DoseModel(
-    val todayMicroSv: Double,
-    val week: Double,
-    val month: Double,
     /** Сутки, старые первыми. */
     val dailyDose: List<DailyDose.Day>,
     val toMillis: Long,
-)
-
-/** Периоды графика, дни. */
-private val DOSE_PERIODS = listOf(7, 30, 90)
+    /** Сколько секунд сегодняшних суток прошло — знаменатель покрытия. */
+    val todayElapsedSeconds: Long,
+    private val firstDayStartMillis: Long,
+) {
+    /** Начало суток с этим номером в [dailyDose], мс эпохи. */
+    fun dayStartMillis(index: Int): Long =
+        firstDayStartMillis + index.coerceAtLeast(0).toLong() * 86_400_000L
+}
 
 /** Глубина суточной истории: самый длинный период графика. */
-private const val DOSE_DAYS = 90
+private val DOSE_DAYS = DosePeriods.LENGTHS.max()
 
 private suspend fun loadDose(graph: AppGraph): DoseModel {
     val now = System.currentTimeMillis()
     val zone = ZoneId.systemDefault()
     val from = now - DOSE_DAYS.toLong() * 24 * 3_600_000L
     // Часовые корзины: точное интегрирование AVG×COUNT при любой ширине.
+    // Корзина относится к тем суткам, в которых НАЧАЛАСЬ; в поясах со
+    // сдвигом в полчаса это переносит через полночь не больше часа записи.
     val hourly = graph.measurementRepository.downsampledSamples(
         from = from,
         to = now,
         bucketMillis = 3_600_000L,
     )
-    // «Сегодня» начинается в местную полночь, которую часовая корзина
-    // пересекает, — минутные корзины держат его точным.
-    val startOfDay = java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
-    val todayBuckets = graph.measurementRepository.downsampledSamples(
-        from = startOfDay,
-        to = now,
-        bucketMillis = 60_000L,
-    )
+    val today = LocalDate.now(zone)
+    val startOfDay = today.atStartOfDay(zone).toInstant().toEpochMilli()
+    val firstDay = today.minusDays((DOSE_DAYS - 1).toLong())
     return DoseModel(
-        todayMicroSv = ChartMapping.integrateDoseMicroSv(todayBuckets),
-        week = ChartMapping.integrateDoseMicroSv(
-            hourly.filter { it.bucketStart >= now - 7L * 24 * 3_600_000L },
-        ),
-        month = ChartMapping.integrateDoseMicroSv(
-            hourly.filter { it.bucketStart >= now - 30L * 24 * 3_600_000L },
-        ),
         dailyDose = DailyDose.perDay(hourly, now, zone, DOSE_DAYS),
         toMillis = now,
+        todayElapsedSeconds = ((now - startOfDay) / 1000L).coerceAtLeast(0L),
+        firstDayStartMillis = firstDay.atStartOfDay(zone).toInstant().toEpochMilli(),
     )
 }

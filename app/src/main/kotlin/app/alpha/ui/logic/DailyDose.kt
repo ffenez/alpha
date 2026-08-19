@@ -35,27 +35,6 @@ object DailyDose {
     const val FULL_COVERAGE = 0.9f
 
     /**
-     * Периоды, о которых ЕСТЬ что сказать: сколько суток назад начинаются
-     * измерения.
-     *
-     * «2,36 сегодня · 2,36 за 7 д · 2,36 за 30 д» — три одинаковых числа, и
-     * выглядит это как поломка, хотя всё верно: истории просто пятнадцать
-     * часов, и за неделю накопилось ровно то же, что за сегодня. Период
-     * показывается, только если ДО его конца измерения были: иначе он не
-     * добавляет ни одного измерения к более короткому и повторяет его число.
-     *
-     * @param days сутки, СТАРЫЕ ПЕРВЫМИ, как их отдаёт [perDay].
-     * @return глубина истории в сутках: 0 — измерения только сегодня.
-     */
-    fun measuredDepthDays(days: List<Day>): Int {
-        val today = days.lastIndex
-        if (today < 0) return 0
-        val oldest = days.indexOfFirst { it.measuredSeconds > 0 }
-        if (oldest < 0) return 0
-        return today - oldest
-    }
-
-    /**
      * µSv per day for the [days] local days ending at [nowMillis]'s day,
      * oldest first; days without measurements are 0.
      */

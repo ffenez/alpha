@@ -75,9 +75,16 @@ interface HistoryStrings {
      * какое реально измеренное время.
      */
     fun doseGlance(today: String, week: String, month: String): String
-    fun measuredFor(duration: String): String
-    fun recordedOfPeriod(duration: String): String
     val days90: String
+
+    /** Экран накопленной дозы: подпись периода, покрытие и разбор дня. */
+    fun forDays(days: Int): String
+    fun measuredWithCoverage(duration: String, percent: String): String
+    fun dayDose(date: String, dose: String, duration: String): String
+    val dayWithoutData: String
+    val averageFullDay: String
+    val maxDay: String
+    val tapDayHint: String
 
     /** Заголовок раскрываемой годовой оценки — условие, а не термин. */
 
@@ -291,9 +298,16 @@ object HistoryRu : HistoryStrings {
 
     override fun doseGlance(today: String, week: String, month: String) =
         "$today сегодня · $week за 7 д · $month за 30 д"
-    override fun measuredFor(duration: String) = "измерено $duration"
-    override fun recordedOfPeriod(duration: String) = "записано $duration из выбранного периода"
-    override val days90 = "90 д"
+    override val days90 = "90 дней"
+    override fun forDays(days: Int) = "за $days ${plural(days, "день", "дня", "дней")}"
+    override fun measuredWithCoverage(duration: String, percent: String) =
+        "измерено $duration · $percent % периода"
+    override fun dayDose(date: String, dose: String, duration: String) =
+        "$date · $dose · записано $duration"
+    override val dayWithoutData = "измерений в этот день не было"
+    override val averageFullDay = "в среднем за полные сутки"
+    override val maxDay = "больше всего за сутки"
+    override val tapDayHint = "Нажмите на столбец, чтобы увидеть день."
 
     override fun mergedPieces(pieces: Int, gap: String) = "с перерывами · $gap без записи"
     override fun startedAt(moment: String) = "начата $moment"
@@ -517,9 +531,16 @@ object HistoryEn : HistoryStrings {
 
     override fun doseGlance(today: String, week: String, month: String) =
         "$today today · $week over 7 d · $month over 30 d"
-    override fun measuredFor(duration: String) = "measured for $duration"
-    override fun recordedOfPeriod(duration: String) = "$duration recorded within the period"
-    override val days90 = "90 d"
+    override val days90 = "90 days"
+    override fun forDays(days: Int) = "over $days days"
+    override fun measuredWithCoverage(duration: String, percent: String) =
+        "measured $duration · $percent % of the period"
+    override fun dayDose(date: String, dose: String, duration: String) =
+        "$date · $dose · recorded $duration"
+    override val dayWithoutData = "nothing was measured on that day"
+    override val averageFullDay = "average over full days"
+    override val maxDay = "most in a day"
+    override val tapDayHint = "Tap a bar to see the day."
 
     override fun mergedPieces(pieces: Int, gap: String) = "with breaks · $gap not recorded"
     override fun startedAt(moment: String) = "started $moment"
@@ -717,8 +738,10 @@ fun HistoryStrings.allTexts(): List<String> = months + monthsGenitive + listOf(
     // языке человека, а не имя механизма движка.
     admissionYes, admissionPartial(minutes(12), MonitorRu.exclusionQuarantine), admissionNoData,
     admissionNo(MonitorRu.exclusionQuarantine),
-    doseGlance("2,36", "2,36", "2,36"), measuredFor("15 ч 33 мин"),
-    recordedOfPeriod("15 ч 33 мин"), days90, mergedPieces(3, "12 мин"), infoTitle,
+    doseGlance("2,36", "2,36", "2,36"), days90,
+    forDays(30), measuredWithCoverage("49 ч 46 мин", "6,9"),
+    dayDose("18 авг", "2,32 мкЗв", "15 ч 47 мин"), dayWithoutData,
+    averageFullDay, maxDay, tapDayHint, mergedPieces(3, "12 мин"), infoTitle,
     doseProjection("1,4 мЗв"), doseProjectionBasis("0,155", hours(23)),
     doseProjectionCaveatShort, doseProjectionCaveat, doseProjectionUnavailable(minutes(12)),
     delete, deleteCount(3), deleteSelectedTitle, deleteSpectraTitle(2), deleteSessionsTitle(3),
