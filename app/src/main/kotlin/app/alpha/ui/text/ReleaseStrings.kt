@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0412Title: String
+    val v0412Summary: String
+
     val v0411Title: String
     val v0411Summary: String
 
@@ -378,6 +381,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0412Title = "Строка пика открывается любая"
+    override val v0412Summary =
+        "Строку с артефактом — характеристическим рентгеном, аннигиляцией, вылетом или " +
+        "суммой — нельзя было нажать, и её разбор не показывался нигде. Теперь тап по любой " +
+        "строке открывает разбор: площадь, значимость и то, чем движок объясняет пик."
 
     override val v0411Title = "Разбор проверен на плотном спектре"
     override val v0411Summary =
@@ -1210,6 +1219,12 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0412Title = "Every peak row opens"
+    override val v0412Summary =
+        "A row explained by an artifact — characteristic X-rays, annihilation, escape or a " +
+        "sum — could not be tapped, and its reasoning was shown nowhere. A tap on any row now " +
+        "opens the breakdown: area, significance and what the engine explains the peak by."
 
     override val v0411Title = "The analysis met a dense spectrum"
     override val v0411Summary =
