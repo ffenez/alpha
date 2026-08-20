@@ -877,8 +877,11 @@ private fun SpectrumContent(
     // Один переключатель на три состояния: обычный → фон → −фон → обычный
     // ([SpectrumBackgroundView]). Наложение и вычитание — ответы на один
     // вопрос, и вместе они означали бы использование одних импульсов дважды.
-    var backgroundView: SpectrumBackgroundView by rememberSaveable {
-        mutableStateOf(SpectrumBackgroundView.NONE)
+    // Вид фона, сглаживание и континуум переключают НА ПОЛНОМ ЭКРАНЕ, а видны
+    // они и здесь, поэтому состояние одно на оба экрана — в настройках.
+    val backgroundViewId by graph.settings.spectrumBackgroundView.collectAsState(initial = "")
+    val backgroundView = remember(backgroundViewId) {
+        SpectrumBackgroundView.of(backgroundViewId)
     }
 
     // Что именно нажали без записанного фона; null — ничего не нажимали.
@@ -895,11 +898,10 @@ private fun SpectrumContent(
             onDismiss = { needBackground = null },
         )
     }
-    var smoothing by rememberSaveable { mutableStateOf(false) }
-    // Континуум — способ ПОСМОТРЕТЬ, как выглядит подложка; он не
-    // участвует ни в одном выводе о спектре, поэтому живёт рядом со
-    // сглаживанием, а не в настройках.
-    var continuumOn by rememberSaveable { mutableStateOf(false) }
+    val smoothing by graph.settings.spectrumSmoothing.collectAsState(initial = false)
+    // Континуум — способ ПОСМОТРЕТЬ, как выглядит подложка; он не участвует ни
+    // в одном выводе о спектре и переключается там же, где остальное.
+    val continuumOn by graph.settings.spectrumContinuum.collectAsState(initial = false)
     var window by remember { mutableStateOf<EnergyWindow?>(null) }
 
     val backgroundEntity by graph.measurementRepository.backgroundReference()
@@ -1196,56 +1198,10 @@ private fun SpectrumContent(
                 fieldControls = {
                     // Все три переключателя — свойства КАРТИНКИ и живут на ней
                     // одним рядом: вид оси, работа с фоном, сглаживание.
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(Dimens.space1),
-                    ) {
-                        ScaleChips(
-                            scale = scale,
-                            scaleRoot = scaleRoot,
-                            onSelect = { picked ->
-                                settingsScope.launch {
-                                    graph.settings.setSpectrumScale(picked.id)
-                                }
-                            },
-                        )
-                        // Один чип на три состояния: он называет то, что
-                        // сейчас нарисовано, а нажатие ведёт по кругу.
-                        Chip(
-                            text = if (subtractOn) {
-                                strings.spectrumModeMinusBackground
-                            } else {
-                                t.showBackgroundCurve
-                            },
-                            color = if (subtractOn || overlayOn) {
-                                colors.dataText
-                            } else {
-                                colors.ink2
-                            },
-                            selected = subtractOn || overlayOn,
-                            onClick = {
-                                if (!hasBackground) {
-                                    needBackground = t.needBackgroundCurve
-                                } else {
-                                    backgroundView = backgroundView.next()
-                                }
-                            },
-                        )
-                        Chip(
-                            text = strings.smoothing,
-                            color = if (smoothing) colors.dataText else colors.ink2,
-                            selected = smoothing,
-                            onClick = { smoothing = !smoothing },
-                        )
-                        Chip(
-                            text = t.continuumChip,
-                            color = if (continuumOn) colors.dataText else colors.ink2,
-                            selected = continuumOn,
-                            onClick = { continuumOn = !continuumOn },
-                        )
-                    }
+                    // Переключателей на маленьком поле нет: масштаб, фон,
+                    // сглаживание и континуум живут на полном экране, где для
+                    // них есть место и где их и разглядывают.
+                    Unit
                 },
             )
             // Легенды под полем нет: нарисованное названо переключателями над
@@ -1434,7 +1390,7 @@ private fun SpectrumContent(
  * уравнивает декады.
  */
 @Composable
-private fun ScaleChips(
+internal fun ScaleChips(
     scale: SpectrumScale,
     scaleRoot: Int,
     onSelect: (SpectrumScale) -> Unit,

@@ -614,18 +614,21 @@ private fun label(kind: EnvironmentSeries.Kind, t: SessionRadonStrings): String 
     EnvironmentSeries.Kind.PRESSURE -> t.conditionPressure
     EnvironmentSeries.Kind.FIELD -> t.conditionField
     EnvironmentSeries.Kind.DEVICE_TEMPERATURE -> t.conditionDeviceTemp
+    EnvironmentSeries.Kind.TEMPERATURE_DRIFT -> t.conditionDrift
 }
 
 private fun unit(kind: EnvironmentSeries.Kind, t: SessionRadonStrings): String = when (kind) {
     EnvironmentSeries.Kind.PRESSURE -> t.unitHpa
     EnvironmentSeries.Kind.FIELD -> t.unitMicroTesla
     EnvironmentSeries.Kind.DEVICE_TEMPERATURE -> t.unitCelsius
+    EnvironmentSeries.Kind.TEMPERATURE_DRIFT -> t.unitCelsius
 }
 
 private fun note(kind: EnvironmentSeries.Kind, t: SessionRadonStrings): String = when (kind) {
     EnvironmentSeries.Kind.PRESSURE -> t.conditionPressureNote
     EnvironmentSeries.Kind.FIELD -> t.conditionFieldNote
     EnvironmentSeries.Kind.DEVICE_TEMPERATURE -> t.conditionDeviceTempNote
+    EnvironmentSeries.Kind.TEMPERATURE_DRIFT -> t.conditionDriftNote
 }
 
 /**

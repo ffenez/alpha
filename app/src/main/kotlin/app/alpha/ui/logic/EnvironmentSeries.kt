@@ -23,7 +23,7 @@ object EnvironmentSeries {
      * температурой прибора она читалась бы как равная величина среды. Её место
      * — диагностика в настройках, где видно, не грел ли телефон прибор.
      */
-    enum class Kind { PRESSURE, FIELD, DEVICE_TEMPERATURE }
+    enum class Kind { PRESSURE, FIELD, DEVICE_TEMPERATURE, TEMPERATURE_DRIFT }
 
     /**
      * @param plot значения, смещённые на [base] — то, что рисует график.
@@ -63,23 +63,43 @@ object EnvironmentSeries {
         alignedFromMillis: Long,
         bucketMillis: Long,
         columnCount: Int,
-    ): List<Series> = Kind.entries.mapNotNull { kind ->
-        val points = when (kind) {
-            Kind.DEVICE_TEMPERATURE -> deviceTemperature
-            else -> rows.mapNotNull { row ->
-                value(kind, row)?.let { row.timestamp to it }
-            }
+    ): List<Series> {
+        fun points(kind: Kind) = rows.mapNotNull { row ->
+            value(kind, row)?.let { row.timestamp to it }
         }
-        series(kind, points, alignedFromMillis, bucketMillis, columnCount)
+
+        val device = buckets(deviceTemperature, alignedFromMillis, bucketMillis, columnCount)
+        val phone = buckets(
+            rows.mapNotNull { row -> row.phoneTempC?.let { row.timestamp to it } },
+            alignedFromMillis,
+            bucketMillis,
+            columnCount,
+        )
+        // Дрейф считается ПО КОЛОНКАМ, а не по сырым отсчётам: у прибора шаг
+        // около минуты, у телефона десять секунд, и вычитать их «ближайший к
+        // ближайшему» значило бы придумывать пары, которых не было.
+        val drift = (0 until columnCount).map { i ->
+            val a = device[i]
+            val b = phone[i]
+            if (a == null || b == null) null else a - b
+        }
+
+        return Kind.entries.mapNotNull { kind ->
+            val columns = when (kind) {
+                Kind.DEVICE_TEMPERATURE -> device
+                Kind.TEMPERATURE_DRIFT -> drift
+                else -> buckets(points(kind), alignedFromMillis, bucketMillis, columnCount)
+            }
+            series(kind, columns)
+        }
     }
 
-    private fun series(
-        kind: Kind,
+    private fun buckets(
         points: List<Pair<Long, Float>>,
         alignedFromMillis: Long,
         bucketMillis: Long,
         columnCount: Int,
-    ): Series? {
+    ): List<Float?> {
         val sums = DoubleArray(columnCount)
         val counts = IntArray(columnCount)
         for ((atMillis, value) in points) {
@@ -88,9 +108,12 @@ object EnvironmentSeries {
             sums[index] += value.toDouble()
             counts[index]++
         }
-        val columns = (0 until columnCount).map { i ->
+        return (0 until columnCount).map { i ->
             if (counts[i] == 0) null else (sums[i] / counts[i]).toFloat()
         }
+    }
+
+    private fun series(kind: Kind, columns: List<Float?>): Series? {
         val present = columns.filterNotNull()
         if (present.size < MIN_POINTS) return null
 
@@ -117,7 +140,8 @@ object EnvironmentSeries {
     private fun value(kind: Kind, row: EnvironmentEntity): Float? = when (kind) {
         Kind.PRESSURE -> row.pressureHpa
         Kind.FIELD -> row.magneticUt
-        Kind.DEVICE_TEMPERATURE -> null
+        // Эти два ряда строятся не из сводок датчиков телефона.
+        Kind.DEVICE_TEMPERATURE, Kind.TEMPERATURE_DRIFT -> null
     }
 
     /**
@@ -127,7 +151,7 @@ object EnvironmentSeries {
     private fun marginFor(kind: Kind, value: Float): Float = when (kind) {
         Kind.PRESSURE -> 1f
         Kind.FIELD -> 1f
-        Kind.DEVICE_TEMPERATURE -> 1f
+        Kind.DEVICE_TEMPERATURE, Kind.TEMPERATURE_DRIFT -> 1f
     }.coerceAtLeast(abs(value) * 1e-4f)
 
     const val MIN_POINTS = 2

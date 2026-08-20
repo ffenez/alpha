@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0471Title: String
+    val v0471Summary: String
+
     val v0470Title: String
     val v0470Summary: String
 
@@ -420,6 +423,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0471Title = "Переключатели спектра переехали на полный экран"
+    override val v0471Summary =
+        "Масштаб, фон, сглаживание и континуум занимали угол маленького графика и попадали под " +
+        "палец при зуме — теперь они стоят на полном экране, где для них есть место, а выбор " +
+        "запоминается и виден на вкладке. В условиях сессии появился дрейф — разница температур " +
+        "прибора и телефона."
 
     override val v0470Title = "Условия вокруг измерения: давление, поле, температура"
     override val v0470Summary =
@@ -1347,6 +1357,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0471Title = "The spectrum switches moved to the full screen"
+    override val v0471Summary =
+        "Scale, background, smoothing and continuum used to sit in the corner of the small chart " +
+        "and fell under the finger while zooming — they now live on the full screen, where there " +
+        "is room for them, and the choice is remembered and visible on the tab. The session " +
+        "conditions gained drift — the difference between the instrument and the phone."
 
     override val v0470Title = "The conditions around a measurement"
     override val v0470Summary =

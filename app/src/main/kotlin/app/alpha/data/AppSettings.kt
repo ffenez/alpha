@@ -462,6 +462,34 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     val spectrumScaleRoot: Flow<Int> =
         dataStore.data.map { it[SPECTRUM_SCALE_ROOT] ?: 2 }
 
+    /**
+     * Что делает картинка спектра: вид фона, сглаживание, континуум.
+     *
+     * Живёт в настройках, а не в состоянии экрана, по одной причине: переключают
+     * это на полном экране, а видно и на вкладке. Два состояния разошлись бы
+     * при первом же переходе между ними.
+     */
+    val spectrumBackgroundView: Flow<String> =
+        dataStore.data.map { it[SPECTRUM_BACKGROUND_VIEW] ?: "" }
+
+    val spectrumSmoothing: Flow<Boolean> =
+        dataStore.data.map { it[SPECTRUM_SMOOTHING] ?: false }
+
+    val spectrumContinuum: Flow<Boolean> =
+        dataStore.data.map { it[SPECTRUM_CONTINUUM] ?: false }
+
+    suspend fun setSpectrumBackgroundView(id: String) {
+        dataStore.edit { it[SPECTRUM_BACKGROUND_VIEW] = id }
+    }
+
+    suspend fun setSpectrumSmoothing(on: Boolean) {
+        dataStore.edit { it[SPECTRUM_SMOOTHING] = on }
+    }
+
+    suspend fun setSpectrumContinuum(on: Boolean) {
+        dataStore.edit { it[SPECTRUM_CONTINUUM] = on }
+    }
+
     suspend fun setSpectrumScale(id: String) {
         dataStore.edit { it[SPECTRUM_SCALE] = id }
     }
@@ -814,6 +842,10 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val MANUAL_CPS = stringPreferencesKey("map_manual_cps")
         private val SPECTRUM_EPOCH = stringPreferencesKey("spectrum_epoch_mark")
         private val SPECTRUM_SCALE = stringPreferencesKey("spectrum_scale")
+        private val SPECTRUM_BACKGROUND_VIEW =
+            stringPreferencesKey("spectrum_background_view")
+        private val SPECTRUM_SMOOTHING = booleanPreferencesKey("spectrum_smoothing")
+        private val SPECTRUM_CONTINUUM = booleanPreferencesKey("spectrum_continuum")
         private val SPECTROGRAM_ENERGY_SCALE =
             stringPreferencesKey("spectrogram_energy_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")

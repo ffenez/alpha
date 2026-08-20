@@ -1,6 +1,7 @@
 package app.alpha.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,6 +47,7 @@ import app.alpha.ui.components.AppCloseButton
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.ChartSheet
 import app.alpha.ui.components.Chip
+import app.alpha.ui.components.NeedBackgroundDialog
 import app.alpha.ui.components.Segmented
 import app.alpha.ui.components.SpectrumChart
 import app.alpha.ui.components.SpectrumChartSpec
@@ -52,6 +55,7 @@ import app.alpha.ui.components.SpectrumLineMark
 import app.alpha.ui.components.SpectrumPeakMark
 import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.logic.PeakEvidenceBridge
+import app.alpha.ui.logic.SpectrumBackgroundView
 import app.alpha.ui.logic.SpectrumHighlight
 import app.alpha.ui.logic.ActivityFormat
 import app.alpha.ui.logic.EfficiencyRecord
@@ -125,7 +129,28 @@ fun SpectrumFullScreen(
     val backgroundEntity by graph.measurementRepository.backgroundReference()
         .collectAsState(initial = null)
     val background = remember(backgroundEntity) { backgroundEntity?.toSpectrum() }
-    val subtractOn = options.minusBackground && background != null
+    // Что показано, решают переключатели ЗДЕСЬ: они же видны на вкладке,
+    // поэтому источник один — настройки.
+    val settingsScope = rememberCoroutineScope()
+    val backgroundViewId by graph.settings.spectrumBackgroundView.collectAsState(initial = "")
+    val backgroundView = remember(backgroundViewId) {
+        SpectrumBackgroundView.of(backgroundViewId)
+    }
+    val smoothing by graph.settings.spectrumSmoothing.collectAsState(initial = false)
+    val continuumOn by graph.settings.spectrumContinuum.collectAsState(initial = false)
+    val hasBackground = background != null
+    val subtractOn = backgroundView.subtract && hasBackground
+    val overlayOn = backgroundView.overlay && hasBackground
+
+    // Что нажали без записанного фона; null — ничего не нажимали.
+    var needBackground by remember { mutableStateOf<String?>(null) }
+    needBackground?.let { what ->
+        NeedBackgroundDialog(
+            what = what,
+            onRecord = null,
+            onDismiss = { needBackground = null },
+        )
+    }
 
     // Та же поправка, что на вкладке: полный экран обязан показывать ту же
     // шкалу, иначе энергия менялась бы от нажатия на график.
@@ -154,7 +179,7 @@ fun SpectrumFullScreen(
     val cursorFraction = remember { mutableStateOf<Float?>(null) }
 
     val frame = remember(
-        spectrum, background, subtractOn, options.smoothing, options.continuum, window, scale,
+        spectrum, background, subtractOn, smoothing, continuumOn, window, scale,
     ) {
         SpectrumFrames.build(
             counts = spectrum.counts,
@@ -164,9 +189,9 @@ fun SpectrumFullScreen(
             backgroundSeconds = background?.durationSeconds ?: 0L,
             window = window,
             subtract = subtractOn,
-            overlayBackground = options.overlayBackground,
-            smoothing = options.smoothing,
-            continuum = options.continuum,
+            overlayBackground = overlayOn,
+            smoothing = smoothing,
+            continuum = continuumOn,
             resolution662 = model.peakResolution662,
             scale = scale,
         )
@@ -292,6 +317,62 @@ fun SpectrumFullScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Chip(text = "i", color = colors.ink2, onClick = { infoOpen = true })
+            }
+            // Переключатели картинки: они переехали сюда с маленького поля,
+            // где занимали угол графика и попадали под палец при зуме.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = Dimens.space2, end = Dimens.space2, bottom = Dimens.space1),
+            ) {
+                ScaleChips(
+                    scale = scale,
+                    scaleRoot = scaleRoot,
+                    onSelect = { picked ->
+                        settingsScope.launch { graph.settings.setSpectrumScale(picked.id) }
+                    },
+                )
+                // Один чип на три состояния: он называет то, что сейчас
+                // нарисовано, а нажатие ведёт по кругу.
+                Chip(
+                    text = if (subtractOn) {
+                        strings.spectrumModeMinusBackground
+                    } else {
+                        t.showBackgroundCurve
+                    },
+                    color = if (subtractOn || overlayOn) colors.dataText else colors.ink2,
+                    selected = subtractOn || overlayOn,
+                    onClick = {
+                        if (!hasBackground) {
+                            needBackground = t.needBackgroundCurve
+                        } else {
+                            settingsScope.launch {
+                                graph.settings.setSpectrumBackgroundView(
+                                    backgroundView.next().name,
+                                )
+                            }
+                        }
+                    },
+                )
+                Chip(
+                    text = strings.smoothing,
+                    color = if (smoothing) colors.dataText else colors.ink2,
+                    selected = smoothing,
+                    onClick = {
+                        settingsScope.launch { graph.settings.setSpectrumSmoothing(!smoothing) }
+                    },
+                )
+                Chip(
+                    text = t.continuumChip,
+                    color = if (continuumOn) colors.dataText else colors.ink2,
+                    selected = continuumOn,
+                    onClick = {
+                        settingsScope.launch { graph.settings.setSpectrumContinuum(!continuumOn) }
+                    },
+                )
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 SpectrumChart(
