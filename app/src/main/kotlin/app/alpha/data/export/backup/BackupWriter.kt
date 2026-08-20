@@ -28,6 +28,7 @@ data class BackupCounts(
     val events: Long = 0,
     val rare: Long = 0,
     val environment: Long = 0,
+    val stations: Long = 0,
     val sessions: Long = 0,
     val routes: Long = 0,
     val points: Long = 0,
@@ -49,6 +50,7 @@ interface BackupSource {
     fun events(): BackupStream<BackupEvent>
     fun rare(): BackupStream<BackupRare>
     fun environment(): BackupStream<BackupEnvironment>
+    fun stations(): BackupStream<BackupStation>
     fun routes(): BackupStream<BackupRoute>
     fun points(): BackupStream<BackupPoint>
     fun spectra(): BackupStream<BackupSpectrum>
@@ -74,6 +76,7 @@ enum class BackupStage {
     ROUTES,
     POINTS,
     SPECTRA,
+    STATIONS,
     SPECTROGRAM,
     EXPERIMENTS,
     FINISHING,
@@ -197,6 +200,15 @@ class BackupWriter(
                 BackupStage.SPECTRA,
                 counts.spectra,
                 source.spectra(),
+                onProgress,
+            ) { w, item -> item.write(w) }
+            // Станции пишутся ПОСЛЕ спектров: они ссылаются на снимок меткой
+            // времени, и при восстановлении снимок должен лечь в базу раньше.
+            stream(
+                BackupFormat.STATIONS,
+                BackupStage.STATIONS,
+                counts.stations,
+                source.stations(),
                 onProgress,
             ) { w, item -> item.write(w) }
         }

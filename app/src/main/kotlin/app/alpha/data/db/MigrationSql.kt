@@ -36,6 +36,25 @@ object MigrationSql {
      * `deviation` остаются как есть — это измерения, а не мусор
      * (`history_semantic_events_redesign.md`, раздел о миграции).
      */
+    val FROM_20_TO_21: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `survey_stations` (" +
+            "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+            "`spectrumId` INTEGER NOT NULL, " +
+            "`timestamp` INTEGER NOT NULL, " +
+            "`latitude` REAL NOT NULL, " +
+            "`longitude` REAL NOT NULL, " +
+            "`accuracyMeters` REAL NOT NULL, " +
+            "`heightCm` INTEGER, " +
+            "`pressureHpa` REAL, " +
+            "`note` TEXT, " +
+            "FOREIGN KEY(`spectrumId`) REFERENCES `spectra`(`id`) " +
+            "ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "CREATE INDEX IF NOT EXISTS `index_survey_stations_spectrumId` " +
+            "ON `survey_stations` (`spectrumId`)",
+        "CREATE INDEX IF NOT EXISTS `index_survey_stations_timestamp` " +
+            "ON `survey_stations` (`timestamp`)",
+    )
+
     val FROM_19_TO_20: List<String> = listOf(
         "ALTER TABLE `track_points` ADD COLUMN `magneticUt` REAL DEFAULT NULL",
     )

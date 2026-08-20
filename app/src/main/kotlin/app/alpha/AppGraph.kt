@@ -1,6 +1,7 @@
 package app.alpha
 
 import app.alpha.data.EnvironmentRepository
+import app.alpha.data.SurveyRepository
 import app.alpha.data.export.CrashLog
 import app.alpha.sensors.PhoneSensors
 import java.io.File
@@ -125,6 +126,11 @@ class AppGraph private constructor(
      * граф только держит один экземпляр на процесс.
      */
     val phoneSensors: PhoneSensors by lazy { PhoneSensors(context) }
+
+    /** Станции радиоэлементной съёмки (K, eU, eTh). */
+    val surveyRepository: SurveyRepository by lazy {
+        SurveyRepository(database.surveyDao(), database.spectrumDao())
+    }
 
     val trackRepository: TrackRepository by lazy { TrackRepository(database.trackDao(), database.sampleDao()) }
 

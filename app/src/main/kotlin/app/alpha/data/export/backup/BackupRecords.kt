@@ -366,6 +366,53 @@ data class BackupEnvironment(
     }
 }
 
+/**
+ * Станция радиоэлементной съёмки.
+ *
+ * Ссылка на спектр хранится НЕ идентификатором, а меткой времени снимка:
+ * идентификаторы при восстановлении новые, а метка та же. Станция, чей снимок
+ * в копию не попал, при восстановлении пропускается — станция без спектра не
+ * станция.
+ */
+data class BackupStation(
+    val timestamp: Long,
+    val spectrumTimestamp: Long,
+    val latitude: Double,
+    val longitude: Double,
+    val accuracyMeters: Float,
+    val heightCm: Int?,
+    val pressureHpa: Float?,
+    val note: String?,
+) {
+    val key: String get() = BackupKey.of(timestamp, spectrumTimestamp)
+
+    fun write(w: Json.Writer) {
+        w.beginObject()
+            .field("t", timestamp)
+            .field("spectrum", spectrumTimestamp)
+            .field("lat", latitude)
+            .field("lon", longitude)
+            .field("acc", accuracyMeters)
+        heightCm?.let { w.field("height", it) }
+        pressureHpa?.let { w.field("p", it) }
+        note?.let { w.field("note", it) }
+        w.endObject()
+    }
+
+    companion object {
+        fun parse(o: Json.Value.Obj) = BackupStation(
+            timestamp = o.long("t") ?: 0L,
+            spectrumTimestamp = o.long("spectrum") ?: 0L,
+            latitude = o.double("lat") ?: 0.0,
+            longitude = o.double("lon") ?: 0.0,
+            accuracyMeters = o.float("acc") ?: 0f,
+            heightCm = o.int("height"),
+            pressureHpa = o.float("p"),
+            note = o.str("note"),
+        )
+    }
+}
+
 /** Редкие данные прибора: доза, температура, батарея. */
 data class BackupRare(
     val timestamp: Long,

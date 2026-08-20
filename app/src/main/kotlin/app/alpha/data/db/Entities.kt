@@ -109,6 +109,49 @@ data class EnvironmentEntity(
     val samples: Int = 0,
 )
 
+/**
+ * Станция радиоэлементной съёмки: точка, на которой прибор простоял столько,
+ * чтобы линии калия, урана и тория набрали статистику.
+ *
+ * Это НЕ точка трека: след пишется на ходу и отвечает на вопрос «где сильнее»,
+ * а станция — стояние на месте ради спектра. Сам спектр лежит в `spectra`
+ * обычным снимком, здесь только то, что делает его станцией: где стояли, с
+ * какой точностью известно место, как высоко держали прибор и что было с
+ * давлением (урановое окно дышит вместе с радоном).
+ */
+@Entity(
+    tableName = "survey_stations",
+    indices = [Index("spectrumId"), Index("timestamp")],
+    foreignKeys = [
+        ForeignKey(
+            entity = SpectrumSnapshotEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["spectrumId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class SurveyStationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Снимок спектра этой станции; удаление снимка уносит и станцию. */
+    val spectrumId: Long,
+    /** Момент окончания накопления, epoch millis. */
+    val timestamp: Long,
+    val latitude: Double,
+    val longitude: Double,
+    /** Точность координаты, м: станция в 100 м от соседней требует её знать. */
+    val accuracyMeters: Float,
+    /**
+     * Высота прибора над землёй, см; null — не указана. Счёт меняется в разы
+     * от того, лежит прибор на земле или висит на груди, и без этого числа
+     * станции несравнимы.
+     */
+    val heightCm: Int? = null,
+    /** Давление в момент съёмки, гПа; null — барометра нет. */
+    val pressureHpa: Float? = null,
+    val note: String? = null,
+)
+
 /** Device-originated events and app-detected hotspots, one journal. */
 @Entity(
     tableName = "events",

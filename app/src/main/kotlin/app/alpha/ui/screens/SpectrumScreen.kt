@@ -143,6 +143,7 @@ fun SpectrumScreen(
     graph: AppGraph,
     onOpenSpectrogram: () -> Unit = {},
     onOpenRadon: () -> Unit = {},
+    onOpenSurvey: () -> Unit = {},
     onOpenLineTrend: () -> Unit = {},
     onOpenExperiments: () -> Unit = {},
     onOpenFood: () -> Unit = {},
@@ -627,6 +628,7 @@ fun SpectrumScreen(
                 onOpenExperiments = onOpenExperiments,
                 onOpenSpectrogram = onOpenSpectrogram,
                 onOpenRadon = onOpenRadon,
+                onOpenSurvey = onOpenSurvey,
                 onOpenLineTrend = onOpenLineTrend,
                 technicalOpen = technicalOpen,
                 onCloseTechnical = { technicalOpen = false },
@@ -688,6 +690,7 @@ private fun AnalysisToolsSheet(
     onOpenExperiments: () -> Unit,
     onOpenSpectrogram: () -> Unit,
     onOpenRadon: () -> Unit,
+    onOpenSurvey: () -> Unit,
     onOpenLineTrend: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -706,6 +709,8 @@ private fun AnalysisToolsSheet(
                 AnalysisToolRow(t.toolSpectrogramTitle, t.toolSpectrogramSubtitle, onOpenSpectrogram)
                 AppDivider()
                 AnalysisToolRow(t.toolRadonTitle, t.toolRadonSubtitle, onOpenRadon)
+                AppDivider()
+                AnalysisToolRow(t.toolSurveyTitle, t.toolSurveySubtitle, onOpenSurvey)
                 AppDivider()
                 AnalysisToolRow(t.toolLineTitle, t.toolLineSubtitle, onOpenLineTrend)
             }
@@ -857,6 +862,7 @@ private fun SpectrumContent(
     onOpenExperiments: () -> Unit = {},
     onOpenSpectrogram: () -> Unit = {},
     onOpenRadon: () -> Unit = {},
+    onOpenSurvey: () -> Unit = {},
     onOpenLineTrend: () -> Unit = {},
     /** Технические данные и справка открываются из «⋮» шапки. */
     technicalOpen: Boolean = false,
@@ -1372,6 +1378,7 @@ private fun SpectrumContent(
                 onOpenExperiments = { toolsOpen = false; onOpenExperiments() },
                 onOpenSpectrogram = { toolsOpen = false; onOpenSpectrogram() },
                 onOpenRadon = { toolsOpen = false; onOpenRadon() },
+                onOpenSurvey = { toolsOpen = false; onOpenSurvey() },
                 onOpenLineTrend = { toolsOpen = false; onOpenLineTrend() },
                 onDismiss = { toolsOpen = false },
             )

@@ -82,6 +82,7 @@ interface BackupSink {
     suspend fun events(batch: List<BackupEvent>): RestoreCount
     suspend fun rare(batch: List<BackupRare>): RestoreCount
     suspend fun environment(batch: List<BackupEnvironment>): RestoreCount
+    suspend fun stations(batch: List<BackupStation>): RestoreCount
     suspend fun routes(batch: List<BackupRoute>): RestoreCount
     suspend fun points(batch: List<BackupPoint>): RestoreCount
     suspend fun spectra(batch: List<BackupSpectrum>): RestoreCount
@@ -207,6 +208,7 @@ object BackupReader {
                 events = counts[BackupFormat.EVENTS] ?: 0,
                 rare = counts[BackupFormat.RARE] ?: 0,
                 environment = counts[BackupFormat.ENVIRONMENT] ?: 0,
+                stations = counts[BackupFormat.STATIONS] ?: 0,
                 sessions = counts[BackupFormat.SESSIONS] ?: 0,
                 routes = counts[BackupFormat.ROUTES] ?: 0,
                 points = counts[BackupFormat.POINTS] ?: 0,
@@ -278,6 +280,15 @@ object BackupReader {
                                 zip, BackupStage.ENVIRONMENT, info.counts.environment, summary,
                                 onProgress, BackupEnvironment::parse,
                             ) { sink.environment(it) }
+                        }
+                        // Станции идут ПОСЛЕ спектров: они ссылаются на снимок
+                        // по метке времени, и снимок к этому моменту должен уже
+                        // лежать в базе.
+                        BackupFormat.STATIONS -> if (selection.spectra) {
+                            summary = consume(
+                                zip, BackupStage.STATIONS, info.counts.stations, summary,
+                                onProgress, BackupStation::parse,
+                            ) { sink.stations(it) }
                         }
                         BackupFormat.ROUTES -> if (selection.routes) {
                             summary = consume(
