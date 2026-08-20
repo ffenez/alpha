@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import app.alpha.ui.logic.MagneticField
 import app.alpha.ui.theme.Motion
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -434,6 +435,8 @@ fun SearchScreen(
         onDispose { view.keepScreenOn = false }
     }
 
+    // Условия с датчиков телефона: магнитное поле — второй канал поиска.
+    val environment by graph.serviceStatus.environment.collectAsState()
     val cps = sample?.countRate
     // Сводка отпечатка места: тот же расчёт, что на его экране, — «Проверка»
     // отвечает ровно на этот вопрос, и считать его вторым способом было бы
@@ -571,6 +574,7 @@ fun SearchScreen(
             referenceTime = navigate.reference?.let {
                 timeOfDay(it.atMillis + deviceClockOffset)
             },
+            fieldLine = MagneticField.line(environment, navigate.reference?.magneticUt, t),
             strings = strings,
             t = t,
             // Пока сравнение идёт с точкой отсчёта, вердикт строит сама секция:
@@ -595,6 +599,7 @@ fun SearchScreen(
                 navigate = NavigateEngine.mark(
                     navigate,
                     System.currentTimeMillis() - deviceClockOffset,
+                    environment?.magneticUt,
                 )
             },
             onClearMark = { navigate = NavigateEngine.clearMark(navigate) },

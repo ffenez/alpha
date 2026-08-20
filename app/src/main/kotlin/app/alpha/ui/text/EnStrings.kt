@@ -44,6 +44,7 @@ object EnStrings : Strings {
     override val tilePlaceBackground = "background"
     override val tilePerHour = "per hour"
     override val tilePerDay = "per day"
+    override val phoneTemperature = "phone"
     override val presetHome = "Home"
     override val presetOffice = "Office"
     override val presetCottage = "Cottage"

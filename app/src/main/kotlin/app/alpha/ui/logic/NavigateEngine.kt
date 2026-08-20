@@ -164,7 +164,11 @@ object NavigateEngine {
      * It is a temporary reference of this sweep — the profile and its ordinary
      * background are not touched, and nothing is written anywhere.
      */
-    fun mark(state: NavigateState, nowMillis: Long): NavigateState {
+    fun mark(
+        state: NavigateState,
+        nowMillis: Long,
+        magneticUt: Float? = null,
+    ): NavigateState {
         val latest = state.latest ?: return state
         val seconds = NavigateWindows.localSeconds(latest.cps.toDouble())
         // Anchored at the newest reading, like every other window here: the
@@ -173,7 +177,13 @@ object NavigateEngine {
         val window = window(state.points, anchor - (seconds * 1000).toLong(), anchor)
             ?: return state
         return evaluate(
-            state.copy(reference = NavigateReference(window = window, atMillis = anchor)),
+            state.copy(
+                reference = NavigateReference(
+                    window = window,
+                    atMillis = anchor,
+                    magneticUt = magneticUt,
+                ),
+            ),
             state.points,
             nowMillis,
             traceAt = null,

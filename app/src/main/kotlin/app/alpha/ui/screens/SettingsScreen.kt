@@ -953,6 +953,10 @@ private suspend fun buildDebugReport(
         androidSdk = android.os.Build.VERSION.SDK_INT,
         deviceModel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
         instrumentFirmware = connected?.info?.firmware?.toString(),
+        sensorsPressure = graph.phoneSensors.hasPressure,
+        sensorsMagnetic = graph.phoneSensors.hasMagnetic,
+        sensorsAmbientTemperature = graph.phoneSensors.hasAmbientTemperature,
+        environment = graph.serviceStatus.environment.value,
         instrumentModel = connected?.info?.model?.displayName,
         instrumentModelKnown = connected?.info?.model?.let { it != DeviceModel.UNKNOWN } ?: false,
         spectrumFormatVersion = connected?.info?.spectrumFormatVersion,
@@ -1409,6 +1413,7 @@ private fun DeviceStatusCard(graph: AppGraph) {
     val connection by graph.serviceStatus.connection.collectAsState()
     val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
     val rareData by graph.measurementRepository.latestRareData().collectAsState(initial = null)
+    val environment by graph.serviceStatus.environment.collectAsState()
     val sample by graph.measurementRepository.latestSample().collectAsState(initial = null)
 
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -1456,6 +1461,13 @@ private fun DeviceStatusCard(graph: AppGraph) {
                 rareData?.let { rare ->
                     add(StatCell("${rare.batteryPercent.toInt()} %", strings.instrumentBattery))
                     add(StatCell("${rare.temperature.toInt()} °C", strings.temperature))
+                }
+                // Температура телефона стоит РЯДОМ с температурой прибора:
+                // так виден дрейф одного относительно другого, ради которого
+                // её и записывают. Отдельной ячейки «разница» нет — два числа
+                // рядом отвечают на этот вопрос сами.
+                environment?.phoneTempC?.let {
+                    add(StatCell("${it.toInt()} °C", strings.phoneTemperature))
                 }
                 add(
                     StatCell(

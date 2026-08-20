@@ -36,6 +36,7 @@ object RuStrings : Strings {
     override val tilePlaceBackground = "фон места"
     override val tilePerHour = "за час"
     override val tilePerDay = "за сутки"
+    override val phoneTemperature = "телефон"
     override val presetHome = "Дом"
     override val presetOffice = "Офис"
     override val presetCottage = "Дача"

@@ -1,6 +1,7 @@
 package app.alpha.data.export
 
 import app.alpha.analysis.AlgorithmVersions
+import app.alpha.sensors.EnvironmentWindow
 import app.alpha.service.StreamTrace
 import app.alpha.ui.logic.ChartTrace
 
@@ -47,6 +48,14 @@ data class DebugSnapshot(
      * прошивки и конфигурации.
      */
     val instrumentFirmware: String?,
+    /**
+     * Датчики телефона: что вообще есть и что дала последняя сводка. Пустой
+     * ряд на экране объясняется чаще всего именно отсутствием датчика.
+     */
+    val sensorsPressure: Boolean = false,
+    val sensorsMagnetic: Boolean = false,
+    val sensorsAmbientTemperature: Boolean = false,
+    val environment: EnvironmentWindow? = null,
     /** Модель, как её ОПОЗНАЛО приложение по серийнику. */
     val instrumentModel: String?,
     /** Опознана ли модель вообще: «нет» = работаем на общем профиле. */
@@ -172,6 +181,26 @@ object DebugReport {
         appendLine("версия: ${snapshot.appVersion}")
         appendLine("Android SDK: ${snapshot.androidSdk} · ${snapshot.deviceModel}")
         appendLine("время отчёта: ${stamp(snapshot.nowMillis)}")
+        appendLine()
+
+        appendLine("## Датчики телефона")
+        appendLine(
+            "барометр: ${yesNo(snapshot.sensorsPressure)} · " +
+                "магнитометр: ${yesNo(snapshot.sensorsMagnetic)} · " +
+                "воздух: ${yesNo(snapshot.sensorsAmbientTemperature)}",
+        )
+        appendLine(
+            "последняя сводка: " + (
+                snapshot.environment?.let { w ->
+                    listOfNotNull(
+                        w.pressureHpa?.let { "${it} гПа" },
+                        w.magneticUt?.let { "${it} мкТл" },
+                        w.phoneTempC?.let { "${it} °C" },
+                        "${w.samples} отсчётов",
+                    ).joinToString(" · ")
+                } ?: "—"
+                ),
+        )
         appendLine()
 
         appendLine("## Прибор")
@@ -351,4 +380,6 @@ object DebugReport {
     private fun format(value: Float?): String =
         value?.let { String.format(java.util.Locale.US, "%.3f", it).trimEnd('0').trimEnd('.') }
             ?: "—"
+
+    private fun yesNo(value: Boolean): String = if (value) "есть" else "нет"
 }

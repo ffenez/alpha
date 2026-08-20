@@ -80,6 +80,17 @@ interface SearchStrings {
     /** «1,01× к недавнему уровню» — отношение всегда со знаменателем. */
     fun navRatioToLocal(ratio: String): String
 
+    /**
+     * Магнитное поле телефона: «поле 48,2 ±0,4 мкТл».
+     *
+     * Разброс — SD внутри окна усреднения; он в строке не назван словом, но
+     * объяснён в справке экрана: большой разброс = телефон двигали.
+     */
+    fun fieldValue(value: String, spread: String?): String
+
+    /** «×1,32 к отметке · поле 63,8 мкТл» — отношение со своим знаменателем. */
+    fun fieldRatioToMark(ratio: String, value: String): String
+
     /** Состояние и величина ОДНОЙ строкой под большим числом. */
     fun navTrendLine(trend: String, ratio: String?): String
 
@@ -152,6 +163,9 @@ interface SearchStrings {
     val readingWhyCount: String
     val readingNoise: String
     val readingScale: String
+
+    /** Что означает строка поля и почему абсолютные мкТл бесполезны. */
+    val readingField: String
 
     val navWhyTitle: String
     val navWhyNow: String
@@ -447,6 +461,11 @@ object SearchRu : SearchStrings {
         "$level % интервал $low–$high"
 
     override fun navRatioToLocal(ratio: String) = "$ratio× к недавнему уровню"
+
+    override fun fieldValue(value: String, spread: String?) =
+        "поле $value" + (spread?.let { " ±$it" } ?: "") + " мкТл"
+
+    override fun fieldRatioToMark(ratio: String, value: String) = "×$ratio к отметке · $value"
     override fun navTrendLine(trend: String, ratio: String?) =
         if (ratio == null) trend else "$trend · $ratio"
 
@@ -499,6 +518,12 @@ object SearchRu : SearchStrings {
         "Число скачет само по себе: распад случаен, и соседние секунды различаются даже над " +
             "одним и тем же местом. Поэтому приложение сравнивает окна измерений и подтверждает " +
             "различие критерием — одно значение выше соседнего ещё ничего не означает."
+    override val readingField =
+        "Строка поля — магнитометр телефона. Абсолютное значение почти ничего не говорит: " +
+            "динамик, вибромотор и магнит чехла дают больше, чем то, что ищут. Смотрят на " +
+            "изменение — отношение к отметке. Число после ± — разброс за десять секунд: если он " +
+            "велик, телефон двигали, и отношению верить рано."
+
     override val readingScale =
         "Шкала и отклик ведут по ОТНОШЕНИЮ. В знаменателе — поставленная вами точка отсчёта, а " +
             "пока её нет, недавний уровень; что именно, написано под шкалой. Щелчки идут от " +
@@ -859,6 +884,11 @@ object SearchEn : SearchStrings {
         "$level % interval $low–$high"
 
     override fun navRatioToLocal(ratio: String) = "$ratio× vs the recent level"
+
+    override fun fieldValue(value: String, spread: String?) =
+        "field $value" + (spread?.let { " ±$it" } ?: "") + " µT"
+
+    override fun fieldRatioToMark(ratio: String, value: String) = "×$ratio vs the mark · $value"
     override fun navTrendLine(trend: String, ratio: String?) =
         if (ratio == null) trend else "$trend · $ratio"
 
@@ -911,6 +941,14 @@ object SearchEn : SearchStrings {
         "The number jumps on its own: decay is random, and neighbouring seconds differ over one " +
             "and the same spot. So the app compares windows of measurements and confirms a " +
             "difference with a test — one value above its neighbour means nothing yet."
+
+    override val readingField =
+        "The field line comes from the phone's magnetometer. The absolute value says almost " +
+            "nothing: the speaker, the vibration motor and the magnet in the case give more than " +
+            "what you are looking for. What matters is the change — the ratio to the mark. The " +
+            "number after ± is the spread over ten seconds: when it is large the phone was moved, " +
+            "and the ratio cannot be trusted yet."
+
     override val readingScale =
         "The scale and the feedback follow a RATIO. Its denominator is the reference you set, or " +
             "the recent level while there is none; which one it is, is written under the scale. " +
@@ -1249,12 +1287,14 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     navTrendCollecting, navTrendNoChange, navTrendRising, navTrendFalling,
     navRatio("1,60", navRatioInterval(95, "1,20", "2,10")), navRatio("1,60", null),
     navRatioInterval(95, "1,20", "2,10"), navRatioToLocal("1,00"), navWindows("1,8", "16,0"),
+    fieldValue("48,2", "0,4"), fieldValue("48,2", null),
+    fieldRatioToMark("1,32", fieldValue("63,8", "0,3")),
     navDeltaDash, navRefNone, navRefCollecting, navRefUnresolved, navRefAbove, navRefBelow,
     navDeltaCaptionCollecting, navUnresolvedNote, navRefBase("25,1"),
     navScaleNoReference, navConfidenceInsufficient,
     navConfidenceNoDifference,
     navConfidenceAbove, navConfidenceBelow, navReferenceRow("23,6", "21:48"),
-    readingTitle, readingCount, readingWhyCount, readingNoise, readingScale,
+    readingTitle, readingCount, readingWhyCount, readingNoise, readingScale, readingField,
     navSetupTitle, navSetupBody, navWhy, navWhyTitle, navWhyNow, navWhyReference, navWhyRatio,
     navWhyInterval, navWhyDetectable, navWhyDetectableNote, navWhyIntervalNote, navWhyDifference, navWhyRecent, navWhyRecentNote,
     navWhyWindows, navWhyCriterion, navWhyCriterionValue("1"), navWhyCriterionNote, navWhyLimit,
