@@ -50,6 +50,12 @@ data class NavigateReference(
     val window: CountWindow,
     /** Instrument-clock instant the reference was taken at. */
     val atMillis: Long,
+    /**
+     * Модуль магнитного поля в момент отсчёта, мкТл; null — магнитометра нет
+     * или он ещё ничего не дал. Хранится ЗДЕСЬ, а не отдельным состоянием:
+     * поле сравнивается с той же точкой, что и счёт, и снимается вместе с ней.
+     */
+    val magneticUt: Float? = null,
 ) {
     val ratePerSecond: Double get() = window.ratePerSecond
 }

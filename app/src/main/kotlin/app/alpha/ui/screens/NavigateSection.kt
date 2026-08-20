@@ -98,6 +98,12 @@ fun NavigateSection(
     doseLine: String?,
     /** Wall-clock time the reference was taken at, «11:44»; null = none. */
     referenceTime: String?,
+    /**
+     * Магнитное поле телефона одной строкой; null — магнитометра нет или
+     * окно ещё не собрано. Живёт под шкалой, потому что отвечает на тот же
+     * вопрос «куда вести прибор», но своим каналом.
+     */
+    fieldLine: String? = null,
     strings: Strings,
     t: SearchStrings,
     onMark: () -> Unit,
@@ -180,12 +186,15 @@ fun NavigateSection(
                 // Справка Поиска: почему ведут по счёту и с чем сравнивают.
                 ReadingHelpRow(
                     title = t.readingTitle,
-                    notes = listOf(
-                        t.readingCount,
-                        t.readingWhyCount,
-                        t.readingNoise,
-                        t.readingScale,
-                    ),
+                    // Про поле рассказываем ТОЛЬКО когда оно есть на экране:
+                    // справка о датчике, которого в телефоне нет, — шум.
+                    notes = buildList {
+                        add(t.readingCount)
+                        add(t.readingWhyCount)
+                        add(t.readingNoise)
+                        add(t.readingScale)
+                        if (fieldLine != null) add(t.readingField)
+                    },
                 )
                 // Свечение обнимает ЧИСЛО И ШКАЛУ — ту часть карточки, которая
                 // отвечает «куда вести прибор». Захватив заодно ленту, оно
@@ -258,6 +267,18 @@ fun NavigateSection(
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
+                        }
+                        // Магнитное поле — второй канал того же поиска, и
+                        // потому стоит здесь же, одной тихой строкой. Свой
+                        // знаменатель она называет сама.
+                        fieldLine?.let {
+                            Text(
+                                text = it,
+                                style = type.footnote,
+                                color = colors.muted,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                         // Набор подтверждения — полоска под шкалой: она
                         // отвечает не «сколько здесь», а «сколько ещё держать

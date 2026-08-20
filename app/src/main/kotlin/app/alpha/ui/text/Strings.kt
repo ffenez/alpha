@@ -109,6 +109,9 @@ interface Strings {
      * английский экран с местом «Дом» выглядит недоделанным. Имя, которое
      * человек ввёл сам, не трогается никогда.
      */
+    /** Подпись ячейки «температура телефона» рядом с температурой прибора. */
+    val phoneTemperature: String
+
     val presetHome: String
     val presetOffice: String
     val presetCottage: String
@@ -729,6 +732,7 @@ fun Strings.allTexts(): List<String> = listOf(
     settingsDevice, settingsDeviceSub, settingsAbout, settingsAboutSub,
     cpsUnit, languageTitle, languageSystem,
     presetHome, presetOffice, presetCottage, presetParents, presetTransit, presetNoPlace,
+    phoneTemperature,
     statusNoData, statusMeasuring, statusAboveL1, statusUsual, statusUsualShort,
     explainMeasuring("0,30 мкЗв/ч"),
     statusAboveUsual, statusAboveThreshold, statusAboveThresholdShort,
