@@ -24,6 +24,7 @@ package app.alpha.data.export.backup
  * measurements.ndjson— посекундные измерения
  * events.ndjson      — события журнала
  * rare.ndjson        — редкие данные прибора (батарея, температура)
+ * environment.ndjson — условия: давление, магнитное поле, температура телефона
  * routes.json        — маршруты
  * points.ndjson      — точки маршрутов
  * spectra.ndjson     — спектры (счётчики каналов — base64)
@@ -76,6 +77,7 @@ object BackupFormat {
     const val MEASUREMENTS = "measurements.ndjson"
     const val EVENTS = "events.ndjson"
     const val RARE = "rare.ndjson"
+    const val ENVIRONMENT = "environment.ndjson"
     const val ROUTES = "routes.json"
     const val POINTS = "points.ndjson"
     const val SPECTRA = "spectra.ndjson"

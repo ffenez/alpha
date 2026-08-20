@@ -331,6 +331,41 @@ data class BackupEvent(
     }
 }
 
+/**
+ * Условия вокруг измерения. Поля необязательны: в телефоне может не быть
+ * барометра, и старая копия этой записи не содержит вовсе.
+ */
+data class BackupEnvironment(
+    val timestamp: Long,
+    val pressureHpa: Float?,
+    val magneticUt: Float?,
+    val magneticSd: Float?,
+    val phoneTempC: Float?,
+    val samples: Int,
+) {
+    val key: String get() = BackupKey.of(timestamp)
+
+    fun write(w: Json.Writer) {
+        w.beginObject().field("t", timestamp)
+        pressureHpa?.let { w.field("p", it) }
+        magneticUt?.let { w.field("b", it) }
+        magneticSd?.let { w.field("bsd", it) }
+        phoneTempC?.let { w.field("phoneTemp", it) }
+        w.field("n", samples).endObject()
+    }
+
+    companion object {
+        fun parse(o: Json.Value.Obj) = BackupEnvironment(
+            timestamp = o.long("t") ?: 0L,
+            pressureHpa = o.float("p"),
+            magneticUt = o.float("b"),
+            magneticSd = o.float("bsd"),
+            phoneTempC = o.float("phoneTemp"),
+            samples = o.int("n") ?: 0,
+        )
+    }
+}
+
 /** Редкие данные прибора: доза, температура, батарея. */
 data class BackupRare(
     val timestamp: Long,

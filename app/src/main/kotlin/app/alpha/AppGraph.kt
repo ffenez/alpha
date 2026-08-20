@@ -1,6 +1,8 @@
 package app.alpha
 
+import app.alpha.data.EnvironmentRepository
 import app.alpha.data.export.CrashLog
+import app.alpha.sensors.PhoneSensors
 import java.io.File
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -113,6 +115,16 @@ class AppGraph private constructor(
             spectrumDao = database.spectrumDao(),
         )
     }
+
+    val environmentRepository: EnvironmentRepository by lazy {
+        EnvironmentRepository(database.environmentDao())
+    }
+
+    /**
+     * Датчики телефона. Подписку на них ставит и снимает служба измерения —
+     * граф только держит один экземпляр на процесс.
+     */
+    val phoneSensors: PhoneSensors by lazy { PhoneSensors(context) }
 
     val trackRepository: TrackRepository by lazy { TrackRepository(database.trackDao(), database.sampleDao()) }
 

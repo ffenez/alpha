@@ -2,6 +2,7 @@ package app.alpha.data
 
 import app.alpha.data.db.AppDatabase
 import app.alpha.data.db.BaselineEpochEntity
+import app.alpha.data.db.EnvironmentEntity
 import app.alpha.data.db.EventEntity
 import app.alpha.data.db.ExperimentEntity
 import app.alpha.data.db.ExperimentRunEntity
@@ -17,6 +18,7 @@ import app.alpha.data.db.TrackPointEntity
 import app.alpha.data.db.TrackSessionEntity
 import app.alpha.data.export.backup.BackupBinary
 import app.alpha.data.export.backup.BackupCounts
+import app.alpha.data.export.backup.BackupEnvironment
 import app.alpha.data.export.backup.BackupEpoch
 import app.alpha.data.export.backup.BackupEvent
 import app.alpha.data.export.backup.BackupExperiment
@@ -72,6 +74,7 @@ class BackupRepository(
 
     private val sampleDao = database.sampleDao()
     private val rareDao = database.rareDataDao()
+    private val environmentDao = database.environmentDao()
     private val eventDao = database.eventDao()
     private val profileDao = database.profileDao()
     private val sessionDao = database.sessionDao()
@@ -100,6 +103,7 @@ class BackupRepository(
             measurements = sampleDao.count(),
             events = eventDao.count(),
             rare = rareDao.count(),
+            environment = environmentDao.count(),
             sessions = sessionDao.count().toLong(),
             routes = trackDao.sessionCount(),
             points = trackDao.totalPointCount(),
@@ -111,6 +115,7 @@ class BackupRepository(
             measurements = sampleDao.countSince(from),
             events = eventDao.countSince(from),
             rare = rareDao.countSince(from),
+            environment = environmentDao.countSince(from),
             sessions = sessionDao.countSince(from),
             routes = trackDao.sessionCountSince(from),
             points = trackDao.pointCountSince(from),
@@ -235,6 +240,24 @@ class BackupRepository(
                     doseRate = row.doseRate,
                     latitude = row.latitude,
                     longitude = row.longitude,
+                )
+            },
+            nextCursor = rows.lastOrNull()?.id,
+        )
+    }
+
+    override fun environment() = BackupStream { cursor, limit ->
+        val rows = fromMillis?.let { environmentDao.pageSince(cursor, it, limit) }
+            ?: environmentDao.page(cursor, limit)
+        BackupPage(
+            items = rows.map {
+                BackupEnvironment(
+                    timestamp = it.timestamp,
+                    pressureHpa = it.pressureHpa,
+                    magneticUt = it.magneticUt,
+                    magneticSd = it.magneticSd,
+                    phoneTempC = it.phoneTempC,
+                    samples = it.samples,
                 )
             },
             nextCursor = rows.lastOrNull()?.id,
@@ -380,6 +403,7 @@ class BackupRepository(
                 sampleDao.clear()
                 eventDao.clear()
                 rareDao.clear()
+                environmentDao.clear()
                 sessionDao.clear()
             }
             if (selection.routes) trackDao.clearSessions()
@@ -559,6 +583,23 @@ class BackupRepository(
             )
             added += fresh.size
         }
+        return RestoreCount(added, batch.size - added)
+    }
+
+    override suspend fun environment(batch: List<BackupEnvironment>): RestoreCount {
+        val ids = environmentDao.insertAll(
+            batch.map {
+                EnvironmentEntity(
+                    timestamp = it.timestamp,
+                    pressureHpa = it.pressureHpa,
+                    magneticUt = it.magneticUt,
+                    magneticSd = it.magneticSd,
+                    phoneTempC = it.phoneTempC,
+                    samples = it.samples,
+                )
+            },
+        )
+        val added = ids.count { it != -1L }.toLong()
         return RestoreCount(added, batch.size - added)
     }
 

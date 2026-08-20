@@ -25,8 +25,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BaselineEpochEntity::class,
         ProfileFingerprintEntity::class,
         SpectrogramSliceEntity::class,
+        EnvironmentEntity::class,
     ],
-    version = 18,
+    version = 19,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -39,6 +40,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun trackDao(): TrackDao
     abstract fun spectrumDao(): SpectrumDao
     abstract fun experimentDao(): ExperimentDao
+
+    /** Условия вокруг измерения: давление, поле, температура телефона. */
+    abstract fun environmentDao(): EnvironmentDao
 
     /** Derived pre-aggregation of ADR 004 (minute scalars, hourly sketches). */
     abstract fun preAggregateDao(): PreAggregateDao
@@ -53,7 +57,7 @@ abstract class AppDatabase : RoomDatabase() {
          * — не для миграций (у копии своя версия формата), а чтобы при разборе
          * жалобы было видно, из какой базы копия снята.
          */
-        const val VERSION = 17
+        const val VERSION = 19
 
         /** Имя файла базы: его же спрашивает экран «сколько занято». */
         const val NAME = "alpha.db"
@@ -160,6 +164,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MigrationSql.FROM_18_TO_19.forEach(db::execSQL)
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
                 .addMigrations(
@@ -180,6 +190,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_15_16,
                     MIGRATION_16_17,
                     MIGRATION_17_18,
+                    MIGRATION_18_19,
                 )
                 .build()
     }
