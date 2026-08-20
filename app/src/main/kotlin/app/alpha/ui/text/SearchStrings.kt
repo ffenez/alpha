@@ -168,6 +168,29 @@ interface SearchStrings {
     val readingField: String
 
     val navWhyTitle: String
+
+    // --- группы разбора: у пришедшего сюда четыре разных вопроса ---
+
+    val navWhySectionReading: String
+    val navWhySectionAgainst: String
+    val navWhySectionConfidence: String
+    val navWhySectionSensitivity: String
+
+    /** Точки отсчёта нет — и сказано, что она даёт. */
+    val navWhyNoReference: String
+    val navWhyNoReferenceNote: String
+
+    /** Сколько секунд набрано в быстром окне: без него «сейчас» без веса. */
+    val navWhyCollected: String
+
+    /** «12,3 с⁻¹» — значение со своей единицей. */
+    fun navWhyRate(value: String): String
+
+    /** «18 с» — набранное время окна. */
+    fun navWhySeconds(value: String): String
+
+    /** «×1,45» — отношение печатается знаком умножения, а не числом. */
+    fun navWhyTimes(value: String): String
     val navWhyNow: String
     val navWhyReference: String
     val navWhyRatio: String
@@ -530,6 +553,22 @@ object SearchRu : SearchStrings {
             "самих импульсов, а тон и вибрация — от этого отношения: выше тон значит теплее."
 
     override val navWhyTitle = "Справка"
+
+    override val navWhySectionReading = "Показание"
+    override val navWhySectionAgainst = "С чем сравниваем"
+    override val navWhySectionConfidence = "Насколько уверенно"
+    override val navWhySectionSensitivity = "Что было бы замечено"
+
+    override val navWhyNoReference = "не снята"
+    override val navWhyNoReferenceNote =
+        "Пока точки отсчёта нет, сравнение идёт с уровнем, который приложение считает само по " +
+            "последним секундам. Кнопка «запомнить текущий уровень» закрепляет место, от которого " +
+            "считать: после неё отношение показывает, во сколько раз здесь сильнее, чем там."
+    override val navWhyCollected = "Набрано"
+
+    override fun navWhyRate(value: String) = "$value $cpsUnit"
+    override fun navWhySeconds(value: String) = "$value с"
+    override fun navWhyTimes(value: String) = "×$value"
     override val navWhyNow = "Сейчас"
     override val navWhyReference = "Точка отсчёта"
     override val navWhyRatio = "Отношение к точке отсчёта"
@@ -956,6 +995,22 @@ object SearchEn : SearchStrings {
             "higher tone means warmer."
 
     override val navWhyTitle = "Help"
+
+    override val navWhySectionReading = "Reading"
+    override val navWhySectionAgainst = "Compared against"
+    override val navWhySectionConfidence = "How confident"
+    override val navWhySectionSensitivity = "What would have been seen"
+
+    override val navWhyNoReference = "not set"
+    override val navWhyNoReferenceNote =
+        "While there is no reference point, the comparison runs against a level the app computes " +
+            "itself from the last seconds. The \"remember this level\" button pins the place to " +
+            "count from: after it the ratio shows how many times stronger it is here than there."
+    override val navWhyCollected = "Collected"
+
+    override fun navWhyRate(value: String) = "$value $cpsUnit"
+    override fun navWhySeconds(value: String) = "$value s"
+    override fun navWhyTimes(value: String) = "×$value"
     override val navWhyNow = "Now"
     override val navWhyReference = "Reference point"
     override val navWhyRatio = "Ratio to the reference point"
@@ -1296,6 +1351,9 @@ fun SearchStrings.allTexts(): List<String> = listOf(
     navConfidenceAbove, navConfidenceBelow, navReferenceRow("23,6", "21:48"),
     readingTitle, readingCount, readingWhyCount, readingNoise, readingScale, readingField,
     navSetupTitle, navSetupBody, navWhy, navWhyTitle, navWhyNow, navWhyReference, navWhyRatio,
+    navWhySectionReading, navWhySectionAgainst, navWhySectionConfidence,
+    navWhySectionSensitivity, navWhyNoReference, navWhyNoReferenceNote, navWhyCollected,
+    navWhyRate("12,3"), navWhySeconds("18"), navWhyTimes("1,45"),
     navWhyInterval, navWhyDetectable, navWhyDetectableNote, navWhyIntervalNote, navWhyDifference, navWhyRecent, navWhyRecentNote,
     navWhyWindows, navWhyCriterion, navWhyCriterionValue("1"), navWhyCriterionNote, navWhyLimit,
     navTrendLine(navTrendNoChange, "1,01×"), navPeakValue("47,6", 18), navTraceStart, navMark, navReferenceSet("26,0", "11:44"), navMarkUpdate, navMarkClear,

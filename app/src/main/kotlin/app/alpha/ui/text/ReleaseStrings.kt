@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0482Title: String
+    val v0482Summary: String
+
     val v0481Title: String
     val v0481Summary: String
 
@@ -429,6 +432,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0482Title = "Справка Поиска стала разбором, а не списком чисел"
+    override val v0482Summary =
+        "Числа в ней получили единицы, строки разложены по вопросам — показание, с чем " +
+        "сравниваем, насколько уверенно и что вообще было бы замечено, — а рядом с показанием " +
+        "встало набранное время. Без снятой точки отсчёта справка больше не пустеет: она " +
+        "говорит, с чем идёт сравнение сейчас и что даёт отметка."
 
     override val v0481Title = "Станции на карте, калибровка стриппинга и честность к прибору"
     override val v0481Summary =
@@ -1377,6 +1387,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0482Title = "The search help reads as an analysis, not a list of numbers"
+    override val v0482Summary =
+        "Its numbers gained units, the rows are grouped by the question they answer — the " +
+        "reading, what it is compared against, how confident it is and what would have been " +
+        "seen — and the collected time now stands next to the reading. Without a reference point " +
+        "the help no longer empties out: it says what the comparison runs against and what the " +
+        "mark would give."
 
     override val v0481Title = "Stations on the map, stripping calibration, honesty about the device"
     override val v0481Summary =

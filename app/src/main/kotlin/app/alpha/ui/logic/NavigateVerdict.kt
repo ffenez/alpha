@@ -210,10 +210,46 @@ object NavigateVerdict {
         t: SearchStrings = SearchRu,
     ): List<WhyLine> {
         val lines = mutableListOf<WhyLine>()
-        if (cps != null) lines += WhyLine(t.navWhyNow, num1(cps.toDouble()))
-        state.reference?.let { lines += WhyLine(t.navWhyReference, num1(it.ratePerSecond)) }
+        // Показание. Число без единицы и без набранного времени выглядит
+        // точнее, чем оно есть: одна секунда и минута дают одно «12,3».
+        if (cps != null) {
+            lines += WhyLine(
+                label = t.navWhyNow,
+                value = t.navWhyRate(num1(cps.toDouble())),
+                section = t.navWhySectionReading,
+            )
+        }
+        state.fast?.seconds?.takeIf { it > 0.0 }?.let { seconds ->
+            lines += WhyLine(
+                label = t.navWhyCollected,
+                value = t.navWhySeconds(num1(seconds)),
+                section = if (cps == null) t.navWhySectionReading else null,
+            )
+        }
+
+        // С чем сравниваем. Отсутствие отметки — это ответ, а не пустое место:
+        // без неё разбор состоял из двух строк и выглядел сломанным.
+        val reference = state.reference
+        if (reference != null) {
+            lines += WhyLine(
+                label = t.navWhyReference,
+                value = t.navWhyRate(num1(reference.ratePerSecond)),
+                section = t.navWhySectionAgainst,
+            )
+        } else {
+            lines += WhyLine(
+                label = t.navWhyReference,
+                value = t.navWhyNoReference,
+                section = t.navWhySectionAgainst,
+                note = t.navWhyNoReferenceNote,
+            )
+        }
         state.referenceRatio?.takeIf { it.isFinite() && it > 0.0 }?.let {
-            lines += WhyLine(t.navWhyRatio, "${num2(it)}×")
+            lines += WhyLine(
+                label = t.navWhyRatio,
+                value = t.navWhyTimes(num2(it)),
+                section = t.navWhySectionConfidence,
+            )
         }
         val comparison = state.referenceComparison
         if (comparison != null &&
@@ -222,7 +258,8 @@ object NavigateVerdict {
         ) {
             lines += WhyLine(
                 label = t.navWhyInterval,
-                value = "${num2(comparison.ratioLow)}–${num2(comparison.ratioHigh)}×",
+                value = t.navWhyTimes("${num2(comparison.ratioLow)}–${num2(comparison.ratioHigh)}"),
+                section = if (state.referenceRatio == null) t.navWhySectionConfidence else null,
                 critical = if (delta is ReferenceDelta.Unresolved) t.navWhyIntervalNote else null,
             )
         }
@@ -236,7 +273,8 @@ object NavigateVerdict {
             limits.detectableRatio?.takeIf { it.isFinite() }?.let { ratio ->
                 lines += WhyLine(
                     label = t.navWhyDetectable,
-                    value = "${num2(ratio)}×",
+                    value = t.navWhyTimes(num2(ratio)),
+                    section = t.navWhySectionSensitivity,
                     // Это КРИТИЧЕСКОЕ: без него отказ читается как «здесь
                     // ничего нет», хотя он говорит лишь «меньшего мы бы не
                     // увидели».
@@ -245,7 +283,12 @@ object NavigateVerdict {
             }
         }
         state.local?.ratePerSecond?.let {
-            lines += WhyLine(t.navWhyRecent, num1(it), note = t.navWhyRecentNote)
+            lines += WhyLine(
+                label = t.navWhyRecent,
+                value = t.navWhyRate(num1(it)),
+                section = if (reference == null) null else t.navWhySectionAgainst,
+                note = t.navWhyRecentNote,
+            )
         }
         windowsNote(state, t)?.let { lines += WhyLine(t.navWhyWindows, it) }
         lines += WhyLine(
