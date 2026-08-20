@@ -64,4 +64,18 @@ object Uncertainty {
 
     fun num1(value: Float): String =
         String.format(Locale.US, "%.1f", value).uiDecimal()
+
+    /**
+     * Изменение со знаком: «+1,2», «−6,0». Минус — типографский (U+2212), как
+     * во всех остальных числах приложения; ноль остаётся без знака, потому что
+     * «+0,0» читается как рост, которого не было.
+     */
+    fun signed1(value: Float): String {
+        val text = num1(kotlin.math.abs(value))
+        return when {
+            text.trimStart('0', ',', '.').isEmpty() -> text
+            value < 0f -> "−$text"
+            else -> "+$text"
+        }
+    }
 }

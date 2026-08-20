@@ -52,6 +52,9 @@ interface MapStrings {
     val centerOnAll: String
     val metricDose: String
     val metricCps: String
+
+    /** Третья величина слоя карты — магнитное поле телефона. */
+    val metricField: String
     /** Единица скорости счёта — только в легенде шкалы, где величин две. */
 
     // --- чем заданы границы цвета ---
@@ -154,6 +157,7 @@ object MapRu : MapStrings {
     override val centerOnAll = "⌖ всё"
     override val metricDose = "Доза"
     override val metricCps = "CPS"
+    override val metricField = "Поле"
 
     override val scaleAbsolute = "цвет — по обычному фону места"
     override val scaleContrast = "цвет растянут по этому маршруту"
@@ -265,6 +269,7 @@ object MapEn : MapStrings {
     override val centerOnAll = "⌖ all"
     override val metricDose = "Dose"
     override val metricCps = "CPS"
+    override val metricField = "Field"
 
     override val scaleAbsolute = "colour follows the usual background of the place"
     override val scaleContrast = "colour is stretched over this route"
@@ -359,7 +364,7 @@ fun MapStrings.allTexts(): List<String> = listOf(
     lastRecording("12:00"), recordingFor("2 мин"),
      showAllRecordings, startRecording, startNewRecording, stopRecording, routeMine, route,
     pointsAndCells("1 200", "48"), centerOnMe, centerOnRoute, centerOnAll,
-    metricDose, metricCps, scaleAbsolute, scaleContrast,
+    metricDose, metricCps, metricField, scaleAbsolute, scaleContrast,
     cellSize("20 м"), median, paleCells(3, 5), medianValue("0,12"),
     cellSpread("0,10", "0,18", "0,09", "0,21"),
     cellCoverage("42", "12:00", "12:30"),

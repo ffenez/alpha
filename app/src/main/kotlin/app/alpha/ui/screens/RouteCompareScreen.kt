@@ -100,6 +100,8 @@ fun RouteCompareScreen(graph: AppGraph, routeIds: List<Long>, onBack: () -> Unit
         when (metric) {
             TrackMetric.DOSE -> it.doseLowMicroSvH to it.doseHighMicroSvH
             TrackMetric.CPS -> it.cpsLow to it.cpsHigh
+            // Обычного уровня поля приложение не учит — полосы у него нет.
+            TrackMetric.FIELD -> null
         }
     }
 
@@ -117,6 +119,7 @@ fun RouteCompareScreen(graph: AppGraph, routeIds: List<Long>, onBack: () -> Unit
                         accuracyMeters = it.accuracyMeters,
                         doseMicroSvH = it.doseRate?.let(DoseUnits::rawToMicroSievertPerHour),
                         cps = it.countRate,
+                        magneticUt = it.magneticUt,
                     )
                 }
                 ComparedRoute(graph.trackRepository.routeSummary(session), points)

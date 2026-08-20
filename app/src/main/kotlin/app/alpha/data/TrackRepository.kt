@@ -96,6 +96,7 @@ class TrackRepository(
         doseRate: Float?,
         countRate: Float?,
         altitudeMeters: Double? = null,
+        magneticUt: Float? = null,
     ) {
         trackDao.insertPoint(
             TrackPointEntity(
@@ -107,6 +108,7 @@ class TrackRepository(
                 doseRate = doseRate,
                 countRate = countRate,
                 altitudeMeters = altitudeMeters,
+                magneticUt = magneticUt,
             ),
         )
     }
@@ -212,14 +214,14 @@ class TrackRepository(
      * summary card shows. Never derived from the drawn subset.
      */
     suspend fun areaSummary(
-        useDose: Boolean,
+        metric: Int,
         minLatitude: Double,
         maxLatitude: Double,
         minLongitude: Double,
         maxLongitude: Double,
         maxAccuracyMeters: Float,
     ): TrackAreaSummaryRow = trackDao.boundsSummary(
-        useDose = useDose,
+        metric = metric,
         minLatitude = minLatitude,
         maxLatitude = maxLatitude,
         minLongitude = minLongitude,
@@ -230,7 +232,7 @@ class TrackRepository(
     /** Grid × value histogram of a viewport (see `ui/logic/TrackGrid`). */
     @Suppress("LongParameterList")
     suspend fun gridHistogram(
-        useDose: Boolean,
+        metric: Int,
         minLatitude: Double,
         maxLatitude: Double,
         minLongitude: Double,
@@ -242,7 +244,7 @@ class TrackRepository(
         valueStep: Float,
         limit: Int,
     ): List<TrackGridBinRow> = trackDao.gridHistogram(
-        useDose = useDose,
+        metric = metric,
         minLatitude = minLatitude,
         maxLatitude = maxLatitude,
         minLongitude = minLongitude,

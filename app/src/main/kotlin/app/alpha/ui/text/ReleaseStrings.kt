@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0470Title: String
+    val v0470Summary: String
+
     val v0462Title: String
     val v0462Summary: String
 
@@ -417,6 +420,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0470Title = "Условия вокруг измерения: давление, поле, температура"
+    override val v0470Summary =
+        "Пока идёт измерение, приложение записывает барометр, магнитометр и температуру телефона: " +
+        "в поиске поле стало вторым каналом со своим отношением к отметке, в сессии ряды легли " +
+        "под дозу на ту же ось времени, на карте появился слой поля, а рядом с радоном — " +
+        "изменение давления за окно."
 
     override val v0462Title = "Готовые места называются на языке приложения"
     override val v0462Summary =
@@ -1337,6 +1347,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0470Title = "The conditions around a measurement"
+    override val v0470Summary =
+        "While a measurement runs the app records the barometer, the magnetometer and the phone " +
+        "temperature: the search gained the field as a second channel with its own ratio to the " +
+        "mark, the session shows the series under the dose on one time axis, the map gained a " +
+        "field layer, and radon now carries the pressure change over its window."
 
     override val v0462Title = "The ready-made places follow the app language"
     override val v0462Summary =

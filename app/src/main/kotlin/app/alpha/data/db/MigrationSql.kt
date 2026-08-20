@@ -36,6 +36,10 @@ object MigrationSql {
      * `deviation` остаются как есть — это измерения, а не мусор
      * (`history_semantic_events_redesign.md`, раздел о миграции).
      */
+    val FROM_19_TO_20: List<String> = listOf(
+        "ALTER TABLE `track_points` ADD COLUMN `magneticUt` REAL DEFAULT NULL",
+    )
+
     val FROM_18_TO_19: List<String> = listOf(
         "CREATE TABLE IF NOT EXISTS `environment` (" +
             "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +

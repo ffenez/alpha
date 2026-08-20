@@ -1193,6 +1193,11 @@ class MeasurementService : Service() {
                     countRate = sample?.countRate,
                     // GPS altitude feeds flight detection (полёт badge/chart).
                     altitudeMeters = if (location.hasAltitude()) location.altitude else null,
+                    // Поле берётся из последней сводки, а не спрашивается у
+                    // датчика: точка трека приходит по фиксу координат, и
+                    // мгновенное значение здесь было бы одним отсчётом без
+                    // разброса.
+                    magneticUt = graph.serviceStatus.environment.value?.magneticUt,
                 )
             }
             }
