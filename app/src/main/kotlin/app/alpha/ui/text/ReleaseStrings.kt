@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0481Title: String
+    val v0481Summary: String
+
     val v0480Title: String
     val v0480Summary: String
 
@@ -426,6 +429,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0481Title = "Станции на карте, калибровка стриппинга и честность к прибору"
+    override val v0481Summary =
+        "Станции съёмки теперь показываются на карте цветом выбранной величины, а коэффициенты " +
+        "протечки тория в окно урана можно измерить своими источниками — они запоминаются для " +
+        "того прибора, на котором сняты. Прибор без энергетического разрешения больше не " +
+        "получает спектральных выводов: съёмка, радон и жёсткость для него отключены, и экран " +
+        "говорит почему."
 
     override val v0480Title = "Съёмка U-Th-K: калий, уран и торий по станциям"
     override val v0480Summary =
@@ -1366,6 +1377,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0481Title = "Stations on the map, stripping calibration, honesty about the device"
+    override val v0481Summary =
+        "Survey stations now appear on the map coloured by the chosen quantity, and the leakage of " +
+        "thorium into the uranium window can be measured with your own sources — the coefficients " +
+        "are remembered for the instrument they were taken on. An instrument without energy " +
+        "resolution no longer gets spectral conclusions: survey, radon and hardness are switched " +
+        "off for it, and the screen says why."
 
     override val v0480Title = "U-Th-K survey: potassium, uranium and thorium by station"
     override val v0480Summary =

@@ -478,6 +478,19 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     val spectrumContinuum: Flow<Boolean> =
         dataStore.data.map { it[SPECTRUM_CONTINUUM] ?: false }
 
+    /**
+     * Коэффициенты стриппинга радиоэлементной съёмки, снятые на приборе
+     * (`StrippingRecord`); пусто — не измерялись.
+     */
+    val strippingRaw: Flow<String?> =
+        dataStore.data.map { it[SURVEY_STRIPPING] }
+
+    suspend fun setStripping(raw: String?) {
+        dataStore.edit { prefs ->
+            if (raw == null) prefs.remove(SURVEY_STRIPPING) else prefs[SURVEY_STRIPPING] = raw
+        }
+    }
+
     suspend fun setSpectrumBackgroundView(id: String) {
         dataStore.edit { it[SPECTRUM_BACKGROUND_VIEW] = id }
     }
@@ -846,6 +859,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
             stringPreferencesKey("spectrum_background_view")
         private val SPECTRUM_SMOOTHING = booleanPreferencesKey("spectrum_smoothing")
         private val SPECTRUM_CONTINUUM = booleanPreferencesKey("spectrum_continuum")
+        private val SURVEY_STRIPPING = stringPreferencesKey("survey_stripping")
         private val SPECTROGRAM_ENERGY_SCALE =
             stringPreferencesKey("spectrogram_energy_scale")
         private val SPECTRUM_SCALE_ROOT = intPreferencesKey("spectrum_scale_root")

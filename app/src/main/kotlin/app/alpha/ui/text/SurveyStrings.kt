@@ -29,6 +29,9 @@ interface SurveyStrings {
 
     /** Отказы записи станции — каждый называет, чего именно не хватает. */
     val needSpectrum: String
+
+    /** Прибор без энергетического разрешения: линий у него не бывает. */
+    fun notSpectrometer(device: String): String
     val needPosition: String
     val recorded: String
 
@@ -62,6 +65,9 @@ interface SurveyStrings {
     /** «линия не набрана» — площадь ниже предела Карри. */
     val belowLimit: String
 
+    /** Линия за верхом шкалы прибора: набирать нечего в принципе. */
+    val outOfScale: String
+
     /** Накопление станции и её точность. */
     fun accumulation(duration: String): String
     fun accuracy(meters: String): String
@@ -73,8 +79,45 @@ interface SurveyStrings {
     fun device(name: String): String
     val deviceUnknown: String
 
+    /** Прибор опознан, но его разрешение вендором не опубликовано. */
+    fun deviceUntuned(name: String): String
+
+    /** Показать станции на карте выбранной величиной. */
+    val showOnMap: String
+
     val exportCsv: String
     val exportSaved: String
+
+    // --- калибровка стриппинга ---
+
+    val strippingTitle: String
+
+    /** Пока не измерено — приложение говорит, чем это грозит числам. */
+    val strippingNone: String
+
+    /** «α 0,42 · β 0,71 · γ 0,84 · снято 12.08» — что именно принято. */
+    fun strippingValues(alpha: String, beta: String, gamma: String, date: String): String
+
+    /** Коэффициенты сняты на ДРУГОМ приборе и не применяются. */
+    fun strippingOtherDevice(device: String): String
+
+    val strippingMeasureBackground: String
+    val strippingMeasureThorium: String
+    val strippingMeasureUranium: String
+    val strippingCompute: String
+    val strippingClear: String
+
+    /** Что уже снято в этом заходе. */
+    fun strippingTaken(seconds: String): String
+    val strippingHint: String
+
+    /** Отказы расчёта — каждый называет, чего не хватило. */
+    val strippingNeedBackground: String
+    val strippingNeedThorium: String
+    val strippingSourceTooWeak: String
+    val strippingNothingAbove: String
+    val strippingNoUranium: String
+    val strippingSaved: String
 
     val methodTitle: String
     val methodDwell: String
@@ -100,6 +143,10 @@ object SurveyRu : SurveyStrings {
     override val recordingHint = "Спектр и координаты запишутся как есть — сколько накоплено"
 
     override val needSpectrum = "Нечего записывать: накопленного спектра нет"
+    override fun notSpectrometer(device: String) =
+        "$device не разделяет энергии: пластиковый сцинтиллятор не даёт линий, и считать по " +
+            "ним калий, уран и торий нечем. Съёмка требует прибора со спектрометрическим " +
+            "кристаллом."
     override val needPosition = "Координат нет: нужен доступ к местоположению и связь со спутниками"
     override val recorded = "Станция записана"
 
@@ -132,6 +179,7 @@ object SurveyRu : SurveyStrings {
         "сравнивать не с чем: нужно хотя бы $need соседних станций"
 
     override val belowLimit = "линия не набрана"
+    override val outOfScale = "линия за краем шкалы прибора"
 
     override fun accumulation(duration: String) = "накопление $duration"
     override fun accuracy(meters: String) = "±$meters м"
@@ -141,9 +189,42 @@ object SurveyRu : SurveyStrings {
 
     override fun device(name: String) = "прибор: $name"
     override val deviceUnknown = "прибор не опознан — окна по осторожному профилю"
+    override fun deviceUntuned(name: String) =
+        "прибор: $name — разрешение для него не опубликовано, окна взяты с запасом"
 
+    override val showOnMap = "Показать на карте"
     override val exportCsv = "Выгрузить CSV"
     override val exportSaved = "Файл сохранён"
+
+    override val strippingTitle = "Стриппинг"
+    override val strippingNone =
+        "Коэффициенты не измерены: часть счёта тория считается ураном, и на ториевых точках eU " +
+            "завышен."
+
+    override fun strippingValues(alpha: String, beta: String, gamma: String, date: String) =
+        "α $alpha · β $beta · γ $gamma · снято $date"
+
+    override fun strippingOtherDevice(device: String) =
+        "коэффициенты сняты на приборе $device и к этому не применяются"
+
+    override val strippingMeasureBackground = "Снять фон"
+    override val strippingMeasureThorium = "Снять ториевый источник"
+    override val strippingMeasureUranium = "Снять урановый источник"
+    override val strippingCompute = "Посчитать коэффициенты"
+    override val strippingClear = "Убрать коэффициенты"
+
+    override fun strippingTaken(seconds: String) = "снято, накопление $seconds"
+    override val strippingHint =
+        "Каждый шаг берёт то, что накоплено сейчас: сбросьте накопление, положите источник и " +
+            "дождитесь, пока линии наберутся. Фон снимается без источников, в том же месте."
+
+    override val strippingNeedBackground = "Сначала снимите фон: без него счёт источника не чистый"
+    override val strippingNeedThorium = "Нужен ториевый источник: из него считаются α и β"
+    override val strippingSourceTooWeak = "Источник не отличается от фона в своём окне"
+    override val strippingNothingAbove = "Над фоном ничего не набралось"
+    override val strippingNoUranium =
+        "Урановый источник не снят: калий очищен только от тория, γ осталась нулём"
+    override val strippingSaved = "Коэффициенты приняты"
 
     override val methodTitle = "Как это считается"
     override val methodDwell =
@@ -183,6 +264,10 @@ object SurveyEn : SurveyStrings {
     override val recordingHint = "The spectrum and the position are stored as they are"
 
     override val needSpectrum = "Nothing to record: there is no accumulated spectrum"
+    override fun notSpectrometer(device: String) =
+        "$device does not separate energies: a plastic scintillator gives no lines, so there " +
+            "is nothing to compute potassium, uranium and thorium from. A survey needs a " +
+            "spectrometric crystal."
     override val needPosition = "No position: location access and a satellite fix are needed"
     override val recorded = "Station recorded"
 
@@ -215,6 +300,7 @@ object SurveyEn : SurveyStrings {
         "nothing to compare with: at least $need neighbouring stations are needed"
 
     override val belowLimit = "line not collected"
+    override val outOfScale = "line beyond the instrument scale"
 
     override fun accumulation(duration: String) = "accumulated $duration"
     override fun accuracy(meters: String) = "±$meters m"
@@ -224,9 +310,44 @@ object SurveyEn : SurveyStrings {
 
     override fun device(name: String) = "instrument: $name"
     override val deviceUnknown = "instrument not identified — cautious window profile"
+    override fun deviceUntuned(name: String) =
+        "instrument: $name — its resolution is not published, the windows are taken with a margin"
 
+    override val showOnMap = "Show on the map"
     override val exportCsv = "Export CSV"
     override val exportSaved = "File saved"
+
+    override val strippingTitle = "Stripping"
+    override val strippingNone =
+        "The coefficients are not measured: part of the thorium count is read as uranium, and eU " +
+            "is overstated on thorium points."
+
+    override fun strippingValues(alpha: String, beta: String, gamma: String, date: String) =
+        "α $alpha · β $beta · γ $gamma · taken $date"
+
+    override fun strippingOtherDevice(device: String) =
+        "the coefficients were taken on $device and do not apply here"
+
+    override val strippingMeasureBackground = "Take the background"
+    override val strippingMeasureThorium = "Take the thorium source"
+    override val strippingMeasureUranium = "Take the uranium source"
+    override val strippingCompute = "Compute the coefficients"
+    override val strippingClear = "Remove the coefficients"
+
+    override fun strippingTaken(seconds: String) = "taken, accumulated $seconds"
+    override val strippingHint =
+        "Each step takes what is accumulated right now: reset the accumulation, put the source in " +
+            "place and wait for the lines to gather. The background is taken with no sources, in " +
+            "the same place."
+
+    override val strippingNeedBackground =
+        "Take the background first: without it the source count is not clean"
+    override val strippingNeedThorium = "A thorium source is needed: α and β come from it"
+    override val strippingSourceTooWeak = "The source does not differ from the background in its window"
+    override val strippingNothingAbove = "Nothing gathered above the background"
+    override val strippingNoUranium =
+        "No uranium source was taken: potassium is cleaned of thorium only, γ stayed zero"
+    override val strippingSaved = "Coefficients accepted"
 
     override val methodTitle = "How this is computed"
     override val methodDwell =
@@ -256,16 +377,22 @@ val SurveyCatalogue = AreaCatalogue(ru = SurveyRu, en = SurveyEn)
 
 fun SurveyStrings.allTexts(): List<String> = listOf(
     title, subtitle, emptyTitle, emptyBody, recordStation, recordingHint,
-    needSpectrum, needPosition, recorded,
+    needSpectrum, needPosition, recorded, notSpectrometer("RadiaCode Zero"),
     quantityPotassium, quantityUranium, quantityThorium,
     quantityUraniumToThorium, quantityThoriumToPotassium,
     stationsCount(12, 4), valueWithSigma("0,34", "0,02", unitCps),
     ratioWithSigma("1,80", "0,20"), unitCps,
     aboveSurvey("1,8", "2,1"), belowSurvey("0,6", "−2,4"), notDifferent("0,8"),
-    tooFewStations(3), belowLimit,
+    tooFewStations(3), belowLimit, outOfScale,
     accumulation("30 мин"), accuracy("8"), height("100"), pressure("1013,2"), heightUnknown,
-    device("RadiaCode-110"), deviceUnknown,
-    exportCsv, exportSaved,
+    device("RadiaCode-110"), deviceUnknown, deviceUntuned("RadiaCode-101"),
+    showOnMap, exportCsv, exportSaved,
+    strippingTitle, strippingNone, strippingValues("0,42", "0,71", "0,84", "12.08"),
+    strippingOtherDevice("RadiaCode-103"),
+    strippingMeasureBackground, strippingMeasureThorium, strippingMeasureUranium,
+    strippingCompute, strippingClear, strippingTaken("30 мин"), strippingHint,
+    strippingNeedBackground, strippingNeedThorium, strippingSourceTooWeak,
+    strippingNothingAbove, strippingNoUranium, strippingSaved,
     methodTitle, methodDwell, methodGeometry, methodRadon, methodRatios, methodNoUnits,
     methodStripping,
 )

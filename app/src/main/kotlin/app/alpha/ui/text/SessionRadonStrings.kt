@@ -167,6 +167,9 @@ interface SessionRadonStrings {
     val hourlyTitle: String
     val now: String
     val radonChartNote: String
+
+    /** Прибор без энергетического разрешения: линий Bi-214 и Pb-214 у него нет. */
+    fun radonNotSpectrometer(device: String): String
     val trendRising: String
     val trendFalling: String
     val trendFlat: String
@@ -350,6 +353,9 @@ object SessionRadonRu : SessionRadonStrings {
     override val hourlyTitle = "Индикатор по часам"
     override val now = "сейчас"
     override val radonChartNote = "пунктир — медиана окна · пропуски — часы без измерений"
+    override fun radonNotSpectrometer(device: String) =
+        "$device не разделяет энергии: линий Bi-214 и Pb-214 в его спектре нет, и считать по " +
+            "ним признак радона нечем."
     override val trendRising = "↗ растёт"
     override val trendFalling = "↘ спадает"
     // Правило сравнивает проекцию наклона с разбросом: оно может НЕ найти
@@ -536,6 +542,9 @@ object SessionRadonEn : SessionRadonStrings {
     override val now = "now"
     override val radonChartNote =
         "the dashed line is the window median · gaps are hours without measurements"
+    override fun radonNotSpectrometer(device: String) =
+        "$device does not separate energies: there are no Bi-214 and Pb-214 lines in its " +
+            "spectrum, so there is nothing to build the radon indicator from."
     override val trendRising = "↗ rising"
     override val trendFalling = "↘ falling"
     // «no direction resolved», а не «steady»: правило не умеет доказывать
@@ -576,6 +585,6 @@ fun SessionRadonStrings.allTexts(): List<String> = listOf(
     windowAround("661,7", "52,9"), netWithSigma("0,12", "0,04"), sigmaUnits("3,1"),
     window24h, window7d, readingSnapshots,
     ventilationCheck, hourlyTitle, now,
-    radonChartNote,
+    radonChartNote, radonNotSpectrometer("RadiaCode Zero"),
     trendRising, trendFalling, trendFlat, trendUnknown, trendWindow,
 )

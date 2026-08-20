@@ -16,6 +16,13 @@ package app.alpha.ui.text
  */
 interface SpectrogramStrings {
 
+    /**
+     * Прибор без энергетического разрешения: картинка остаётся честной как
+     * «интенсивность во времени», но полосы у неё не энергии.
+     */
+    fun notSpectrometer(device: String): String
+
+
     val title: String
 
     val noLink: String
@@ -180,6 +187,10 @@ interface SpectrogramStrings {
 
 object SpectrogramRu : SpectrogramStrings {
 
+    override fun notSpectrometer(device: String) =
+        "$device не разделяет энергии: полосы этой картинки — не энергии, а деление " +
+            "шкалы прибора. Читать её как спектр во времени нельзя."
+
     override val title = "Спектрограмма"
     override val noLink = "нет соединения с прибором"
     override val warmingUp = "накапливаем первые интервалы… столбцы появятся через ~10 с"
@@ -311,6 +322,11 @@ object SpectrogramRu : SpectrogramStrings {
 }
 
 object SpectrogramEn : SpectrogramStrings {
+
+    override fun notSpectrometer(device: String) =
+        "$device does not separate energies: the bands of this picture are not energies " +
+            "but a division of the instrument scale. It cannot be read as a spectrum " +
+            "over time."
 
     override val title = "Spectrogram"
     override val noLink = "no link to the instrument"
@@ -468,6 +484,7 @@ val SpectrogramCatalogue = AreaCatalogue(ru = SpectrogramRu, en = SpectrogramEn)
  * означала бы непроверенный текст.
  */
 fun SpectrogramStrings.allTexts(): List<String> = listOf(
+    notSpectrometer("RadiaCode Zero"),
     recordNote, clearHistory, clearConfirmTitle, clearConfirmBody,
     title, noLink, warmingUp, offlineHistory, offlineTag, backgroundNote,
     windowMinutes(15), windowHours(2),

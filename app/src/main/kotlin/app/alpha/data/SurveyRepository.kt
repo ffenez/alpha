@@ -6,6 +6,7 @@ import app.alpha.data.db.SpectrumDao
 import app.alpha.data.db.SurveyDao
 import app.alpha.data.db.SurveyStationEntity
 import app.alpha.device.DeviceModel
+import app.alpha.ui.logic.StrippingRecord
 import app.alpha.ui.logic.SurveyModel
 import kotlinx.coroutines.flow.Flow
 
@@ -61,18 +62,26 @@ class SurveyRepository(
      * станция. Внешний ключ уносит такие записи сам, это защита от порчи базы.
      */
     suspend fun loaded(
-        stripping: Radioelements.Stripping = Radioelements.Stripping.NONE,
+        stripping: StrippingRecord? = null,
     ): List<SurveyModel.Station> = surveyDao.all().mapNotNull { station ->
         val snapshot = spectrumDao.byId(station.spectrumId) ?: return@mapNotNull null
         val model = DeviceModel.fromSerial(snapshot.deviceSerial)
+        // Коэффициенты принадлежат ПРИБОРУ: к станции, снятой другим, они не
+        // применяются — доля протечки зависит от кристалла.
+        val corrections = if (stripping?.appliesTo(snapshot.deviceSerial) == true) {
+            stripping.stripping()
+        } else {
+            Radioelements.Stripping.NONE
+        }
         SurveyModel.station(
             entity = station,
             counts = SpectrumBlob.decode(snapshot.counts),
             calibration = EnergyCalibration(snapshot.a0, snapshot.a1, snapshot.a2),
             seconds = snapshot.durationSeconds,
             resolution662 = model.peakResolution662,
-            stripping = stripping,
+            stripping = corrections,
             deviceName = model.takeIf { it != DeviceModel.UNKNOWN }?.displayName,
+            tunedProfile = model.resolution662 != null,
         )
     }
 }

@@ -76,6 +76,9 @@ import app.alpha.data.export.SeriesExport
 import app.alpha.data.export.html.RoutePrivacy
 import app.alpha.data.export.html.RouteReportHtml
 import app.alpha.data.export.html.RouteTrim
+import app.alpha.ui.logic.MapStation
+import app.alpha.ui.logic.StrippingRecord
+import app.alpha.ui.logic.SurveyModel
 import app.alpha.ui.text.ExportCatalogue
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.ConfirmDialog
@@ -126,6 +129,7 @@ import app.alpha.ui.theme.LocalAppMetrics
 import app.alpha.ui.theme.TrackRampColors
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
@@ -235,7 +239,16 @@ private data class GridData(
 data class MapFocus(val latitudeDeg: Double, val longitudeDeg: Double)
 
 @Composable
-fun MapScreen(graph: AppGraph, focus: MapFocus? = null) {
+fun MapScreen(
+    graph: AppGraph,
+    focus: MapFocus? = null,
+    /**
+     * Величина радиоэлементной съёмки, которой красить станции; null — слой
+     * станций не рисуется. Выбирают её на экране съёмки: держать второй набор
+     * переключателей на карте значило бы заводить второй источник истины.
+     */
+    surveyQuantity: SurveyModel.Quantity? = null,
+) {
     val h = HistoryCatalogue.of(LocalStrings.current.language)
     val context = LocalContext.current
     val colors = LocalAppColors.current
@@ -491,6 +504,7 @@ fun MapScreen(graph: AppGraph, focus: MapFocus? = null) {
             metric = metric,
             metricIndex = metricIndex,
             metrics = metrics,
+            surveyQuantity = surveyQuantity,
             onMetricSelect = { metricIndex = it },
             unit = unit,
             position = fix,
@@ -1045,6 +1059,8 @@ private fun TrackMapCard(
     tintFactor: Float = DoseTint.DEFAULT_FACTOR,
     /** Границы ручной шкалы для выбранной величины. */
     manualAnchors: List<Float> = emptyList(),
+    /** Величина радиоэлементной съёмки для слоя станций; null — слоя нет. */
+    surveyQuantity: SurveyModel.Quantity? = null,
     /** Общий с графиком курсор: выбранный момент маршрута. */
     cursor: MapTrackPoint? = null,
     /** Тап по следу выбирает момент, а не только открывает карточку. */
@@ -1100,6 +1116,34 @@ private fun TrackMapCard(
         }
     }
 
+    // Станции съёмки: их единицы, поэтому читаются целиком и пересчитываются
+    // при смене величины, а не при каждом движении карты.
+    val stationDots = if (surveyQuantity == null) {
+        emptyList()
+    } else {
+        val strippingRaw by graph.settings.strippingRaw.collectAsState(initial = null)
+        var loadedStations by remember { mutableStateOf<List<SurveyModel.Station>>(emptyList()) }
+        LaunchedEffect(surveyQuantity, strippingRaw) {
+            loadedStations = graph.surveyRepository.loaded(StrippingRecord.decode(strippingRaw))
+        }
+        remember(loadedStations, surveyQuantity) {
+            val values = loadedStations.mapNotNull { SurveyModel.value(it, surveyQuantity) }
+            loadedStations.map { station ->
+                val value = SurveyModel.value(station, surveyQuantity)
+                val fraction = value?.let { SurveyModel.normalize(values, it) }
+                MapStation(
+                    id = station.entity.id,
+                    latitude = station.entity.latitude,
+                    longitude = station.entity.longitude,
+                    // Величина не измерена — ступени нет, точка серая.
+                    shade = fraction
+                        ?.let { (it * (TrackMap.RAMP_STEPS - 1)).roundToInt() }
+                        ?: -1,
+                )
+            }
+        }
+    }
+
     val layerColors = MapLayerColors(
         ramp = TrackRampColors.map { it.toArgb() },
         metricMissing = colors.muted.toArgb(),
@@ -1119,6 +1163,7 @@ private fun TrackMapCard(
             scale = render.scale,
             lineBreaks = lineBreaks,
             hotspots = grid?.hotspots ?: data?.hotspots.orEmpty(),
+            stations = stationDots,
             bounds = fitBounds,
             recenterTick = recenterTick,
             cursor = cursor,
