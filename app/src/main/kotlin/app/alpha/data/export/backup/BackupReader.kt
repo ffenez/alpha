@@ -81,6 +81,7 @@ interface BackupSink {
     suspend fun measurements(batch: List<BackupMeasurement>): RestoreCount
     suspend fun events(batch: List<BackupEvent>): RestoreCount
     suspend fun rare(batch: List<BackupRare>): RestoreCount
+    suspend fun environment(batch: List<BackupEnvironment>): RestoreCount
     suspend fun routes(batch: List<BackupRoute>): RestoreCount
     suspend fun points(batch: List<BackupPoint>): RestoreCount
     suspend fun spectra(batch: List<BackupSpectrum>): RestoreCount
@@ -205,6 +206,7 @@ object BackupReader {
                 measurements = counts[BackupFormat.MEASUREMENTS] ?: 0,
                 events = counts[BackupFormat.EVENTS] ?: 0,
                 rare = counts[BackupFormat.RARE] ?: 0,
+                environment = counts[BackupFormat.ENVIRONMENT] ?: 0,
                 sessions = counts[BackupFormat.SESSIONS] ?: 0,
                 routes = counts[BackupFormat.ROUTES] ?: 0,
                 points = counts[BackupFormat.POINTS] ?: 0,
@@ -270,6 +272,12 @@ object BackupReader {
                                 zip, BackupStage.RARE, info.counts.rare, summary,
                                 onProgress, BackupRare::parse,
                             ) { sink.rare(it) }
+                        }
+                        BackupFormat.ENVIRONMENT -> if (selection.measurements) {
+                            summary = consume(
+                                zip, BackupStage.ENVIRONMENT, info.counts.environment, summary,
+                                onProgress, BackupEnvironment::parse,
+                            ) { sink.environment(it) }
                         }
                         BackupFormat.ROUTES -> if (selection.routes) {
                             summary = consume(

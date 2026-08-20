@@ -4,6 +4,7 @@ import app.alpha.baseline.Admission
 import app.alpha.baseline.BaselineState
 import app.alpha.baseline.DeviationSnapshot
 import app.alpha.device.ConnectionState
+import app.alpha.sensors.EnvironmentWindow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +21,17 @@ class ServiceStatus {
 
     private val _serviceRunning = MutableStateFlow(false)
     val serviceRunning: StateFlow<Boolean> = _serviceRunning.asStateFlow()
+
+    /**
+     * Последняя сводка условий с датчиков телефона; null — служба не собирает
+     * их (не запущена) или ни один датчик ничего не дал.
+     */
+    private val _environment = MutableStateFlow<EnvironmentWindow?>(null)
+    val environment: StateFlow<EnvironmentWindow?> = _environment.asStateFlow()
+
+    fun onEnvironment(window: EnvironmentWindow) {
+        _environment.value = window
+    }
 
     /**
      * Когда графики Главной последний раз перечитались и сколько раз всего.

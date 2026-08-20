@@ -63,6 +63,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -72,6 +73,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 /**
  * Foreground service that owns the BLE connection and persists everything the
@@ -234,6 +236,7 @@ class MeasurementService : Service() {
                 val days = graph.settings.rawRetentionDays.first()
                 RawRetention.cutoffMillis(System.currentTimeMillis(), days)?.let { cutoff ->
                     graph.database.sampleDao().deleteOlderThan(cutoff)
+                    graph.environmentRepository.deleteBefore(cutoff)
                 }
                 delay(RETENTION_SWEEP_MILLIS)
             }
@@ -324,6 +327,28 @@ class MeasurementService : Service() {
             while (true) {
                 refreshBaseline()
                 delay(BASELINE_REFRESH_MILLIS)
+            }
+        }
+        scope.launch {
+            // Датчики телефона слушаются ровно столько, сколько живёт служба:
+            // круглосуточная подписка тянула бы батарею ради данных, которые
+            // некуда писать. Такт опроса чаще окна усреднения — сводка выходит
+            // сама, когда окно кончилось.
+            graph.phoneSensors.start()
+            try {
+                while (true) {
+                    delay(ENVIRONMENT_POLL_MILLIS)
+                    graph.phoneSensors.poll()?.let { window ->
+                        graph.serviceStatus.onEnvironment(window)
+                        graph.environmentRepository.save(window)
+                    }
+                }
+            } finally {
+                // Хвост незакрытого окна не теряем: служба могла остановиться
+                // в середине.
+                withContext(NonCancellable) {
+                    graph.phoneSensors.stop()?.let { graph.environmentRepository.save(it) }
+                }
             }
         }
         // Запись маршрута переживает гибель процесса: сначала возобновляется
@@ -1343,6 +1368,13 @@ class MeasurementService : Service() {
          * недели.
          */
         private const val SPECTROGRAM_COMPACT_INTERVAL_MILLIS = 3_600_000L
+
+        /**
+         * Такт опроса датчиков телефона. Секунда — это НЕ частота записи:
+         * сводка уходит в базу раз в окно усреднения (10 с), а такт лишь
+         * проверяет, не кончилось ли окно.
+         */
+        private const val ENVIRONMENT_POLL_MILLIS = 1_000L
 
         /** Как часто проверяется срез: раз в 6 ч достаточно для суточных величин. */
         private const val RETENTION_SWEEP_MILLIS = 6L * 3_600_000L

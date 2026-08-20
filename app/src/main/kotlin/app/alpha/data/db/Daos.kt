@@ -578,6 +578,43 @@ interface SessionDao {
 }
 
 @Dao
+interface EnvironmentDao {
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(entries: List<EnvironmentEntity>): List<Long>
+
+    @Query("SELECT * FROM environment WHERE id > :afterId ORDER BY id LIMIT :limit")
+    suspend fun page(afterId: Long, limit: Int): List<EnvironmentEntity>
+
+    @Query(
+        "SELECT * FROM environment WHERE id > :afterId AND timestamp >= :from " +
+            "ORDER BY id LIMIT :limit",
+    )
+    suspend fun pageSince(afterId: Long, from: Long, limit: Int): List<EnvironmentEntity>
+
+    @Query("SELECT COUNT(*) FROM environment")
+    suspend fun count(): Long
+
+    @Query("SELECT COUNT(*) FROM environment WHERE timestamp >= :from")
+    suspend fun countSince(from: Long): Long
+
+    @Query("DELETE FROM environment")
+    suspend fun clear()
+
+    @Query("DELETE FROM environment WHERE timestamp < :before")
+    suspend fun deleteBefore(before: Long): Int
+
+    @Query("SELECT * FROM environment ORDER BY id DESC LIMIT 1")
+    fun observeLatest(): Flow<EnvironmentEntity?>
+
+    @Query("SELECT * FROM environment WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
+    suspend fun range(from: Long, to: Long): List<EnvironmentEntity>
+
+    @Query("SELECT * FROM environment WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
+    fun observeRange(from: Long, to: Long): Flow<List<EnvironmentEntity>>
+}
+
+@Dao
 interface RareDataDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)

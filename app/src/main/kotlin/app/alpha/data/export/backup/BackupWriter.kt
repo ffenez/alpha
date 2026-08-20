@@ -27,6 +27,7 @@ data class BackupCounts(
     val measurements: Long = 0,
     val events: Long = 0,
     val rare: Long = 0,
+    val environment: Long = 0,
     val sessions: Long = 0,
     val routes: Long = 0,
     val points: Long = 0,
@@ -47,6 +48,7 @@ interface BackupSource {
     fun measurements(): BackupStream<BackupMeasurement>
     fun events(): BackupStream<BackupEvent>
     fun rare(): BackupStream<BackupRare>
+    fun environment(): BackupStream<BackupEnvironment>
     fun routes(): BackupStream<BackupRoute>
     fun points(): BackupStream<BackupPoint>
     fun spectra(): BackupStream<BackupSpectrum>
@@ -68,6 +70,7 @@ enum class BackupStage {
     MEASUREMENTS,
     EVENTS,
     RARE,
+    ENVIRONMENT,
     ROUTES,
     POINTS,
     SPECTRA,
@@ -162,6 +165,13 @@ class BackupWriter(
                 BackupStage.RARE,
                 counts.rare,
                 source.rare(),
+                onProgress,
+            ) { w, item -> item.write(w) }
+            stream(
+                BackupFormat.ENVIRONMENT,
+                BackupStage.ENVIRONMENT,
+                counts.environment,
+                source.environment(),
                 onProgress,
             ) { w, item -> item.write(w) }
         }

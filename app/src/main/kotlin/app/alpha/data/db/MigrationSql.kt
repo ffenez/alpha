@@ -36,6 +36,19 @@ object MigrationSql {
      * `deviation` остаются как есть — это измерения, а не мусор
      * (`history_semantic_events_redesign.md`, раздел о миграции).
      */
+    val FROM_18_TO_19: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `environment` (" +
+            "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+            "`timestamp` INTEGER NOT NULL, " +
+            "`pressureHpa` REAL, " +
+            "`magneticUt` REAL, " +
+            "`magneticSd` REAL, " +
+            "`phoneTempC` REAL, " +
+            "`samples` INTEGER NOT NULL DEFAULT 0)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_environment_timestamp` " +
+            "ON `environment` (`timestamp`)",
+    )
+
     val FROM_17_TO_18: List<String> = listOf(
         "ALTER TABLE `events` ADD COLUMN `endTimestamp` INTEGER DEFAULT NULL",
         "ALTER TABLE `events` ADD COLUMN `minMicroSvH` REAL DEFAULT NULL",
