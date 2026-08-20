@@ -56,6 +56,7 @@ import app.alpha.ui.components.WaterfallProbe
 import app.alpha.ui.components.WaterfallSpec
 import app.alpha.ui.components.waterfallLegendColors
 import app.alpha.ui.logic.DoseFormat
+import app.alpha.ui.logic.InstrumentCapability
 import app.alpha.ui.logic.SpectrumFormat
 import app.alpha.ui.logic.TimeAxis
 import app.alpha.ui.logic.Uncertainty
@@ -122,6 +123,8 @@ fun SpectrogramScreen(
     val strings = LocalStrings.current
     val t = SpectrogramCatalogue.of(strings.language)
     val hub = graph.spectrumHub
+
+    val connectionState by graph.serviceStatus.connection.collectAsState()
 
     BackHandler { onBack() }
     val scope = rememberCoroutineScope()
@@ -294,6 +297,19 @@ fun SpectrogramScreen(
                     }
                     Spacer(Modifier.weight(1f))
                     helpChip()
+                }
+                // Картинка на приборе без спектрометрии остаётся честной как
+                // «интенсивность во времени», но её полосы — не энергии, и
+                // читать её как спектр нельзя. Ограничение стоит НА картинке.
+                val connectedModel =
+                    (connectionState as? ConnectionState.Connected)?.info?.model
+                if (!InstrumentCapability.spectral(connectedModel)) {
+                    Text(
+                        text = t.notSpectrometer(connectedModel?.displayName.orEmpty()),
+                        style = type.footnote,
+                        color = colors.warn,
+                        modifier = Modifier.padding(horizontal = Dimens.space2),
+                    )
                 }
                 Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = Dimens.space2)) {
                     WaterfallChart(

@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +29,7 @@ import app.alpha.AppGraph
 import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.RadonTrend
 import app.alpha.data.toSpectrum
+import app.alpha.device.ConnectionState
 import app.alpha.ui.components.ExplainInfoButton
 import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.Hint
@@ -42,6 +44,7 @@ import app.alpha.ui.components.StatCell
 import app.alpha.ui.components.StatGrid
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.logic.HistoryFormat
+import app.alpha.ui.logic.InstrumentCapability
 import app.alpha.ui.logic.Uncertainty
 import app.alpha.ui.text.HistoryCatalogue
 import app.alpha.ui.text.HistoryRu
@@ -108,6 +111,13 @@ fun RadonScreen(graph: AppGraph, onBack: () -> Unit) {
 
     BackHandler { onBack() }
 
+    // Прибор без энергетического разрешения линий не даёт: признак радона
+    // строится по ROI Bi-214 и Pb-214, и на пластиковом сцинтилляторе считать
+    // его нечем (правило одно на приложение — [InstrumentCapability]).
+    val connection by graph.serviceStatus.connection.collectAsState()
+    val connectedModel = (connection as? ConnectionState.Connected)?.info?.model
+    val spectral = InstrumentCapability.spectral(connectedModel)
+
     var windowIndex by rememberSaveable { mutableIntStateOf(0) } // 0 = 24 ч, 1 = 7 д
     var model by remember { mutableStateOf<RadonModel?>(null) }
     var loaded by remember { mutableStateOf(false) }
@@ -151,6 +161,13 @@ fun RadonScreen(graph: AppGraph, onBack: () -> Unit) {
 
         val m = model
         when {
+            !spectral -> Card(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = t.radonNotSpectrometer(connectedModel?.displayName.orEmpty()),
+                    style = type.bodySmall,
+                    color = colors.warn,
+                )
+            }
             !loaded -> Card(modifier = Modifier.fillMaxWidth()) {
                 Text(text = t.readingSnapshots, style = type.bodySmall, color = colors.muted)
             }

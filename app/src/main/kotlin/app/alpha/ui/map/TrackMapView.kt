@@ -20,6 +20,7 @@ import app.alpha.ui.logic.GridCell
 import app.alpha.ui.logic.MIN_CONFIDENT_POINTS
 import app.alpha.ui.logic.MapBounds
 import app.alpha.ui.logic.MapHotspot
+import app.alpha.ui.logic.MapStation
 import app.alpha.ui.logic.MapTrackPoint
 import app.alpha.ui.logic.MapViewport
 import app.alpha.ui.logic.PositionFix
@@ -101,6 +102,8 @@ fun TrackMapView(
     /** Где след прерывается: индексы без отрезка к предыдущей точке. */
     lineBreaks: BooleanArray,
     hotspots: List<MapHotspot>,
+    /** Станции радиоэлементной съёмки; пусто — слой не рисуется. */
+    stations: List<MapStation> = emptyList(),
     bounds: MapBounds?,
     /** Increment to re-enable auto-fit after the user panned away. */
     recenterTick: Int,
@@ -139,7 +142,7 @@ fun TrackMapView(
         },
         update = {
             holder.applyTheme(dark, layerColors)
-            holder.setData(points, metric, scale, lineBreaks, hotspots)
+            holder.setData(points, metric, scale, lineBreaks, hotspots, stations)
             holder.setCells(cells, cellMeters, cellScale)
             holder.setPosition(position, positionStale)
             holder.setCursor(cursor)
@@ -173,6 +176,12 @@ fun TrackMapView(
 private const val TAP_SLOP_DP = 16f
 private const val POINT_RADIUS_DP = 3.5f
 private const val HOTSPOT_RADIUS_DP = 7f
+
+/**
+ * Станции съёмки крупнее меток превышений: их единицы на карту, и по цвету
+ * каждой читают величину, а не траекторию.
+ */
+private const val STATION_RADIUS_DP = 9f
 /** Ширина следа: линия читается на тайлах и остаётся целью для пальца. */
 private const val ROUTE_WIDTH_DP = 4.5f
 private const val FIT_PADDING_DP = 40f
@@ -216,6 +225,7 @@ private class MapHolder(
     var onViewport: (MapViewport) -> Unit = {}
     private var pointsOverlay: DotOverlay<MapTrackPoint>? = null
     private var hotspotOverlay: DotOverlay<MapHotspot>? = null
+    private var stationOverlay: DotOverlay<MapStation>? = null
     private var cellOverlay: CellOverlay? = null
     private var positionOverlay: PositionOverlay? = null
     private var cursorOverlay: CursorOverlay? = null
@@ -298,6 +308,18 @@ private class MapHolder(
         }
         hotspotOverlay = hotspotDots
         mapView.overlays.add(hotspotDots)
+
+        // Станции съёмки крупнее точек следа: их единицы, а не тысячи, и по
+        // ним читают величину, а не траекторию.
+        val stationDots = DotOverlay<MapStation>(
+            radiusPx = STATION_RADIUS_DP * density,
+            slopPx = TAP_SLOP_DP * density,
+            strokeWidthPx = 2f * density,
+            latitude = { it.latitude },
+            longitude = { it.longitude },
+        ) { }
+        stationOverlay = stationDots
+        mapView.overlays.add(stationDots)
 
         // Курсор профиля — над следом, но под «я на карте»: он показывает
         // момент маршрута, а не место человека, и путать их нельзя.
@@ -400,6 +422,7 @@ private class MapHolder(
         scale: TrackMap.RampScale?,
         lineBreaks: BooleanArray,
         hotspots: List<MapHotspot>,
+        stations: List<MapStation>,
     ) {
         val mapView = mapView ?: return
         val dots = pointsOverlay ?: return
@@ -416,6 +439,13 @@ private class MapHolder(
         val hotspotDots = hotspotOverlay ?: return
         if (!hotspotDots.sameItems(hotspots)) {
             hotspotDots.setItems(hotspots) { 0 }
+            mapView.invalidate()
+        }
+        val stationDots = stationOverlay ?: return
+        if (!stationDots.sameItems(stations)) {
+            // Станция без измеренной величины остаётся на карте серой: убрать
+            // её значило бы соврать, что съёмки здесь не было.
+            stationDots.setItems(stations) { it.shade }
             mapView.invalidate()
         }
     }

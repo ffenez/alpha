@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -27,9 +28,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import app.alpha.AppGraph
+import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.Radioelements
+import app.alpha.analysis.StrippingCalibration
 import app.alpha.data.db.SpectrumSnapshotEntity
 import app.alpha.device.ConnectionState
+import app.alpha.device.DeviceModel
 import app.alpha.ui.components.AppBackButton
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.Card
@@ -39,6 +43,7 @@ import app.alpha.ui.components.ExplainInfoButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.Segmented
 import app.alpha.ui.logic.HistoryFormat
+import app.alpha.ui.logic.StrippingRecord
 import app.alpha.ui.logic.SurveyExport
 import app.alpha.ui.logic.SurveyModel
 import app.alpha.ui.logic.Uncertainty
@@ -63,7 +68,12 @@ import kotlinx.coroutines.launch
  * веществе делает человек.
  */
 @Composable
-fun SurveyScreen(graph: AppGraph, onBack: () -> Unit) {
+fun SurveyScreen(
+    graph: AppGraph,
+    onBack: () -> Unit,
+    /** Открыть карту со станциями, окрашенными выбранной здесь величиной. */
+    onShowOnMap: (SurveyModel.Quantity) -> Unit = {},
+) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
     val strings = LocalStrings.current
@@ -81,10 +91,21 @@ fun SurveyScreen(graph: AppGraph, onBack: () -> Unit) {
     }
     val fix = rememberMyPosition(hasPermission = hasLocation)
 
+    // Прибор без энергетического разрешения (RadiaCode Zero, органический
+    // пластик) линий не даёт вовсе: считать по такому спектру калий, уран и
+    // торий нельзя, и экран говорит это, а не рисует числа из шума.
+    val connection by graph.serviceStatus.connection.collectAsState()
+    val connectedModel = (connection as? ConnectionState.Connected)?.info?.model
+    val notSpectrometer = connectedModel?.isSpectrometer == false
+
     var quantityIndex by rememberSaveable { mutableIntStateOf(0) }
     val quantity = SurveyModel.Quantity.entries[
         quantityIndex.coerceIn(0, SurveyModel.Quantity.entries.lastIndex),
     ]
+
+    val strippingRaw by graph.settings.strippingRaw.collectAsState(initial = null)
+    val stripping = remember(strippingRaw) { StrippingRecord.decode(strippingRaw) }
+    val connectedSerial = (connection as? ConnectionState.Connected)?.info?.serialNumber
 
     var stations by remember { mutableStateOf<List<SurveyModel.Station>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
@@ -92,8 +113,8 @@ fun SurveyScreen(graph: AppGraph, onBack: () -> Unit) {
     var reload by remember { mutableIntStateOf(0) }
     var methodOpen by remember { mutableStateOf(false) }
 
-    LaunchedEffect(reload) {
-        stations = graph.surveyRepository.loaded()
+    LaunchedEffect(reload, strippingRaw) {
+        stations = graph.surveyRepository.loaded(stripping)
         loaded = true
     }
 
@@ -134,8 +155,16 @@ fun SurveyScreen(graph: AppGraph, onBack: () -> Unit) {
         // и есть то место, где это делают.
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                if (notSpectrometer) {
+                    Text(
+                        text = t.notSpectrometer(connectedModel?.displayName.orEmpty()),
+                        style = type.bodySmall,
+                        color = colors.warn,
+                    )
+                }
                 AppButton(
                     text = t.recordStation,
+                    enabled = !notSpectrometer,
                     onClick = {
                         scope.launch {
                             message = recordStation(graph, fix, t)
@@ -149,6 +178,14 @@ fun SurveyScreen(graph: AppGraph, onBack: () -> Unit) {
                 }
             }
         }
+
+        StrippingCard(
+            graph = graph,
+            record = stripping,
+            connectedSerial = connectedSerial,
+            enabled = !notSpectrometer,
+            t = t,
+        )
 
         when {
             !loaded -> Unit
@@ -194,6 +231,10 @@ fun SurveyScreen(graph: AppGraph, onBack: () -> Unit) {
                     )
                 }
 
+                AppButton(
+                    text = t.showOnMap,
+                    onClick = { onShowOnMap(quantity) },
+                )
                 AppButton(
                     text = t.exportCsv,
                     onClick = {
@@ -283,8 +324,12 @@ private fun StationCard(
                 for (element in Radioelements.Element.entries) {
                     val measure = station.measure(element)
                     Text(
+                        // Линии, которой нет в списке, не измеряли вовсе: её
+                        // окно не поместилось в шкалу прибора. Это другое, чем
+                        // «не набрана», и говорится другими словами.
                         text = elementLabel(element, t) + ": " + when {
-                            measure == null || !measure.detected -> t.belowLimit
+                            measure == null -> t.outOfScale
+                            !measure.detected -> t.belowLimit
                             else -> t.valueWithSigma(
                                 Uncertainty.num2(measure.cps),
                                 Uncertainty.num2(measure.cpsSigma),
@@ -301,7 +346,9 @@ private fun StationCard(
                         t.accuracy(Uncertainty.num1(station.entity.accuracyMeters)),
                         station.entity.heightCm?.let { t.height(it.toString()) } ?: t.heightUnknown,
                         station.entity.pressureHpa?.let { t.pressure(Uncertainty.num1(it)) },
-                        station.deviceName?.let { t.device(it) } ?: t.deviceUnknown,
+                        station.deviceName?.let {
+                            if (station.tunedProfile) t.device(it) else t.deviceUntuned(it)
+                        } ?: t.deviceUnknown,
                     ).joinToString(" · "),
                     style = type.footnote,
                     color = colors.muted,
@@ -350,4 +397,148 @@ private suspend fun recordStation(
         pressureHpa = graph.serviceStatus.environment.value?.pressureHpa,
     )
     return t.recorded
+}
+
+/**
+ * Калибровка стриппинга: три измерения и коэффициенты, принадлежащие ПРИБОРУ.
+ *
+ * Каждый шаг берёт то, что накоплено сейчас, — тем же способом, что и станция.
+ * Отдельного режима записи нет: человек сбрасывает накопление, кладёт источник
+ * и ждёт, а экран лишь запоминает получившийся спектр.
+ */
+@Composable
+private fun StrippingCard(
+    graph: AppGraph,
+    record: StrippingRecord?,
+    connectedSerial: String?,
+    enabled: Boolean,
+    t: SurveyStrings,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val h = HistoryCatalogue.of(LocalStrings.current.language)
+    val scope = rememberCoroutineScope()
+
+    // Заход калибровки живёт в памяти экрана: это одна процедура за один раз,
+    // и хранить её половину в настройках значило бы обещать продолжение.
+    var background by remember { mutableStateOf<StrippingCalibration.Sample?>(null) }
+    var thorium by remember { mutableStateOf<StrippingCalibration.Sample?>(null) }
+    var uranium by remember { mutableStateOf<StrippingCalibration.Sample?>(null) }
+    var note by remember { mutableStateOf<String?>(null) }
+
+    fun take(): StrippingCalibration.Sample? {
+        val spectrum = graph.spectrumHub.state.value.spectrum ?: return null
+        if (spectrum.counts.isEmpty() || spectrum.durationSeconds <= 0L) return null
+        val model = (graph.serviceStatus.connection.value as? ConnectionState.Connected)
+            ?.info?.model ?: DeviceModel.UNKNOWN
+        return StrippingCalibration.Sample(
+            measures = Radioelements.measure(
+                counts = spectrum.counts,
+                calibration = EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2),
+                seconds = spectrum.durationSeconds,
+                resolution662 = model.peakResolution662,
+            ),
+            seconds = spectrum.durationSeconds,
+        )
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Text(text = t.strippingTitle.uppercase(), style = type.labelSmall, color = colors.ink2)
+
+            Text(
+                text = when {
+                    record == null -> t.strippingNone
+                    !record.appliesTo(connectedSerial) && connectedSerial != null ->
+                        t.strippingOtherDevice(record.serialNumber)
+                    else -> t.strippingValues(
+                        Uncertainty.num2(record.thoriumIntoUranium),
+                        Uncertainty.num2(record.thoriumIntoPotassium),
+                        Uncertainty.num2(record.uraniumIntoPotassium),
+                        HistoryFormat.timeOfDay(record.measuredAtMillis),
+                    )
+                },
+                style = type.bodySmall,
+                color = if (record == null) colors.muted else colors.ink2,
+            )
+
+            if (enabled) {
+                StrippingStep(
+                    label = t.strippingMeasureBackground,
+                    taken = background?.let { t.strippingTaken(HistoryFormat.duration(it.seconds, h)) },
+                    onTake = { background = take(); if (background == null) note = t.needSpectrum },
+                )
+                StrippingStep(
+                    label = t.strippingMeasureThorium,
+                    taken = thorium?.let { t.strippingTaken(HistoryFormat.duration(it.seconds, h)) },
+                    onTake = { thorium = take(); if (thorium == null) note = t.needSpectrum },
+                )
+                StrippingStep(
+                    label = t.strippingMeasureUranium,
+                    taken = uranium?.let { t.strippingTaken(HistoryFormat.duration(it.seconds, h)) },
+                    onTake = { uranium = take(); if (uranium == null) note = t.needSpectrum },
+                )
+                AppButton(
+                    text = t.strippingCompute,
+                    onClick = {
+                        val result = StrippingCalibration.of(background, thorium, uranium)
+                        val serial = connectedSerial
+                        note = when {
+                            background == null -> t.strippingNeedBackground
+                            thorium == null -> t.strippingNeedThorium
+                            result.thoriumRefusal == StrippingCalibration.Refusal.SOURCE_TOO_WEAK ->
+                                t.strippingSourceTooWeak
+                            result.stripping == null || serial == null -> t.strippingNothingAbove
+                            else -> {
+                                scope.launch {
+                                    graph.settings.setStripping(
+                                        StrippingRecord(
+                                            serialNumber = serial,
+                                            thoriumIntoUranium =
+                                                result.stripping.thoriumIntoUranium,
+                                            thoriumIntoPotassium =
+                                                result.stripping.thoriumIntoPotassium,
+                                            uraniumIntoPotassium =
+                                                result.stripping.uraniumIntoPotassium,
+                                            measuredAtMillis = System.currentTimeMillis(),
+                                        ).encode(),
+                                    )
+                                }
+                                if (result.uraniumRefusal != null) {
+                                    t.strippingNoUranium
+                                } else {
+                                    t.strippingSaved
+                                }
+                            }
+                        }
+                    },
+                )
+                if (record != null) {
+                    AppButton(
+                        text = t.strippingClear,
+                        onClick = { scope.launch { graph.settings.setStripping(null) } },
+                    )
+                }
+                Hint(text = t.strippingHint)
+                note?.let { Text(text = it, style = type.footnote, color = colors.ink2) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StrippingStep(label: String, taken: String?, onTake: () -> Unit) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        AppButton(text = label, onClick = onTake, modifier = Modifier.weight(1f))
+        taken?.let {
+            Text(
+                text = it,
+                style = type.footnote,
+                color = colors.ok,
+                modifier = Modifier.padding(start = Dimens.space2),
+            )
+        }
+    }
 }

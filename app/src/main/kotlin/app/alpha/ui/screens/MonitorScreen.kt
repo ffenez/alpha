@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.lerp
 import app.alpha.ui.components.BreathingAura
 import app.alpha.ui.components.rememberFrameMillis
 import app.alpha.ui.logic.DoseTint
+import app.alpha.ui.logic.InstrumentCapability
 import app.alpha.ui.logic.LiveEdge
 import app.alpha.ui.logic.MonitorLayout
 import androidx.compose.animation.AnimatedVisibility
@@ -259,11 +260,23 @@ fun MonitorScreen(
     // Графики Главной читаются тем же путём, что полноэкранный (ADR 004):
     // одно окно, один снимок, один кадр. Выключенные величины не читаются.
     val savedSpans by graph.settings.chartSpans.collectAsState(initial = emptyMap())
-    val chartMetrics = remember(blocks.doseChart, blocks.countRateChart, blocks.hardnessChart) {
+    // Жёсткость — отношение дозы к счёту, и смысл ей придаёт РАЗДЕЛЕНИЕ
+    // энергий: на пластиковом сцинтилляторе она меняется от чего угодно, кроме
+    // спектра. Прибор без спектрометрии её не получает (правило —
+    // [InstrumentCapability]).
+    val spectralDevice = InstrumentCapability.spectral(
+        (connection as? ConnectionState.Connected)?.info?.model,
+    )
+    val chartMetrics = remember(
+        blocks.doseChart,
+        blocks.countRateChart,
+        blocks.hardnessChart,
+        spectralDevice,
+    ) {
         buildList {
             if (blocks.doseChart) add(ChartMetric.DOSE)
             if (blocks.countRateChart) add(ChartMetric.COUNT_RATE)
-            if (blocks.hardnessChart) add(ChartMetric.HARDNESS)
+            if (blocks.hardnessChart && spectralDevice) add(ChartMetric.HARDNESS)
         }
     }
     // Вьюпорты живут здесь, а не внутри карточки: сдвинутое окно должно быть

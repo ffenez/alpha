@@ -85,6 +85,20 @@ data class MapTrackPoint(
     val magneticUt: Float? = null,
 )
 
+/**
+ * Станция съёмки на карте: место и ступень цвета выбранной величины.
+ *
+ * Ступень считает вызывающий — так же, как для следа: слой карты не знает ни
+ * про калий, ни про отношения, он рисует цвет по номеру ступени.
+ */
+data class MapStation(
+    val id: Long,
+    val latitude: Double,
+    val longitude: Double,
+    /** Ступень цветовой шкалы; −1 — величина на этой станции не измерена. */
+    val shade: Int,
+)
+
 /** One hotspot event with coordinates for the map layer. */
 data class MapHotspot(
     val id: Long,

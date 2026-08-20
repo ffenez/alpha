@@ -24,6 +24,11 @@ object SurveyModel {
         val measures: List<Radioelements.Measure>,
         /** Модель прибора, чьим разрешением считались окна. */
         val deviceName: String?,
+        /**
+         * Подогнан ли профиль под этот прибор: у 101 и 102 разрешение не
+         * опубликовано, и окна взяты с запасом серии.
+         */
+        val tunedProfile: Boolean = true,
     ) {
         fun measure(element: Radioelements.Element): Radioelements.Measure? =
             measures.firstOrNull { it.element == element }
@@ -158,6 +163,7 @@ object SurveyModel {
         resolution662: Float,
         stripping: Radioelements.Stripping = Radioelements.Stripping.NONE,
         deviceName: String? = null,
+        tunedProfile: Boolean = true,
     ): Station = Station(
         entity = entity,
         measures = Radioelements.strip(
@@ -165,6 +171,7 @@ object SurveyModel {
             stripping,
         ),
         deviceName = deviceName,
+        tunedProfile = tunedProfile,
     )
 
     private fun median(values: List<Float>): Float? {

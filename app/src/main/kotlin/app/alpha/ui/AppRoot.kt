@@ -30,6 +30,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import app.alpha.ui.logic.SurveyModel
 import app.alpha.ui.screens.SurveyScreen
 import app.alpha.ui.theme.Motion
 import app.alpha.ui.components.ProvideSwipeBusy
@@ -206,6 +207,8 @@ private fun MainScaffoldContent(graph: AppGraph) {
     var showExperiments by rememberSaveable { mutableStateOf(false) }
     var showRadon by rememberSaveable { mutableStateOf(false) }
     var showSurvey by rememberSaveable { mutableStateOf(false) }
+    // Какой величиной покрашены станции на карте; пусто — слоя станций нет.
+    var surveyQuantityId by rememberSaveable { mutableStateOf<String?>(null) }
     var showLineTrend by rememberSaveable { mutableStateOf(false) }
     // «Сколько набралось» — свой экран, а не блок в Истории: спрашивают о нём
     // редко и с Главной, где и стоит число за сегодня.
@@ -367,7 +370,15 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     onOpenFullscreen = { spectrogramFull = true },
                 )
                 key.radon -> RadonScreen(graph, onBack = { showRadon = false })
-                key.survey -> SurveyScreen(graph, onBack = { showSurvey = false })
+                key.survey -> SurveyScreen(
+                    graph = graph,
+                    onBack = { showSurvey = false },
+                    onShowOnMap = { quantity ->
+                        surveyQuantityId = quantity.name
+                        showSurvey = false
+                        tab = AppTab.MAP
+                    },
+                )
                 key.lineTrend -> NuclideTrendScreen(graph, onBack = { showLineTrend = false })
                 key.food -> FoodScreen(graph, onBack = { showFood = false })
                 // Накопленная доза — обычный экран записи, а не владелец
@@ -467,7 +478,13 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     onStopContinuation = { continueSpectrumId = null },
                     onOpenFullscreen = openFullSpectrum,
                 )
-                AppTab.MAP -> MapScreen(graph, focus = mapFocus)
+                AppTab.MAP -> MapScreen(
+                    graph = graph,
+                    focus = mapFocus,
+                    surveyQuantity = surveyQuantityId?.let { id ->
+                        SurveyModel.Quantity.entries.firstOrNull { it.name == id }
+                    },
+                )
                 AppTab.HISTORY -> HistoryScreen(
                     graph = graph,
                     onOpenSession = { sessionDetailId = it },
