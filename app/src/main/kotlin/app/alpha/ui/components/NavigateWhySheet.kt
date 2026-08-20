@@ -57,7 +57,18 @@ fun NavigateWhySheet(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(Dimens.space2),
                 ) {
-                    lines.forEach { WhyRow(it) }
+                    lines.forEach { line ->
+                        // Заголовок группы отделяет вопросы друг от друга:
+                        // десяток строк подряд читался как список чисел.
+                        line.section?.let { section ->
+                            Text(
+                                text = section.uppercase(),
+                                style = type.labelSmall,
+                                color = colors.ink2,
+                            )
+                        }
+                        WhyRow(line)
+                    }
                 }
                 AppDivider()
                 // Граница режима стоит рядом с выводом, а не в справке об
