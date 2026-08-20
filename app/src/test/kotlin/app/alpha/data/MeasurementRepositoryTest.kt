@@ -114,6 +114,8 @@ private class FakeRareDataDao : RareDataDao {
     }
     override fun observeLatest(): Flow<RareDataEntity?> = flowOf(inserted.lastOrNull())
     override fun observeRange(from: Long, to: Long): Flow<List<RareDataEntity>> = flowOf(emptyList())
+    override suspend fun range(from: Long, to: Long): List<RareDataEntity> =
+        inserted.filter { it.timestamp in from..to }
 }
 
 private class FakeEventDao : EventDao {

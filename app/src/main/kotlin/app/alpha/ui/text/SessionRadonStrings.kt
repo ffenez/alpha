@@ -64,7 +64,7 @@ interface SessionRadonStrings {
     /** Подписи переключателя рядов и их единицы. */
     val conditionPressure: String
     val conditionField: String
-    val conditionPhoneTemp: String
+    val conditionDeviceTemp: String
 
     /** «1008,1–1014,0 гПа за сессию» — размах ряда со своей единицей. */
     fun conditionRange(low: String, high: String, unit: String): String
@@ -82,7 +82,7 @@ interface SessionRadonStrings {
 
     val conditionPressureNote: String
     val conditionFieldNote: String
-    val conditionPhoneTempNote: String
+    val conditionDeviceTempNote: String
     val noChartData: String
     val statMin: String
     val statMedian: String
@@ -207,7 +207,7 @@ object SessionRadonRu : SessionRadonStrings {
     override val conditionsTitle = "Условия"
     override val conditionPressure = "давление"
     override val conditionField = "поле"
-    override val conditionPhoneTemp = "телефон"
+    override val conditionDeviceTemp = "прибор"
 
     override fun conditionRange(low: String, high: String, unit: String) =
         "$low–$high $unit за сессию"
@@ -230,9 +230,10 @@ object SessionRadonRu : SessionRadonStrings {
     override val conditionFieldNote =
         "Поле — магнитометр телефона. Собственные магниты телефона обычно сильнее того, что " +
             "вокруг, поэтому смысл имеет изменение вдоль пути, а не само число."
-    override val conditionPhoneTempNote =
-        "Это температура батареи телефона, а не воздуха: железка греет себя сама. Рядом с " +
-            "температурой прибора она годится, чтобы видеть дрейф одного относительно другого."
+    override val conditionDeviceTempNote =
+        "Температура датчика внутри прибора. К воздуху она ближе всего, что здесь есть, но " +
+            "корпус остывает и нагревается медленно: после переноса в другое место значение " +
+            "несколько минут догоняет новую температуру, и сравнивать раньше нечего."
     override val noChartData = "данных для графика нет"
     override val statMin = "мин"
     override val statMedian = "медиана"
@@ -387,7 +388,7 @@ object SessionRadonEn : SessionRadonStrings {
     override val conditionsTitle = "Conditions"
     override val conditionPressure = "pressure"
     override val conditionField = "field"
-    override val conditionPhoneTemp = "phone"
+    override val conditionDeviceTemp = "instrument"
 
     override fun conditionRange(low: String, high: String, unit: String) =
         "$low–$high $unit over the session"
@@ -411,9 +412,10 @@ object SessionRadonEn : SessionRadonStrings {
         "The field comes from the phone's magnetometer. The phone's own magnets are usually " +
             "stronger than what surrounds it, so the change along the way carries the meaning, " +
             "not the number itself."
-    override val conditionPhoneTempNote =
-        "This is the temperature of the phone battery, not of the air: the thing warms itself. " +
-            "Next to the instrument temperature it shows the drift of one against the other."
+    override val conditionDeviceTempNote =
+        "The temperature of the sensor inside the instrument. It is the closest thing to air " +
+            "temperature here, but the case warms and cools slowly: after a move it takes some " +
+            "minutes to catch up, and there is nothing to compare before that."
     override val noChartData = "no data for the chart"
     override val statMin = "min"
     override val statMedian = "median"
@@ -539,9 +541,9 @@ fun SessionRadonStrings.allTexts(): List<String> = listOf(
     doseRateSummary("0,15", "0,12", "0,21"),
     countRateLabel, countRateSummary("12", "31"), sessionDoseLabel, trackOnMap,
     chartTitle, noChartData, statMin, statMedian, statMax, sd,
-    conditionsTitle, conditionPressure, conditionField, conditionPhoneTemp,
+    conditionsTitle, conditionPressure, conditionField, conditionDeviceTemp,
     conditionRange("1008,1", "1014,0", unitHpa), unitHpa, unitMicroTesla, unitCelsius,
-    conditionPressureNote, conditionFieldNote, conditionPhoneTempNote,
+    conditionPressureNote, conditionFieldNote, conditionDeviceTempNote,
     pressureChange("−6,0", "1014,0", "1008,0", unitHpa), radonPressureNote,
     chartLineNote, openFullChart, fullChartNote,
     altitudeTitle, noAltitudePoints, altitudeNote,

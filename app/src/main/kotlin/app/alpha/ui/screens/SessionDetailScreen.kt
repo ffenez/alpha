@@ -613,19 +613,19 @@ private fun ConditionsCard(detail: SessionDetail, t: SessionRadonStrings) {
 private fun label(kind: EnvironmentSeries.Kind, t: SessionRadonStrings): String = when (kind) {
     EnvironmentSeries.Kind.PRESSURE -> t.conditionPressure
     EnvironmentSeries.Kind.FIELD -> t.conditionField
-    EnvironmentSeries.Kind.PHONE_TEMPERATURE -> t.conditionPhoneTemp
+    EnvironmentSeries.Kind.DEVICE_TEMPERATURE -> t.conditionDeviceTemp
 }
 
 private fun unit(kind: EnvironmentSeries.Kind, t: SessionRadonStrings): String = when (kind) {
     EnvironmentSeries.Kind.PRESSURE -> t.unitHpa
     EnvironmentSeries.Kind.FIELD -> t.unitMicroTesla
-    EnvironmentSeries.Kind.PHONE_TEMPERATURE -> t.unitCelsius
+    EnvironmentSeries.Kind.DEVICE_TEMPERATURE -> t.unitCelsius
 }
 
 private fun note(kind: EnvironmentSeries.Kind, t: SessionRadonStrings): String = when (kind) {
     EnvironmentSeries.Kind.PRESSURE -> t.conditionPressureNote
     EnvironmentSeries.Kind.FIELD -> t.conditionFieldNote
-    EnvironmentSeries.Kind.PHONE_TEMPERATURE -> t.conditionPhoneTempNote
+    EnvironmentSeries.Kind.DEVICE_TEMPERATURE -> t.conditionDeviceTempNote
 }
 
 /**
@@ -766,6 +766,11 @@ private suspend fun loadDetail(graph: AppGraph, sessionId: Long): SessionDetail?
     // одной оси времени.
     val conditions = EnvironmentSeries.of(
         rows = graph.environmentRepository.range(summary.startedAt, to),
+        // Температура — с ПРИБОРА: его датчик близок к воздуху, а телефон
+        // мерит собственную батарею.
+        deviceTemperature = graph.measurementRepository
+            .rareData(summary.startedAt, to)
+            .map { it.timestamp to it.temperature },
         alignedFromMillis = alignedFrom,
         bucketMillis = bucketMillis,
         columnCount = CHART_COLUMNS,

@@ -644,6 +644,9 @@ interface RareDataDao {
 
     @Query("SELECT * FROM rare_data WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
     fun observeRange(from: Long, to: Long): Flow<List<RareDataEntity>>
+
+    @Query("SELECT * FROM rare_data WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp")
+    suspend fun range(from: Long, to: Long): List<RareDataEntity>
 }
 
 @Dao

@@ -26,8 +26,10 @@ class EnvironmentSeriesTest {
         samples = 6,
     )
 
-    private fun of(rows: List<EnvironmentEntity>) =
-        EnvironmentSeries.of(rows, from, bucket, columns)
+    private fun of(
+        rows: List<EnvironmentEntity>,
+        deviceTemperature: List<Pair<Long, Float>> = emptyList(),
+    ) = EnvironmentSeries.of(rows, deviceTemperature, from, bucket, columns)
 
     @Test
     fun `одна точка — не ряд`() {
@@ -87,14 +89,22 @@ class EnvironmentSeriesTest {
 
     @Test
     fun `датчика нет — ряда нет`() {
-        val series = of(
-            listOf(
-                row(from, field = 48f, temp = 31f),
-                row(from + bucket, field = 49f, temp = 31.5f),
-            ),
-        )
+        val series = of(listOf(row(from, field = 48f), row(from + bucket, field = 49f)))
         assertNull(series.firstOrNull { it.kind == EnvironmentSeries.Kind.PRESSURE })
-        assertEquals(2, series.size)
+        assertEquals(1, series.size)
+    }
+
+    @Test
+    fun `температура берётся с прибора, а не с телефона`() {
+        // Телефон меряет свою батарею; в ряду среды ей не место, и записанное
+        // значение не должно всплывать в графике под видом температуры.
+        val series = of(
+            rows = listOf(row(from, temp = 31f), row(from + bucket, temp = 32f)),
+            deviceTemperature = listOf((from) to 23.6f, (from + bucket) to 23.9f),
+        ).single()
+        assertEquals(EnvironmentSeries.Kind.DEVICE_TEMPERATURE, series.kind)
+        assertEquals(23.6f, series.min, 1e-3f)
+        assertEquals(23.9f, series.max, 1e-3f)
     }
 
     @Test
