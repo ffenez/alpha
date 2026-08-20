@@ -328,13 +328,8 @@ fun SpectrumFullScreen(
                     .horizontalScroll(rememberScrollState())
                     .padding(start = Dimens.space2, end = Dimens.space2, bottom = Dimens.space1),
             ) {
-                ScaleChips(
-                    scale = scale,
-                    scaleRoot = scaleRoot,
-                    onSelect = { picked ->
-                        settingsScope.launch { graph.settings.setSpectrumScale(picked.id) }
-                    },
-                )
+                // Масштаба здесь нет: он уже стоит переключателем под полем
+                // ([ScaleSegment]), и второй такой же спорил бы с первым.
                 // Один чип на три состояния: он называет то, что сейчас
                 // нарисовано, а нажатие ведёт по кругу.
                 Chip(
