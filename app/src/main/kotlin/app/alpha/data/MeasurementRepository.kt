@@ -392,6 +392,10 @@ class MeasurementRepository(
 
     fun latestRareData(): Flow<RareDataEntity?> = rareDataDao.observeLatest()
 
+    /** Редкие данные прибора за отрезок: температура прибора для графиков. */
+    suspend fun rareData(fromMillis: Long, toMillis: Long): List<RareDataEntity> =
+        rareDataDao.range(fromMillis, toMillis)
+
     fun recentEvents(limit: Int = 100): Flow<List<EventEntity>> = eventDao.observeRecent(limit)
 
     fun latestSpectrum(accumulated: Boolean): Flow<SpectrumSnapshotEntity?> =

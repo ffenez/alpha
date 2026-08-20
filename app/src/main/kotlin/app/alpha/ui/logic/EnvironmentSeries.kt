@@ -17,7 +17,13 @@ import kotlin.math.abs
  */
 object EnvironmentSeries {
 
-    enum class Kind { PRESSURE, FIELD, PHONE_TEMPERATURE }
+    /**
+     * Температура здесь — ПРИБОРА, а не телефона. Телефон меряет свою батарею:
+     * её задаёт нагрузка процессора и зарядка, а не воздух, и рядом с
+     * температурой прибора она читалась бы как равная величина среды. Её место
+     * — диагностика в настройках, где видно, не грел ли телефон прибор.
+     */
+    enum class Kind { PRESSURE, FIELD, DEVICE_TEMPERATURE }
 
     /**
      * @param plot значения, смещённые на [base] — то, что рисует график.
@@ -44,31 +50,40 @@ object EnvironmentSeries {
     }
 
     /**
+     * @param deviceTemperature пары «момент — °C» из редких данных прибора; их
+     *   шаг около минуты, и в колонку графика их попадает меньше, чем сводок
+     *   датчиков — усреднение то же.
      * @return ряды, в которых есть хотя бы [MIN_POINTS] точек: одна точка — не
      *   ряд, и рисовать её линией значило бы показать движение, которого никто
      *   не измерял.
      */
     fun of(
         rows: List<EnvironmentEntity>,
+        deviceTemperature: List<Pair<Long, Float>> = emptyList(),
         alignedFromMillis: Long,
         bucketMillis: Long,
         columnCount: Int,
     ): List<Series> = Kind.entries.mapNotNull { kind ->
-        series(kind, rows, alignedFromMillis, bucketMillis, columnCount)
+        val points = when (kind) {
+            Kind.DEVICE_TEMPERATURE -> deviceTemperature
+            else -> rows.mapNotNull { row ->
+                value(kind, row)?.let { row.timestamp to it }
+            }
+        }
+        series(kind, points, alignedFromMillis, bucketMillis, columnCount)
     }
 
     private fun series(
         kind: Kind,
-        rows: List<EnvironmentEntity>,
+        points: List<Pair<Long, Float>>,
         alignedFromMillis: Long,
         bucketMillis: Long,
         columnCount: Int,
     ): Series? {
         val sums = DoubleArray(columnCount)
         val counts = IntArray(columnCount)
-        for (row in rows) {
-            val value = value(kind, row) ?: continue
-            val index = ((row.timestamp - alignedFromMillis) / bucketMillis).toInt()
+        for ((atMillis, value) in points) {
+            val index = ((atMillis - alignedFromMillis) / bucketMillis).toInt()
             if (index !in 0 until columnCount) continue
             sums[index] += value.toDouble()
             counts[index]++
@@ -102,7 +117,7 @@ object EnvironmentSeries {
     private fun value(kind: Kind, row: EnvironmentEntity): Float? = when (kind) {
         Kind.PRESSURE -> row.pressureHpa
         Kind.FIELD -> row.magneticUt
-        Kind.PHONE_TEMPERATURE -> row.phoneTempC
+        Kind.DEVICE_TEMPERATURE -> null
     }
 
     /**
@@ -112,7 +127,7 @@ object EnvironmentSeries {
     private fun marginFor(kind: Kind, value: Float): Float = when (kind) {
         Kind.PRESSURE -> 1f
         Kind.FIELD -> 1f
-        Kind.PHONE_TEMPERATURE -> 1f
+        Kind.DEVICE_TEMPERATURE -> 1f
     }.coerceAtLeast(abs(value) * 1e-4f)
 
     const val MIN_POINTS = 2
