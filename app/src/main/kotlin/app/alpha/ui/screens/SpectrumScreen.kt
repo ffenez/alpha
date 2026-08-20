@@ -1379,66 +1379,6 @@ private fun SpectrumContent(
     }
 }
 
-
-/**
- * Выбор масштаба оси значений прямо над графиком.
- *
- * Чип называет ТЕКУЩИЙ вид; по нажатию рядом с ним выезжают два остальных, и
- * выбор их закрывает. Ряд из трёх сегментов стоял бы над графиком постоянно и
- * отнимал у него высоту ради выбора, который делают под задачу: линейный
- * показывает, где счёт велик, степенной вытягивает середину, логарифм
- * уравнивает декады.
- */
-@Composable
-internal fun ScaleChips(
-    scale: SpectrumScale,
-    scaleRoot: Int,
-    onSelect: (SpectrumScale) -> Unit,
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalStrings.current
-    var open by rememberSaveable { mutableStateOf(false) }
-
-    fun label(value: SpectrumScale): String = when (value) {
-        SpectrumScale.Linear -> strings.scaleLinear
-        is SpectrumScale.Power -> strings.scalePower
-        SpectrumScale.Log -> strings.scaleLog
-    }
-
-    val others = listOf(SpectrumScale.Linear, SpectrumScale.Power(scaleRoot), SpectrumScale.Log)
-        .filter { it.id != scale.id }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimens.space1),
-    ) {
-        Chip(
-            text = label(scale),
-            color = if (open) colors.dataText else colors.ink2,
-            selected = open,
-            onClick = { open = !open },
-        )
-        AnimatedVisibility(
-            visible = open,
-            enter = fadeIn(Motion.fast()) + expandHorizontally(Motion.springy()),
-            exit = fadeOut(Motion.fast()) + shrinkHorizontally(Motion.fast()),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space1)) {
-                for (option in others) {
-                    Chip(
-                        text = label(option),
-                        color = colors.ink2,
-                        onClick = {
-                            open = false
-                            onSelect(option)
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
 /**
  * «⋮» живого спектра: действия над спектром в порядке частоты. Сброс
  * накопления стоит последним и спрашивает подтверждение.
