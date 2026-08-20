@@ -31,6 +31,8 @@ report.txt
 # правила для ассистента, задания, ADR, журнал решений и внутренние методики.
 /CLAUDE.md
 /SECURITY.md
+# Рабочие файлы с прибора: резервные копии, выгрузки, замеры.
+/files/
 /PUBLIC_RELEASE_AUDIT.md
 /README_RELEASE_TASK.md
 /docs/
