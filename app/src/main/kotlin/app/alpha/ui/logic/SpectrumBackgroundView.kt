@@ -33,6 +33,13 @@ enum class SpectrumBackgroundView {
     companion object {
 
         /** Состояние из пары флагов вида (порядок разбора важен: вычитание сильнее). */
+        /**
+         * Разбор сохранённого выбора; пустая строка и незнакомое имя дают
+         * [NONE] — настройка могла прийти из копии другой версии.
+         */
+        fun of(id: String): SpectrumBackgroundView =
+            entries.firstOrNull { it.name == id } ?: NONE
+
         fun of(subtract: Boolean, overlay: Boolean): SpectrumBackgroundView = when {
             subtract -> SUBTRACT
             overlay -> OVERLAY

@@ -101,10 +101,30 @@ class EnvironmentSeriesTest {
         val series = of(
             rows = listOf(row(from, temp = 31f), row(from + bucket, temp = 32f)),
             deviceTemperature = listOf((from) to 23.6f, (from + bucket) to 23.9f),
-        ).single()
-        assertEquals(EnvironmentSeries.Kind.DEVICE_TEMPERATURE, series.kind)
+        ).first { it.kind == EnvironmentSeries.Kind.DEVICE_TEMPERATURE }
         assertEquals(23.6f, series.min, 1e-3f)
         assertEquals(23.9f, series.max, 1e-3f)
+    }
+
+    @Test
+    fun `дрейф — это разница прибора и телефона в одной колонке`() {
+        val series = of(
+            rows = listOf(row(from, temp = 31f), row(from + bucket, temp = 32f)),
+            deviceTemperature = listOf(from to 23.5f, (from + bucket) to 24.5f),
+        ).first { it.kind == EnvironmentSeries.Kind.TEMPERATURE_DRIFT }
+        assertEquals(-7.5f, series.min, 1e-3f)
+        assertEquals(-7.5f, series.max, 1e-3f)
+    }
+
+    @Test
+    fun `дрейфа нет, если одна из температур в колонке отсутствует`() {
+        // Прибор шлёт раз в минуту, телефон раз в десять секунд: вычитать
+        // «ближайшее к ближайшему» значило бы придумывать пары.
+        val series = of(
+            rows = listOf(row(from, temp = 31f), row(from + bucket, temp = 32f)),
+            deviceTemperature = listOf(from to 23.5f),
+        )
+        assertNull(series.firstOrNull { it.kind == EnvironmentSeries.Kind.TEMPERATURE_DRIFT })
     }
 
     @Test
