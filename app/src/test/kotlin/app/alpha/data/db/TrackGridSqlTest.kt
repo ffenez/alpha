@@ -1,6 +1,7 @@
 package app.alpha.data.db
 
 import app.alpha.ui.logic.TrackGrid
+import app.alpha.ui.logic.TrackMetric
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
@@ -26,12 +27,13 @@ class TrackGridSqlTest {
         val longitude: Double,
         val doseRate: Double?,
         val countRate: Double?,
+        val magneticUt: Double? = null,
         val accuracy: Double = 8.0,
         val timestamp: Long = 1_000,
     )
 
     private fun createTrackTables(connection: Connection) {
-        val file = File("schemas/app.alpha.data.db.AppDatabase/8.json")
+        val file = File("schemas/app.alpha.data.db.AppDatabase/$SCHEMA_VERSION.json")
         assertTrue(file.exists(), "exported schema missing: ${file.absolutePath}")
         val entities = JSONObject(file.readText())
             .getJSONObject("database")
@@ -46,7 +48,10 @@ class TrackGridSqlTest {
                 )
             }
             statement.execute(
-                "INSERT INTO track_sessions (id, name, startedAt) VALUES (1, 'test', 0)",
+                // Колонки, добавленные после v8, обязаны быть здесь: схема
+                // берётся свежая, и NOT NULL без умолчания уронит вставку.
+                "INSERT INTO track_sessions (id, name, startedAt, interrupted) " +
+                    "VALUES (1, 'test', 0, 0)",
             )
         }
     }
@@ -54,8 +59,8 @@ class TrackGridSqlTest {
     private fun insert(connection: Connection, fixes: List<Fix>) {
         connection.prepareStatement(
             "INSERT INTO track_points " +
-                "(sessionId, timestamp, latitude, longitude, accuracyMeters, doseRate, countRate) " +
-                "VALUES (1, ?, ?, ?, ?, ?, ?)",
+                "(sessionId, timestamp, latitude, longitude, accuracyMeters, doseRate, " +
+                "countRate, magneticUt) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
         ).use { statement ->
             for (fix in fixes) {
                 statement.setLong(1, fix.timestamp)
@@ -71,6 +76,11 @@ class TrackGridSqlTest {
                     statement.setNull(6, java.sql.Types.REAL)
                 } else {
                     statement.setDouble(6, fix.countRate)
+                }
+                if (fix.magneticUt == null) {
+                    statement.setNull(7, java.sql.Types.REAL)
+                } else {
+                    statement.setDouble(7, fix.magneticUt)
                 }
                 statement.executeUpdate()
             }
@@ -109,14 +119,14 @@ class TrackGridSqlTest {
         lonStep: Double,
         valueMin: Double,
         valueStep: Double,
-        useDose: Boolean = true,
+        metric: TrackMetric = TrackMetric.DOSE,
     ): List<Row> {
         val sql = bind(
             TrackGridSql.GRID_HISTOGRAM,
             mapOf(
                 "latStepDeg" to latStep,
                 "lonStepDeg" to lonStep,
-                "useDose" to useDose,
+                "metric" to metric.ordinal,
                 "valueMin" to valueMin,
                 "valueStep" to valueStep,
                 "minLatitude" to -90.0,
@@ -234,7 +244,7 @@ class TrackGridSqlTest {
             val summary = bind(
                 TrackGridSql.AREA_SUMMARY,
                 mapOf(
-                    "useDose" to true,
+                    "metric" to TrackMetric.DOSE.ordinal,
                     "minLatitude" to -90.0,
                     "maxLatitude" to 90.0,
                     "minLongitude" to -180.0,
@@ -252,13 +262,29 @@ class TrackGridSqlTest {
     }
 
     @Test
+    fun `the field metric reads its own column, not the neighbouring one`() {
+        // Ветви CASE в SQL выбираются по ПОРЯДКОВОМУ номеру TrackMetric.
+        // Переставленная константа молча начала бы красить карту чужой
+        // величиной, и заметить это на глаз нельзя.
+        val fixes = listOf(
+            Fix(55.7501, 37.6001, doseRate = 0.00001, countRate = 10.0, magneticUt = 48.6),
+            Fix(55.7502, 37.6002, doseRate = 0.00002, countRate = 20.0, magneticUt = null),
+        )
+        val rows = withDatabase(fixes) {
+            histogram(it, 0.01, 0.01, 0.0, 1_000.0, metric = TrackMetric.FIELD)
+        }
+        assertEquals(1, rows.sumOf { it.count }, "точка без поля обязана выпасть")
+        assertEquals(48.6, rows.single().minValue, 1e-9)
+    }
+
+    @Test
     fun `the CPS metric switches the column and drops points without it`() {
         val fixes = listOf(
             Fix(55.7501, 37.6001, doseRate = 0.00001, countRate = 10.0),
             Fix(55.7502, 37.6002, doseRate = 0.00002, countRate = null),
         )
         val rows = withDatabase(fixes) {
-            histogram(it, 0.01, 0.01, 0.0, 1_000.0, useDose = false)
+            histogram(it, 0.01, 0.01, 0.0, 1_000.0, metric = TrackMetric.CPS)
         }
         assertEquals(1, rows.sumOf { it.count })
         assertEquals(10.0, rows.single().minValue, 1e-9)
@@ -279,7 +305,7 @@ class TrackGridSqlTest {
             val sql = bind(
                 TrackGridSql.AREA_SUMMARY,
                 mapOf(
-                    "useDose" to true,
+                    "metric" to TrackMetric.DOSE.ordinal,
                     "minLatitude" to -90.0,
                     "maxLatitude" to 90.0,
                     "minLongitude" to -180.0,
@@ -302,5 +328,10 @@ class TrackGridSqlTest {
             val rows = histogram(connection, 0.01, 0.01, 0.0, 1.0)
             assertEquals(500, rows.sumOf { it.count })
         }
+    }
+
+    private companion object {
+        /** Схема, на которой проверяется SQL: новее — значит с новыми колонками. */
+        const val SCHEMA_VERSION = 20
     }
 }

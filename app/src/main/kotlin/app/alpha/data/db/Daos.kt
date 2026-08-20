@@ -956,13 +956,13 @@ interface TrackDao {
      * This is the honest denominator of the accumulated map: the summary card
      * is computed from these numbers, never from the subset that got drawn.
      *
-     * `useDose` picks the metric column without a second copy of the query;
+     * `metric` — порядковый номер TrackMetric; колонку Room подставить нельзя,
      * fixes worse than `maxAccuracyMeters` are excluded here and in the grid
      * histogram alike, so both talk about the same set of points.
      */
     @Query(TrackGridSql.AREA_SUMMARY)
     suspend fun boundsSummary(
-        useDose: Boolean,
+        metric: Int,
         minLatitude: Double,
         maxLatitude: Double,
         minLongitude: Double,
@@ -985,7 +985,7 @@ interface TrackDao {
      */
     @Query(TrackGridSql.GRID_HISTOGRAM)
     suspend fun gridHistogram(
-        useDose: Boolean,
+        metric: Int,
         minLatitude: Double,
         maxLatitude: Double,
         minLongitude: Double,

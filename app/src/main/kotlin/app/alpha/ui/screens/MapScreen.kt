@@ -248,7 +248,16 @@ fun MapScreen(graph: AppGraph, focus: MapFocus? = null) {
     val trackLocation by graph.serviceStatus.trackLocation.collectAsState()
 
     var metricIndex by rememberSaveable { mutableIntStateOf(0) }
-    val metric = if (metricIndex == 0) TrackMetric.DOSE else TrackMetric.CPS
+    // Поле предлагается только там, где магнитометр есть: пункт, который на
+    // этом телефоне никогда ничего не покажет, — обман.
+    val metrics = remember(graph) {
+        buildList {
+            add(TrackMetric.DOSE)
+            add(TrackMetric.CPS)
+            if (graph.phoneSensors.hasMagnetic) add(TrackMetric.FIELD)
+        }
+    }
+    val metric = metrics.getOrElse(metricIndex) { TrackMetric.DOSE }
 
     // Чем заданы границы цвета следа и от какого «обычно здесь» они считаются.
     val scaleMode by graph.settings.mapColorScale.collectAsState(initial = MapColorScale.ABSOLUTE)
@@ -260,6 +269,9 @@ fun MapScreen(graph: AppGraph, focus: MapFocus? = null) {
         when (metric) {
             TrackMetric.DOSE -> it.doseLowMicroSvH to it.doseHighMicroSvH
             TrackMetric.CPS -> it.cpsLow to it.cpsHigh
+            // Обычного уровня ПОЛЯ приложение не учит: оно зависит от того,
+            // как лежит телефон, и полоса «обычно здесь» соврала бы.
+            TrackMetric.FIELD -> null
         }
     }
     val manualDose by graph.settings.manualDoseAnchors
@@ -269,6 +281,8 @@ fun MapScreen(graph: AppGraph, focus: MapFocus? = null) {
     val manualAnchors = when (metric) {
         TrackMetric.DOSE -> manualDose
         TrackMetric.CPS -> manualCps
+        // Ручных границ у поля нет: числа зависят от телефона, а не от места.
+        TrackMetric.FIELD -> emptyList()
     }
 
     // Which scope to draw: the stored choice, or the default for what exists.
@@ -476,6 +490,7 @@ fun MapScreen(graph: AppGraph, focus: MapFocus? = null) {
                 ?: if (scope == MapTrackScope.ALL) allBounds else null,
             metric = metric,
             metricIndex = metricIndex,
+            metrics = metrics,
             onMetricSelect = { metricIndex = it },
             unit = unit,
             position = fix,
@@ -685,7 +700,16 @@ private fun TrackDetailScreen(
     MapGestureLock()
 
     var metricIndex by rememberSaveable { mutableIntStateOf(0) }
-    val metric = if (metricIndex == 0) TrackMetric.DOSE else TrackMetric.CPS
+    // Поле предлагается только там, где магнитометр есть: пункт, который на
+    // этом телефоне никогда ничего не покажет, — обман.
+    val metrics = remember(graph) {
+        buildList {
+            add(TrackMetric.DOSE)
+            add(TrackMetric.CPS)
+            if (graph.phoneSensors.hasMagnetic) add(TrackMetric.FIELD)
+        }
+    }
+    val metric = metrics.getOrElse(metricIndex) { TrackMetric.DOSE }
 
     // Шкала та же, что на карте: маршрут, открытый через неделю, выглядит так
     // же.
@@ -697,6 +721,9 @@ private fun TrackDetailScreen(
         when (metric) {
             TrackMetric.DOSE -> it.doseLowMicroSvH to it.doseHighMicroSvH
             TrackMetric.CPS -> it.cpsLow to it.cpsHigh
+            // Обычного уровня ПОЛЯ приложение не учит: оно зависит от того,
+            // как лежит телефон, и полоса «обычно здесь» соврала бы.
+            TrackMetric.FIELD -> null
         }
     }
 
@@ -707,6 +734,8 @@ private fun TrackDetailScreen(
     val manualAnchors = when (metric) {
         TrackMetric.DOSE -> manualDose
         TrackMetric.CPS -> manualCps
+        // Ручных границ у поля нет: числа зависят от телефона, а не от места.
+        TrackMetric.FIELD -> emptyList()
     }
 
     // Имя маршрута правится здесь, поэтому экран держит своё значение:
@@ -924,6 +953,7 @@ private fun TrackDetailScreen(
                 initialBounds = null,
                 metric = metric,
                 metricIndex = metricIndex,
+                metrics = metrics,
                 onMetricSelect = { metricIndex = it },
                 unit = unit,
                 position = null,
@@ -958,6 +988,8 @@ private fun TrackDetailScreen(
                                 ?.let { DoseFormat.rate(it, unit) }
                             TrackMetric.CPS -> point.cps
                                 ?.let { TrackMap.formatCps(it) }
+                            TrackMetric.FIELD -> point.magneticUt
+                                ?.let { TrackMap.formatField(it) }
                         }
                     },
                     timeLabel = { point -> HistoryFormat.timeOfDay(point.timestamp) },
@@ -967,6 +999,8 @@ private fun TrackDetailScreen(
                                 TrackMetric.DOSE -> point.cps
                                     ?.let { TrackMap.formatCps(it) }
                                 TrackMetric.CPS -> point.doseMicroSvH
+                                    ?.let { DoseFormat.rate(it, unit) }
+                                TrackMetric.FIELD -> point.doseMicroSvH
                                     ?.let { DoseFormat.rate(it, unit) }
                             },
                             MyPosition.accuracy(point.accuracyMeters, t),
@@ -995,6 +1029,8 @@ private fun TrackMapCard(
     initialBounds: MapBounds?,
     metric: TrackMetric,
     metricIndex: Int,
+    /** Какие величины предлагать: поле есть не в каждом телефоне. */
+    metrics: List<TrackMetric>,
     onMetricSelect: (Int) -> Unit,
     unit: DoseUnitSetting,
     position: PositionFix?,
@@ -1169,10 +1205,16 @@ private fun TrackMapCard(
                 .padding(start = Dimens.space2, end = Dimens.space2, bottom = ATTRIBUTION_SPACE),
         ) {
             Segmented(
-                options = listOf(t.metricDose, t.metricCps),
-                selectedIndex = metricIndex,
+                options = metrics.map {
+                    when (it) {
+                        TrackMetric.DOSE -> t.metricDose
+                        TrackMetric.CPS -> t.metricCps
+                        TrackMetric.FIELD -> t.metricField
+                    }
+                },
+                selectedIndex = metricIndex.coerceIn(0, metrics.lastIndex),
                 onSelect = onMetricSelect,
-                modifier = Modifier.width(METRIC_TOGGLE_WIDTH),
+                modifier = Modifier.width(METRIC_TOGGLE_WIDTH * metrics.size / 2),
             )
         }
 
@@ -1337,6 +1379,7 @@ private fun legendLabel(value: Float, metric: TrackMetric, unit: DoseUnitSetting
     when (metric) {
         TrackMetric.DOSE -> DoseFormat.rate(value, unit)
         TrackMetric.CPS -> TrackMap.formatCps(value)
+        TrackMetric.FIELD -> TrackMap.formatField(value)
     }
 
 // --- tap cards ---
@@ -1733,6 +1776,7 @@ private fun metricWithUnit(
 ): String = when (metric) {
     TrackMetric.DOSE -> DoseFormat.rate(value, unit)
     TrackMetric.CPS -> TrackMap.formatCps(value)
+    TrackMetric.FIELD -> TrackMap.formatField(value)
 }
 
 /**
@@ -1750,9 +1794,9 @@ private suspend fun loadGrid(
     manualAnchors: List<Float>,
 ): GridData {
     val query = TrackGrid.query(viewport)
-    val useDose = metric == TrackMetric.DOSE
+    val metricOrdinal = metric.ordinal
     val summary = graph.trackRepository.areaSummary(
-        useDose = useDose,
+        metric = metricOrdinal,
         minLatitude = query.minLatitude,
         maxLatitude = query.maxLatitude,
         minLongitude = query.minLongitude,
@@ -1766,7 +1810,7 @@ private suspend fun loadGrid(
     }
     val bins = TrackGrid.valueBins(minValue, maxValue)
     val rows = graph.trackRepository.gridHistogram(
-        useDose = useDose,
+        metric = metricOrdinal,
         minLatitude = query.minLatitude,
         maxLatitude = query.maxLatitude,
         minLongitude = query.minLongitude,
@@ -1779,7 +1823,13 @@ private suspend fun loadGrid(
         limit = TrackGrid.MAX_HISTOGRAM_ROWS,
     )
     // Raw device units become µSv/h at this single edge (CLAUDE.md invariant).
-    val factor = if (useDose) DoseUnits.RAW_TO_MICRO_SIEVERT_PER_HOUR else 1f
+    // Сырые единицы прибора превращаются в мкЗв/ч на этой одной границе
+    // (инвариант CLAUDE.md); счёт и поле уже в своих единицах.
+    val factor = if (metric == TrackMetric.DOSE) {
+        DoseUnits.RAW_TO_MICRO_SIEVERT_PER_HOUR
+    } else {
+        1f
+    }
     val histogram = rows.map {
         GridBin(
             latKey = it.latKey,
@@ -1825,6 +1875,7 @@ private fun TrackPointEntity.toMapPoint(): MapTrackPoint = MapTrackPoint(
     accuracyMeters = accuracyMeters,
     doseMicroSvH = doseRate?.let(DoseUnits::rawToMicroSievertPerHour),
     cps = countRate,
+    magneticUt = magneticUt,
 )
 
 private fun EventEntity.toHotspot(from: Long, to: Long?): MapHotspot? {

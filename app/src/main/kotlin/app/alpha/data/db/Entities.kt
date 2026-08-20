@@ -343,6 +343,13 @@ data class TrackPointEntity(
      * dose-vs-altitude view of flight sessions.
      */
     val altitudeMeters: Double? = null,
+    /**
+     * Модуль магнитного поля в этой точке, мкТл; null — магнитометра нет или
+     * точка снята до v20. Хранится В ТОЧКЕ, а не сшивается по времени со
+     * сводками условий: слой карты рисуется одним запросом по сетке, и джойн
+     * по времени на каждой перерисовке стоил бы дороже одной колонки.
+     */
+    val magneticUt: Float? = null,
 )
 
 /** A saved 1024-channel spectrum with its energy calibration. */

@@ -42,16 +42,19 @@ import app.alpha.ui.components.Card
 import app.alpha.ui.components.EntityHeader
 import app.alpha.ui.components.ChartNotesDialog
 import app.alpha.ui.components.Chip
+import app.alpha.ui.components.Segmented
 import app.alpha.ui.components.StatCell
 import app.alpha.ui.components.StatGrid
 import app.alpha.ui.components.TrendChart
 import app.alpha.ui.components.TrendChartSpec
 import app.alpha.ui.logic.ChartMapping
 import app.alpha.ui.logic.DoseFormat
+import app.alpha.ui.logic.EnvironmentSeries
 import app.alpha.ui.logic.FlightDetect
 import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.logic.TimeAxis
 import androidx.compose.runtime.saveable.rememberSaveable
+import app.alpha.ui.logic.Uncertainty
 import app.alpha.ui.text.ChartTextCatalogue
 import app.alpha.ui.text.ExportCatalogue
 import app.alpha.ui.text.SearchCatalogue
@@ -78,6 +81,8 @@ private data class SessionDetail(
     val summary: SessionSummary,
     val columns: List<Float?>,
     val stats: ChartMapping.Stats?,
+    /** Ряды условий на той же сетке; пусто — датчиков нет или нет данных. */
+    val conditions: List<EnvironmentSeries.Series> = emptyList(),
     val fromMillis: Long,
     val toMillis: Long,
     val events: List<EventEntity>,
@@ -300,6 +305,7 @@ fun SessionDetailScreen(
                 if (d.altitudeColumns != null) {
                     FlightCard(d, unit, t)
                 }
+                if (d.conditions.isNotEmpty()) ConditionsCard(d, t)
                 if (d.events.isNotEmpty()) EventsCard(d.events, unit, t)
                 notice?.let {
                     Text(text = it, style = type.footnote, color = colors.muted)
@@ -537,6 +543,92 @@ private fun ChartCard(
 }
 
 /**
+ * Условия вокруг измерения: давление, магнитное поле, температура телефона.
+ *
+ * Один график и переключатель ряда, а не три картинки друг под другом: ряды
+ * отвечают на разные вопросы, и смотрят их по одному. Ось времени — та же, что
+ * у дозы выше, поэтому совпадения читаются глазом без второй оси.
+ *
+ * Шкала каждого ряда идёт от его собственного минимума: давление живёт в
+ * полосе шириной несколько гектопаскалей около тысячи, и шкала от нуля
+ * превратила бы его в прямую. Подписи делений при этом настоящие.
+ */
+@Composable
+private fun ConditionsCard(detail: SessionDetail, t: SessionRadonStrings) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val series = detail.conditions
+    var selected by rememberSaveable(series.size) { mutableIntStateOf(0) }
+    val current = series.getOrNull(selected) ?: series.first()
+    var info by remember { mutableStateOf(false) }
+    if (info) {
+        ChartNotesDialog(
+            title = t.conditionsTitle,
+            notes = series.map { note(it.kind, t) },
+        ) { info = false }
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = t.conditionsTitle.uppercase(),
+                    style = type.labelSmall,
+                    color = colors.ink2,
+                    modifier = Modifier.weight(1f),
+                )
+                ExplainInfoButton(onClick = { info = true })
+            }
+            if (series.size > 1) {
+                Segmented(
+                    options = series.map { label(it.kind, t) },
+                    selectedIndex = series.indexOf(current),
+                    onSelect = { selected = it },
+                )
+            }
+            TrendChart(
+                spec = TrendChartSpec(
+                    columns = current.plot,
+                    yMax = current.span,
+                    yTicks = current.ticks().map { (offset, value) ->
+                        offset to Uncertainty.num1(value)
+                    },
+                    xLabels = TimeAxis.labels(detail.fromMillis, detail.toMillis),
+                    endpointLabel = Uncertainty.num1(current.last),
+                ),
+            )
+            Text(
+                text = t.conditionRange(
+                    Uncertainty.num1(current.min),
+                    Uncertainty.num1(current.max),
+                    unit(current.kind, t),
+                ),
+                style = type.footnote,
+                color = colors.muted,
+            )
+        }
+    }
+}
+
+private fun label(kind: EnvironmentSeries.Kind, t: SessionRadonStrings): String = when (kind) {
+    EnvironmentSeries.Kind.PRESSURE -> t.conditionPressure
+    EnvironmentSeries.Kind.FIELD -> t.conditionField
+    EnvironmentSeries.Kind.PHONE_TEMPERATURE -> t.conditionPhoneTemp
+}
+
+private fun unit(kind: EnvironmentSeries.Kind, t: SessionRadonStrings): String = when (kind) {
+    EnvironmentSeries.Kind.PRESSURE -> t.unitHpa
+    EnvironmentSeries.Kind.FIELD -> t.unitMicroTesla
+    EnvironmentSeries.Kind.PHONE_TEMPERATURE -> t.unitCelsius
+}
+
+private fun note(kind: EnvironmentSeries.Kind, t: SessionRadonStrings): String = when (kind) {
+    EnvironmentSeries.Kind.PRESSURE -> t.conditionPressureNote
+    EnvironmentSeries.Kind.FIELD -> t.conditionFieldNote
+    EnvironmentSeries.Kind.PHONE_TEMPERATURE -> t.conditionPhoneTempNote
+}
+
+/**
  * Полётная сессия: высота на той же временной сетке, что и график дозы выше —
  * два состыкованных графика с общей осью времени, никакой двойной оси. Ниже —
  * честный множитель «на эшелоне фон ×N от наземной медианы этой же записи».
@@ -670,6 +762,15 @@ private suspend fun loadDetail(graph: AppGraph, sessionId: Long): SessionDetail?
 
     val events = graph.sessionRepository.deviationEvents(from = summary.startedAt, to = to)
 
+    // Условия — те же колонки, что у дозы: сравнивать ряды можно только на
+    // одной оси времени.
+    val conditions = EnvironmentSeries.of(
+        rows = graph.environmentRepository.range(summary.startedAt, to),
+        alignedFromMillis = alignedFrom,
+        bucketMillis = bucketMillis,
+        columnCount = CHART_COLUMNS,
+    )
+
     // Flight view: exact sustain detection on the session's track points
     // (the list badge uses only an approximate count query).
     var altitudeColumns: List<Float?>? = null
@@ -704,6 +805,7 @@ private suspend fun loadDetail(graph: AppGraph, sessionId: Long): SessionDetail?
         summary = summary,
         columns = columns,
         stats = ChartMapping.stats(columns),
+        conditions = conditions,
         fromMillis = alignedFrom,
         toMillis = to,
         events = events.sortedBy { it.timestamp },

@@ -11,7 +11,11 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /** Metric coloring the track (SPEC «Map»: dose rate by default, CPS toggle). */
-enum class TrackMetric { DOSE, CPS }
+/**
+ * Величина, по которой красится след и сетка. Порядок ветвей повторён в SQL
+ * накопленной сетки (`TrackGridSql`), и это держит `TrackGridSqlTest`.
+ */
+enum class TrackMetric { DOSE, CPS, FIELD }
 
 /**
  * Чем задаются границы цвета следа.
@@ -77,6 +81,8 @@ data class MapTrackPoint(
     /** Dose rate at this point, µSv/h (converted from raw once, at the edge). */
     val doseMicroSvH: Float?,
     val cps: Float?,
+    /** Модуль магнитного поля, мкТл; null — магнитометра нет или точка старая. */
+    val magneticUt: Float? = null,
 )
 
 /** One hotspot event with coordinates for the map layer. */
@@ -252,6 +258,7 @@ object TrackMap {
     fun metricValue(point: MapTrackPoint, metric: TrackMetric): Float? = when (metric) {
         TrackMetric.DOSE -> point.doseMicroSvH
         TrackMetric.CPS -> point.cps
+        TrackMetric.FIELD -> point.magneticUt
     }
 
     /** Legend labels: min/max of the metric over the FULL track; null = no data. */
@@ -494,6 +501,13 @@ object TrackMap {
                 " " + s.unitKilometers
         else -> String.format(Locale.US, "%.0f", meters) + " " + s.unitMeters
     }
+
+    /**
+     * Магнитное поле, мкТл, с одним знаком: разрешение датчика — доли мкТл, и
+     * второй знак изображал бы точность, которой нет.
+     */
+    fun formatField(microTesla: Float): String =
+        String.format(Locale.US, "%.1f", microTesla).uiDecimal() + " мкТл"
 
     /** CPS with one decimal below 10 («9,4»), whole above («27»). */
     fun formatCps(cps: Float): String =

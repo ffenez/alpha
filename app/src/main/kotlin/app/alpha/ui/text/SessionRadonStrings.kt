@@ -55,6 +55,34 @@ interface SessionRadonStrings {
 
     // --- график сессии ---
     val chartTitle: String
+
+    // --- условия вокруг измерения (датчики телефона) ---
+
+    /** Заголовок карточки условий. */
+    val conditionsTitle: String
+
+    /** Подписи переключателя рядов и их единицы. */
+    val conditionPressure: String
+    val conditionField: String
+    val conditionPhoneTemp: String
+
+    /** «1008,1–1014,0 гПа за сессию» — размах ряда со своей единицей. */
+    fun conditionRange(low: String, high: String, unit: String): String
+
+    val unitHpa: String
+    val unitMicroTesla: String
+    val unitCelsius: String
+
+    /** Оговорки к рядам условий: они меняют прочтение картинки. */
+    /** «давление −6 гПа за окно: 1014 → 1008» — факт без причинности. */
+    fun pressureChange(delta: String, from: String, to: String, unit: String): String
+
+    /** Почему давление стоит рядом с радоном — и чего это НЕ доказывает. */
+    val radonPressureNote: String
+
+    val conditionPressureNote: String
+    val conditionFieldNote: String
+    val conditionPhoneTempNote: String
     val noChartData: String
     val statMin: String
     val statMedian: String
@@ -175,6 +203,36 @@ object SessionRadonRu : SessionRadonStrings {
     override val trackOnMap = "трек · на карте"
 
     override val chartTitle = "Мощность дозы · вся сессия"
+
+    override val conditionsTitle = "Условия"
+    override val conditionPressure = "давление"
+    override val conditionField = "поле"
+    override val conditionPhoneTemp = "телефон"
+
+    override fun conditionRange(low: String, high: String, unit: String) =
+        "$low–$high $unit за сессию"
+
+    override val unitHpa = "гПа"
+    override val unitMicroTesla = "мкТл"
+    override val unitCelsius = "°C"
+
+    override fun pressureChange(delta: String, from: String, to: String, unit: String) =
+        "давление $delta $unit за окно: $from → $to"
+
+    override val radonPressureNote =
+        "Падение давления часто совпадает с ростом радоновых продуктов: воздух легче выходит из " +
+            "почвы. Совпадение двух рядов причиной не является — экран показывает оба и не " +
+            "делает вывода."
+
+    override val conditionPressureNote =
+        "Давление меняется и от погоды, и от высоты: один гектопаскаль — это около восьми метров " +
+            "подъёма. По одному ряду эти две причины не разделить."
+    override val conditionFieldNote =
+        "Поле — магнитометр телефона. Собственные магниты телефона обычно сильнее того, что " +
+            "вокруг, поэтому смысл имеет изменение вдоль пути, а не само число."
+    override val conditionPhoneTempNote =
+        "Это температура батареи телефона, а не воздуха: железка греет себя сама. Рядом с " +
+            "температурой прибора она годится, чтобы видеть дрейф одного относительно другого."
     override val noChartData = "данных для графика нет"
     override val statMin = "мин"
     override val statMedian = "медиана"
@@ -325,6 +383,37 @@ object SessionRadonEn : SessionRadonStrings {
     override val trackOnMap = "track · on the map"
 
     override val chartTitle = "Dose rate · whole session"
+
+    override val conditionsTitle = "Conditions"
+    override val conditionPressure = "pressure"
+    override val conditionField = "field"
+    override val conditionPhoneTemp = "phone"
+
+    override fun conditionRange(low: String, high: String, unit: String) =
+        "$low–$high $unit over the session"
+
+    override val unitHpa = "hPa"
+    override val unitMicroTesla = "µT"
+    override val unitCelsius = "°C"
+
+    override fun pressureChange(delta: String, from: String, to: String, unit: String) =
+        "pressure $delta $unit over the window: $from → $to"
+
+    override val radonPressureNote =
+        "A falling pressure often coincides with rising radon daughters: air leaves the ground " +
+            "more easily. A coincidence of two series is not a cause — the screen shows both and " +
+            "draws no conclusion."
+
+    override val conditionPressureNote =
+        "Pressure changes with the weather and with height alike: one hectopascal is about eight " +
+            "metres of climb. One series cannot separate the two causes."
+    override val conditionFieldNote =
+        "The field comes from the phone's magnetometer. The phone's own magnets are usually " +
+            "stronger than what surrounds it, so the change along the way carries the meaning, " +
+            "not the number itself."
+    override val conditionPhoneTempNote =
+        "This is the temperature of the phone battery, not of the air: the thing warms itself. " +
+            "Next to the instrument temperature it shows the drift of one against the other."
     override val noChartData = "no data for the chart"
     override val statMin = "min"
     override val statMedian = "median"
@@ -450,6 +539,10 @@ fun SessionRadonStrings.allTexts(): List<String> = listOf(
     doseRateSummary("0,15", "0,12", "0,21"),
     countRateLabel, countRateSummary("12", "31"), sessionDoseLabel, trackOnMap,
     chartTitle, noChartData, statMin, statMedian, statMax, sd,
+    conditionsTitle, conditionPressure, conditionField, conditionPhoneTemp,
+    conditionRange("1008,1", "1014,0", unitHpa), unitHpa, unitMicroTesla, unitCelsius,
+    conditionPressureNote, conditionFieldNote, conditionPhoneTempNote,
+    pressureChange("−6,0", "1014,0", "1008,0", unitHpa), radonPressureNote,
     chartLineNote, openFullChart, fullChartNote,
     altitudeTitle, noAltitudePoints, altitudeNote,
     flightFactor("1,8", "0,25", "0,14"),

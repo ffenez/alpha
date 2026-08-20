@@ -42,6 +42,7 @@ import app.alpha.ui.components.StatCell
 import app.alpha.ui.components.StatGrid
 import app.alpha.ui.components.AppButton
 import app.alpha.ui.logic.HistoryFormat
+import app.alpha.ui.logic.Uncertainty
 import app.alpha.ui.text.HistoryCatalogue
 import app.alpha.ui.text.HistoryRu
 import app.alpha.ui.text.HistoryStrings
@@ -69,6 +70,12 @@ private val HH_MM = DateTimeFormatter.ofPattern("HH:mm")
  */
 private const val FALLBACK_REFRESH_MILLIS = 5L * 60_000L
 
+/**
+ * Меньше двух сводок давления — не изменение, а одно значение: сравнивать
+ * край окна не с чем.
+ */
+private const val MIN_PRESSURE_POINTS = 2
+
 @Immutable
 private data class RadonModel(
     /** Hour-grid columns for the selected window, oldest first; null = gap. */
@@ -79,6 +86,9 @@ private data class RadonModel(
     val current: RadonTrend.HourPoint?,
     val median: Float?,
     val trend: RadonTrend.Trend,
+    /** Давление на краях окна, гПа; null — барометра нет или данных мало. */
+    val pressureFrom: Float? = null,
+    val pressureTo: Float? = null,
 )
 
 /**
@@ -164,7 +174,13 @@ private fun RadonContent(m: RadonModel?, t: SessionRadonStrings) {
     // читается один раз, а высоту забирает всегда.
     var info by remember { mutableStateOf(false) }
     if (info) {
-        ChartNotesDialog(notes = listOf(t.radonChartNote)) { info = false }
+        ChartNotesDialog(
+            notes = buildList {
+                add(t.radonChartNote)
+                // Про давление рассказываем только когда оно на экране.
+                if (m?.pressureTo != null) add(t.radonPressureNote)
+            },
+        ) { info = false }
     }
     val span = m?.hours?.takeIf { it.isNotEmpty() }?.let {
         HistoryFormat.duration(
@@ -227,6 +243,23 @@ private fun RadonContent(m: RadonModel?, t: SessionRadonStrings) {
                     Chip(text = label, color = color)
                     Text(text = t.trendWindow, style = type.footnote, color = colors.muted)
                 }
+                // Давление — тем же окном, одной строкой и без вывода: связь
+                // радона с падением давления известна, но два ряда рядом её не
+                // доказывают, и экран этого не утверждает.
+                val from = m.pressureFrom
+                val to = m.pressureTo
+                if (from != null && to != null) {
+                    Text(
+                        text = t.pressureChange(
+                            Uncertainty.signed1(to - from),
+                            Uncertainty.num1(from),
+                            Uncertainty.num1(to),
+                            t.unitHpa,
+                        ),
+                        style = type.footnote,
+                        color = colors.muted,
+                    )
+                }
             }
         }
     }
@@ -285,6 +318,11 @@ private suspend fun loadRadon(graph: AppGraph, days: Int): RadonModel {
         // «Сейчас» honestly means the last ~2 hours; older data is history.
         now - (it.hourStartMillis + RadonTrend.HOUR_MILLIS) <= 2 * RadonTrend.HOUR_MILLIS
     }
+    // Давление тем же окном: край окна против края, без сглаживания — здесь
+    // важна не форма кривой, а изменение за срок.
+    val pressure = graph.environmentRepository.range(from, now)
+        .mapNotNull { it.pressureHpa }
+
     return RadonModel(
         columns = columns,
         fromMillis = from,
@@ -293,5 +331,7 @@ private suspend fun loadRadon(graph: AppGraph, days: Int): RadonModel {
         current = current,
         median = RadonTrend.medianRate(hours),
         trend = RadonTrend.trend(hours),
+        pressureFrom = pressure.firstOrNull().takeIf { pressure.size >= MIN_PRESSURE_POINTS },
+        pressureTo = pressure.lastOrNull().takeIf { pressure.size >= MIN_PRESSURE_POINTS },
     )
 }
