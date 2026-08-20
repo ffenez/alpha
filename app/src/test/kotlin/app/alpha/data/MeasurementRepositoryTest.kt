@@ -245,6 +245,8 @@ internal class FakeSpectrumDao : SpectrumDao {
         )
     override suspend fun byId(id: Long): SpectrumSnapshotEntity? =
         inserted.getOrNull(id.toInt() - 1)
+    override suspend fun idByTimestamp(timestamp: Long): Long? =
+        inserted.indexOfFirst { it.timestamp == timestamp }.takeIf { it >= 0 }?.plus(1)?.toLong()
     override suspend fun deviceSnapshotMeta(from: Long, to: Long): List<SpectrumMetaRow> =
         inserted.mapIndexed { index, entity -> Triple(index + 1L, entity, Unit) }
             .filter { (_, e, _) ->

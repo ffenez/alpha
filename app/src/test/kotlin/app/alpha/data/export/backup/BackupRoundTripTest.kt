@@ -33,6 +33,7 @@ class BackupRoundTripTest {
         val events: List<BackupEvent> = emptyList(),
         val rare: List<BackupRare> = emptyList(),
         val environment: List<BackupEnvironment> = emptyList(),
+        val stations: List<BackupStation> = emptyList(),
         val routes: List<BackupRoute> = emptyList(),
         val points: List<BackupPoint> = emptyList(),
         val spectra: List<BackupSpectrum> = emptyList(),
@@ -45,6 +46,7 @@ class BackupRoundTripTest {
             events = events.size.toLong(),
             rare = rare.size.toLong(),
             environment = environment.size.toLong(),
+            stations = stations.size.toLong(),
             sessions = sessions.size.toLong(),
             routes = routes.size.toLong(),
             points = points.size.toLong(),
@@ -70,6 +72,7 @@ class BackupRoundTripTest {
         override fun events() = pages(events)
         override fun rare() = pages(rare)
         override fun environment() = pages(environment)
+        override fun stations() = pages(stations)
         override fun routes() = pages(routes)
         override fun points() = pages(points)
         override fun spectra() = pages(spectra)
@@ -91,6 +94,7 @@ class BackupRoundTripTest {
         val events = mutableListOf<BackupEvent>()
         val rare = mutableListOf<BackupRare>()
         val environment = mutableListOf<BackupEnvironment>()
+        val stations = mutableListOf<BackupStation>()
         val routes = mutableListOf<BackupRoute>()
         val points = mutableListOf<BackupPoint>()
         val spectra = mutableListOf<BackupSpectrum>()
@@ -145,6 +149,8 @@ class BackupRoundTripTest {
         override suspend fun rare(batch: List<BackupRare>) = add(batch, rare, "rare") { it.key }
         override suspend fun environment(batch: List<BackupEnvironment>) =
             add(batch, environment, "environment") { it.key }
+        override suspend fun stations(batch: List<BackupStation>) =
+            add(batch, stations, "stations") { it.key }
         override suspend fun routes(batch: List<BackupRoute>) = add(batch, routes, "routes") { it.key }
         override suspend fun points(batch: List<BackupPoint>) = add(batch, points, "points") { it.key }
         override suspend fun spectra(batch: List<BackupSpectrum>) = add(batch, spectra, "spectra") { it.key }
@@ -213,6 +219,10 @@ class BackupRoundTripTest {
             BackupEvent(now + 500, "deviation", 2, "выше обычного", 0, 0, 0.4f, 55.7, 37.6),
         ),
         rare = listOf(BackupRare(now, 12.5f, 24f, 84f, 3_600, 0)),
+        stations = listOf(
+            BackupStation(now, now, 55.75, 37.61, 8f, 100, 1013.2f, "у камня"),
+            BackupStation(now + 60_000, now + 60_000, 55.76, 37.62, 12f, null, null, null),
+        ),
         environment = listOf(
             // Одна запись со всеми датчиками и одна с половиной: телефон без
             // барометра обязан восстанавливаться так же, как телефон с ним.
@@ -315,6 +325,7 @@ class BackupRoundTripTest {
         assertEquals(source.events, sink.events)
         assertEquals(source.rare, sink.rare)
         assertEquals(source.environment, sink.environment)
+        assertEquals(source.stations, sink.stations)
         assertEquals(source.routes, sink.routes)
         assertEquals(source.points, sink.points)
         assertEquals(source.spectra, sink.spectra)

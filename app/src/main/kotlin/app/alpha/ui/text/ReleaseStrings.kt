@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0480Title: String
+    val v0480Summary: String
+
     val v0471Title: String
     val v0471Summary: String
 
@@ -423,6 +426,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0480Title = "Съёмка U-Th-K: калий, уран и торий по станциям"
+    override val v0480Summary =
+        "Новый инструмент в «Спектре»: постойте на точке полчаса, нажмите «Снять станцию» — и " +
+        "приложение посчитает по спектру калий, eU и eTh с их погрешностями, покажет отношения " +
+        "и скажет, чем эта точка отличается от остальных станций съёмки; всё выгружается в CSV."
 
     override val v0471Title = "Переключатели спектра переехали на полный экран"
     override val v0471Summary =
@@ -1357,6 +1366,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0480Title = "U-Th-K survey: potassium, uranium and thorium by station"
+    override val v0480Summary =
+        "A new tool under Spectrum: stand on a point for half an hour, press \"Record a station\" " +
+        "and the app measures potassium, eU and eTh from the spectrum with their uncertainties, " +
+        "shows the ratios and says how the point differs from the rest of the survey; everything " +
+        "exports to CSV."
 
     override val v0471Title = "The spectrum switches moved to the full screen"
     override val v0471Summary =

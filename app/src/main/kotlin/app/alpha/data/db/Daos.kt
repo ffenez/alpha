@@ -578,6 +578,34 @@ interface SessionDao {
 }
 
 @Dao
+interface SurveyDao {
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(station: SurveyStationEntity): Long
+
+    @Query("SELECT * FROM survey_stations ORDER BY timestamp DESC")
+    fun observeAll(): Flow<List<SurveyStationEntity>>
+
+    @Query("SELECT * FROM survey_stations ORDER BY timestamp")
+    suspend fun all(): List<SurveyStationEntity>
+
+    @Query("SELECT * FROM survey_stations WHERE id = :id")
+    suspend fun byId(id: Long): SurveyStationEntity?
+
+    @Query("SELECT COUNT(*) FROM survey_stations")
+    suspend fun count(): Long
+
+    @Query("DELETE FROM survey_stations WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("UPDATE survey_stations SET note = :note, heightCm = :heightCm WHERE id = :id")
+    suspend fun describe(id: Long, note: String?, heightCm: Int?)
+
+    @Query("DELETE FROM survey_stations")
+    suspend fun clear()
+}
+
+@Dao
 interface EnvironmentDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -1233,6 +1261,9 @@ interface SpectrumDao {
         """,
     )
     fun observeSaved(limit: Int): Flow<List<SpectrumSnapshotEntity>>
+
+    @Query("SELECT id FROM spectra WHERE timestamp = :timestamp LIMIT 1")
+    suspend fun idByTimestamp(timestamp: Long): Long?
 
     @Query("SELECT * FROM spectra WHERE id = :id")
     suspend fun byId(id: Long): SpectrumSnapshotEntity?

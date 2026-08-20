@@ -14,6 +14,7 @@ import app.alpha.data.db.RareDataEntity
 import app.alpha.data.db.SampleEntity
 import app.alpha.data.db.SpectrogramSliceEntity
 import app.alpha.data.db.SpectrumSnapshotEntity
+import app.alpha.data.db.SurveyStationEntity
 import app.alpha.data.db.TrackPointEntity
 import app.alpha.data.db.TrackSessionEntity
 import app.alpha.data.export.backup.BackupBinary
@@ -37,6 +38,7 @@ import app.alpha.data.export.backup.BackupSink
 import app.alpha.data.export.backup.BackupSlice
 import app.alpha.data.export.backup.BackupSource
 import app.alpha.data.export.backup.BackupSpectrum
+import app.alpha.data.export.backup.BackupStation
 import app.alpha.data.export.backup.BackupStream
 import app.alpha.data.export.backup.RestoreCount
 import app.alpha.data.export.backup.RestoreMode
@@ -75,6 +77,7 @@ class BackupRepository(
     private val sampleDao = database.sampleDao()
     private val rareDao = database.rareDataDao()
     private val environmentDao = database.environmentDao()
+    private val surveyDao = database.surveyDao()
     private val eventDao = database.eventDao()
     private val profileDao = database.profileDao()
     private val sessionDao = database.sessionDao()
@@ -104,6 +107,7 @@ class BackupRepository(
             events = eventDao.count(),
             rare = rareDao.count(),
             environment = environmentDao.count(),
+            stations = surveyDao.count(),
             sessions = sessionDao.count().toLong(),
             routes = trackDao.sessionCount(),
             points = trackDao.totalPointCount(),
@@ -116,6 +120,7 @@ class BackupRepository(
             events = eventDao.countSince(from),
             rare = rareDao.countSince(from),
             environment = environmentDao.countSince(from),
+            stations = surveyDao.count(),
             sessions = sessionDao.countSince(from),
             routes = trackDao.sessionCountSince(from),
             points = trackDao.pointCountSince(from),
@@ -243,6 +248,28 @@ class BackupRepository(
                 )
             },
             nextCursor = rows.lastOrNull()?.id,
+        )
+    }
+
+    override fun stations() = BackupStream { cursor, limit ->
+        // Станций на съёмку — десятки, а не миллионы: страница берётся целиком
+        // и отдаётся одним куском, курсор нужен лишь чтобы не отдать её дважды.
+        val rows = if (cursor > 0L) emptyList() else surveyDao.all()
+        BackupPage(
+            items = rows.mapNotNull { station ->
+                val snapshot = spectrumDao.byId(station.spectrumId) ?: return@mapNotNull null
+                BackupStation(
+                    timestamp = station.timestamp,
+                    spectrumTimestamp = snapshot.timestamp,
+                    latitude = station.latitude,
+                    longitude = station.longitude,
+                    accuracyMeters = station.accuracyMeters,
+                    heightCm = station.heightCm,
+                    pressureHpa = station.pressureHpa,
+                    note = station.note,
+                )
+            },
+            nextCursor = if (rows.isEmpty()) null else 1L,
         )
     }
 
@@ -404,6 +431,7 @@ class BackupRepository(
                 eventDao.clear()
                 rareDao.clear()
                 environmentDao.clear()
+                surveyDao.clear()
                 sessionDao.clear()
             }
             if (selection.routes) trackDao.clearSessions()
@@ -582,6 +610,29 @@ class BackupRepository(
                 },
             )
             added += fresh.size
+        }
+        return RestoreCount(added, batch.size - added)
+    }
+
+    override suspend fun stations(batch: List<BackupStation>): RestoreCount {
+        var added = 0L
+        for (station in batch) {
+            // Снимок ищется по метке времени: идентификаторы после
+            // восстановления другие, метка та же. Нет снимка — нет станции.
+            val spectrumId = spectrumDao.idByTimestamp(station.spectrumTimestamp) ?: continue
+            val id = surveyDao.insert(
+                SurveyStationEntity(
+                    spectrumId = spectrumId,
+                    timestamp = station.timestamp,
+                    latitude = station.latitude,
+                    longitude = station.longitude,
+                    accuracyMeters = station.accuracyMeters,
+                    heightCm = station.heightCm,
+                    pressureHpa = station.pressureHpa,
+                    note = station.note,
+                ),
+            )
+            if (id != -1L) added++
         }
         return RestoreCount(added, batch.size - added)
     }
