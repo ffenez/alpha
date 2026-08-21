@@ -2,6 +2,7 @@ package app.alpha.data
 
 import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.PeakDetection
+import app.alpha.analysis.ResolutionCurve
 import app.alpha.analysis.SpectrumTemplate
 import app.alpha.data.db.SpectrumTemplateDao
 import app.alpha.data.db.SpectrumTemplateEntity
@@ -72,15 +73,87 @@ class TemplateRepository(private val dao: SpectrumTemplateDao) {
         ),
     )
 
+    /**
+     * Досъёмка: новое накопление складывается с шаблоном.
+     *
+     * Шкала новой записи выравнивается по шаблону подобранными [gain] и
+     * [offsetKeV] — их даёт то же разложение, которым потом пользуются доли.
+     * Разрешение измеряется заново: сложенный спектр статистически лучше, и
+     * ширина линии в нём определена точнее.
+     *
+     * @return сложенное время накопления, с; null — шкалы не пересеклись.
+     */
+    suspend fun accumulate(
+        entity: SpectrumTemplateEntity,
+        counts: List<Int>,
+        calibration: EnergyCalibration,
+        seconds: Long,
+        gain: Double,
+        offsetKeV: Double,
+    ): Long? {
+        val merged = SpectrumTemplate.accumulate(
+            template = template(entity),
+            counts = counts,
+            calibration = calibration,
+            seconds = seconds,
+            gain = gain,
+            offsetKeV = offsetKeV,
+        ) ?: return null
+        dao.update(
+            entity.copy(
+                counts = SpectrumBlob.encode(merged.counts),
+                durationSeconds = merged.seconds,
+                channelCount = merged.counts.size,
+                resolution662 = measuredResolution(
+                    counts = merged.counts,
+                    calibration = merged.calibration,
+                    fallback = entity.resolution662,
+                ),
+            ),
+        )
+        return merged.seconds
+    }
+
     /** Как шаблон видит движок разложения. */
-    fun template(entity: SpectrumTemplateEntity) = SpectrumTemplate(
-        name = entity.name,
-        counts = SpectrumBlob.decode(entity.counts),
-        calibration = EnergyCalibration(entity.a0, entity.a1, entity.a2),
-        seconds = entity.durationSeconds,
-        resolution662 = entity.resolution662,
-        deviceName = entity.deviceName,
-    )
+    fun template(entity: SpectrumTemplateEntity): SpectrumTemplate {
+        val counts = SpectrumBlob.decode(entity.counts)
+        val calibration = EnergyCalibration(entity.a0, entity.a1, entity.a2)
+        return SpectrumTemplate(
+            name = entity.name,
+            counts = counts,
+            calibration = calibration,
+            seconds = entity.durationSeconds,
+            resolution662 = entity.resolution662,
+            deviceName = entity.deviceName,
+            curve = ResolutionCurve.fit(points(counts, calibration, entity.resolution662)),
+        )
+    }
+
+    /**
+     * Разрешение ПРИБОРА как функция энергии, измеренное по всем шаблонам,
+     * снятым этим же прибором.
+     *
+     * Чем больше шаблонов и чем они длиннее, тем больше линий с надёжно
+     * измеренной шириной — поэтому кривая уточняется сама собой по мере
+     * работы. Шаблоны чужих приборов сюда не входят: ширина линии принадлежит
+     * кристаллу, а не веществу.
+     *
+     * @return null, если своих шаблонов нет или линий не хватило; вызывающий
+     *   берёт паспортное число модели.
+     */
+    suspend fun deviceCurve(serial: String?): ResolutionCurve? {
+        if (serial.isNullOrBlank()) return null
+        val own = dao.all().filter { it.deviceSerial?.equals(serial, ignoreCase = true) == true }
+        if (own.isEmpty()) return null
+        val points = own.flatMap { entity ->
+            points(
+                counts = SpectrumBlob.decode(entity.counts),
+                calibration = EnergyCalibration(entity.a0, entity.a1, entity.a2),
+                fallback = entity.resolution662,
+            )
+        }
+        return ResolutionCurve.fit(points)
+    }
 
     /** Годность шаблона для прибора, на котором его собираются применить. */
     enum class Fitness {
@@ -118,19 +191,37 @@ class TemplateRepository(private val dao: SpectrumTemplateDao) {
             calibration: EnergyCalibration,
             fallback: Float,
         ): Float {
-            val peaks = PeakDetection.detect(
-                counts = counts,
-                calibration = calibration,
-                resolution662 = fallback,
-                minEnergyKeV = DeviceModel.UNKNOWN.peakFloorKeV,
-            )
-            val measured = peaks
-                .filter { it.fwhmKeV != null && it.energyKeV > MIN_RESOLUTION_ENERGY_KEV }
-                .maxByOrNull { it.significance }
+            val measured = points(counts, calibration, fallback)
+                .maxByOrNull { it.weight }
                 ?: return fallback
-            val fwhm = measured.fwhmKeV ?: return fallback
-            val resolution = fwhm / kotlin.math.sqrt(662f * measured.energyKeV)
+            val resolution = measured.fwhmKeV /
+                kotlin.math.sqrt(ResolutionCurve.REFERENCE_KEV * measured.energyKeV)
             return if (resolution in MIN_RESOLUTION..MAX_RESOLUTION) resolution else fallback
+        }
+
+        /**
+         * Линии спектра с измеренной шириной — точки для [ResolutionCurve].
+         *
+         * Вес точки — значимость линии: ширина слабой линии определена её же
+         * шумом, и в общей подгонке она не должна тянуть на себя.
+         */
+        fun points(
+            counts: List<Int>,
+            calibration: EnergyCalibration,
+            fallback: Float,
+        ): List<ResolutionCurve.Point> = PeakDetection.detect(
+            counts = counts,
+            calibration = calibration,
+            resolution662 = fallback,
+            minEnergyKeV = DeviceModel.UNKNOWN.peakFloorKeV,
+        ).mapNotNull { peak ->
+            val fwhm = peak.fwhmKeV ?: return@mapNotNull null
+            if (peak.energyKeV <= MIN_RESOLUTION_ENERGY_KEV) return@mapNotNull null
+            ResolutionCurve.Point(
+                energyKeV = peak.energyKeV,
+                fwhmKeV = fwhm,
+                weight = peak.significance,
+            )
         }
 
         /**

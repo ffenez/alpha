@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0510Title: String
+    val v0510Summary: String
+
     val v0500Title: String
     val v0500Summary: String
 
@@ -444,6 +447,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0510Title = "Шаблоны прибора учатся на его же спектрах"
+    override val v0510Summary =
+        "Шаблон теперь дополняется новыми накоплениями того же прибора: счёт складывается по " +
+        "измеренному сдвигу шкалы, и с каждым сеансом форма становится точнее. Разрешение прибор " +
+        "описывает сам — по линиям в ваших же спектрах, а не одним паспортным числом на модель, " +
+        "и собственный шум шаблона входит в погрешность доли."
 
     override val v0500Title = "Спектр раскладывается на измеренные формы"
     override val v0500Summary =
@@ -1428,6 +1438,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0510Title = "Templates learn from the instrument's own spectra"
+    override val v0510Summary =
+        "A template is now extended by new accumulations from the same instrument: the counts are " +
+        "summed along the measured scale shift, and the shape gets more precise with every " +
+        "session. The resolution is measured on the lines in your own spectra instead of one " +
+        "datasheet number per model, and the template's own noise enters the uncertainty of a share."
 
     override val v0500Title = "The spectrum is decomposed into measured shapes"
     override val v0500Summary =

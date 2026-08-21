@@ -30,6 +30,14 @@ interface UnmixStrings {
     val deleteTemplate: String
     val run: String
 
+    /** Досъёмка: шаблон того же прибора становится точнее с каждым сеансом. */
+    val appendTemplate: String
+    val appendConfirmTitle: String
+    fun appendConfirmBody(name: String, have: String, add: String): String
+    fun appended(name: String, total: String, gain: String): String
+    val appendRefused: String
+    val appendTooShort: String
+
     /** Шаблон из чужого файла: `.spe` или BecqMoni XML. */
     val importTemplate: String
     val importUnreadable: String
@@ -47,6 +55,9 @@ interface UnmixStrings {
     /** «Th-232 · 7,7 ч · RadiaCode-110» — что за форма и откуда. */
     fun templateLine(name: String, duration: String, device: String): String
     val deviceUnknown: String
+
+    /** «разрешение измерено по своим линиям: 8,1 % на 662, 4,4 % на 2615 кэВ». */
+    fun resolutionMeasured(at662: String, at2615: String): String
 
     /** Годность шаблона к текущему прибору. */
     val fitnessOwn: String
@@ -75,6 +86,7 @@ interface UnmixStrings {
     val methodPoisson: String
     val methodScale: String
     val methodDevice: String
+    val methodResolution: String
     val methodNoBecquerel: String
 }
 
@@ -95,6 +107,18 @@ object UnmixRu : UnmixStrings {
     override val deleteTemplate = "Удалить"
     override val run = "Разложить"
 
+    override val appendTemplate = "Дополнить"
+    override val appendConfirmTitle = "Дополнить шаблон"
+    override fun appendConfirmBody(name: String, have: String, add: String) =
+        "«$name»: к $have добавится $add. Счёт складывается, форма становится точнее — вернуть " +
+            "прежний шаблон после этого нельзя."
+
+    override fun appended(name: String, total: String, gain: String) =
+        "«$name» дополнен: теперь $total, шкала записи приведена ×$gain"
+
+    override val appendRefused = "Дополнить не удалось: запись не приводится к шаблону"
+    override val appendTooShort = "Набрано слишком мало: по такой записи не измерить сдвиг шкалы"
+
     override val importTemplate = "Из файла"
     override val importUnreadable = "Файл не прочитан"
     override val importNotRecognised = "Не похоже на спектр в .spe или BecqMoni XML."
@@ -111,6 +135,9 @@ object UnmixRu : UnmixStrings {
         "$name · $duration · $device"
 
     override val deviceUnknown = "прибор не указан"
+
+    override fun resolutionMeasured(at662: String, at2615: String) =
+        "разрешение прибора измерено по своим линиям: $at662 % на 662 кэВ, $at2615 % на 2615 кэВ"
 
     override val fitnessOwn = "снят этим прибором"
     override val fitnessForeign = "снят другим прибором — форма приведена, но она чужая"
@@ -151,6 +178,11 @@ object UnmixRu : UnmixStrings {
         "Форма отклика принадлежит прибору: доля полного поглощения к комптону задана размером " +
             "кристалла. Шаблон другого прибора приводится уширением линий, но остаётся чужим, и " +
             "экран об этом говорит."
+    override val methodResolution =
+        "Ширина линии измеряется по вашим же спектрам как функция энергии: FWHM² = a + b·E. " +
+            "Паспортное «столько-то процентов на 662 кэВ» — частный случай с a = 0, и на 2615 кэВ " +
+            "он расходится с измеренной шириной на десятки процентов."
+
     override val methodNoBecquerel =
         "Разложение даёт долю формы в спектре, а не активность. Беккерели требуют известной " +
             "геометрии и эталонного источника."
@@ -173,6 +205,18 @@ object UnmixEn : UnmixStrings {
     override val deleteTemplate = "Delete"
     override val run = "Decompose"
 
+    override val appendTemplate = "Add to it"
+    override val appendConfirmTitle = "Add to the template"
+    override fun appendConfirmBody(name: String, have: String, add: String) =
+        "\"$name\": $add will be added to $have. The counts are summed and the shape gets more " +
+            "precise — the previous template cannot be brought back."
+
+    override fun appended(name: String, total: String, gain: String) =
+        "\"$name\" extended: now $total, the record scale was aligned by ×$gain"
+
+    override val appendRefused = "Could not add: the record does not adapt to the template"
+    override val appendTooShort = "Too little accumulated: this record cannot show the scale shift"
+
     override val importTemplate = "From a file"
     override val importUnreadable = "The file was not read"
     override val importNotRecognised = "This does not look like a .spe or BecqMoni XML spectrum."
@@ -189,6 +233,9 @@ object UnmixEn : UnmixStrings {
         "$name · $duration · $device"
 
     override val deviceUnknown = "instrument not stated"
+
+    override fun resolutionMeasured(at662: String, at2615: String) =
+        "instrument resolution measured on its own lines: $at662 % at 662 keV, $at2615 % at 2615 keV"
 
     override val fitnessOwn = "taken by this instrument"
     override val fitnessForeign = "taken by another instrument — adapted, but the shape is foreign"
@@ -229,6 +276,11 @@ object UnmixEn : UnmixStrings {
         "The response shape belongs to the instrument: the full-absorption to Compton ratio is " +
             "set by the crystal size. A template from another instrument is adapted by widening " +
             "its lines, but it stays foreign, and the screen says so."
+    override val methodResolution =
+        "The line width is measured on your own spectra as a function of energy: FWHM² = a + b·E. " +
+            "The datasheet \"so many percent at 662 keV\" is the special case a = 0, and at " +
+            "2615 keV it departs from the measured width by tens of percent."
+
     override val methodNoBecquerel =
         "Decomposition gives the share of a shape in the spectrum, not an activity. Becquerels " +
             "need a known geometry and a certified source."
@@ -239,13 +291,17 @@ val UnmixCatalogue = AreaCatalogue(ru = UnmixRu, en = UnmixEn)
 fun UnmixStrings.allTexts(): List<String> = listOf(
     title, subtitle, emptyTitle, emptyBody,
     recordTemplate, recordHint, templatesTitle, deleteTemplate, run,
+    appendTemplate, appendConfirmTitle, appendConfirmBody("Th-232", "7,7 ч", "30 мин"),
+    appended("Th-232", "8,2 ч", "0,99"), appendRefused, appendTooShort,
     importTemplate, importUnreadable, importNotRecognised, importNoScale, importNoTime,
     importedDefaultName, imported("Th-232"),
     needSpectrum, needTemplates, failed,
     templateLine("Th-232", "7,7 ч", "RadiaCode-110"), deviceUnknown,
+    resolutionMeasured("8,1", "4,4"),
     fitnessOwn, fitnessForeign, fitnessRefused,
     componentShare("Th-232", "38", "2"), componentBelowLimit("Cs-137", "4"),
     explained("96"), agreementOk("1,2"), agreementBad("8,4"),
     scaleFitted("0,98", "+5"), scaleAsMeasured,
-    methodTitle, methodWhole, methodPoisson, methodScale, methodDevice, methodNoBecquerel,
+    methodTitle, methodWhole, methodPoisson, methodScale, methodDevice, methodResolution,
+    methodNoBecquerel,
 )

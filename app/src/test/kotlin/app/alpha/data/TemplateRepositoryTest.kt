@@ -1,10 +1,14 @@
 package app.alpha.data
 
+import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.SpectraFixtures
+import app.alpha.analysis.SpectrumTemplate
 import app.alpha.data.db.SpectrumTemplateDao
 import app.alpha.data.db.SpectrumTemplateEntity
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -22,6 +26,11 @@ class TemplateRepositoryTest {
         override suspend fun insert(template: SpectrumTemplateEntity): Long {
             rows += template.copy(id = rows.size + 1L)
             return rows.size.toLong()
+        }
+
+        override suspend fun update(template: SpectrumTemplateEntity) {
+            val index = rows.indexOfFirst { it.id == template.id }
+            if (index >= 0) rows[index] = template
         }
 
         override fun observeAll(): Flow<List<SpectrumTemplateEntity>> = flowOf(rows.toList())
@@ -116,6 +125,93 @@ class TemplateRepositoryTest {
             repository.fitness(entity, serial = null, resolution662 = 0.12f),
         )
     }
+
+    @Test
+    fun `досъёмка складывает счёт и время`() = runTest {
+        val dao = FakeDao()
+        val repository = TemplateRepository(dao)
+        val entity = recorded(dao, serial = "RC-110-000000")
+        val before = SpectrumBlob.decode(entity.counts)
+
+        val seconds = repository.accumulate(
+            entity = entity,
+            counts = before,
+            calibration = thorium.second,
+            seconds = 27_714L,
+            gain = 1.0,
+            offsetKeV = 0.0,
+        )
+
+        assertEquals(2 * 27_714L, seconds)
+        val after = SpectrumBlob.decode(dao.rows.single().counts)
+        // Та же шкала — перекладки нет, счёт складывается канал в канал.
+        assertEquals(before.map { it * 2 }, after)
+    }
+
+    @Test
+    fun `досъёмка по измеренному сдвигу шкалы не портит разрешение`() = runTest {
+        val dao = FakeDao()
+        val repository = TemplateRepository(dao)
+        val entity = recorded(dao, serial = "RC-110-000000")
+        val (counts, calibration) = thorium
+
+        // Второй сеанс той же формы, но шкала прибора уехала на −4 %: линии в
+        // нём стоят ниже, чем в шаблоне. Смещение взято заметно больше
+        // измеренных на приборе двух процентов, чтобы разница ширин не тонула
+        // в погрешности самой подгонки линии.
+        val drift = 0.96
+        val drifted = EnergyCalibration(
+            a0 = (calibration.a0 * drift).toFloat(),
+            a1 = (calibration.a1 * drift).toFloat(),
+            a2 = (calibration.a2 * drift).toFloat(),
+        )
+        val second = assertNotNull(
+            SpectrumTemplate.adapt(
+                template = repository.template(entity),
+                targetCalibration = drifted,
+                targetChannels = counts.size,
+                targetResolution662 = entity.resolution662,
+            ),
+        ).map { it.roundToInt() }
+
+        val aligned = recorded(dao, serial = "RC-110-000000")
+        repository.accumulate(aligned, second, calibration, 27_714L, gain = drift, offsetKeV = 0.0)
+        val alignedLines = linesAbove(merged(dao), calibration, HIGH_ENERGY_KEV)
+
+        val blind = recorded(dao, serial = "RC-110-000000")
+        repository.accumulate(blind, second, calibration, 27_714L, gain = 1.0, offsetKeV = 0.0)
+        val blindLines = linesAbove(merged(dao), calibration, HIGH_ENERGY_KEV)
+
+        // Выравнивание кладёт линию на линию: выше 2000 кэВ у ториевого
+        // источника остаётся одна линия — 2615 кэВ.
+        assertEquals(
+            1,
+            alignedLines.size,
+            "после выравнивания линии выше 2000 кэВ: ${alignedLines.map { it.energyKeV }}",
+        )
+        // Слепое сложение кладёт рядом с линией её же сдвинутую копию: ширину
+        // такой пары измерить нечем, и линия 2615 кэВ из спектра пропадает —
+        // именно ту величину, ради которой шаблон и снимают, сложение и теряет.
+        assertTrue(
+            blindLines.size < alignedLines.size,
+            "слепое ${blindLines.map { it.energyKeV }} против выровненного " +
+                "${alignedLines.map { it.energyKeV }}",
+        )
+    }
+
+    /** Счёт сохранённого шаблона. */
+    private fun merged(dao: FakeDao): List<Int> = SpectrumBlob.decode(dao.rows.single().counts)
+
+    /** Линии выше заданной энергии — там сдвиг шкалы виден как отдельная линия. */
+    private fun linesAbove(counts: List<Int>, calibration: EnergyCalibration, energyKeV: Float) =
+        TemplateRepository.points(counts, calibration, 0.084f)
+            .filter { it.energyKeV > energyKeV }
+
+    /**
+     * Выше этой энергии у ториевого источника одна линия — 2615 кэВ (Tl-208).
+     * Появление второй означает, что сложение раздвоило её.
+     */
+    private val HIGH_ENERGY_KEV = 2000f
 
     @Test
     fun `счёт шаблона возвращается из базы без потерь`() = runTest {

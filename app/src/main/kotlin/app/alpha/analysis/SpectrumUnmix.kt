@@ -1,9 +1,13 @@
 package app.alpha.analysis
 
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import kotlin.random.Random
 
 /**
  * Разложение спектра по шаблонам — полноспектральный анализ.
@@ -33,6 +37,25 @@ import kotlin.math.sqrt
  * нет. Поэтому усиление и смещение ищутся вместе с долями — перебором по сетке
  * с уточнением, а не «доверием к калибровке прибора».
  *
+ * ## Почему шум шаблона входит в σ
+ *
+ * Шаблон — это тоже измерение, а не точная форма: у шаблона на полчаса в канале
+ * верхней части шкалы единицы импульсов, и его собственный пуассоновский шум
+ * переносится в долю. Кривизна правдоподобия по данным этого не видит вовсе,
+ * поэтому σ, посчитанная только по ней, делает получасовой шаблон таким же
+ * надёжным, как 70-часовой.
+ *
+ * Вклад шаблонов берётся параметрическим бутстрэпом ([Component.sigmaTemplate]),
+ * а не аналитической поправкой Барлоу–Бистона. У Барлоу–Бистона на каждый канал
+ * каждого шаблона заводится nuisance-параметр, и его решают вместе с долями —
+ * это предполагает, что шаблон входит в модель поканально и без преобразований.
+ * Здесь между сырым шаблоном и моделью стоят уширение и перекладка на чужую
+ * шкалу ([SpectrumTemplate.adapt]), а сама шкала подбирается перебором: шум
+ * канала шаблона расползается по соседям, и поканальных nuisance-параметров уже
+ * нет. Бутстрэп не требует этого вывода — он гоняет ту же самую цепочку на
+ * пересемплированном шаблоне и меряет разброс ответа, учитывая и уширение, и
+ * перекладку.
+ *
  * ## Чего здесь нет
  *
  * Активности в беккерелях. Разложение говорит, какая доля счёта объясняется
@@ -45,13 +68,32 @@ object SpectrumUnmix {
         val name: String,
         /** Множитель к шаблону: во сколько раз он входит в измеренное. */
         val scale: Double,
-        /** Неопределённость множителя (кривизна правдоподобия). */
-        val sigma: Double,
+        /**
+         * Вклад статистики ДАННЫХ в неопределённость множителя: кривизна
+         * правдоподобия при шаблоне, принятом за точную форму.
+         */
+        val sigmaData: Double,
+        /**
+         * Вклад статистики ШАБЛОНОВ: СКО множителя по бутстрэп-репликам, в
+         * которых сырой счёт шаблонов пересемплирован из Пуассона. Ноль, когда
+         * реплики не строились.
+         */
+        val sigmaTemplate: Double,
         /** Сколько импульсов измеренного спектра объясняет эта форма. */
         val counts: Double,
-        /** Предел Карри для множителя: ниже него доля неотличима от нуля. */
+        /**
+         * Предел Карри для множителя: ниже него доля неотличима от нуля.
+         * Считается по статистике ДАННЫХ; шум шаблона в него не входит, поэтому
+         * на коротком шаблоне предел оптимистичен.
+         */
         val criticalScale: Double,
     ) {
+        /**
+         * Полная неопределённость множителя: √(sigmaData² + sigmaTemplate²).
+         * Два источника независимы — данные и шаблон измерены порознь.
+         */
+        val sigma: Double get() = sqrt(sigmaData * sigmaData + sigmaTemplate * sigmaTemplate)
+
         val detected: Boolean get() = scale > criticalScale
     }
 
@@ -90,7 +132,10 @@ object SpectrumUnmix {
      * @param counts измеренный спектр, сырые импульсы.
      * @param calibration калибровка ЭТОГО прибора (стартовая точка для поиска
      *   усиления и смещения).
-     * @param resolution662 разрешение этого прибора.
+     * @param resolution662 разрешение этого прибора на 662 кэВ.
+     * @param targetCurve разрешение этого прибора как функция энергии, если оно
+     *   измерено по его собственным спектрам; null — работает паспортная форма
+     *   FWHM ∝ √E от [resolution662].
      * @param templates формы, по которым раскладываем; шаблон, который не
      *   приводится к этому прибору, молча не пропадает — он выбрасывает всю
      *   попытку, потому что состав без одной из форм означает другое.
@@ -102,13 +147,27 @@ object SpectrumUnmix {
         resolution662: Float,
         templates: List<SpectrumTemplate>,
         fitScale: Boolean = true,
+        targetCurve: ResolutionCurve? = null,
     ): Result? {
         if (counts.size < SpectrumTemplate.MIN_CHANNELS || templates.isEmpty()) return null
         if (counts.sumOf { it.toLong() } <= 0L) return null
 
         var best: Result? = null
+        var bestScale: EnergyCalibration? = null
         val gains = if (fitScale) GAIN_GRID else listOf(1.0)
         val offsets = if (fitScale) OFFSET_GRID else listOf(0.0)
+        // Единственное место приведения: бутстрэп обязан гонять реплики ТЕМ ЖЕ
+        // преобразованием, иначе разброс долей мерил бы разницу настроек
+        // приведения, а не шум шаблона.
+        val adaptTo: (SpectrumTemplate, EnergyCalibration) -> List<Double>? = { template, target ->
+            SpectrumTemplate.adapt(
+                template = template,
+                targetCalibration = target,
+                targetChannels = counts.size,
+                targetResolution662 = resolution662,
+                targetCurve = targetCurve,
+            )
+        }
         for (gain in gains) {
             for (offset in offsets) {
                 val shifted = EnergyCalibration(
@@ -117,18 +176,120 @@ object SpectrumUnmix {
                     a2 = (calibration.a2 * gain).toFloat(),
                 )
                 val adapted = templates.map { template ->
-                    SpectrumTemplate.adapt(
-                        template = template,
-                        targetCalibration = shifted,
-                        targetChannels = counts.size,
-                        targetResolution662 = resolution662,
-                    ) ?: return@of null
+                    adaptTo(template, shifted) ?: return@of null
                 }
                 val fitted = fit(counts, adapted, templates.map { it.name }, gain, offset)
-                if (best == null || fitted.cash < best!!.cash) best = fitted
+                if (best == null || fitted.cash < best!!.cash) {
+                    best = fitted
+                    bestScale = shifted
+                }
             }
         }
-        return best
+        val found = best ?: return null
+        val scale = bestScale ?: return found
+        return withTemplateSigma(found, counts, templates, scale, adaptTo)
+    }
+
+    /**
+     * Дополнить неопределённость долей вкладом статистики шаблонов.
+     *
+     * Реплика: сырой счёт КАЖДОГО шаблона пересемплируется поканально из
+     * Пуассона со средним, равным измеренному счёту канала, шаблон заново
+     * приводится к прибору и доли заново подгоняются EM. Разброс долей по
+     * репликам и есть [Component.sigmaTemplate].
+     *
+     * Усиление и смещение при этом ФИКСИРОВАНЫ на найденных: масштабные
+     * параметры определены счётом всего спектра, их собственный разброс от шума
+     * шаблона мал против шага сетки, а повторение перебора умножило бы стоимость
+     * разложения на размер сетки.
+     *
+     * @param adapt приведение шаблона к прибору — то же самое, которым получены
+     *   формы основной подгонки.
+     * @return тот же результат с заполненным [Component.sigmaTemplate]; при
+     *   отказе приведения пересемплированного шаблона — исходный результат
+     *   (вклад шаблона остаётся нулевым, σ занижена, но состав не меняется).
+     */
+    private fun withTemplateSigma(
+        result: Result,
+        counts: List<Int>,
+        templates: List<SpectrumTemplate>,
+        calibration: EnergyCalibration,
+        adapt: (SpectrumTemplate, EnergyCalibration) -> List<Double>?,
+    ): Result {
+        val k = templates.size
+        val start = DoubleArray(k) { result.components[it].scale }
+        val random = Random(bootstrapSeed(counts))
+        val replicas = Array(k) { DoubleArray(BOOTSTRAP_REPLICAS) }
+        for (replica in 0 until BOOTSTRAP_REPLICAS) {
+            val resampled = templates.map { template ->
+                val jittered = template.copy(
+                    counts = template.counts.map { poisson(it.toDouble(), random) },
+                )
+                adapt(jittered, calibration) ?: return result
+            }
+            val scales = emScales(counts, resampled, start, BOOTSTRAP_ITERATIONS)
+            for (index in 0 until k) replicas[index][replica] = scales[index]
+        }
+        return result.copy(
+            components = result.components.mapIndexed { index, component ->
+                component.copy(sigmaTemplate = deviation(replicas[index]))
+            },
+        )
+    }
+
+    /**
+     * Зерно бутстрэпа из самих данных: одинаковый спектр обязан давать
+     * одинаковую σ. Экран пересчитывает разложение при каждом обновлении, и
+     * случайное зерно заставило бы неопределённость мигать от вызова к вызову.
+     */
+    private fun bootstrapSeed(counts: List<Int>): Int {
+        var total = 0L
+        for (value in counts) total += value
+        return (total * 31L + counts.size).toInt()
+    }
+
+    /** Выборочное СКО (делитель B−1): меньше двух реплик — разброса нет. */
+    private fun deviation(values: DoubleArray): Double {
+        if (values.size < 2) return 0.0
+        val mean = values.average()
+        var sum = 0.0
+        for (value in values) {
+            val d = value - mean
+            sum += d * d
+        }
+        return sqrt(sum / (values.size - 1))
+    }
+
+    /**
+     * Пуассоновский отсчёт со средним [mean].
+     *
+     * Выше 30 импульсов берётся гауссово приближение: асимметрия Пуассона
+     * равна 1/√λ, на λ = 30 это 0,18, и на разброс долей такая асимметрия не
+     * влияет; метод Кнута стоил бы там порядка λ умножений на канал. Ниже 30 —
+     * метод Кнута, точный по определению.
+     */
+    private fun poisson(mean: Double, random: Random): Int {
+        if (mean <= 0.0) return 0
+        if (mean > GAUSSIAN_FROM) {
+            val value = mean + sqrt(mean) * gaussian(random)
+            return value.roundToInt().coerceAtLeast(0)
+        }
+        val limit = exp(-mean)
+        var product = 1.0
+        var count = 0
+        while (true) {
+            product *= random.nextDouble()
+            if (product <= limit) return count
+            count++
+            if (count >= KNUTH_LIMIT) return count
+        }
+    }
+
+    /** Стандартная нормаль, преобразование Бокса — Мюллера. */
+    private fun gaussian(random: Random): Double {
+        val u1 = random.nextDouble().coerceAtLeast(MIN_UNIFORM)
+        val u2 = random.nextDouble()
+        return sqrt(-2.0 * ln(u1)) * cos(2.0 * Math.PI * u2)
     }
 
     /** Одна подгонка при ФИКСИРОВАННОЙ шкале: только доли. */
@@ -144,36 +305,13 @@ object SpectrumUnmix {
         // Старт: каждая форма несёт равную долю измеренного счёта. Нулевой
         // старт у мультипликативных итераций — ловушка: ноль умножается в ноль.
         val total = counts.sumOf { it.toDouble() }
-        val scales = DoubleArray(k) { index ->
+        val start = DoubleArray(k) { index ->
             val templateSum = templates[index].sum()
             if (templateSum > 0.0) total / (k * templateSum) else 0.0
         }
+        val scales = emScales(counts, templates, start, ITERATIONS)
 
         val model = DoubleArray(n)
-        repeat(ITERATIONS) {
-            for (channel in 0 until n) {
-                var value = 0.0
-                for (index in 0 until k) value += scales[index] * templates[index][channel]
-                model[channel] = value
-            }
-            for (index in 0 until k) {
-                var numerator = 0.0
-                var denominator = 0.0
-                for (channel in 0 until n) {
-                    val t = templates[index][channel]
-                    if (t <= 0.0) continue
-                    denominator += t
-                    val m = model[channel]
-                    if (m > 0.0) numerator += counts[channel] * t / m
-                }
-                if (denominator > 0.0 && numerator > 0.0) {
-                    scales[index] *= numerator / denominator
-                } else {
-                    scales[index] = 0.0
-                }
-            }
-        }
-
         for (channel in 0 until n) {
             var value = 0.0
             for (index in 0 until k) value += scales[index] * templates[index][channel]
@@ -221,7 +359,8 @@ object SpectrumUnmix {
                 Component(
                     name = names[index],
                     scale = scales[index],
-                    sigma = sigmas[index],
+                    sigmaData = sigmas[index],
+                    sigmaTemplate = 0.0,
                     counts = scales[index] * templates[index].sum(),
                     criticalScale = critical[index],
                 )
@@ -234,6 +373,49 @@ object SpectrumUnmix {
             offsetKeV = offset,
             residualSigma = residual.toList(),
         )
+    }
+
+    /**
+     * Мультипликативные итерации EM для долей при фиксированных шаблонах.
+     *
+     * @param start стартовые доли; на бутстрэп-репликах это уже найденный
+     *   оптимум, поэтому там хватает [BOOTSTRAP_ITERATIONS].
+     * @return доли, неотрицательные по построению.
+     */
+    private fun emScales(
+        counts: List<Int>,
+        templates: List<List<Double>>,
+        start: DoubleArray,
+        iterations: Int,
+    ): DoubleArray {
+        val n = counts.size
+        val k = templates.size
+        val scales = start.copyOf()
+        val model = DoubleArray(n)
+        repeat(iterations) {
+            for (channel in 0 until n) {
+                var value = 0.0
+                for (index in 0 until k) value += scales[index] * templates[index][channel]
+                model[channel] = value
+            }
+            for (index in 0 until k) {
+                var numerator = 0.0
+                var denominator = 0.0
+                for (channel in 0 until n) {
+                    val t = templates[index][channel]
+                    if (t <= 0.0) continue
+                    denominator += t
+                    val m = model[channel]
+                    if (m > 0.0) numerator += counts[channel] * t / m
+                }
+                if (denominator > 0.0 && numerator > 0.0) {
+                    scales[index] *= numerator / denominator
+                } else {
+                    scales[index] = 0.0
+                }
+            }
+        }
+        return scales
     }
 
     /**
@@ -284,6 +466,32 @@ object SpectrumUnmix {
 
     /** Сколько итераций EM: дальше множители меняются меньше промилле. */
     private const val ITERATIONS = 200
+
+    /**
+     * Сколько бутстрэп-реплик шаблонов.
+     *
+     * СКО по B репликам само измерено с относительной ошибкой 1/√(2(B−1)):
+     * при B = 14 это 20 %. Точнее не нужно — σ_template складывается в
+     * квадратуре с σ_data, и 20 % на слагаемом дают проценты на сумме. Каждая
+     * реплика стоит полного приведения шаблонов, поэтому цена линейна по B.
+     */
+    private const val BOOTSTRAP_REPLICAS = 14
+
+    /**
+     * Итераций EM на реплику. Реплика стартует с уже найденных долей и отличается
+     * от них на статистику шаблона, то есть на доли процента: оптимум рядом, и
+     * полные [ITERATIONS] здесь только жгли бы время.
+     */
+    private const val BOOTSTRAP_ITERATIONS = 30
+
+    /** Выше этого среднего пуассоновский отсчёт берётся гауссовым приближением. */
+    private const val GAUSSIAN_FROM = 30.0
+
+    /** Обрыв цикла Кнута: при λ ≤ 30 отсчёт 400 — это +67σ, дальше не считаем. */
+    private const val KNUTH_LIMIT = 400
+
+    /** Ноль под логарифмом в преобразовании Бокса — Мюллера. */
+    private const val MIN_UNIFORM = 1e-12
 
     /** Односторонний 95 % критерий Карри — тот же, что у пределов линий. */
     private const val SIGMAS = 1.645

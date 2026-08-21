@@ -151,6 +151,104 @@ class SpectrumUnmixTest {
         )
     }
 
+    @Test
+    fun `короткий шаблон честно теряет точность доли`() {
+        // Тот же измеренный спектр раскладывается дважды: полным шаблоном
+        // (7,7 ч, 3,1 млн импульсов) и им же, прореженным в 30 раз — это
+        // 15-минутное накопление. Форма у них одна, доля обязана совпасть, а
+        // неопределённость доли — нет: у прореженного в канале верхней части
+        // шкалы единицы импульсов, и этот шум входит в ответ.
+        val target = background.second
+        val adapted = assertNotNull(
+            SpectrumTemplate.adapt(thorium, target, background.first.size, 0.084f),
+        )
+        val measured = Random(20260821).let { random -> adapted.map { poisson(it * 0.30, random) } }
+        val short = thin(thorium, 30, Random(11))
+
+        val full = assertNotNull(unmix(measured, target, thorium)).components.single()
+        val poor = assertNotNull(unmix(measured, target, short)).components.single()
+
+        // Множитель у прореженного шаблона в 30 раз больше: сравнивать можно
+        // только относительные величины.
+        val fullNoise = full.sigmaTemplate / full.scale
+        val poorNoise = poor.sigmaTemplate / poor.scale
+        assertTrue(
+            poorNoise > 3.0 * fullNoise,
+            "шум короткого шаблона $poorNoise против $fullNoise у полного",
+        )
+        val total = measured.sumOf { it.toDouble() }
+        val fullShare = full.counts / total
+        val poorShare = poor.counts / total
+        val tolerance = 3.0 * (poor.sigma / poor.scale + full.sigma / full.scale)
+        assertTrue(
+            abs(poorShare - fullShare) <= tolerance,
+            "доли разошлись: $poorShare против $fullShare при допуске $tolerance",
+        )
+    }
+
+    @Test
+    fun `у длинного шаблона главный шум — шум данных`() {
+        // В шаблоне 3,1 млн импульсов, в измерении — около 156 тыс.: данных в
+        // 20 раз меньше. Пока это так, полную σ обязан задавать шум данных,
+        // иначе разложение занижает точность длинного накопления.
+        val target = background.second
+        val adapted = assertNotNull(
+            SpectrumTemplate.adapt(thorium, target, background.first.size, 0.084f),
+        )
+        val measured = Random(4).let { random -> adapted.map { poisson(it * 0.05, random) } }
+
+        val component = assertNotNull(unmix(measured, target, thorium)).components.single()
+        assertTrue(
+            component.sigmaTemplate < 0.5 * component.sigmaData,
+            "шаблонный шум ${component.sigmaTemplate} против данных ${component.sigmaData}",
+        )
+        assertEquals(
+            kotlin.math.sqrt(
+                component.sigmaData * component.sigmaData +
+                    component.sigmaTemplate * component.sigmaTemplate,
+            ),
+            component.sigma,
+            1e-12,
+        )
+    }
+
+    @Test
+    fun `одинаковый спектр даёт одинаковую неопределённость`() {
+        // Экран пересчитывает разложение при каждом обновлении спектра.
+        // Плавающее зерно бутстрэпа заставило бы σ мигать от вызова к вызову.
+        val target = background.second
+        val adapted = assertNotNull(
+            SpectrumTemplate.adapt(thorium, target, background.first.size, 0.084f),
+        )
+        val measured = Random(3).let { random -> adapted.map { poisson(it * 0.20, random) } }
+
+        val first = assertNotNull(unmix(measured, target, thorium)).components.single()
+        val second = assertNotNull(unmix(measured, target, thorium)).components.single()
+        assertEquals(first.sigmaTemplate, second.sigmaTemplate, 0.0)
+    }
+
+    private fun unmix(
+        measured: List<Int>,
+        calibration: EnergyCalibration,
+        template: SpectrumTemplate,
+    ) = SpectrumUnmix.of(
+        counts = measured,
+        calibration = calibration,
+        resolution662 = 0.084f,
+        templates = listOf(template),
+        fitScale = false,
+    )
+
+    /**
+     * Прореживание шаблона в [factor] раз: пуассоновский счёт с уменьшенным
+     * средним и во столько же раз меньшее время накопления — то же измерение,
+     * только короче.
+     */
+    private fun thin(template: SpectrumTemplate, factor: Int, random: Random) = template.copy(
+        counts = template.counts.map { poisson(it.toDouble() / factor, random) },
+        seconds = template.seconds / factor,
+    )
+
     /** Пуассоновский отсчёт: для больших средних — гауссово приближение. */
     private fun poisson(mean: Double, random: Random): Int {
         if (mean <= 0.0) return 0

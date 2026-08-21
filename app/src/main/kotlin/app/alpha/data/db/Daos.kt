@@ -583,6 +583,10 @@ interface SpectrumTemplateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(template: SpectrumTemplateEntity): Long
 
+    /** Досъёмка шаблона: счёт и время заменяются сложенными. */
+    @Update
+    suspend fun update(template: SpectrumTemplateEntity)
+
     @Query("SELECT * FROM spectrum_templates ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<SpectrumTemplateEntity>>
 

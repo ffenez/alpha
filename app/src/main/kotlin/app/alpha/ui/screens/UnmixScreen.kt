@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import app.alpha.AppGraph
 import app.alpha.analysis.EnergyCalibration
+import app.alpha.analysis.ResolutionCurve
 import app.alpha.analysis.SpectrumUnmix
 import app.alpha.data.TemplateRepository
 import app.alpha.data.db.SpectrumTemplateEntity
@@ -36,6 +38,9 @@ import app.alpha.ui.components.AppButton
 import app.alpha.ui.components.Card
 import app.alpha.ui.components.ChartNotesDialog
 import app.alpha.ui.components.Chip
+import app.alpha.ui.components.ConfirmDialog
+import app.alpha.ui.components.EntityMenuButton
+import app.alpha.ui.components.EntityMenuItem
 import app.alpha.ui.components.ExplainInfoButton
 import app.alpha.ui.components.Hint
 import app.alpha.ui.logic.HistoryFormat
@@ -87,6 +92,19 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
     var running by remember { mutableStateOf(false) }
     var methodOpen by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
+    var appendTarget by remember { mutableStateOf<SpectrumTemplateEntity?>(null) }
+
+    val hub by graph.spectrumHub.state.collectAsState()
+    val live = hub.spectrum?.takeIf { it.counts.isNotEmpty() && it.durationSeconds > 0L }
+
+    // Разрешение ЭТОГО прибора, измеренное по его собственным шаблонам:
+    // паспортное число одно на модель, а кристалл и фотоприёмник у каждого
+    // прибора свои. Пересчитывается, когда библиотека меняется.
+    var curve by remember { mutableStateOf<ResolutionCurve?>(null) }
+    LaunchedEffect(templates.size, serial) {
+        curve = graph.templateRepository.deviceCurve(serial)
+    }
+    val resolution = curve?.resolution662 ?: model.peakResolution662
 
     val context = LocalContext.current
     val importLauncher = rememberLauncherForActivityResult(
@@ -100,6 +118,31 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
         }
     }
 
+    appendTarget?.let { target ->
+        // Сложение необратимо: прежний шаблон после него не восстановить.
+        ConfirmDialog(
+            title = t.appendConfirmTitle,
+            body = t.appendConfirmBody(
+                name = target.name,
+                have = HistoryFormat.duration(target.durationSeconds, h),
+                add = HistoryFormat.duration(live?.durationSeconds ?: 0L, h),
+            ),
+            confirmText = t.appendTemplate,
+            onConfirm = {
+                appendTarget = null
+                running = true
+                scope.launch {
+                    message = withContext(Dispatchers.Default) {
+                        appendToTemplate(graph, target, resolution, curve, t, h)
+                    }
+                    result = null
+                    running = false
+                }
+            },
+            onDismiss = { appendTarget = null },
+        )
+    }
+
     if (methodOpen) {
         ChartNotesDialog(
             title = t.methodTitle,
@@ -108,6 +151,7 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
                 t.methodPoisson,
                 t.methodScale,
                 t.methodDevice,
+                t.methodResolution,
                 t.methodNoBecquerel,
             ),
         ) { methodOpen = false }
@@ -177,16 +221,31 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
+                curve?.let { measured ->
+                    Hint(
+                        text = t.resolutionMeasured(
+                            at662 = Uncertainty.num1(100f * measured.resolution662),
+                            at2615 = Uncertainty.num1(
+                                100f * measured.fwhmAt(HIGH_LINE_KEV) / HIGH_LINE_KEV,
+                            ),
+                        ),
+                    )
+                }
                 for (entity in templates) {
+                    val fitness = graph.templateRepository.fitness(
+                        entity = entity,
+                        serial = serial,
+                        resolution662 = resolution,
+                    )
                     TemplateRow(
                         entity = entity,
-                        fitness = graph.templateRepository.fitness(
-                            entity = entity,
-                            serial = serial,
-                            resolution662 = model.peakResolution662,
-                        ),
+                        fitness = fitness,
                         t = t,
                         h = h,
+                        // Досъёмка возможна только для шаблона ЭТОГО прибора:
+                        // складывать формы разных кристаллов нельзя.
+                        canAppend = fitness == TemplateRepository.Fitness.OWN && live != null,
+                        onAppend = { appendTarget = entity },
                         onDelete = {
                             scope.launch {
                                 graph.templateRepository.delete(entity.id)
@@ -202,7 +261,7 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
                         running = true
                         scope.launch {
                             val outcome = withContext(Dispatchers.Default) {
-                                decompose(graph, model, serial)
+                                decompose(graph, serial, resolution, curve)
                             }
                             result = outcome
                             if (outcome == null) message = t.failed
@@ -223,6 +282,8 @@ private fun TemplateRow(
     fitness: TemplateRepository.Fitness,
     t: UnmixStrings,
     h: app.alpha.ui.text.HistoryStrings,
+    canAppend: Boolean,
+    onAppend: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val colors = LocalAppColors.current
@@ -239,7 +300,12 @@ private fun TemplateRow(
                 color = colors.ink,
                 modifier = Modifier.weight(1f),
             )
-            Chip(text = t.deleteTemplate, color = colors.ink2, onClick = onDelete)
+            EntityMenuButton(
+                menu = listOf(
+                    EntityMenuItem(t.appendTemplate, enabled = canAppend, onClick = onAppend),
+                    EntityMenuItem(t.deleteTemplate, onClick = onDelete),
+                ),
+            )
         }
         // Годность к ЭТОМУ прибору — критическая строка: чужая форма меняет
         // состав молча, и промолчать о ней нельзя.
@@ -347,6 +413,60 @@ private suspend fun recordTemplate(
 }
 
 /**
+ * Досъёмка шаблона: накопленное сейчас складывается с уже записанным.
+ *
+ * Сдвиг шкалы между сеансами измеряется тем же разложением, которым потом
+ * считаются доли: шаблон выступает единственной формой, а подобранные усиление
+ * и смещение говорят, насколько уехала шкала прибора с прошлого раза. Без этого
+ * сложение размазало бы линии и ухудшило разрешение шаблона.
+ */
+private suspend fun appendToTemplate(
+    graph: AppGraph,
+    entity: SpectrumTemplateEntity,
+    resolution662: Float,
+    curve: ResolutionCurve?,
+    t: UnmixStrings,
+    h: app.alpha.ui.text.HistoryStrings,
+): String {
+    val spectrum = graph.spectrumHub.state.value.spectrum ?: return t.needSpectrum
+    val total = spectrum.counts.sumOf { it.toLong() }
+    if (spectrum.durationSeconds < MIN_APPEND_SECONDS || total < MIN_APPEND_COUNTS) {
+        return t.appendTooShort
+    }
+    val repository = graph.templateRepository
+    val calibration = EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2)
+    val alignment = SpectrumUnmix.of(
+        counts = spectrum.counts,
+        calibration = calibration,
+        resolution662 = resolution662,
+        templates = listOf(repository.template(entity)),
+        targetCurve = curve,
+    ) ?: return t.appendRefused
+    val seconds = repository.accumulate(
+        entity = entity,
+        counts = spectrum.counts,
+        calibration = calibration,
+        seconds = spectrum.durationSeconds,
+        gain = alignment.gain,
+        offsetKeV = alignment.offsetKeV,
+    ) ?: return t.appendRefused
+    return t.appended(
+        name = entity.name,
+        total = HistoryFormat.duration(seconds, h),
+        gain = Uncertainty.num2(alignment.gain.toFloat()),
+    )
+}
+
+/**
+ * **Инженерные параметры досъёмки.** Сдвиг шкалы измеряется по самой записи, а
+ * не берётся на веру: на минуте и тысяче импульсов положение линий определено
+ * хуже, чем сам сдвиг (доли процента шкалы), и сложение по такому выравниванию
+ * размыло бы шаблон вместо уточнения.
+ */
+private const val MIN_APPEND_SECONDS = 60L
+private const val MIN_APPEND_COUNTS = 1_000L
+
+/**
  * Разложить накопленный спектр по пригодным шаблонам.
  *
  * Непригодные (у прибора разрешение лучше) в подгонку не берутся вовсе:
@@ -354,20 +474,24 @@ private suspend fun recordTemplate(
  */
 private suspend fun decompose(
     graph: AppGraph,
-    model: DeviceModel,
     serial: String?,
+    resolution662: Float,
+    curve: ResolutionCurve?,
 ): SpectrumUnmix.Result? {
     val spectrum = graph.spectrumHub.state.value.spectrum ?: return null
     val repository = graph.templateRepository
     val usable = repository.all().filter {
-        repository.fitness(it, serial, model.peakResolution662) !=
-            TemplateRepository.Fitness.REFUSED
+        repository.fitness(it, serial, resolution662) != TemplateRepository.Fitness.REFUSED
     }
     if (usable.isEmpty()) return null
     return SpectrumUnmix.of(
         counts = spectrum.counts,
         calibration = EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2),
-        resolution662 = model.peakResolution662,
+        resolution662 = resolution662,
         templates = usable.map { repository.template(it) },
+        targetCurve = curve,
     )
 }
+
+/** Верхняя линия ториевого ряда (Tl-208): дальний край шкалы прибора серии. */
+private const val HIGH_LINE_KEV = 2615f

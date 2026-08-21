@@ -3,6 +3,7 @@ package app.alpha.analysis
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
@@ -47,6 +48,11 @@ data class SpectrumTemplate(
     val resolution662: Float,
     /** Модель прибора, на котором снят шаблон; null — не указана. */
     val deviceName: String? = null,
+    /**
+     * Разрешение прибора шаблона как функция энергии, измеренная по его же
+     * линиям; null — измерить не удалось, работает [resolution662].
+     */
+    val curve: ResolutionCurve? = null,
 ) {
     val totalCounts: Long get() = counts.sumOf { it.toLong() }
 
@@ -81,6 +87,7 @@ data class SpectrumTemplate(
             targetCalibration: EnergyCalibration,
             targetChannels: Int,
             targetResolution662: Float,
+            targetCurve: ResolutionCurve? = null,
         ): List<Double>? {
             if (targetChannels < MIN_CHANNELS || template.counts.size < MIN_CHANNELS) return null
             // Разрешение цели ХУЖЕ — значит уширяем. Небольшой запас: шаблон и
@@ -88,27 +95,88 @@ data class SpectrumTemplate(
             // неравенства значило бы отказывать самому частому случаю.
             if (targetResolution662 + RESOLUTION_TOLERANCE < template.resolution662) return null
 
-            val widened = widen(template, targetResolution662)
+            val widened = widen(
+                template = template,
+                target = targetCurve ?: ResolutionCurve.ofResolution662(targetResolution662),
+            )
             return rebin(widened, template.calibration, targetCalibration, targetChannels)
+        }
+
+        /**
+         * Досъёмка шаблона: новое накопление того же прибора складывается со
+         * старым.
+         *
+         * Шаблон — измерение, и его собственный шум падает как 1/√N: час поверх
+         * получаса делает форму заметно точнее, а вместе с ней и доли при
+         * разложении. Складывать при этом можно только выровненное:
+         *
+         *  - шкала прибора между сеансами уезжает (на 110 линия K-40 стоит на
+         *    ≈2 % ниже), поэтому [gain] и [offsetKeV] — это ИЗМЕРЕННОЕ смещение
+         *    новой записи относительно шаблона, а не поправка «на глаз»;
+         *  - счёт переносится на каналы шаблона по перекрытию энергий, иначе
+         *    сложение размажет линии и разрешение шаблона ухудшится.
+         *
+         * Уширения здесь нет: прибор тот же, разрешение то же.
+         *
+         * @param gain усиление шкалы новой записи относительно её же
+         *   калибровки (1 — калибровка верна).
+         * @param offsetKeV смещение шкалы новой записи, кэВ.
+         * @return шаблон со сложенным счётом и сложенным временем; null, если
+         *   шкалы не пересекаются или новое накопление слишком короткое.
+         */
+        fun accumulate(
+            template: SpectrumTemplate,
+            counts: List<Int>,
+            calibration: EnergyCalibration,
+            seconds: Long,
+            gain: Double = 1.0,
+            offsetKeV: Double = 0.0,
+        ): SpectrumTemplate? {
+            if (counts.size < MIN_CHANNELS || seconds <= 0L) return null
+            val corrected = EnergyCalibration(
+                a0 = (calibration.a0 * gain + offsetKeV).toFloat(),
+                a1 = (calibration.a1 * gain).toFloat(),
+                a2 = (calibration.a2 * gain).toFloat(),
+            )
+            val values = DoubleArray(counts.size) { counts[it].toDouble() }
+            // Тот же прибор в том же режиме даёт ту же шкалу: перекладывать
+            // нечего, а округление после неё только теряло бы импульсы.
+            val moved = if (corrected == template.calibration && counts.size == template.counts.size) {
+                values.toList()
+            } else {
+                rebin(values, corrected, template.calibration, template.counts.size) ?: return null
+            }
+            // Округление к ближайшему, а не отбрасывание дробной части:
+            // отбрасывание теряло бы в среднем полимпульса на канал, то есть
+            // сотни импульсов на шкалу. Ошибка округления в канале ≤ 0,5 —
+            // много меньше его пуассоновского √N.
+            val summed = List(template.counts.size) { index ->
+                template.counts[index] + moved[index].roundToInt()
+            }
+            return template.copy(counts = summed, seconds = template.seconds + seconds)
         }
 
         /**
          * Уширение линий шаблона до разрешения цели.
          *
-         * Ширина зависит от энергии (FWHM ∝ √E), поэтому ядро свёртки своё для
-         * каждого канала. Считается по энергии и переводится в каналы ценой
-         * деления в этом месте шкалы.
+         * Ширина зависит от энергии, поэтому ядро свёртки своё для каждого
+         * канала. Ширина берётся из [ResolutionCurve] — измеренной, если она
+         * есть, и паспортной формы FWHM ∝ √E, если нет. Разница не
+         * косметическая: на 2615 кэВ паспортная форма расходится с измеренной
+         * на десятки процентов ширины, и уширение по ней либо не доводит линию
+         * до нужной, либо размазывает её сверх меры.
          */
-        private fun widen(template: SpectrumTemplate, targetResolution662: Float): DoubleArray {
+        private fun widen(template: SpectrumTemplate, target: ResolutionCurve): DoubleArray {
             val n = template.counts.size
             val out = DoubleArray(n)
             val cal = template.calibration
+            val own = template.curve ?: ResolutionCurve.ofResolution662(template.resolution662)
             for (i in 0 until n) {
                 val value = template.counts[i].toDouble()
                 if (value <= 0.0) continue
                 val energy = cal.energyAt(i.toFloat())
-                val targetFwhm = PeakDetection.fwhmKeV(energy, targetResolution662)
-                val ownFwhm = PeakDetection.fwhmKeV(energy, template.resolution662)
+                val targetFwhm = target.fwhmAt(energy)
+                val ownFwhm = own.fwhmAt(energy)
                 val extra = targetFwhm * targetFwhm - ownFwhm * ownFwhm
                 if (extra <= 0f) {
                     out[i] += value
