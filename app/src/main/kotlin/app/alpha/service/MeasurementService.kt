@@ -39,6 +39,7 @@ import app.alpha.baseline.deviationMagnitude
 import app.alpha.data.DoseUnitSetting
 import app.alpha.data.RawRetention
 import app.alpha.data.SpectrumPollPolicy
+import app.alpha.data.export.CrashLog
 import app.alpha.ui.text.AppLanguage
 import app.alpha.ui.text.NotificationCatalogue
 import app.alpha.ui.text.NotificationEn
@@ -60,6 +61,7 @@ import app.alpha.ui.logic.DoseFormat
 import app.alpha.protocol.RealTimeData
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -206,7 +208,27 @@ class MeasurementService : Service() {
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph.get(this)
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        // Сбой ОДНОЙ задачи службы не имеет права уносить приложение.
+        // Без обработчика исключение из любой корутины уходит в системный
+        // обработчик, а тот убивает процесс вместе с экраном — так падало
+        // удаление идущей записи маршрута. Падение при этом не прячется:
+        // оно записывается в журнал сбоев, который уезжает в отладочный архив.
+        val failures = CoroutineExceptionHandler { _, error ->
+            runCatching {
+                CrashLog.append(
+                    graph.crashLogFile,
+                    CrashLog.entry(
+                        atMillis = System.currentTimeMillis(),
+                        stamp = CRASH_STAMP.format(
+                            java.time.Instant.now().atZone(java.time.ZoneId.systemDefault()),
+                        ),
+                        threadName = Thread.currentThread().name,
+                        error = error,
+                    ),
+                )
+            }
+        }
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + failures)
         Notifications.ensureChannels(this)
         graph.serviceStatus.onServiceStarted()
         rebuildTrackers()
@@ -1039,7 +1061,17 @@ class MeasurementService : Service() {
      */
     private suspend fun ensureTrackSession(): Long? {
         if (!tracking) return null
-        trackSessionId?.let { return it }
+        trackSessionId?.let { id ->
+            // Запись могли удалить, пока она шла: точка с исчезнувшей сессией
+            // нарушает внешний ключ, и раньше это роняло процесс вместе с
+            // экраном. Удалили — значит, писать больше некуда: запись
+            // останавливается, а не заводит себе новую сессию молча.
+            if (graph.trackRepository.session(id) == null) {
+                stopTracking()
+                return null
+            }
+            return id
+        }
         val id = graph.trackRepository.startSession(name = "")
         // Пока шла вставка, запись могли остановить — пустой маршрут убирается.
         if (!tracking) {
@@ -1350,6 +1382,10 @@ class MeasurementService : Service() {
          * эпизода пишется всегда.
          */
         private const val EPISODE_FLUSH_MILLIS = 60_000L
+
+        /** Метка времени в журнале сбоев — та же, что у обработчика графа. */
+        private val CRASH_STAMP: java.time.format.DateTimeFormatter =
+            java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
 
         private const val ALARM_NOTIFICATION_ID = 2
         private const val LOCATION_INTERVAL_MILLIS = 1_000L

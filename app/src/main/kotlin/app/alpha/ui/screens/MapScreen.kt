@@ -400,9 +400,11 @@ fun MapScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
-        // «Приблизительно» — тоже разрешение, и запись с ним начинается.
+        // Выданное разрешение — это НЕ команда начать запись. Раньше здесь
+        // стоял автоматический старт, и человек, разрешивший доступ к
+        // местоположению, обнаруживал идущий маршрут, которого не просил.
+        // «Приблизительно» — тоже разрешение: с ним карта и запись работают.
         hasLocation = results.values.any { it } || hasAnyLocation(context)
-        if (hasLocation) startTrackRecording(context)
     }
 
     // §3.3: subscribed only while this screen is resumed, released on leave.
@@ -583,9 +585,19 @@ fun MapScreen(
             !hasLocation -> LocationPermissionCard(
                 onRequest = { permissionLauncher.launch(arrayOf(FINE_LOCATION, COARSE_LOCATION)) },
             )
-            // Идущая запись видна значком на карте; внизу остаётся только
-            // причина отсутствия точек.
-            active != null -> TrackLocationNotice(state = trackLocation)
+            // Идущая запись останавливается ТАМ ЖЕ, где началась. Раньше
+            // кнопка исчезала, а состояние уезжало значком в угол карты — в
+            // поле остановку просто не находили.
+            active != null -> Column(
+                verticalArrangement = Arrangement.spacedBy(Dimens.space2),
+            ) {
+                TrackLocationNotice(state = trackLocation)
+                AppButton(
+                    text = t.stopRecording,
+                    onClick = { stopTrackRecording(context) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             // Начать маршрут — обычная кнопка под картой: это действие, а не
             // состояние, и место действия внизу, под большим пальцем. С
             // началом записи кнопка исчезает, а состояние переезжает значком
@@ -710,6 +722,10 @@ private fun TrackDetailScreen(
     val t = MapCatalogue.of(strings.language)
     val h = HistoryCatalogue.of(strings.language)
     val unit by graph.settings.doseUnit.collectAsState(initial = DoseUnitSetting.MICRO_SIEVERT)
+    // Какая запись идёт прямо сейчас: удаление ИМЕННО ЕЁ обязано сперва
+    // остановить службу.
+    val recordingSessionId = graph.serviceStatus.trackRecording
+        .collectAsState().value?.sessionId
     // Карта открыта поверх вкладки — горизонтальный жест принадлежит ей.
     MapGestureLock()
 
@@ -919,6 +935,10 @@ private fun TrackDetailScreen(
                     confirmText = strings.delete,
                     onConfirm = {
                         confirmDelete = false
+                        // Идущую запись сначала останавливают: удалённая
+                        // сессия, в которую служба продолжает писать точки,
+                        // роняла приложение на следующем же фиксе координат.
+                        if (recordingSessionId == id) stopTrackRecording(context)
                         scope.launch {
                             graph.trackRepository.delete(id)
                             onBack()
