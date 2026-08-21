@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0492Title: String
+    val v0492Summary: String
+
     val v0491Title: String
     val v0491Summary: String
 
@@ -438,6 +441,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0492Title = "Курсор спектра ставит точку на кривой и ходит стрелками"
+    override val v0492Summary =
+        "Под пальцем теперь видно не только вертикальную линию, но и саму точку на кривой — на " +
+        "логарифмической шкале высоту глазом не поймать. Стрелки шага по каналам переехали в " +
+        "карточку курсора, к тому числу, которое они двигают: внизу экрана их не находили."
 
     override val v0491Title = "У среза спектрограммы появилось место"
     override val v0491Summary =
@@ -1408,6 +1417,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0492Title = "The spectrum cursor marks the curve and steps with arrows"
+    override val v0492Summary =
+        "Under the finger there is now a dot on the curve itself, not only a vertical line — on " +
+        "a logarithmic scale the height cannot be caught by eye. The channel-step arrows moved " +
+        "into the cursor card, next to the number they move: at the bottom of the screen they " +
+        "were not found."
 
     override val v0491Title = "A spectrogram slice now carries its place"
     override val v0491Summary =

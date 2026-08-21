@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -425,6 +426,11 @@ fun SpectrumFullScreen(
                     LineMarkNote(outcome = aliveMark!!.outcome)
                 }
                 CursorCard(
+                    onStep = { direction ->
+                        val step = 1f / (frame.columns.size - 1).coerceAtLeast(1)
+                        cursorFraction.value =
+                            ((cursorFraction.value ?: 0f) + direction * step).coerceIn(0f, 1f)
+                    },
                     cursorFraction = cursorFraction,
                     frame = frame,
                     counts = spectrum.counts,
@@ -449,28 +455,8 @@ fun SpectrumFullScreen(
                     scaleRoot = scaleRoot,
                     modifier = Modifier.weight(1f),
                 )
-                // Курсор двигается и кнопками: пальцем не встать на нужный
-                // канал, а разглядывают спектр именно по каналам. Шаг — одна
-                // колонка кадра, то есть ровно то, что нарисовано.
-                if (cursorActive) {
-                    val step = 1f / (frame.columns.size - 1).coerceAtLeast(1)
-                    Chip(
-                        text = "◀",
-                        color = colors.ink2,
-                        onClick = {
-                            cursorFraction.value =
-                                ((cursorFraction.value ?: 0f) - step).coerceIn(0f, 1f)
-                        },
-                    )
-                    Chip(
-                        text = "▶",
-                        color = colors.ink2,
-                        onClick = {
-                            cursorFraction.value =
-                                ((cursorFraction.value ?: 0f) + step).coerceIn(0f, 1f)
-                        },
-                    )
-                }
+                // Стрелки курсора живут в его карточке, а не здесь: их искали
+                // глазами внизу и не находили.
                 // Легенды под полем нет: фон включает сам человек, и чип
                 // режима стоит в шапке — под графиком строка повторяла его.
             }
@@ -581,6 +567,8 @@ private fun BoxScope.CursorCard(
     /** Время накопления спектра, с. */
     seconds: Long,
     resolution662: Float,
+    /** Шаг курсора на один нарисованный канал; null — двигать нечем. */
+    onStep: ((Int) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -601,11 +589,23 @@ private fun BoxScope.CursorCard(
         contentPadding = Dimens.space2,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = t.cursorEnergy(SpectrumFormat.energyCell(readout.energyKeV)),
-                style = type.value,
-                color = colors.ink,
-            )
+            // Стрелки стоят рядом с числом, которое двигают: пальцем на
+            // нужный канал не встать, а внизу экрана их не находят.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                onStep?.let {
+                    Chip(text = "◀", color = colors.ink2, onClick = { it(-1) })
+                    Spacer(Modifier.width(Dimens.space1))
+                }
+                Text(
+                    text = t.cursorEnergy(SpectrumFormat.energyCell(readout.energyKeV)),
+                    style = type.value,
+                    color = colors.ink,
+                )
+                onStep?.let {
+                    Spacer(Modifier.width(Dimens.space1))
+                    Chip(text = "▶", color = colors.ink2, onClick = { it(1) })
+                }
+            }
             Text(
                 text = t.cursorChannel(readout.channel),
                 style = type.footnoteMono,

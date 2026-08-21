@@ -40,6 +40,7 @@ import kotlin.math.pow
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.chartField
 import app.alpha.ui.theme.LocalAppTypography
+import kotlin.math.roundToInt
 
 /**
  * Spectrum chart («Научный терминал», design-language.md): counts/keV as a
@@ -97,6 +98,12 @@ data class SpectrumChartSpec(
 
 /** Bottom of the log scale (mirrors the mockup: fractions of a count clamp here). */
 private const val LOG_FLOOR = 0.6f
+
+/**
+ * Радиус точки курсора. Достаточно, чтобы её было видно поверх кривой, и
+ * достаточно мало, чтобы она не закрывала соседние каналы.
+ */
+private const val CURSOR_DOT_DP = 4f
 
 @Composable
 fun SpectrumChart(
@@ -426,6 +433,31 @@ fun SpectrumChart(
                     end = Offset(xx, size.height - padBottomPx),
                     strokeWidth = 1.dp.toPx(),
                 )
+                // Точка на самой кривой: линия говорит «здесь по энергии», а
+                // сколько тут импульсов, глаз ищет пересечением — на
+                // логарифмической шкале это промах в разы. Точка ставится
+                // только там, где кривая нарисована: пустой канал не получает
+                // ложной высоты у нижнего края.
+                val plotH = size.height - padTopPx - padBottomPx
+                val lastIndex = (spec.columns.size - 1).coerceAtLeast(0)
+                val index = (fraction.coerceIn(0f, 1f) * lastIndex).roundToInt()
+                    .coerceIn(0, lastIndex)
+                val value = spec.columns.getOrNull(index)
+                val drawable = value != null && !value.isNaN() &&
+                    (spec.scale !is SpectrumScale.Log || value > 0f)
+                if (drawable && plotH > 0f) {
+                    val yy = SpectrumPlot.yPx(value!!, spec.yTop, spec.scale, padTopPx, plotH)
+                    drawCircle(
+                        color = colors.bg,
+                        radius = CURSOR_DOT_DP.dp.toPx() + 1.5.dp.toPx(),
+                        center = Offset(xx, yy),
+                    )
+                    drawCircle(
+                        color = colors.dataText,
+                        radius = CURSOR_DOT_DP.dp.toPx(),
+                        center = Offset(xx, yy),
+                    )
+                }
             }
         }
 
