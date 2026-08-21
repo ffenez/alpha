@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0491Title: String
+    val v0491Summary: String
+
     val v0490Title: String
     val v0490Summary: String
 
@@ -435,6 +438,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0491Title = "У среза спектрограммы появилось место"
+    override val v0491Summary =
+        "Нажатие на срез показывает, где был прибор в эту минуту, и открывает карту на этом " +
+        "месте — время сшивается с записью маршрута, поэтому работает и для уже накопленной " +
+        "истории. Если маршрут тогда не писался, строки места просто нет: координаты не " +
+        "додумываются."
 
     override val v0490Title = "Удаление идущей записи больше не роняет приложение"
     override val v0490Summary =
@@ -1398,6 +1408,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0491Title = "A spectrogram slice now carries its place"
+    override val v0491Summary =
+        "Tapping a slice shows where the instrument was during that minute and opens the map " +
+        "there — the time is matched against the recorded route, so it works for history " +
+        "gathered earlier too. If no route was being recorded then, there is simply no place " +
+        "line: coordinates are never invented."
 
     override val v0490Title = "Deleting a running recording no longer kills the app"
     override val v0490Summary =

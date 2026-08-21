@@ -17,6 +17,16 @@ package app.alpha.ui.text
 interface SpectrogramStrings {
 
     /**
+     * Где снят срез: координаты и точность. Спектрограмма отвечает «когда»,
+     * а маршрут — «где»; вместе они дают «что и где фонило».
+     */
+    fun placeAt(latitude: String, longitude: String, accuracy: String): String
+
+    /** Действие: открыть карту на этом месте. */
+    val showOnMap: String
+
+
+    /**
      * Прибор без энергетического разрешения: картинка остаётся честной как
      * «интенсивность во времени», но полосы у неё не энергии.
      */
@@ -187,6 +197,10 @@ interface SpectrogramStrings {
 
 object SpectrogramRu : SpectrogramStrings {
 
+    override fun placeAt(latitude: String, longitude: String, accuracy: String) =
+        "$latitude, $longitude · ±$accuracy м"
+    override val showOnMap = "На карте"
+
     override fun notSpectrometer(device: String) =
         "$device не разделяет энергии: полосы этой картинки — не энергии, а деление " +
             "шкалы прибора. Читать её как спектр во времени нельзя."
@@ -322,6 +336,10 @@ object SpectrogramRu : SpectrogramStrings {
 }
 
 object SpectrogramEn : SpectrogramStrings {
+
+    override fun placeAt(latitude: String, longitude: String, accuracy: String) =
+        "$latitude, $longitude · ±$accuracy m"
+    override val showOnMap = "On the map"
 
     override fun notSpectrometer(device: String) =
         "$device does not separate energies: the bands of this picture are not energies " +
@@ -484,6 +502,7 @@ val SpectrogramCatalogue = AreaCatalogue(ru = SpectrogramRu, en = SpectrogramEn)
  * означала бы непроверенный текст.
  */
 fun SpectrogramStrings.allTexts(): List<String> = listOf(
+    placeAt("55,7501", "37,6001", "8"), showOnMap,
     notSpectrometer("RadiaCode Zero"),
     recordNote, clearHistory, clearConfirmTitle, clearConfirmBody,
     title, noLink, warmingUp, offlineHistory, offlineTag, backgroundNote,

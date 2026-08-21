@@ -113,6 +113,22 @@ class TrackRepository(
         )
     }
 
+    /**
+     * Где был прибор в этот момент; null — маршрут тогда не писался.
+     *
+     * Допуск нужен: точки приходят по фиксам координат, а не по расписанию, и
+     * соседний фикс в минуте от среза описывает то же место. Дальше — уже не
+     * «здесь», и лучше не отвечать вовсе.
+     */
+    suspend fun pointNear(
+        atMillis: Long,
+        toleranceMillis: Long = POSITION_TOLERANCE_MILLIS,
+    ): TrackPointEntity? = trackDao.pointNear(
+        atMillis = atMillis,
+        from = atMillis - toleranceMillis,
+        to = atMillis + toleranceMillis,
+    )
+
     fun sessions(): Flow<List<TrackSessionEntity>> = trackDao.observeSessions()
 
     fun points(sessionId: Long): Flow<List<TrackPointEntity>> = trackDao.observePoints(sessionId)
@@ -257,6 +273,14 @@ class TrackRepository(
         limit = limit,
     )
     companion object {
+
+        /**
+         * Допуск сшивки по времени: минута. Фиксы приходят раз в несколько
+         * секунд, и минута покрывает пропуск сигнала, не превращая соседнюю
+         * улицу в «то же место».
+         */
+        const val POSITION_TOLERANCE_MILLIS = 60_000L
+
 
         /**
          * Корзина интегрирования дозы, мс. Те же десять минут, что у сессии

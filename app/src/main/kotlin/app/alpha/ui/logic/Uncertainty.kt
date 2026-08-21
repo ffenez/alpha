@@ -62,6 +62,13 @@ object Uncertainty {
     fun num2(value: Float): String =
         String.format(java.util.Locale.US, "%.2f", value).uiDecimal()
 
+    /**
+     * Координата для показа: пять знаков — это около метра на местности,
+     * больше знаков изображали бы точность, которой у бытового приёмника нет.
+     */
+    fun coordinate(value: Double): String =
+        String.format(Locale.US, "%.5f", value).uiDecimal()
+
     fun num1(value: Float): String =
         String.format(Locale.US, "%.1f", value).uiDecimal()
 

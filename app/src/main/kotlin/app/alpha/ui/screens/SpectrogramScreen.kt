@@ -41,6 +41,7 @@ import app.alpha.analysis.Spectrogram
 import app.alpha.analysis.SpectrogramColumn
 import app.alpha.analysis.SpectrogramSlice
 import app.alpha.data.DoseUnitSetting
+import app.alpha.data.db.TrackPointEntity
 import app.alpha.device.ConnectionState
 import app.alpha.ui.components.AppCloseButton
 import app.alpha.ui.components.Hint
@@ -112,6 +113,8 @@ data class SpectrogramViewOptions(
 fun SpectrogramScreen(
     graph: AppGraph,
     onBack: () -> Unit,
+    /** Открыть карту на месте выбранного среза. */
+    onOpenPlace: (latitude: Double, longitude: Double) -> Unit = { _, _ -> },
     options: SpectrogramViewOptions = SpectrogramViewOptions(),
     onOptionsChange: (SpectrogramViewOptions) -> Unit = {},
     /** Полноэкранный режим: поле занимает дисплей, карточка момента — поверх. */
@@ -209,6 +212,14 @@ fun SpectrogramScreen(
     // другой момент времени.
     LaunchedEffect(windowMillis) { selectedIndex = null }
     val selected = selectedIndex?.let { columnsData.getOrNull(it) }
+
+    // Где был прибор в этот момент. Читается ПО ТАПУ, а не заранее: сшивка
+    // нужна одному срезу, а не всей картинке, и держать координаты всей
+    // истории в памяти незачем.
+    var place by remember { mutableStateOf<TrackPointEntity?>(null) }
+    LaunchedEffect(selected?.startMillis) {
+        place = selected?.let { graph.trackRepository.pointNear(it.startMillis) }
+    }
 
     // Ось энергии переключается чипом (состояние), очистка записи живёт в
     // Настройках → Данные.
@@ -323,6 +334,8 @@ fun SpectrogramScreen(
                             stepSeconds = stepSeconds,
                             unit = unit,
                             t = t,
+                            place = place,
+                            onOpenPlace = onOpenPlace,
                             onDismiss = { selectedIndex = null },
                         )
                     }
@@ -481,6 +494,9 @@ private fun BoxScope.MomentOverlay(
     stepSeconds: Long,
     unit: DoseUnitSetting,
     t: SpectrogramStrings,
+    /** Точка маршрута этого момента; null — маршрут тогда не писался. */
+    place: TrackPointEntity?,
+    onOpenPlace: (latitude: Double, longitude: Double) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val strings = LocalStrings.current
@@ -536,6 +552,28 @@ private fun BoxScope.MomentOverlay(
                 style = type.footnote,
                 color = colors.muted,
             )
+            // Место появляется только когда оно известно: строки «координат
+            // нет» не бывает — маршрут просто не писался, и говорить об этом
+            // в карточке момента незачем.
+            place?.let { point ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = t.placeAt(
+                            latitude = Uncertainty.coordinate(point.latitude),
+                            longitude = Uncertainty.coordinate(point.longitude),
+                            accuracy = Uncertainty.num1(point.accuracyMeters),
+                        ),
+                        style = type.footnote,
+                        color = colors.ink2,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Chip(
+                        text = t.showOnMap,
+                        color = colors.dataText,
+                        onClick = { onOpenPlace(point.latitude, point.longitude) },
+                    )
+                }
+            }
         }
     }
 }

@@ -365,6 +365,14 @@ private fun MainScaffoldContent(graph: AppGraph) {
                 key.spectrogram -> SpectrogramScreen(
                     graph = graph,
                     onBack = { showSpectrogram = false },
+                    // «Где это было» — тем же путём, что и место превышения из
+                    // Журнала: карта открывается на точке.
+                    onOpenPlace = { latitude, longitude ->
+                        mapFocusLat = latitude
+                        mapFocusLon = longitude
+                        showSpectrogram = false
+                        tab = AppTab.MAP
+                    },
                     options = spectrogramOptions,
                     onOptionsChange = onSpectrogramOptions,
                     onOpenFullscreen = { spectrogramFull = true },

@@ -875,6 +875,21 @@ interface TrackDao {
     @Insert
     suspend fun insertPoint(point: TrackPointEntity): Long
 
+    /**
+     * Ближайшая к [atMillis] точка маршрута в пределах допуска — «где был
+     * прибор в этот момент». Ищется по всем записям: срез спектрограммы не
+     * знает, каким маршрутом его сопровождали.
+     */
+    @Query(
+        """
+        SELECT * FROM track_points
+        WHERE timestamp BETWEEN :from AND :to
+        ORDER BY ABS(timestamp - :atMillis)
+        LIMIT 1
+        """,
+    )
+    suspend fun pointNear(atMillis: Long, from: Long, to: Long): TrackPointEntity?
+
     @Query("SELECT * FROM track_points WHERE sessionId = :sessionId ORDER BY timestamp")
     fun observePoints(sessionId: Long): Flow<List<TrackPointEntity>>
 
