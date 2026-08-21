@@ -14,6 +14,7 @@ import app.alpha.data.db.RareDataEntity
 import app.alpha.data.db.SampleEntity
 import app.alpha.data.db.SpectrogramSliceEntity
 import app.alpha.data.db.SpectrumSnapshotEntity
+import app.alpha.data.db.SpectrumTemplateEntity
 import app.alpha.data.db.SurveyStationEntity
 import app.alpha.data.db.TrackPointEntity
 import app.alpha.data.db.TrackSessionEntity
@@ -24,6 +25,7 @@ import app.alpha.data.export.backup.BackupEpoch
 import app.alpha.data.export.backup.BackupEvent
 import app.alpha.data.export.backup.BackupExperiment
 import app.alpha.data.export.backup.BackupFingerprint
+import app.alpha.data.export.backup.BackupKey
 import app.alpha.data.export.backup.BackupMeasurement
 import app.alpha.data.export.backup.BackupNetwork
 import app.alpha.data.export.backup.BackupPage
@@ -40,6 +42,7 @@ import app.alpha.data.export.backup.BackupSource
 import app.alpha.data.export.backup.BackupSpectrum
 import app.alpha.data.export.backup.BackupStation
 import app.alpha.data.export.backup.BackupStream
+import app.alpha.data.export.backup.BackupTemplate
 import app.alpha.data.export.backup.RestoreCount
 import app.alpha.data.export.backup.RestoreMode
 import app.alpha.data.export.backup.RestoreSelection
@@ -83,6 +86,7 @@ class BackupRepository(
     private val sessionDao = database.sessionDao()
     private val trackDao = database.trackDao()
     private val spectrumDao = database.spectrumDao()
+    private val templateDao = database.templateDao()
     private val spectrogramDao = database.spectrogramDao()
     private val experimentDao = database.experimentDao()
 
@@ -112,6 +116,7 @@ class BackupRepository(
             routes = trackDao.sessionCount(),
             points = trackDao.totalPointCount(),
             spectra = spectrumDao.count(),
+            templates = templateDao.count(),
             slices = spectrogramDao.count().toLong(),
             experiments = experimentDao.count().toLong(),
         )
@@ -125,6 +130,9 @@ class BackupRepository(
             routes = trackDao.sessionCountSince(from),
             points = trackDao.pointCountSince(from),
             spectra = spectrumDao.countSince(from),
+            // Шаблон — не история, а библиотека прибора: он попадает в копию
+            // целиком независимо от выбранного периода.
+            templates = templateDao.count(),
             slices = spectrogramDao.countSince(from).toLong(),
             experiments = experimentDao.countSince(from),
         )
@@ -354,6 +362,32 @@ class BackupRepository(
         )
     }
 
+    override fun templates() = BackupStream { cursor, limit ->
+        // Шаблонов единицы — страница берётся целиком, курсор нужен лишь чтобы
+        // не отдать её дважды.
+        val rows = if (cursor > 0L) emptyList() else templateDao.all()
+        BackupPage(
+            items = rows.map { row ->
+                BackupTemplate(
+                    name = row.name,
+                    createdAt = row.createdAt,
+                    deviceSerial = row.deviceSerial,
+                    deviceName = row.deviceName,
+                    a0 = row.a0,
+                    a1 = row.a1,
+                    a2 = row.a2,
+                    durationSeconds = row.durationSeconds,
+                    resolution662 = row.resolution662,
+                    channelCount = row.channelCount,
+                    countsBase64 = BackupBinary.encode(row.counts),
+                    source = row.source,
+                    note = row.note,
+                )
+            },
+            nextCursor = if (rows.isEmpty()) null else 1L,
+        )
+    }
+
     override fun slices() = BackupStream { cursor, limit ->
         val page = minOf(limit, SPECTRA_PAGE)
         val rows = fromMillis?.let { spectrogramDao.pageSince(cursor, it, page) }
@@ -437,6 +471,7 @@ class BackupRepository(
             if (selection.routes) trackDao.clearSessions()
             if (selection.spectra) {
                 spectrumDao.clear()
+                templateDao.clear()
                 spectrogramDao.clear()
             }
             if (selection.experiments) experimentDao.clear()
@@ -748,6 +783,36 @@ class BackupRepository(
                 ),
             )
             spectrumIdsByKey[spectrum.key] = id
+            added++
+        }
+        return RestoreCount(added, batch.size - added)
+    }
+
+    override suspend fun templates(batch: List<BackupTemplate>): RestoreCount {
+        // У таблицы нет уникального индекса, а вставка идёт с REPLACE по
+        // идентификатору: без проверки повторный импорт удвоил бы библиотеку.
+        // Ключ тот же, что в копии, — имя и момент записи.
+        val existing = templateDao.all().map { BackupKey.of(it.name, it.createdAt) }.toMutableSet()
+        var added = 0L
+        for (template in batch) {
+            if (!existing.add(template.key)) continue
+            templateDao.insert(
+                SpectrumTemplateEntity(
+                    name = template.name,
+                    createdAt = template.createdAt,
+                    deviceSerial = template.deviceSerial,
+                    deviceName = template.deviceName,
+                    a0 = template.a0,
+                    a1 = template.a1,
+                    a2 = template.a2,
+                    durationSeconds = template.durationSeconds,
+                    resolution662 = template.resolution662,
+                    channelCount = template.channelCount,
+                    counts = BackupBinary.decode(template.countsBase64),
+                    source = template.source,
+                    note = template.note,
+                ),
+            )
             added++
         }
         return RestoreCount(added, batch.size - added)

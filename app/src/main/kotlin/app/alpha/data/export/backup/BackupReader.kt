@@ -86,6 +86,7 @@ interface BackupSink {
     suspend fun routes(batch: List<BackupRoute>): RestoreCount
     suspend fun points(batch: List<BackupPoint>): RestoreCount
     suspend fun spectra(batch: List<BackupSpectrum>): RestoreCount
+    suspend fun templates(batch: List<BackupTemplate>): RestoreCount
     suspend fun slices(batch: List<BackupSlice>): RestoreCount
     suspend fun experiments(batch: List<BackupExperiment>): RestoreCount
 
@@ -213,6 +214,7 @@ object BackupReader {
                 routes = counts[BackupFormat.ROUTES] ?: 0,
                 points = counts[BackupFormat.POINTS] ?: 0,
                 spectra = counts[BackupFormat.SPECTRA] ?: 0,
+                templates = counts[BackupFormat.TEMPLATES] ?: 0,
                 slices = counts[BackupFormat.SPECTROGRAM] ?: 0,
                 experiments = counts[BackupFormat.EXPERIMENTS] ?: 0,
             ),
@@ -307,6 +309,12 @@ object BackupReader {
                                 zip, BackupStage.SPECTRA, info.counts.spectra, summary,
                                 onProgress, BackupSpectrum::parse,
                             ) { sink.spectra(it) }
+                        }
+                        BackupFormat.TEMPLATES -> if (selection.spectra) {
+                            summary = consume(
+                                zip, BackupStage.TEMPLATES, info.counts.templates, summary,
+                                onProgress, BackupTemplate::parse,
+                            ) { sink.templates(it) }
                         }
                         BackupFormat.SPECTROGRAM -> if (selection.spectra) {
                             summary = consume(

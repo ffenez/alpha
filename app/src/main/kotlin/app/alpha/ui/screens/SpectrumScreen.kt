@@ -144,6 +144,7 @@ fun SpectrumScreen(
     onOpenSpectrogram: () -> Unit = {},
     onOpenRadon: () -> Unit = {},
     onOpenSurvey: () -> Unit = {},
+    onOpenUnmix: () -> Unit = {},
     onOpenLineTrend: () -> Unit = {},
     onOpenExperiments: () -> Unit = {},
     onOpenFood: () -> Unit = {},
@@ -629,6 +630,7 @@ fun SpectrumScreen(
                 onOpenSpectrogram = onOpenSpectrogram,
                 onOpenRadon = onOpenRadon,
                 onOpenSurvey = onOpenSurvey,
+                onOpenUnmix = onOpenUnmix,
                 onOpenLineTrend = onOpenLineTrend,
                 technicalOpen = technicalOpen,
                 onCloseTechnical = { technicalOpen = false },
@@ -691,6 +693,7 @@ private fun AnalysisToolsSheet(
     onOpenSpectrogram: () -> Unit,
     onOpenRadon: () -> Unit,
     onOpenSurvey: () -> Unit,
+    onOpenUnmix: () -> Unit,
     onOpenLineTrend: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -711,6 +714,8 @@ private fun AnalysisToolsSheet(
                 AnalysisToolRow(t.toolRadonTitle, t.toolRadonSubtitle, onOpenRadon)
                 AppDivider()
                 AnalysisToolRow(t.toolSurveyTitle, t.toolSurveySubtitle, onOpenSurvey)
+                AppDivider()
+                AnalysisToolRow(t.toolUnmixTitle, t.toolUnmixSubtitle, onOpenUnmix)
                 AppDivider()
                 AnalysisToolRow(t.toolLineTitle, t.toolLineSubtitle, onOpenLineTrend)
             }
@@ -863,6 +868,7 @@ private fun SpectrumContent(
     onOpenSpectrogram: () -> Unit = {},
     onOpenRadon: () -> Unit = {},
     onOpenSurvey: () -> Unit = {},
+    onOpenUnmix: () -> Unit = {},
     onOpenLineTrend: () -> Unit = {},
     /** Технические данные и справка открываются из «⋮» шапки. */
     technicalOpen: Boolean = false,
@@ -1394,6 +1400,7 @@ private fun SpectrumContent(
                 onOpenSpectrogram = { toolsOpen = false; onOpenSpectrogram() },
                 onOpenRadon = { toolsOpen = false; onOpenRadon() },
                 onOpenSurvey = { toolsOpen = false; onOpenSurvey() },
+                onOpenUnmix = { toolsOpen = false; onOpenUnmix() },
                 onOpenLineTrend = { toolsOpen = false; onOpenLineTrend() },
                 onDismiss = { toolsOpen = false },
             )

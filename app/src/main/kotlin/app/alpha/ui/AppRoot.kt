@@ -32,6 +32,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import app.alpha.ui.logic.SurveyModel
 import app.alpha.ui.screens.SurveyScreen
+import app.alpha.ui.screens.UnmixScreen
 import app.alpha.ui.theme.Motion
 import app.alpha.ui.components.ProvideSwipeBusy
 import app.alpha.ui.components.TabPager
@@ -81,6 +82,7 @@ private data class ScreenKey(
     val spectrogram: Boolean,
     val radon: Boolean,
     val survey: Boolean,
+    val unmix: Boolean,
     val lineTrend: Boolean,
     val experiments: Boolean,
     val food: Boolean,
@@ -207,6 +209,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
     var showExperiments by rememberSaveable { mutableStateOf(false) }
     var showRadon by rememberSaveable { mutableStateOf(false) }
     var showSurvey by rememberSaveable { mutableStateOf(false) }
+    var showUnmix by rememberSaveable { mutableStateOf(false) }
     // Какой величиной покрашены станции на карте; пусто — слоя станций нет.
     var surveyQuantityId by rememberSaveable { mutableStateOf<String?>(null) }
     var showLineTrend by rememberSaveable { mutableStateOf(false) }
@@ -225,7 +228,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
     // и не выключает; если службы нет (прибор не подключён), отклику всё
     // равно нечего озвучивать.
     BackHandler(
-        enabled = showSettings || showLiveChart || fullSpectrum || showSpectrogram || showRadon || showSurvey ||
+        enabled = showSettings || showLiveChart || fullSpectrum || showSpectrogram || showRadon || showSurvey || showUnmix ||
             showLineTrend || showDose ||
             showExperiments || showFood || showFingerprint || sessionDetailId != null ||
             trackMapSessionId != null || spectrumSnapshotId != null,
@@ -242,6 +245,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
             showSpectrogram -> showSpectrogram = false
             showRadon -> showRadon = false
             showSurvey -> showSurvey = false
+            showUnmix -> showUnmix = false
             showLineTrend -> showLineTrend = false
             showExperiments -> showExperiments = false
             trackMapSessionId != null -> trackMapSessionId = null
@@ -321,6 +325,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     spectrogram = showSpectrogram,
                     radon = showRadon,
                     survey = showSurvey,
+                    unmix = showUnmix,
                     lineTrend = showLineTrend,
                     experiments = showExperiments,
                     food = showFood,
@@ -378,6 +383,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     onOpenFullscreen = { spectrogramFull = true },
                 )
                 key.radon -> RadonScreen(graph, onBack = { showRadon = false })
+                key.unmix -> UnmixScreen(graph, onBack = { showUnmix = false })
                 key.survey -> SurveyScreen(
                     graph = graph,
                     onBack = { showSurvey = false },
@@ -479,6 +485,7 @@ private fun MainScaffoldContent(graph: AppGraph) {
                     onOpenSpectrogram = { showSpectrogram = true },
                     onOpenRadon = { showRadon = true },
                     onOpenSurvey = { showSurvey = true },
+                    onOpenUnmix = { showUnmix = true },
                     onOpenLineTrend = { showLineTrend = true },
                     onOpenExperiments = { showExperiments = true },
                     onOpenFood = { showFood = true },

@@ -152,6 +152,50 @@ data class SurveyStationEntity(
     val note: String? = null,
 )
 
+/**
+ * Шаблон спектра для полноспектрального разложения.
+ *
+ * Форма отклика принадлежит ПРИБОРУ: доля полного поглощения к комптону
+ * задаётся размером кристалла, ширина линии — разрешением. Поэтому шаблон
+ * хранит серийный номер прибора, на котором снят, свою калибровку и своё
+ * разрешение: к другому прибору он приводится явно и с отказом там, где
+ * приведение невозможно.
+ *
+ * Счёт лежит блобом i32 LE — тем же способом, что у снимков спектра.
+ */
+@Entity(
+    tableName = "spectrum_templates",
+    indices = [Index("deviceSerial"), Index("name")],
+)
+data class SpectrumTemplateEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Что это за форма: «Th-232», «фон места», «K-40». */
+    val name: String,
+    val createdAt: Long,
+    /** Серийник прибора; null — шаблон импортирован и прибор не назван. */
+    val deviceSerial: String? = null,
+    /** Модель прибора словами — то, что человек видит в списке. */
+    val deviceName: String? = null,
+    val a0: Float,
+    val a1: Float,
+    val a2: Float,
+    /** Живое время накопления шаблона, с. */
+    val durationSeconds: Long,
+    /** Разрешение прибора шаблона на 662 кэВ, доля. */
+    val resolution662: Float,
+    val channelCount: Int,
+    /** Счёт по каналам, i32 LE. */
+    val counts: ByteArray,
+    /** Откуда взят: [SOURCE_MEASURED] или [SOURCE_IMPORTED]. */
+    val source: String,
+    val note: String? = null,
+) {
+    companion object {
+        const val SOURCE_MEASURED = "measured"
+        const val SOURCE_IMPORTED = "imported"
+    }
+}
+
 /** Device-originated events and app-detected hotspots, one journal. */
 @Entity(
     tableName = "events",

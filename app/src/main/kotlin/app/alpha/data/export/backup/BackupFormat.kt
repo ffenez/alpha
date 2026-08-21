@@ -29,6 +29,7 @@ package app.alpha.data.export.backup
  * routes.json        — маршруты
  * points.ndjson      — точки маршрутов
  * spectra.ndjson     — спектры (счётчики каналов — base64)
+ * templates.ndjson   — шаблоны спектров (счёт по каналам — base64)
  * spectrogram.ndjson — срезы спектрограммы
  * experiments.ndjson — эксперименты и их прогоны
  * checksums.json     — SHA-256 каждой записи архива
@@ -83,6 +84,7 @@ object BackupFormat {
     const val ROUTES = "routes.json"
     const val POINTS = "points.ndjson"
     const val SPECTRA = "spectra.ndjson"
+    const val TEMPLATES = "templates.ndjson"
     const val SPECTROGRAM = "spectrogram.ndjson"
     const val EXPERIMENTS = "experiments.ndjson"
 

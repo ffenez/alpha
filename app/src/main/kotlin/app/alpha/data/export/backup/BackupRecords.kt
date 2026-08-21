@@ -586,6 +586,68 @@ data class BackupSpectrum(
     }
 }
 
+/**
+ * Шаблон спектра для полноспектрального разложения.
+ *
+ * Счёт по каналам — base64 того же двоичного вида (i32 LE), что и у снимка:
+ * шаблон набирается часами, и пересчёт в текст стоил бы размера копии на ровном
+ * месте. [resolution662] и серийник переносятся как есть: без них шаблон нельзя
+ * ни применить к своему прибору, ни привести уширением к чужому.
+ */
+data class BackupTemplate(
+    val name: String,
+    val createdAt: Long,
+    val deviceSerial: String?,
+    val deviceName: String?,
+    val a0: Float,
+    val a1: Float,
+    val a2: Float,
+    val durationSeconds: Long,
+    val resolution662: Float,
+    val channelCount: Int,
+    val countsBase64: String,
+    val source: String,
+    val note: String?,
+) {
+    val key: String get() = BackupKey.of(name, createdAt)
+
+    fun write(w: Json.Writer) {
+        w.beginObject()
+            .field("name", name)
+            .field("createdAt", createdAt)
+            .field("serial", deviceSerial)
+            .field("device", deviceName)
+            .field("a0", a0)
+            .field("a1", a1)
+            .field("a2", a2)
+            .field("duration", durationSeconds)
+            .field("resolution662", resolution662)
+            .field("channels", channelCount)
+            .field("counts", countsBase64)
+            .field("source", source)
+            .field("note", note)
+            .endObject()
+    }
+
+    companion object {
+        fun parse(o: Json.Value.Obj) = BackupTemplate(
+            name = o.str("name") ?: "",
+            createdAt = o.long("createdAt") ?: 0L,
+            deviceSerial = o.str("serial"),
+            deviceName = o.str("device"),
+            a0 = o.float("a0") ?: 0f,
+            a1 = o.float("a1") ?: 0f,
+            a2 = o.float("a2") ?: 0f,
+            durationSeconds = o.long("duration") ?: 0L,
+            resolution662 = o.float("resolution662") ?: 0f,
+            channelCount = o.int("channels") ?: 0,
+            countsBase64 = o.str("counts") ?: "",
+            source = o.str("source") ?: "imported",
+            note = o.str("note"),
+        )
+    }
+}
+
 /** Срез спектрограммы. */
 data class BackupSlice(
     val startMillis: Long,

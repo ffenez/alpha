@@ -238,6 +238,10 @@ interface SpectrumStrings {
     val toolSurveyTitle: String
     val toolSurveySubtitle: String
 
+    /** Полноспектральное разложение по измеренным формам. */
+    val toolUnmixTitle: String
+    val toolUnmixSubtitle: String
+
     // --- просмотр сохранённого снимка (История → снимок) ---
 
     /** Чип режима: на экране снимок, а не живое накопление. */
@@ -592,6 +596,8 @@ object SpectrumRu : SpectrumStrings {
     override val toolRadonSubtitle = "Анализ признаков цепочки Rn-222"
     override val toolSurveyTitle = "Съёмка U-Th-K"
     override val toolSurveySubtitle = "Калий, уран и торий по станциям"
+    override val toolUnmixTitle = "Разложение"
+    override val toolUnmixSubtitle = "Состав спектра по измеренным формам"
 
     override val snapshotViewTag = "Снимок"
     override val spectrumLoading = "снимок читается…"
@@ -1009,6 +1015,8 @@ object SpectrumEn : SpectrumStrings {
     override val toolRadonSubtitle = "Signs of the Rn-222 chain"
     override val toolSurveyTitle = "U-Th-K survey"
     override val toolSurveySubtitle = "Potassium, uranium and thorium by station"
+    override val toolUnmixTitle = "Decomposition"
+    override val toolUnmixSubtitle = "Spectrum composition from measured shapes"
 
     override val snapshotViewTag = "Snapshot"
     override val spectrumLoading = "reading the snapshot…"
@@ -1302,7 +1310,7 @@ fun SpectrumStrings.allTexts(): List<String> = listOf(
     infoSignificanceTitle, infoSignificance, infoTechnicalTitle, infoHowToggle,
     toolsTitle, toolCompareTitle, toolCompareSubtitle,
     toolSpectrogramTitle, toolSpectrogramSubtitle, toolRadonTitle, toolRadonSubtitle,
-    toolSurveyTitle, toolSurveySubtitle,
+    toolSurveyTitle, toolSurveySubtitle, toolUnmixTitle, toolUnmixSubtitle,
     legendMinusBackground,    noLinkLastSpectrum, unknownScintillator,
     snapshotViewTag, snapshotTakenAt("12 авг 14:03", "51 ч"),
     snapshotDeviceUnknown, snapshotNoDevice,

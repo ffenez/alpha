@@ -37,6 +37,7 @@ class BackupRoundTripTest {
         val routes: List<BackupRoute> = emptyList(),
         val points: List<BackupPoint> = emptyList(),
         val spectra: List<BackupSpectrum> = emptyList(),
+        val templates: List<BackupTemplate> = emptyList(),
         val slices: List<BackupSlice> = emptyList(),
         val experiments: List<BackupExperiment> = emptyList(),
     ) : BackupSource {
@@ -51,6 +52,7 @@ class BackupRoundTripTest {
             routes = routes.size.toLong(),
             points = points.size.toLong(),
             spectra = spectra.size.toLong(),
+            templates = templates.size.toLong(),
             slices = slices.size.toLong(),
             experiments = experiments.size.toLong(),
         )
@@ -76,6 +78,7 @@ class BackupRoundTripTest {
         override fun routes() = pages(routes)
         override fun points() = pages(points)
         override fun spectra() = pages(spectra)
+        override fun templates() = pages(templates)
         override fun slices() = pages(slices)
         override fun experiments() = pages(experiments)
     }
@@ -98,6 +101,7 @@ class BackupRoundTripTest {
         val routes = mutableListOf<BackupRoute>()
         val points = mutableListOf<BackupPoint>()
         val spectra = mutableListOf<BackupSpectrum>()
+        val templates = mutableListOf<BackupTemplate>()
         val slices = mutableListOf<BackupSlice>()
         val experiments = mutableListOf<BackupExperiment>()
 
@@ -154,6 +158,8 @@ class BackupRoundTripTest {
         override suspend fun routes(batch: List<BackupRoute>) = add(batch, routes, "routes") { it.key }
         override suspend fun points(batch: List<BackupPoint>) = add(batch, points, "points") { it.key }
         override suspend fun spectra(batch: List<BackupSpectrum>) = add(batch, spectra, "spectra") { it.key }
+        override suspend fun templates(batch: List<BackupTemplate>) =
+            add(batch, templates, "templates") { it.key }
         override suspend fun slices(batch: List<BackupSlice>) = add(batch, slices, "slices") { it.key }
         override suspend fun experiments(batch: List<BackupExperiment>) =
             add(batch, experiments, "experiments") { it.key }
@@ -260,6 +266,36 @@ class BackupRoundTripTest {
                 trigger = "manual",
             ),
         ),
+        templates = listOf(
+            // Снятый шаблон с прибором и заметкой — и импортированный, у
+            // которого прибора нет: копия обязана вернуть оба вида.
+            BackupTemplate(
+                name = "Th-232",
+                createdAt = now - 50_000,
+                deviceSerial = "RC-110-0001",
+                deviceName = "RadiaCode 110",
+                a0 = 1.1f, a1 = 2.2f, a2 = 0.0002f,
+                durationSeconds = 14_400,
+                resolution662 = 0.085f,
+                channelCount = 1024,
+                countsBase64 = BackupBinary.encode(ByteArray(4096) { (it % 97).toByte() }),
+                source = "measured",
+                note = "торцевой калильник",
+            ),
+            BackupTemplate(
+                name = "K-40",
+                createdAt = now - 40_000,
+                deviceSerial = null,
+                deviceName = null,
+                a0 = 0.9f, a1 = 2.1f, a2 = 0.0003f,
+                durationSeconds = 7_200,
+                resolution662 = 0.12f,
+                channelCount = 1024,
+                countsBase64 = BackupBinary.encode(ByteArray(4096) { (it % 61).toByte() }),
+                source = "imported",
+                note = null,
+            ),
+        ),
         slices = listOf(
             BackupSlice(now, now + 5_000, 5_000, "v1", 96, BackupBinary.encode(ByteArray(384)), 24f, 0.15f, 1),
         ),
@@ -312,6 +348,7 @@ class BackupRoundTripTest {
         assertEquals(5_000L, info.counts.measurements)
         assertEquals(1L, info.counts.sessions)
         assertEquals(1L, info.counts.spectra)
+        assertEquals(2L, info.counts.templates)
 
         val sink = FakeSink()
         val summary = runBlocking {
@@ -329,6 +366,7 @@ class BackupRoundTripTest {
         assertEquals(source.routes, sink.routes)
         assertEquals(source.points, sink.points)
         assertEquals(source.spectra, sink.spectra)
+        assertEquals(source.templates, sink.templates)
         assertEquals(source.slices, sink.slices)
         assertEquals(source.experiments, sink.experiments)
         assertEquals(source.profiles, sink.profiles)

@@ -578,6 +578,28 @@ interface SessionDao {
 }
 
 @Dao
+interface SpectrumTemplateDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(template: SpectrumTemplateEntity): Long
+
+    @Query("SELECT * FROM spectrum_templates ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<SpectrumTemplateEntity>>
+
+    @Query("SELECT * FROM spectrum_templates ORDER BY createdAt")
+    suspend fun all(): List<SpectrumTemplateEntity>
+
+    @Query("SELECT COUNT(*) FROM spectrum_templates")
+    suspend fun count(): Long
+
+    @Query("DELETE FROM spectrum_templates WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("DELETE FROM spectrum_templates")
+    suspend fun clear()
+}
+
+@Dao
 interface SurveyDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)

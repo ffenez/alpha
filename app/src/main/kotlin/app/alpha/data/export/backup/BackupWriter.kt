@@ -33,6 +33,7 @@ data class BackupCounts(
     val routes: Long = 0,
     val points: Long = 0,
     val spectra: Long = 0,
+    val templates: Long = 0,
     val slices: Long = 0,
     val experiments: Long = 0,
 )
@@ -54,6 +55,7 @@ interface BackupSource {
     fun routes(): BackupStream<BackupRoute>
     fun points(): BackupStream<BackupPoint>
     fun spectra(): BackupStream<BackupSpectrum>
+    fun templates(): BackupStream<BackupTemplate>
     fun slices(): BackupStream<BackupSlice>
     fun experiments(): BackupStream<BackupExperiment>
 }
@@ -77,6 +79,7 @@ enum class BackupStage {
     POINTS,
     SPECTRA,
     STATIONS,
+    TEMPLATES,
     SPECTROGRAM,
     EXPERIMENTS,
     FINISHING,
@@ -209,6 +212,15 @@ class BackupWriter(
                 BackupStage.STATIONS,
                 counts.stations,
                 source.stations(),
+                onProgress,
+            ) { w, item -> item.write(w) }
+            // Шаблон ни на что не ссылается: он самостоятелен и пишется после
+            // снимков лишь потому, что относится к тому же выбору «Спектры».
+            stream(
+                BackupFormat.TEMPLATES,
+                BackupStage.TEMPLATES,
+                counts.templates,
+                source.templates(),
                 onProgress,
             ) { w, item -> item.write(w) }
         }

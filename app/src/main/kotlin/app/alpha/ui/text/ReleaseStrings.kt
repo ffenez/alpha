@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0500Title: String
+    val v0500Summary: String
+
     val v0492Title: String
     val v0492Summary: String
 
@@ -441,6 +444,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0500Title = "Спектр раскладывается на измеренные формы"
+    override val v0500Summary =
+        "Накопленный спектр раскладывается на формы, снятые заранее — ториевая сетка, калийная " +
+        "соль, собственный фон, — и каждая получает свою долю с погрешностью, а расхождение " +
+        "модели с данными названо прямо. Шаблон помнит свой прибор: снятый этим прибором идёт " +
+        "как есть, чужой или загруженный файлом приводится по разрешению с предупреждением, а " +
+        "прибору с более узкими линиями не выдаётся вовсе."
 
     override val v0492Title = "Курсор спектра ставит точку на кривой и ходит стрелками"
     override val v0492Summary =
@@ -1417,6 +1428,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0500Title = "The spectrum is decomposed into measured shapes"
+    override val v0500Summary =
+        "The accumulated spectrum is decomposed into shapes taken beforehand — a thorium mantle, " +
+        "potassium salt, your own background — each with its share and uncertainty, while a " +
+        "disagreement between model and data is stated plainly. A template remembers its " +
+        "instrument: its own is used as it is, a foreign or imported one is adapted by " +
+        "resolution with a warning, and an instrument with narrower lines is not given it."
 
     override val v0492Title = "The spectrum cursor marks the curve and steps with arrows"
     override val v0492Summary =

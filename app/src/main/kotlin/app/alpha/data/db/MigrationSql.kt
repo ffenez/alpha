@@ -36,6 +36,26 @@ object MigrationSql {
      * `deviation` остаются как есть — это измерения, а не мусор
      * (`history_semantic_events_redesign.md`, раздел о миграции).
      */
+    val FROM_21_TO_22: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `spectrum_templates` (" +
+            "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+            "`name` TEXT NOT NULL, " +
+            "`createdAt` INTEGER NOT NULL, " +
+            "`deviceSerial` TEXT, " +
+            "`deviceName` TEXT, " +
+            "`a0` REAL NOT NULL, `a1` REAL NOT NULL, `a2` REAL NOT NULL, " +
+            "`durationSeconds` INTEGER NOT NULL, " +
+            "`resolution662` REAL NOT NULL, " +
+            "`channelCount` INTEGER NOT NULL, " +
+            "`counts` BLOB NOT NULL, " +
+            "`source` TEXT NOT NULL, " +
+            "`note` TEXT)",
+        "CREATE INDEX IF NOT EXISTS `index_spectrum_templates_deviceSerial` " +
+            "ON `spectrum_templates` (`deviceSerial`)",
+        "CREATE INDEX IF NOT EXISTS `index_spectrum_templates_name` " +
+            "ON `spectrum_templates` (`name`)",
+    )
+
     val FROM_20_TO_21: List<String> = listOf(
         "CREATE TABLE IF NOT EXISTS `survey_stations` (" +
             "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
