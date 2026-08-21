@@ -50,6 +50,14 @@ interface SpectrumStrings {
      */
     fun peakDetails(netCounts: String, significance: String): String
 
+    /**
+     * Почему подпись пика не совпала с самым высоким каналом.
+     *
+     * Вопрос из поля: «в 610 больше всего импульсов, а приложение выбирает
+     * 602». Ответ обязан быть на экране, а не в голове разработчика.
+     */
+    fun peakCentre(centre: String, max: String): String
+
     val scaleCorrected: String
 
     val continuumChip: String
@@ -433,6 +441,11 @@ object SpectrumRu : SpectrumStrings {
     override val showBackgroundCurve = "фон"
     override fun peakDetails(netCounts: String, significance: String) =
         "площадь $netCounts имп · значимость $significance"
+
+    override fun peakCentre(centre: String, max: String) =
+        "центр линии $centre кэВ, самый высокий канал $max кэВ. Подпись — центр тяжести чистой " +
+            "площади, а не максимум: у линии с низкоэнергетическим хвостом он смещён в хвост. " +
+            "Сравнение с линиями нуклидов идёт по центру."
     override val scaleCorrected = "энергии с поправкой шкалы"
     override val continuumChip = "континуум"
     override val continuumHint =
@@ -836,6 +849,12 @@ object SpectrumEn : SpectrumStrings {
     override val showBackgroundCurve = "background"
     override fun peakDetails(netCounts: String, significance: String) =
         "area $netCounts counts · significance $significance"
+
+    override fun peakCentre(centre: String, max: String) =
+        "line centre $centre keV, tallest channel $max keV. The label is the centroid of the net " +
+            "area, not the maximum: a line with a low-energy tail has its centroid pulled into " +
+            "that tail. Matching against nuclide lines uses the centre."
+
     override val scaleCorrected = "energies with the scale correction"
     override val continuumChip = "continuum"
     override val continuumHint =

@@ -449,6 +449,28 @@ fun SpectrumFullScreen(
                     scaleRoot = scaleRoot,
                     modifier = Modifier.weight(1f),
                 )
+                // Курсор двигается и кнопками: пальцем не встать на нужный
+                // канал, а разглядывают спектр именно по каналам. Шаг — одна
+                // колонка кадра, то есть ровно то, что нарисовано.
+                if (cursorActive) {
+                    val step = 1f / (frame.columns.size - 1).coerceAtLeast(1)
+                    Chip(
+                        text = "◀",
+                        color = colors.ink2,
+                        onClick = {
+                            cursorFraction.value =
+                                ((cursorFraction.value ?: 0f) - step).coerceIn(0f, 1f)
+                        },
+                    )
+                    Chip(
+                        text = "▶",
+                        color = colors.ink2,
+                        onClick = {
+                            cursorFraction.value =
+                                ((cursorFraction.value ?: 0f) + step).coerceIn(0f, 1f)
+                        },
+                    )
+                }
                 // Легенды под полем нет: фон включает сам человек, и чип
                 // режима стоит в шапке — под графиком строка повторяла его.
             }

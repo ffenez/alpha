@@ -1304,12 +1304,27 @@ private fun SpectrumContent(
                 ChartNotesDialog(
                     title = "${SpectrumFormat.energyCell(row.peak.energyKeV)} ${t.unitKeV} · " +
                         SpectrumFormat.matchCell(row.match, t),
-                    notes = listOf(
-                        t.peakDetails(
-                            netCounts = SpectrumFormat.netCell(row.peak.netCounts),
-                            significance = SpectrumFormat.significanceCell(row.peak.significance),
-                        ),
-                    ) + SpectrumFormat.matchNotes(row.match, t),
+                    notes = buildList {
+                        add(
+                            t.peakDetails(
+                                netCounts = SpectrumFormat.netCell(row.peak.netCounts),
+                                significance = SpectrumFormat.significanceCell(
+                                    row.peak.significance,
+                                ),
+                            ),
+                        )
+                        // Подпись и самый высокий канал расходятся у линии с
+                        // хвостом; молчать об этом нельзя — на графике видно
+                        // одно число, в таблице другое.
+                        if (SpectrumFormat.centreDiffers(row.peak)) {
+                            add(
+                                t.peakCentre(
+                                    centre = SpectrumFormat.energyCell(row.peak.energyKeV),
+                                    max = SpectrumFormat.energyCell(row.peak.maxEnergyKeV),
+                                ),
+                            )
+                        }
+                    } + SpectrumFormat.matchNotes(row.match, t),
                     onClose = { explainedPeak = null },
                 )
             }

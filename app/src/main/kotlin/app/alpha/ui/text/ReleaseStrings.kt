@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0490Title: String
+    val v0490Summary: String
+
     val v0482Title: String
     val v0482Summary: String
 
@@ -432,6 +435,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0490Title = "Удаление идущей записи больше не роняет приложение"
+    override val v0490Summary =
+        "Удалённый маршрут, в который служба продолжала писать точки, убивал приложение целиком; " +
+        "теперь запись сначала останавливается, а сбой внутри службы попадает в журнал, а не в " +
+        "закрытие приложения. Выданное разрешение на местоположение больше не запускает запись " +
+        "само, кнопка «Остановить запись» стоит там же, где начиналась, у пика видно и центр, и " +
+        "самый высокий канал, а курсор на полном экране двигается стрелками."
 
     override val v0482Title = "Справка Поиска стала разбором, а не списком чисел"
     override val v0482Summary =
@@ -1387,6 +1398,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0490Title = "Deleting a running recording no longer kills the app"
+    override val v0490Summary =
+        "A deleted route the service kept writing into took the whole app down; the recording is " +
+        "now stopped first, and a failure inside the service lands in the log instead of closing " +
+        "the app. Granting the location permission no longer starts a recording by itself, the " +
+        "stop button sits where the start was, a peak shows both its centre and its tallest " +
+        "channel, and the full-screen cursor moves with arrows."
 
     override val v0482Title = "The search help reads as an analysis, not a list of numbers"
     override val v0482Summary =

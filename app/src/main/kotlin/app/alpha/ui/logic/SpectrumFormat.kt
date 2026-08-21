@@ -5,6 +5,7 @@ import app.alpha.analysis.EnergyWindowSpec
 import app.alpha.analysis.EnergyWindows
 import app.alpha.analysis.HintConfidence
 import app.alpha.analysis.IsotopeHint
+import app.alpha.analysis.Peak
 import app.alpha.ui.text.SpectrumRu
 import app.alpha.ui.text.SpectrumStrings
 import app.alpha.ui.text.uiDecimal
@@ -85,6 +86,15 @@ object SpectrumFormat {
         }
 
     /** Peak-table energy cell: «661,9» (keV, one decimal, comma). */
+    /**
+     * Стоит ли объяснять разницу между подписью и максимумом.
+     *
+     * Порог — половина цены деления подписи (0,1 кэВ): меньше этого числа
+     * человек на экране не различит, и строка была бы шумом.
+     */
+    fun centreDiffers(peak: Peak): Boolean =
+        peak.maxEnergyKeV > 0f && kotlin.math.abs(peak.energyKeV - peak.maxEnergyKeV) >= 0.05f
+
     fun energyCell(energyKeV: Float): String =
         String.format(Locale.US, "%.1f", energyKeV).uiDecimal()
 

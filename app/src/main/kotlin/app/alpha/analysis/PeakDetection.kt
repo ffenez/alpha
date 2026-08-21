@@ -11,6 +11,17 @@ import kotlin.math.sqrt
 data class Peak(
     val channel: Int,
     val energyKeV: Float,
+    /**
+     * Энергия канала с наибольшим НЕТТО-счётом в окне пика, кэВ.
+     *
+     * Отличается от [energyKeV], и это нормально: подпись — центр тяжести
+     * чистой площади (при достаточной статистике уточнённый несимметричной
+     * подгонкой), а здесь просто самый высокий канал. У линии с хвостом центр
+     * тяжести уезжает в хвост, и человек видит максимум в одном месте, а
+     * подпись в другом. Оба числа показываются рядом, чтобы это не выглядело
+     * ошибкой.
+     */
+    val maxEnergyKeV: Float = 0f,
     val netCounts: Float,
     /**
      * Значимость нетто-площади: нетто / σ(нетто). Не «SNR»: имя
@@ -322,9 +333,13 @@ object PeakDetection {
             // Проверка не зависит от того, измерима ли ширина, поэтому ловит и
             // выброс, рядом с которым сглаживание поставило кандидата.
             var maxChannelNet = 0f
+            var maxChannel = i
             for (j in (i - half)..(i + half)) {
                 val value = counts[j] - continuumAt(j)
-                if (value > maxChannelNet) maxChannelNet = value
+                if (value > maxChannelNet) {
+                    maxChannelNet = value
+                    maxChannel = j
+                }
             }
             if (maxChannelNet > SPIKE_MAX_SHARE * net) continue
 
@@ -374,6 +389,7 @@ object PeakDetection {
             candidates += Peak(
                 channel = i,
                 energyKeV = calibration.energyAt(center),
+                maxEnergyKeV = calibration.energyAt(maxChannel.toFloat()),
                 netCounts = net,
                 significance = significance,
                 shape = fit,
