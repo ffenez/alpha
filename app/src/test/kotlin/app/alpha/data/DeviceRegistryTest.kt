@@ -104,6 +104,19 @@ class DeviceRegistryTest {
     }
 
     @Test
+    fun `забытый прибор уходит из списка, а записи остаются`() = runTest {
+        val dao = FakeDao()
+        val registry = DeviceRegistry(dao)
+        registry.seen(info("RC-110-000001"), 1_000L)
+
+        registry.forget(dao.rows.single().id)
+
+        assertEquals(0, dao.rows.size)
+        // Данные удаляет только отдельное решение: у этого вызова доступа к
+        // измерениям нет вовсе.
+    }
+
+    @Test
     fun `названный прибор зовётся своим именем без серийника`() = runTest {
         val dao = FakeDao()
         val registry = DeviceRegistry(dao)

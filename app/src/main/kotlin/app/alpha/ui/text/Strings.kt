@@ -206,6 +206,11 @@ interface Strings {
     val knownDevices: String
     val foundNearby: String
     val renameDevice: String
+    val forgetDevice: String
+    val forgetDeviceWithData: String
+    fun forgetDeviceTitle(name: String): String
+    val forgetDeviceKeepsData: String
+    fun forgetDeviceRecords(samples: Long, spectra: Long): String
     fun deviceLastSeen(moment: String): String
 
     /** Выход из приложения: связь с прибором и служба закрываются. */

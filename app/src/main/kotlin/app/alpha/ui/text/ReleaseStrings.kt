@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0650Title: String
+    val v0650Summary: String
+
     val v0640Title: String
     val v0640Summary: String
 
@@ -486,6 +489,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0650Title = "Прибор можно забыть — с записями или без них"
+    override val v0650Summary =
+        "Прибор теперь можно забыть, и это два разных действия: убрать его из списка, оставив " +
+        "записи в журнале, или удалить вместе с его измерениями и снимками. Число записей " +
+        "называется до нажатия, подключённый прибор забыть нельзя, а записи, у которых прибор " +
+        "неизвестен, не трогаются: приписать их этому прибору нечем."
 
     override val v0640Title = "Слив истории виден в состоянии связи и в отчёте"
     override val v0640Summary =
@@ -1568,6 +1578,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0650Title = "An instrument can be forgotten, with or without its records"
+    override val v0650Summary =
+        "An instrument can now be forgotten, and that is two different actions: remove it from " +
+        "the list while its records stay in the journal, or delete it together with its " +
+        "measurements and snapshots. The number of records is stated before the press, the " +
+        "connected instrument cannot be forgotten, and records whose instrument is unknown are " +
+        "left alone."
 
     override val v0640Title = "The drain is visible in the connection state and the report"
     override val v0640Summary =

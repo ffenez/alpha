@@ -131,7 +131,15 @@ class AppGraph private constructor(
     val phoneSensors: PhoneSensors by lazy { PhoneSensors(context) }
 
     /** Приборы, с которыми приложение работало. */
-    val deviceRegistry: DeviceRegistry by lazy { DeviceRegistry(database.deviceDao()) }
+    val deviceRegistry: DeviceRegistry by lazy {
+        DeviceRegistry(
+            dao = database.deviceDao(),
+            samples = database.sampleDao(),
+            spectra = database.spectrumDao(),
+            rare = database.rareDataDao(),
+            templates = database.templateDao(),
+        )
+    }
 
     /** Библиотека шаблонов полноспектрального разложения. */
     val templateRepository: TemplateRepository by lazy {

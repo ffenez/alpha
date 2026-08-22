@@ -59,6 +59,13 @@ internal class FakeSampleDao : SampleDao {
     override fun observeRange(from: Long, to: Long): Flow<List<SampleEntity>> = flowOf(emptyList())
     override suspend fun earliestTimestamp(): Long? = inserted.minOfOrNull { it.timestamp }
 
+    override suspend fun countForDevice(deviceSerial: String): Long =
+        inserted.count { it.deviceSerial == deviceSerial }.toLong()
+
+    override suspend fun deleteForDevice(deviceSerial: String) {
+        inserted.removeAll { it.deviceSerial == deviceSerial }
+    }
+
     override suspend fun deviceInRange(from: Long, to: Long): String? = inserted
         .firstOrNull { it.timestamp in from..to && it.deviceSerial != null }
         ?.deviceSerial
@@ -123,6 +130,10 @@ internal class FakeSampleDao : SampleDao {
 }
 
 private class FakeRareDataDao : RareDataDao {
+
+    override suspend fun deleteForDevice(deviceSerial: String) {
+        inserted.removeAll { it.deviceSerial == deviceSerial }
+    }
 
     override suspend fun page(afterId: Long, limit: Int): List<RareDataEntity> = emptyList()
 
@@ -219,6 +230,10 @@ private class FakeEventDao : EventDao {
 }
 
 internal class FakeSpectrumDao : SpectrumDao {
+
+    override suspend fun countForDevice(deviceSerial: String): Long = 0L
+
+    override suspend fun deleteForDevice(deviceSerial: String) = Unit
 
     override suspend fun page(afterId: Long, limit: Int): List<SpectrumSnapshotEntity> = emptyList()
 

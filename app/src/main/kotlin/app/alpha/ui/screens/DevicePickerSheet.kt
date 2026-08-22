@@ -27,6 +27,9 @@ import app.alpha.AppGraph
 import app.alpha.device.ConnectionState
 import app.alpha.device.DiscoveredRadiaCode
 import app.alpha.service.MeasurementService
+import androidx.compose.ui.window.Dialog
+import app.alpha.ui.components.AppButton
+import app.alpha.ui.components.Card
 import app.alpha.ui.components.AppCloseButton
 import app.alpha.ui.components.AppDivider
 import app.alpha.ui.components.Hint
@@ -78,6 +81,8 @@ fun DevicePickerSheet(graph: AppGraph, onDismiss: () -> Unit) {
     val known by graph.deviceRegistry.devices().collectAsState(initial = emptyList())
     val currentSerial = (connection as? ConnectionState.Connected)?.info?.serialNumber
     var renaming by remember { mutableStateOf<DeviceEntity?>(null) }
+    var forgetting by remember { mutableStateOf<DeviceEntity?>(null) }
+    var forgetRecords by remember { mutableStateOf<DeviceRegistry.DeviceRecords?>(null) }
     val scope = rememberCoroutineScope()
 
     val found = remember { mutableStateOf<Map<String, DiscoveredRadiaCode>>(emptyMap()) }
@@ -150,6 +155,15 @@ fun DevicePickerSheet(graph: AppGraph, onDismiss: () -> Unit) {
                             }
                         },
                         onRename = { renaming = device },
+                        // Забыть подключённый прибор нельзя: сначала надо
+                        // перестать им измерять.
+                        canForget = device.serialNumber != currentSerial,
+                        onForget = {
+                            forgetting = device
+                            scope.launch {
+                                forgetRecords = graph.deviceRegistry.records(device.serialNumber)
+                            }
+                        },
                     )
                 }
                 AppDivider()
@@ -207,6 +221,29 @@ fun DevicePickerSheet(graph: AppGraph, onDismiss: () -> Unit) {
         }
     }
 
+    forgetting?.let { device ->
+        ForgetDeviceDialog(
+            title = DeviceRegistry.label(device, known, strings.instrumentTitle),
+            records = forgetRecords,
+            onForget = {
+                scope.launch { graph.deviceRegistry.forget(device.id) }
+                forgetting = null
+                forgetRecords = null
+            },
+            onForgetWithData = {
+                scope.launch {
+                    graph.deviceRegistry.forgetWithData(device.id, device.serialNumber)
+                }
+                forgetting = null
+                forgetRecords = null
+            },
+            onDismiss = {
+                forgetting = null
+                forgetRecords = null
+            },
+        )
+    }
+
     renaming?.let { device ->
         RenameDialog(
             title = strings.renameDevice,
@@ -233,8 +270,10 @@ private fun KnownDeviceRow(
     subtitle: String,
     current: Boolean,
     canConnect: Boolean,
+    canForget: Boolean,
     onConnect: () -> Unit,
     onRename: () -> Unit,
+    onForget: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     val type = LocalAppTypography.current
@@ -252,7 +291,62 @@ private fun KnownDeviceRow(
             Chip(text = strings.connect, color = colors.ink2, onClick = onConnect)
         }
         EntityMenuButton(
-            menu = listOf(EntityMenuItem(strings.renameDevice, onClick = onRename)),
+            menu = listOf(
+                EntityMenuItem(strings.renameDevice, onClick = onRename),
+                EntityMenuItem(strings.forgetDevice, enabled = canForget, onClick = onForget),
+            ),
         )
+    }
+}
+
+/**
+ * Забыть прибор: два разных действия, и они не должны выглядеть одним.
+ *
+ * «Забыть прибор» убирает его из списка — записи остаются и продолжают
+ * показываться в журнале. «Забыть вместе с записями» удаляет измерения,
+ * снимки и шаблоны этого прибора необратимо, поэтому их число названо ДО
+ * нажатия: удаление без числа — это не выбор.
+ *
+ * Записи, у которых прибор неизвестен, не трогаются ни в одном случае:
+ * приписать их этому прибору нечем.
+ */
+@Composable
+private fun ForgetDeviceDialog(
+    title: String,
+    records: DeviceRegistry.DeviceRecords?,
+    onForget: () -> Unit,
+    onForgetWithData: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                Text(text = strings.forgetDeviceTitle(title), style = type.title, color = colors.ink)
+                Text(
+                    text = strings.forgetDeviceKeepsData,
+                    style = type.bodySmall,
+                    color = colors.ink2,
+                )
+                // Число записей — критическая строка: без него «удалить
+                // записи» не решение, а согласие вслепую.
+                Text(
+                    text = records?.let {
+                        strings.forgetDeviceRecords(it.samples, it.spectra)
+                    } ?: strings.readingJournal,
+                    style = type.footnote,
+                    color = colors.muted,
+                )
+                AppButton(text = strings.forgetDevice, onClick = onForget)
+                AppButton(
+                    text = strings.forgetDeviceWithData,
+                    enabled = records != null,
+                    onClick = onForgetWithData,
+                )
+                AppButton(text = strings.cancel, onClick = onDismiss)
+            }
+        }
     }
 }

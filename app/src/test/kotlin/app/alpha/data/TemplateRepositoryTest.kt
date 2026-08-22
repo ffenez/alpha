@@ -40,6 +40,10 @@ class TemplateRepositoryTest {
             rows.removeAll { it.id == id }
         }
 
+        override suspend fun deleteForDevice(deviceSerial: String) {
+            rows.removeAll { it.deviceSerial == deviceSerial }
+        }
+
         override suspend fun clear() = rows.clear()
     }
 

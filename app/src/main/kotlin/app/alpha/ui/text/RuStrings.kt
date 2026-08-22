@@ -124,6 +124,14 @@ object RuStrings : Strings {
     override val knownDevices = "Ваши приборы"
     override val foundNearby = "Найдены рядом"
     override val renameDevice = "Переименовать"
+    override val forgetDevice = "Забыть прибор"
+    override val forgetDeviceWithData = "Забыть вместе с записями"
+    override fun forgetDeviceTitle(name: String) = "Забыть «$name»?"
+    override val forgetDeviceKeepsData =
+        "«Забыть прибор» убирает его из списка, а записи остаются в журнале. «Забыть вместе с " +
+            "записями» удаляет их без возможности вернуть."
+    override fun forgetDeviceRecords(samples: Long, spectra: Long) =
+        "у этого прибора: измерений $samples, снимков спектра $spectra"
     override fun deviceLastSeen(moment: String) = "виделись $moment"
 
     override val exitApp = "Выйти из приложения"

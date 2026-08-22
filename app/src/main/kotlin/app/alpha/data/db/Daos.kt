@@ -481,6 +481,14 @@ interface SampleDao {
     @Query("DELETE FROM samples WHERE timestamp BETWEEN :from AND :to")
     suspend fun deleteRange(from: Long, to: Long): Int
 
+    /** Сколько измерений принадлежит прибору — число для подтверждения удаления. */
+    @Query("SELECT COUNT(*) FROM samples WHERE deviceSerial = :deviceSerial")
+    suspend fun countForDevice(deviceSerial: String): Long
+
+    /** Удаление записей прибора — только по явному выбору человека. */
+    @Query("DELETE FROM samples WHERE deviceSerial = :deviceSerial")
+    suspend fun deleteForDevice(deviceSerial: String)
+
     @Query("DELETE FROM samples WHERE timestamp < :before")
     suspend fun deleteOlderThan(before: Long): Int
 }
@@ -697,6 +705,9 @@ interface SpectrumTemplateDao {
     @Query("DELETE FROM spectrum_templates WHERE id = :id")
     suspend fun delete(id: Long)
 
+    @Query("DELETE FROM spectrum_templates WHERE deviceSerial = :deviceSerial")
+    suspend fun deleteForDevice(deviceSerial: String)
+
     @Query("DELETE FROM spectrum_templates")
     suspend fun clear()
 }
@@ -786,6 +797,9 @@ interface RareDataDao {
 
     @Query("SELECT COUNT(*) FROM rare_data")
     suspend fun count(): Long
+
+    @Query("DELETE FROM rare_data WHERE deviceSerial = :deviceSerial")
+    suspend fun deleteForDevice(deviceSerial: String)
 
     @Query("DELETE FROM rare_data")
     suspend fun clear()
@@ -1335,6 +1349,12 @@ interface SpectrumDao {
     /** Какие из этих спектров уже есть: момент съёмки — их естественный ключ. */
     @Query("SELECT timestamp FROM spectra WHERE timestamp IN (:timestamps)")
     suspend fun existingTimestamps(timestamps: List<Long>): List<Long>
+
+    @Query("SELECT COUNT(*) FROM spectra WHERE deviceSerial = :deviceSerial")
+    suspend fun countForDevice(deviceSerial: String): Long
+
+    @Query("DELETE FROM spectra WHERE deviceSerial = :deviceSerial")
+    suspend fun deleteForDevice(deviceSerial: String)
 
     @Query("DELETE FROM spectra")
     suspend fun clear()

@@ -135,6 +135,14 @@ object EnStrings : Strings {
     override val knownDevices = "Your instruments"
     override val foundNearby = "Found nearby"
     override val renameDevice = "Rename"
+    override val forgetDevice = "Forget the instrument"
+    override val forgetDeviceWithData = "Forget with its records"
+    override fun forgetDeviceTitle(name: String) = "Forget \"$name\"?"
+    override val forgetDeviceKeepsData =
+        "\"Forget the instrument\" removes it from the list and its records stay in the " +
+            "journal. \"Forget with its records\" deletes them beyond recovery."
+    override fun forgetDeviceRecords(samples: Long, spectra: Long) =
+        "this instrument has: measurements $samples, spectrum snapshots $spectra"
     override fun deviceLastSeen(moment: String) = "last seen $moment"
 
     override val exitApp = "Exit the app"

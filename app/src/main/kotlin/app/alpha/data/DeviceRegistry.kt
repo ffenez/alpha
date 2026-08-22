@@ -1,6 +1,10 @@
 package app.alpha.data
 
 import app.alpha.data.db.DeviceDao
+import app.alpha.data.db.RareDataDao
+import app.alpha.data.db.SampleDao
+import app.alpha.data.db.SpectrumDao
+import app.alpha.data.db.SpectrumTemplateDao
 import app.alpha.data.db.DeviceEntity
 import app.alpha.device.DeviceInfo
 import app.alpha.device.DeviceModel
@@ -20,7 +24,13 @@ import kotlinx.coroutines.flow.Flow
  * неразличимы. Серийник целиком в имя не выносится: это техническая
  * подробность, а не название.
  */
-class DeviceRegistry(private val dao: DeviceDao) {
+class DeviceRegistry(
+    private val dao: DeviceDao,
+    private val samples: SampleDao? = null,
+    private val spectra: SpectrumDao? = null,
+    private val rare: RareDataDao? = null,
+    private val templates: SpectrumTemplateDao? = null,
+) {
 
     fun devices(): Flow<List<DeviceEntity>> = dao.observeAll()
 
@@ -71,8 +81,38 @@ class DeviceRegistry(private val dao: DeviceDao) {
         dao.update(current.copy(displayName = name?.trim()?.ifEmpty { null }))
     }
 
-    /** Забыть прибор. Его измерения остаются: они данные, а не настройка. */
+    /**
+     * Забыть прибор. Его записи ОСТАЮТСЯ: они данные, а не настройка, и
+     * удаление данных — отдельное решение человека ([forgetWithData]).
+     */
     suspend fun forget(id: Long) = dao.delete(id)
+
+    /**
+     * Сколько записей принадлежит прибору: число называется человеку ДО
+     * удаления, потому что «удалить записи» без числа — это не выбор.
+     */
+    suspend fun records(serial: String): DeviceRecords = DeviceRecords(
+        samples = samples?.countForDevice(serial) ?: 0L,
+        spectra = spectra?.countForDevice(serial) ?: 0L,
+    )
+
+    /**
+     * Забыть прибор ВМЕСТЕ с его записями. Необратимо, поэтому вызывается
+     * только после подтверждения с названным числом записей.
+     *
+     * Не трогает записи, у которых прибор неизвестен: приписать их этому
+     * прибору нечем, а удалить заодно значило бы удалить чужое.
+     */
+    suspend fun forgetWithData(id: Long, serial: String) {
+        samples?.deleteForDevice(serial)
+        rare?.deleteForDevice(serial)
+        spectra?.deleteForDevice(serial)
+        templates?.deleteForDevice(serial)
+        dao.delete(id)
+    }
+
+    /** Что принадлежит прибору — для подтверждения удаления. */
+    data class DeviceRecords(val samples: Long, val spectra: Long)
 
     companion object {
 
