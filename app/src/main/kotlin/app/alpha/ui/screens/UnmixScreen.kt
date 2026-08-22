@@ -359,8 +359,13 @@ private fun ResultCard(result: SpectrumUnmix.Result, t: UnmixStrings) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             for (component in result.components) {
                 val percent = 100.0 * component.counts / total
+                // Неразделимые формы: подгонка честно вернула NaN, и печатать
+                // «доля 0,9 % ± NaN» вместо этого нельзя.
+                val separable = component.sigma.isFinite() && component.criticalScale.isFinite()
                 Text(
-                    text = if (component.detected) {
+                    text = if (!separable) {
+                        t.componentIndistinguishable(component.name)
+                    } else if (component.detected) {
                         t.componentShare(
                             name = component.name,
                             percent = Uncertainty.num1(percent.toFloat()),
@@ -380,7 +385,7 @@ private fun ResultCard(result: SpectrumUnmix.Result, t: UnmixStrings) {
                         )
                     },
                     style = type.bodySmall,
-                    color = if (component.detected) colors.ink else colors.muted,
+                    color = if (component.detected && separable) colors.ink else colors.muted,
                 )
             }
             // Согласие — вердикт; доля объяснённого стоит рядом как справка, а

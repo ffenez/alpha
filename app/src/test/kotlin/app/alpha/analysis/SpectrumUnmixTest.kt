@@ -308,6 +308,266 @@ class SpectrumUnmixTest {
         assertTrue(component.sigmaTemplate > 0.0, "бутстрэп шаблона не отработал")
     }
 
+    @Test
+    fun `подгонка доходит до оптимума, а не до счёта итераций`() {
+        // «Измерение» построено из ОДНОГО реального фона. Раскладывается дважды:
+        // им же и им же ВМЕСТЕ с ториевым шаблоном, которого в спектре нет.
+        //
+        // Вторая модель содержит первую как частный случай (ториевая доля равна
+        // нулю), поэтому описывать данные хуже она не может: у мультипликативных
+        // итераций правдоподобие монотонно, и найденная точка обязана быть
+        // оптимумом. Разошедшаяся статистика означает не «лишняя форма мешает», а
+        // «итерации остановлены раньше сходимости» — и лишняя форма при этом
+        // уносит счёт, которого ей никто не давал.
+        val target = background.second
+        val shape = assertNotNull(
+            SpectrumTemplate.adapt(backgroundTemplate, target, background.first.size, 0.084f),
+        )
+        val measured = Random(20260821).let { random -> shape.map { poisson(it * 0.05, random) } }
+
+        val alone = assertNotNull(unmix(measured, target, backgroundTemplate))
+        val withAbsent = assertNotNull(
+            SpectrumUnmix.of(
+                counts = measured,
+                calibration = target,
+                resolution662 = 0.084f,
+                templates = listOf(backgroundTemplate, thorium),
+                fitScale = false,
+            ),
+        )
+        // Допуск 0,01 — сотая доля от ΔC = 1, то есть от одной σ.
+        assertTrue(
+            withAbsent.cash <= alone.cash + 0.01,
+            "две формы дали C = ${withAbsent.cash} против ${alone.cash} у одной: " +
+                "подгонка не в оптимуме",
+        )
+        val absent = withAbsent.components[1]
+        val share = absent.counts / measured.sumOf { it.toDouble() }
+        assertTrue(share < 1e-5, "отсутствующей форме досталось $share измеренного счёта")
+        assertTrue(!absent.detected, "отсутствующая форма ${absent.scale} признана найденной")
+    }
+
+    @Test
+    fun `перекрытие форм не размножает ложные обнаружения`() {
+        // Односторонний критерий Карри обещает 95 %: ложное «обнаружено» на
+        // отсутствующей форме допустимо примерно в одном случае из двадцати.
+        //
+        // Проверяется это единственным честным способом — счётом по РЕАЛИЗАЦИЯМ
+        // шума. «Измерение» каждый раз строится из одного реального фона, а
+        // раскладывается по двум почти коллинеарным формам: фон и он же со шкалой
+        // +0,5 %. Второй формы в данных нет ни в одной реализации.
+        val target = background.second
+        val channels = background.first.size
+        val real = assertNotNull(
+            SpectrumTemplate.adapt(backgroundTemplate, target, channels, 0.084f),
+        )
+        val twinShape = assertNotNull(
+            SpectrumTemplate.adapt(driftedBackground, target, channels, 0.084f),
+        )
+        var byDiagonal = 0
+        var byMatrix = 0
+        for (seed in 1..10) {
+            val random = Random(seed)
+            val measured = (0 until channels).map { poisson(real[it] * 5e-3, random) }
+            val result = assertNotNull(
+                SpectrumUnmix.of(
+                    counts = measured,
+                    calibration = target,
+                    resolution662 = 0.084f,
+                    templates = listOf(backgroundTemplate, driftedBackground),
+                    fitScale = false,
+                ),
+            )
+            val twin = result.components[1]
+            val model = DoubleArray(channels) {
+                result.components[0].scale * real[it] + twin.scale * twinShape[it]
+            }
+            // Информация по модели гипотезы «двойника нет»: ожидаемый счёт равен
+            // самой этой модели. Отсюда прежний, диагональный предел Карри — и
+            // тот же предел по обратной матрице, чтобы вычесть общий для обоих
+            // вклад шума шаблонов.
+            val zeroModel = DoubleArray(channels) { model[it] - twin.scale * twinShape[it] }
+            val zero = information(real, twinShape, zeroModel) { zeroModel[it] }
+            val diagonalLimit = SIGMAS / kotlin.math.sqrt(zero.second)
+            val matrixLimit = SIGMAS * zero.marginal
+            assertTrue(
+                matrixLimit > 5.0 * diagonalLimit,
+                "пределы неразличимы: $matrixLimit против $diagonalLimit",
+            )
+            val previous = kotlin.math.sqrt(
+                diagonalLimit * diagonalLimit + twin.criticalScale * twin.criticalScale -
+                    matrixLimit * matrixLimit,
+            )
+            if (twin.scale > previous) byDiagonal++
+            if (twin.detected) byMatrix++
+        }
+        assertTrue(
+            byDiagonal >= 5,
+            "диагональный предел ошибся лишь $byDiagonal раз из 10 — проверять нечего",
+        )
+        assertTrue(
+            byMatrix <= 2,
+            "отсутствующая форма объявлена найденной $byMatrix раз из 10 при обещанных 5 %",
+        )
+    }
+
+    @Test
+    fun `σ доли покрывает разброс ответа на перекрытых формах`() {
+        // Неопределённость проверяется покрытием: «измерение» строится 20 раз с
+        // разным шумом при ОДНОМ и том же истинном составе, и разброс полученных
+        // долей сравнивается с тем, что движок обещал.
+        //
+        // Формы почти коллинеарны (фон прибора и он же со шкалой +0,5 %), поэтому
+        // подгонка перекладывает счёт с одной на другую, и разброс задан именно
+        // перекрытием. Диагональ кривизны его не видит.
+        val target = background.second
+        val channels = background.first.size
+        val real = assertNotNull(
+            SpectrumTemplate.adapt(backgroundTemplate, target, channels, 0.084f),
+        )
+        val twinShape = assertNotNull(
+            SpectrumTemplate.adapt(driftedBackground, target, channels, 0.084f),
+        )
+        val share = 5e-3
+        val fitted = ArrayList<Double>()
+        var reported = 0.0
+        var diagonal = 0.0
+        for (seed in 1..20) {
+            val random = Random(seed)
+            val measured = (0 until channels).map {
+                poisson(real[it] * share + twinShape[it] * share, random)
+            }
+            val result = assertNotNull(
+                SpectrumUnmix.of(
+                    counts = measured,
+                    calibration = target,
+                    resolution662 = 0.084f,
+                    templates = listOf(backgroundTemplate, driftedBackground),
+                    fitScale = false,
+                ),
+            )
+            val twin = result.components[1]
+            val model = DoubleArray(channels) {
+                result.components[0].scale * real[it] + twin.scale * twinShape[it]
+            }
+            val fisher = information(real, twinShape, model) { measured[it].toDouble() }
+            assertEquals(fisher.marginal, twin.sigmaData, 1e-9 * fisher.marginal)
+            fitted += twin.scale
+            reported += twin.sigmaData / 20.0
+            diagonal += 1.0 / kotlin.math.sqrt(fisher.second) / 20.0
+        }
+        val mean = fitted.average()
+        val spread = kotlin.math.sqrt(fitted.sumOf { (it - mean) * (it - mean) } / (fitted.size - 1))
+        // СКО по 20 реализациям само измерено с ошибкой 1/√(2·19) = 16 %, поэтому
+        // допуск шире этой ошибки, но втрое уже расхождения с диагональю.
+        assertTrue(
+            spread / reported in 0.6..1.6,
+            "разброс $spread против обещанного $reported",
+        )
+        assertTrue(
+            spread > 5.0 * diagonal,
+            "диагональ $diagonal объяснила бы разброс $spread — тест теряет смысл",
+        )
+    }
+
+    @Test
+    fun `у единственной формы σ остаётся прежней кривизной`() {
+        // Матрица 1×1 обращается в 1/I₀₀, то есть в прежнюю формулу Σ N·T²/M².
+        // Правка обязана быть незаметной там, где делить не с кем.
+        val target = background.second
+        val channels = background.first.size
+        val adapted = assertNotNull(SpectrumTemplate.adapt(thorium, target, channels, 0.084f))
+        val measured = Random(20260821).let { random -> adapted.map { poisson(it * 0.30, random) } }
+
+        val component = assertNotNull(unmix(measured, target, thorium)).components.single()
+        var curvature = 0.0
+        for (channel in 0 until channels) {
+            val t = adapted[channel]
+            if (t <= 0.0) continue
+            val m = component.scale * t
+            if (m > 0.0) curvature += measured[channel] * t * t / (m * m)
+        }
+        val previous = 1.0 / kotlin.math.sqrt(curvature)
+        assertEquals(previous, component.sigmaData, 1e-12 * previous)
+    }
+
+    @Test
+    fun `неразличимые формы не получают ни σ, ни обнаружения`() {
+        // Две копии одного шаблона: информационная матрица вырождена, доли
+        // разделить нечем. Число тут выдумать нельзя — движок отдаёт NaN, и
+        // «обнаружено» не срабатывает ни при каком множителе.
+        val target = background.second
+        val adapted = assertNotNull(
+            SpectrumTemplate.adapt(thorium, target, background.first.size, 0.084f),
+        )
+        val measured = Random(20260821).let { random -> adapted.map { poisson(it * 0.30, random) } }
+
+        val result = assertNotNull(
+            SpectrumUnmix.of(
+                counts = measured,
+                calibration = target,
+                resolution662 = 0.084f,
+                templates = listOf(thorium, thorium.copy(name = "Th-232 копия")),
+                fitScale = false,
+            ),
+        )
+        for (component in result.components) {
+            assertTrue(component.sigmaData.isNaN(), "σ ${component.sigmaData} у неразделимой доли")
+            assertTrue(!component.detected, "неразделимая доля признана найденной")
+        }
+    }
+
+    /**
+     * Тот же измеренный 71-часовой фон, у которого шкала объявлена на 0,5 %
+     * другой. После приведения к прибору это реальная форма, растянутая по
+     * энергии, — почти коллинеарная исходной, но отличимая при большом счёте.
+     */
+    private val driftedBackground: SpectrumTemplate by lazy {
+        val drift = 1.005f
+        backgroundTemplate.copy(
+            name = "фон, шкала +0,5 %",
+            calibration = EnergyCalibration(
+                a0 = background.second.a0 * drift,
+                a1 = background.second.a1 * drift,
+                a2 = background.second.a2 * drift,
+            ),
+        )
+    }
+
+    /**
+     * Информационная матрица 2×2 по формам [first] и [second]:
+     * `I_jl = Σ_канал weight·T_j·T_l / M²`, каналы с `M ≤ 0` пропущены.
+     */
+    private fun information(
+        first: List<Double>,
+        second: List<Double>,
+        model: DoubleArray,
+        weight: (Int) -> Double,
+    ): Information {
+        var i00 = 0.0
+        var i01 = 0.0
+        var i11 = 0.0
+        for (channel in model.indices) {
+            val m = model[channel]
+            if (m <= 0.0) continue
+            val w = weight(channel) / (m * m)
+            i00 += w * first[channel] * first[channel]
+            i01 += w * first[channel] * second[channel]
+            i11 += w * second[channel] * second[channel]
+        }
+        return Information(i00, i01, i11)
+    }
+
+    /** Информационная матрица 2×2 в независимом от движка виде. */
+    private data class Information(val first: Double, val offDiagonal: Double, val second: Double) {
+        /** σ ВТОРОЙ формы по обращению 2×2: `(I⁻¹)₁₁ = I₀₀/det`. */
+        val marginal: Double
+            get() = kotlin.math.sqrt(first / (first * second - offDiagonal * offDiagonal))
+    }
+
+    /** Односторонний 95 % критерий Карри — тот же множитель, что в движке. */
+    private val SIGMAS = 1.645
+
     /**
      * Форма линии Tl-208: из измеренного ториевого спектра оставлена область
      * 2400–2800 кэВ. Это по-прежнему реальная форма прибора, но почти

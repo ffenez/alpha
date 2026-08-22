@@ -30,6 +30,13 @@ import kotlin.random.Random
  * у подгонки формы линии), а коэффициенты ищутся мультипликативными
  * итерациями EM — они по построению неотрицательны и сходятся монотонно.
  *
+ * Итерации идут до СХОДИМОСТИ ([CONVERGENCE]), а не до назначенного числа шагов.
+ * Остановка по счёту шагов у этой задачи не безобидна: вложенная модель с лишней
+ * формой не может описывать данные хуже, чем модель без неё, а недосчитанная —
+ * описывала (C больше на 21 при 200 шагах), и лишняя форма при этом уносила
+ * 0,9 % счёта, которого ей никто не давал. Скорость возвращает ньютоновский
+ * рывок ([newtonJump]): те же данные сходятся за 10 итераций вместо 2500.
+ *
  * ## Почему усиление подгоняется
  *
  * У реального прибора шкала уезжает: на измеренном спектре 110-го линия K-40
@@ -58,6 +65,26 @@ import kotlin.random.Random
  * пересемплированном шаблоне и меряет разброс ответа, учитывая и уширение, и
  * перекладку.
  *
+ * ## Почему σ доли берётся из ОБРАТНОЙ информационной матрицы
+ *
+ * Формы не ортогональны: ториевый ряд и собственный фон прибора перекрываются
+ * почти на всей шкале, и подгонка может обменять долю одной формы на долю
+ * другой почти без ущерба правдоподобию. Диагональ кривизны `Σ N·T_j²/M²`
+ * отвечает на другой вопрос — «как быстро портится правдоподобие, если двигать
+ * ТОЛЬКО долю j, держа чужие доли на найденных значениях». Чужие доли не даны,
+ * они оценены из тех же данных, и их собственный разброс перетекает в долю j.
+ *
+ * Поэтому неопределённость доли — корень диагонального элемента ОБРАТНОЙ
+ * информационной матрицы `I_jl = Σ N·T_j·T_l/M²`. Для положительно определённой
+ * матрицы `(I⁻¹)_jj ≥ 1/I_jj` всегда, с равенством только при полной
+ * ортогональности форм: диагональ даёт нижнюю границу, а не ответ. Правка
+ * односторонняя — σ и предел обнаружения только растут, «обнаружено»
+ * встречается реже. Для этого прибора ложное «обнаружено» тяжелее пропуска.
+ *
+ * Матрица, которая не обращается (две неразличимые формы), даёт σ = NaN — так же
+ * как нулевая кривизна. Доли, не разделимые в принципе, не имеют разброса,
+ * который можно назвать числом.
+ *
  * ## Почему предел обнаружения считается при НУЛЕВОЙ доле
  *
  * Предел Карри ([Component.criticalScale]) отвечает на вопрос «какой множитель
@@ -66,8 +93,11 @@ import kotlin.random.Random
  * подставить в предел готовую [Component.sigma] нельзя — она измерена вокруг
  * найденного оптимума и на заметной доле систематически другая.
  *
- * Вклад данных в этот разброс кривизна даёт аналитически (`Σ T²/M₀`, где `M₀` —
- * модель БЕЗ этой формы), а вклад шума шаблонов — тем же бутстрэпом, что и
+ * Вклад данных в этот разброс информационная матрица даёт аналитически: она
+ * строится по модели `M₀` БЕЗ этой формы (`I₀_jl = Σ T_j·T_l/M₀`, ожидание счёта
+ * при H₀ равно самой `M₀`), включая строку и столбец проверяемой формы, и берётся
+ * корень её обращённого диагонального элемента. Вклад шума шаблонов — тем же
+ * бутстрэпом, что и
  * [Component.sigmaTemplate], но подгонкой при `a = 0`. Без этой добавки короткий
  * шаблон получает такой же порог, как длинный, и [Component.detected] говорит
  * «есть» там, где полная неопределённость этого уже не держит.
@@ -85,8 +115,11 @@ object SpectrumUnmix {
         /** Множитель к шаблону: во сколько раз он входит в измеренное. */
         val scale: Double,
         /**
-         * Вклад статистики ДАННЫХ в неопределённость множителя: кривизна
-         * правдоподобия при шаблоне, принятом за точную форму.
+         * Вклад статистики ДАННЫХ в неопределённость множителя при шаблоне,
+         * принятом за точную форму: `√((I⁻¹)_jj)` по информационной матрице
+         * правдоподобия. Не диагональ кривизны — она считает чужие доли
+         * известными и занижает σ тем сильнее, чем больше формы перекрываются.
+         * NaN, когда матрица не обращается: доли неразличимых форм не разделены.
          */
         val sigmaData: Double,
         /**
@@ -101,11 +134,14 @@ object SpectrumUnmix {
          * Предел Карри для множителя: ниже него доля неотличима от нуля.
          *
          * `1,645·√(σ_данные,0² + σ_шаблоны,0²)`, обе величины — разброс оценки
-         * множителя при гипотезе «этой формы нет»: данные дают его кривизной
-         * правдоподобия по модели БЕЗ этой формы, шаблоны — бутстрэпом при
-         * нулевой доле. При разложении с ОДНОЙ формой модели без неё не
-         * существует, оба слагаемых нулевые, и предел равен нулю: сравнивать
-         * единственную форму не с чем.
+         * множителя при гипотезе «этой формы нет»: данные дают его обращённой
+         * информационной матрицей, построенной по модели БЕЗ этой формы,
+         * шаблоны — бутстрэпом при нулевой доле. При разложении с ОДНОЙ формой
+         * модели без неё не существует, оба слагаемых нулевые, и предел равен
+         * нулю: сравнивать единственную форму не с чем.
+         *
+         * NaN, когда матрица гипотезы не обращается: порога у неразделимых форм
+         * нет, и [detected] тогда ложно при любом множителе.
          */
         val criticalScale: Double,
     ) {
@@ -429,43 +465,37 @@ object SpectrumUnmix {
         val total = counts.sumOf { it.toDouble() }
         val scales = emScales(counts, templates, equalShareStart(counts, templates), ITERATIONS)
 
-        val model = DoubleArray(n)
-        for (channel in 0 until n) {
-            var value = 0.0
-            for (index in 0 until k) value += scales[index] * templates[index][channel]
-            model[channel] = value
-        }
+        val model = modelOf(templates, scales, n)
 
-        // σ множителя из кривизны правдоподобия: d²C/da² = Σ N·T²/M².
-        val sigmas = DoubleArray(k)
+        val sigmas = marginalSigmas(
+            informationMatrix(templates, model) { channel -> counts[channel].toDouble() },
+        )
+
+        // Модели без ЕДИНСТВЕННОЙ формы не существует: её предел остаётся нулевым.
         val critical = DoubleArray(k)
-        for (index in 0 until k) {
-            var curvature = 0.0
-            var zeroCurvature = 0.0
-            for (channel in 0 until n) {
-                val t = templates[index][channel]
-                if (t <= 0.0) continue
-                val m = model[channel]
-                if (m > 0.0) curvature += counts[channel] * t * t / (m * m)
+        if (k > 1) {
+            for (index in 0 until k) {
                 // При отсутствии этой формы её место занимают остальные: вклад
-                // ДАННЫХ в предел Карри считается по модели БЕЗ неё. Вклад шума
+                // ДАННЫХ в предел Карри считается по модели БЕЗ неё, а ожидаемый
+                // счёт при такой гипотезе равен самой этой модели. Вклад шума
                 // шаблонов добавляет withTemplateSigma.
-                val without = m - scales[index] * t
-                if (without > 0.0) zeroCurvature += without * t * t / (without * without)
+                val zeroModel = DoubleArray(n) { channel ->
+                    model[channel] - scales[index] * templates[index][channel]
+                }
+                val zeroSigma = marginalSigmas(
+                    informationMatrix(templates, zeroModel) { channel -> zeroModel[channel] },
+                )[index]
+                critical[index] = SIGMAS * zeroSigma
             }
-            sigmas[index] = if (curvature > 0.0) 1.0 / sqrt(curvature) else Double.NaN
-            critical[index] = if (zeroCurvature > 0.0) SIGMAS * (1.0 / sqrt(zeroCurvature)) else 0.0
         }
 
-        var cash = 0.0
+        val cash = cash(counts, model)
         var expected = 0.0
         var variance = 0.0
         val residual = DoubleArray(n)
         for (channel in 0 until n) {
             val m = max(model[channel], MIN_MODEL)
             val data = counts[channel].toDouble()
-            cash += 2.0 * (m - data * ln(m))
-            if (data > 0.0) cash += 2.0 * (data * ln(data) - data)
             expected += kaastraExpectation(m)
             variance += kaastraVariance(m)
             residual[channel] = (data - m) / sqrt(max(m, 1.0))
@@ -495,28 +525,173 @@ object SpectrumUnmix {
     }
 
     /**
-     * Мультипликативные итерации EM для долей при фиксированных шаблонах.
+     * Информационная матрица правдоподобия Пуассона по долям, k×k:
+     * `I_jl = Σ_канал w·T_j·T_l / M²`, где `w` — ожидаемый счёт канала.
+     *
+     * Для найденной модели весом служит измеренный счёт (наблюдённая
+     * информация), для гипотезы «доли нет» — сама модель H₀. Каналы с `M ≤ 0`
+     * пропускаются: там доли на правдоподобие не влияют.
+     *
+     * @param model модель по каналам; её длина задаёт число каналов.
+     * @param weight ожидаемый счёт канала.
+     */
+    private fun informationMatrix(
+        templates: List<List<Double>>,
+        model: DoubleArray,
+        weight: (Int) -> Double,
+    ): Array<DoubleArray> {
+        val k = templates.size
+        val matrix = Array(k) { DoubleArray(k) }
+        for (channel in model.indices) {
+            val m = model[channel]
+            if (m <= 0.0) continue
+            val w = weight(channel) / (m * m)
+            if (w <= 0.0) continue
+            for (row in 0 until k) {
+                val t = templates[row][channel]
+                if (t <= 0.0) continue
+                val scaled = w * t
+                for (column in row until k) {
+                    matrix[row][column] += scaled * templates[column][channel]
+                }
+            }
+        }
+        for (row in 0 until k) {
+            for (column in 0 until row) matrix[row][column] = matrix[column][row]
+        }
+        return matrix
+    }
+
+    /**
+     * Маргинальные σ долей: `√((I⁻¹)_jj)` по информационной матрице [matrix].
+     *
+     * Обращение — через разложение Холецкого: матрица симметрична и при
+     * линейно независимых формах положительно определена, а k здесь единицы.
+     * Столбец `j` обратной матрицы получается решением `L y = e_j`, и
+     * `(I⁻¹)_jj = |y|²`, потому что `I⁻¹ = (L⁻¹)ᵀ·L⁻¹`.
+     *
+     * @return σ по формам; NaN на ВСЕХ позициях, когда разложение не проходит —
+     *   формы линейно зависимы (в пределе — совпадают), и разделить их доли
+     *   нечем. Единственная форма даёт матрицу 1×1, то есть прежнее `1/√I₀₀`.
+     */
+    private fun marginalSigmas(matrix: Array<DoubleArray>): DoubleArray {
+        val k = matrix.size
+        val lower = cholesky(matrix) ?: return DoubleArray(k) { Double.NaN }
+        return DoubleArray(k) { index ->
+            var norm = 0.0
+            val column = DoubleArray(k)
+            for (row in index until k) {
+                var sum = if (row == index) 1.0 else 0.0
+                for (previous in index until row) sum -= lower[row][previous] * column[previous]
+                val value = sum / lower[row][row]
+                column[row] = value
+                norm += value * value
+            }
+            sqrt(norm)
+        }
+    }
+
+    /**
+     * Решение `matrix · x = rhs` для симметричной положительно определённой
+     * матрицы: прямая и обратная подстановки по множителю Холецкого.
+     *
+     * @return null, когда матрица не раскладывается (формы линейно зависимы).
+     */
+    private fun solve(matrix: Array<DoubleArray>, rhs: DoubleArray): DoubleArray? {
+        val k = matrix.size
+        val lower = cholesky(matrix) ?: return null
+        val x = DoubleArray(k)
+        for (row in 0 until k) {
+            var sum = rhs[row]
+            for (previous in 0 until row) sum -= lower[row][previous] * x[previous]
+            x[row] = sum / lower[row][row]
+        }
+        for (row in k - 1 downTo 0) {
+            var sum = x[row]
+            for (next in row + 1 until k) sum -= lower[next][row] * x[next]
+            x[row] = sum / lower[row][row]
+        }
+        return x
+    }
+
+    /**
+     * Нижнетреугольный множитель Холецкого: `matrix = L·Lᵀ`.
+     *
+     * @return null, когда ведущий элемент не положителен относительно исходной
+     *   диагонали ([SINGULAR_PIVOT]) — матрица вырождена или численно неотличима
+     *   от вырожденной.
+     */
+    private fun cholesky(matrix: Array<DoubleArray>): Array<DoubleArray>? {
+        val k = matrix.size
+        val lower = Array(k) { DoubleArray(k) }
+        for (row in 0 until k) {
+            for (column in 0..row) {
+                var sum = matrix[row][column]
+                for (previous in 0 until column) {
+                    sum -= lower[row][previous] * lower[column][previous]
+                }
+                if (row == column) {
+                    if (!(sum > SINGULAR_PIVOT * matrix[row][row])) return null
+                    lower[row][row] = sqrt(sum)
+                } else {
+                    lower[row][column] = sum / lower[column][column]
+                }
+            }
+        }
+        return lower
+    }
+
+    /**
+     * Доли по мультипликативным итерациям EM — до СХОДИМОСТИ, а не до заданного
+     * числа шагов.
+     *
+     * ## Почему критерий считается в импульсах, а не в долях
+     *
+     * Форма, которой в спектре нет, у EM гаснет геометрически: множитель падает
+     * примерно на 0,16 % за итерацию и относительное изменение доли так и
+     * держится на 1,6·10⁻³, сколько ни считай (проверено: 200 000 итераций,
+     * доля дошла до 10⁻¹³⁹, критерий по относительному изменению не сработал ни
+     * разу). Поэтому сходимость меряется сдвигом ВКЛАДА формы, отнесённым ко
+     * всему измеренному счёту: `|Δa_j|·ΣT_j / ΣN`. Это прямо тот вопрос, ради
+     * которого считается разложение — «изменился ли состав», — и величина у него
+     * конечная.
+     *
+     * ## Почему ускорение
+     *
+     * Одного EM для этого мало: до [CONVERGENCE] на реальном фоне с лишней
+     * формой ему нужно 2500–5900 итераций. Каждая [ACCELERATE_EVERY]-я итерация
+     * поэтому дополняется ньютоновским рывком ([newtonJump]) — с ним те же
+     * данные сходятся за 10 итераций, то есть ДЕШЕВЛЕ прежних фиксированных 200,
+     * и при этом действительно в оптимуме.
      *
      * @param start стартовые доли; на бутстрэп-репликах это уже найденный
-     *   оптимум, поэтому там хватает [BOOTSTRAP_ITERATIONS].
+     *   оптимум, и критерий останавливает их за единицы итераций.
+     * @param maxIterations потолок; при [CONVERGENCE] и ускорении на реальных
+     *   данных он не достигается — это защита от незамеченного расхождения, а не
+     *   рабочий режим.
      * @return доли, неотрицательные по построению.
      */
     private fun emScales(
         counts: List<Int>,
         templates: List<List<Double>>,
         start: DoubleArray,
-        iterations: Int,
+        maxIterations: Int,
     ): DoubleArray {
         val n = counts.size
         val k = templates.size
         val scales = start.copyOf()
+        val areas = DoubleArray(k) { templates[it].sum() }
+        val total = counts.sumOf { it.toDouble() }.coerceAtLeast(1.0)
         val model = DoubleArray(n)
-        repeat(iterations) {
+        var iteration = 0
+        while (iteration < maxIterations) {
+            iteration++
             for (channel in 0 until n) {
                 var value = 0.0
                 for (index in 0 until k) value += scales[index] * templates[index][channel]
                 model[channel] = value
             }
+            var moved = 0.0
             for (index in 0 until k) {
                 var numerator = 0.0
                 var denominator = 0.0
@@ -527,14 +702,97 @@ object SpectrumUnmix {
                     val m = model[channel]
                     if (m > 0.0) numerator += counts[channel] * t / m
                 }
-                if (denominator > 0.0 && numerator > 0.0) {
-                    scales[index] *= numerator / denominator
+                val next = if (denominator > 0.0 && numerator > 0.0) {
+                    scales[index] * numerator / denominator
                 } else {
-                    scales[index] = 0.0
+                    0.0
                 }
+                val shift = abs(next - scales[index]) * areas[index] / total
+                if (shift > moved) moved = shift
+                scales[index] = next
             }
+            if (moved < CONVERGENCE) break
+            // Единственная форма приходит в оптимум первой же итерацией: у неё
+            // множитель равен ΣN/ΣT независимо от старта.
+            if (k > 1 && iteration % ACCELERATE_EVERY == 0) newtonJump(counts, templates, scales)
         }
         return scales
+    }
+
+    /**
+     * Один ньютоновский шаг по долям, принимаемый ТОЛЬКО при улучшении статистики
+     * Кэша.
+     *
+     * Логарифм правдоподобия Пуассона вогнут по долям при линейной модели, а его
+     * отрицательный гессиан — та же информационная матрица [informationMatrix].
+     * Шаг `Δa = I⁻¹·∇` поэтому берёт ровно ту связку форм, вдоль которой EM ползёт
+     * медленнее всего.
+     *
+     * Доля не обнуляется целиком, а ограничена снизу [SHRINK_FLOOR] от текущей:
+     * форма, которой в спектре нет, гаснет за шаг в миллион раз, но остаётся
+     * положительной, и EM может её вернуть, если рывок ошибся. Ошибиться рывок
+     * почти не может — кандидат принимается лишь тогда, когда Кэш не вырос, а при
+     * отказе длина шага делится пополам ([BACKTRACKS] проб). Если матрица не
+     * обращается, шага нет: EM продолжает сам.
+     *
+     * [scales] изменяется на месте.
+     */
+    private fun newtonJump(
+        counts: List<Int>,
+        templates: List<List<Double>>,
+        scales: DoubleArray,
+    ) {
+        val n = counts.size
+        val k = templates.size
+        val model = modelOf(templates, scales, n)
+        val gradient = DoubleArray(k)
+        for (channel in 0 until n) {
+            val m = model[channel]
+            if (m <= 0.0) continue
+            val ratio = counts[channel] / m - 1.0
+            for (index in 0 until k) gradient[index] += templates[index][channel] * ratio
+        }
+        val direction = solve(
+            informationMatrix(templates, model) { channel -> counts[channel].toDouble() },
+            gradient,
+        ) ?: return
+
+        val current = cash(counts, model)
+        var factor = 1.0
+        repeat(BACKTRACKS) {
+            val candidate = DoubleArray(k) {
+                max(scales[it] + factor * direction[it], scales[it] * SHRINK_FLOOR)
+            }
+            if (cash(counts, modelOf(templates, candidate, n)) <= current) {
+                candidate.copyInto(scales)
+                return
+            }
+            factor /= 2.0
+        }
+    }
+
+    /** Модель по каналам: `M = Σ aᵢ·Tᵢ`. */
+    private fun modelOf(templates: List<List<Double>>, scales: DoubleArray, channels: Int) =
+        DoubleArray(channels) { channel ->
+            var value = 0.0
+            for (index in templates.indices) value += scales[index] * templates[index][channel]
+            value
+        }
+
+    /**
+     * Статистика Кэша `C = 2·Σ(M − N·ln M) + 2·Σ(N·ln N − N)`: вторая сумма от
+     * долей не зависит и держит C неотрицательной, что делает сравнение двух
+     * подгонок одного спектра прямым.
+     */
+    private fun cash(counts: List<Int>, model: DoubleArray): Double {
+        var cash = 0.0
+        for (channel in counts.indices) {
+            val m = max(model[channel], MIN_MODEL)
+            val data = counts[channel].toDouble()
+            cash += 2.0 * (m - data * ln(m))
+            if (data > 0.0) cash += 2.0 * (data * ln(data) - data)
+        }
+        return cash
     }
 
     /**
@@ -584,6 +842,14 @@ object SpectrumUnmix {
     private const val MIN_MODEL = 1e-9
 
     /**
+     * Доля исходного диагонального элемента, ниже которой ведущий элемент
+     * Холецкого считается нулевым. Слагаемые матрицы — суммы по тысяче каналов,
+     * и у зависимых форм ведущий элемент падает до уровня накопленной ошибки
+     * double (относительно 1e-16), а не до точного нуля.
+     */
+    private const val SINGULAR_PIVOT = 1e-12
+
+    /**
      * Пол модели гипотезы H₀ в проекции [zeroScale], импульсы.
      *
      * Вес канала в проекции равен `T²/M₀` и при `M₀ → 0` расходится: в верхней
@@ -596,8 +862,28 @@ object SpectrumUnmix {
      */
     private const val MIN_ZERO_MODEL = 1.0
 
-    /** Сколько итераций EM: дальше множители меняются меньше промилле. */
-    private const val ITERATIONS = 200
+    /**
+     * Порог сходимости EM: сдвиг вклада формы, отнесённый ко всему измеренному
+     * счёту (`|Δa|·ΣT / ΣN`).
+     *
+     * 10⁻⁷ выбран по цене ошибки, а не по красоте числа. На реальном фоне с
+     * лишней формой останов при 10⁻⁵ оставляет в ней 0,3 % счёта — это ровно
+     * уровень предела обнаружения, то есть недосчитанная подгонка сама по себе
+     * даёт ложное «обнаружено». При 10⁻⁷ остаётся 6·10⁻⁵ и меньше — на два
+     * порядка ниже и предела, и пуассоновского шума измерения (1/√N ≈ 2·10⁻³
+     * при 3·10⁵ импульсов).
+     */
+    private const val CONVERGENCE = 1e-7
+
+    /**
+     * Потолок итераций EM основной подгонки.
+     *
+     * С ускорением реальные разложения сходятся за 10–20 итераций, поэтому
+     * потолок — защита от незамеченного расхождения, а не рабочий режим. 2000
+     * итераций стоят порядка 2000·n·k операций: даже упёршись в потолок, одна
+     * подгонка остаётся дешевле приведения шаблонов.
+     */
+    private const val ITERATIONS = 2000
 
     /**
      * Сколько бутстрэп-реплик шаблонов.
@@ -610,11 +896,34 @@ object SpectrumUnmix {
     private const val BOOTSTRAP_REPLICAS = 14
 
     /**
-     * Итераций EM на реплику. Реплика стартует с уже найденных долей и отличается
-     * от них на статистику шаблона, то есть на доли процента: оптимум рядом, и
-     * полные [ITERATIONS] здесь только жгли бы время.
+     * Потолок итераций EM на бутстрэп-реплику. Останавливает реплику тот же
+     * критерий [CONVERGENCE], что и основную подгонку: реплика стартует с уже
+     * найденных долей и отличается от них на статистику шаблона, поэтому до
+     * потолка не доходит, а качество ответа задаёт критерий, а не число шагов.
      */
-    private const val BOOTSTRAP_ITERATIONS = 30
+    private const val BOOTSTRAP_ITERATIONS = 200
+
+    /**
+     * Каждая ACCELERATE_EVERY-я итерация EM дополняется ньютоновским рывком
+     * ([newtonJump]).
+     *
+     * Рывок стоит примерно три итерации EM (градиент, матрица и до [BACKTRACKS]
+     * проб статистики Кэша), поэтому на восьмой итерации он добавляет к цене
+     * порядка 40 %, а убирает тысячи итераций: 2500–5900 шагов чистого EM против
+     * 10 шагов с рывком на тех же данных.
+     */
+    private const val ACCELERATE_EVERY = 8
+
+    /** Сколько раз длина ньютоновского шага делится пополам, прежде чем сдаться. */
+    private const val BACKTRACKS = 10
+
+    /**
+     * Нижняя граница доли в ньютоновском шаге — доля текущего значения. Форма,
+     * которой в спектре нет, гаснет за шаг в миллион раз, но не обнуляется:
+     * ноль у мультипликативных итераций необратим, а положительную долю EM
+     * вернёт, если рывок ошибся.
+     */
+    private const val SHRINK_FLOOR = 1e-6
 
     /** Выше этого среднего пуассоновский отсчёт берётся гауссовым приближением. */
     private const val GAUSSIAN_FROM = 30.0

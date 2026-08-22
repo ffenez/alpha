@@ -70,6 +70,12 @@ interface UnmixStrings {
     /** «Th-232 — 38 % счёта (±2 %)». */
     fun componentShare(name: String, percent: String, sigma: String): String
 
+    /**
+     * Формы неразделимы: одна выражается через другие, и доля каждой из них
+     * по отдельности не определена.
+     */
+    fun componentIndistinguishable(name: String): String
+
     /** Форма не отличается от нуля: доля ниже предела Карри. */
     fun componentBelowLimit(name: String, limitPercent: String): String
 
@@ -151,6 +157,9 @@ object UnmixRu : UnmixStrings {
 
     override fun componentShare(name: String, percent: String, sigma: String) =
         "$name — $percent % счёта (±$sigma %)"
+
+    override fun componentIndistinguishable(name: String) =
+        "$name — не отделяется от остальных форм: доля по отдельности не определена"
 
     override fun componentBelowLimit(name: String, limitPercent: String) =
         "$name — не отличается от нуля (заметно было бы от $limitPercent %)"
@@ -253,6 +262,9 @@ object UnmixEn : UnmixStrings {
     override fun componentShare(name: String, percent: String, sigma: String) =
         "$name — $percent % of the counts (±$sigma %)"
 
+    override fun componentIndistinguishable(name: String) =
+        "$name — not separable from the other shapes: its own share is undefined"
+
     override fun componentBelowLimit(name: String, limitPercent: String) =
         "$name — not different from zero (it would show from $limitPercent %)"
 
@@ -310,6 +322,7 @@ fun UnmixStrings.allTexts(): List<String> = listOf(
     resolutionMeasured("8,1", "4,4"),
     fitnessOwn, fitnessForeign, fitnessRefused,
     componentShare("Th-232", "38", "2"), componentBelowLimit("Cs-137", "4"),
+    componentIndistinguishable("Cs-137"),
     explained("96"), agreementOk("1,2"), agreementBad("8,4"),
     scaleFitted("0,98", "+5"), scaleAsMeasured,
     methodTitle, methodWhole, methodPoisson, methodScale, methodDevice, methodResolution,

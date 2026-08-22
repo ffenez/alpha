@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0550Title: String
+    val v0550Summary: String
+
     val v0540Title: String
     val v0540Summary: String
 
@@ -456,6 +459,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0550Title = "Состав считается до конца, а не до счётчика"
+    override val v0550Summary =
+        "Подгонка состава доходит до оптимума, а не до счётчика итераций: форма, которой в " +
+        "спектре нет, получает теперь ноль вместо процента счёта, и сама подгонка стала " +
+        "быстрее. Неопределённость доли считается с учётом перекрытия форм, поэтому там, где " +
+        "формы неразделимы, доля называется неопределённой, а не найденной."
 
     override val v0540Title = "Порог обнаружения и температурный ход шкалы"
     override val v0540Summary =
@@ -1468,6 +1478,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0550Title = "The composition is computed to the end"
+    override val v0550Summary =
+        "The composition fit now runs to the optimum instead of to an iteration counter: a " +
+        "shape absent from the spectrum gets zero instead of a percent of the counts, and the " +
+        "fit itself became faster. The uncertainty of a share now accounts for the overlap " +
+        "between shapes, so where shapes are inseparable the share is called undefined rather " +
+        "than found."
 
     override val v0540Title = "Detection threshold and the scale's temperature drift"
     override val v0540Summary =
