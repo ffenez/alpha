@@ -192,6 +192,9 @@ interface Strings {
     fun deviceCurrent(name: String): String
 
     /** Фильтр журнала по прибору: появляется, когда приборов больше одного. */
+    /** Доза за сутки относится к одному прибору: суммировать приборы нельзя. */
+    val doseOneDevice: String
+
     /** Фон места собран другим прибором — для этого он собирается заново. */
     val baselineOtherDevice: String
 
@@ -759,7 +762,7 @@ interface Strings {
 fun Strings.allTexts(): List<String> = listOf(
     exitApp, exitAppNote, exitAppConfirm,
     switchDevice, switchDeviceNote, switchDeviceMixNote, deviceCurrent("RadiaCode"),
-    baselineOtherDevice, allDevices, noRecordsForDevice, unmarkedRecordsNote, knownDevices, foundNearby, renameDevice, deviceLastSeen("вчера 18:42"),
+    baselineOtherDevice, doseOneDevice, allDevices, noRecordsForDevice, unmarkedRecordsNote, knownDevices, foundNearby, renameDevice, deviceLastSeen("вчера 18:42"),
     historySync("2 ч"),
     rawOffsetsTitle, rawOffsetsToggle, rawOffsetsNote, rawOffsetsSave, rawOffsetsClear,
     rawOffsetsCollected(42),

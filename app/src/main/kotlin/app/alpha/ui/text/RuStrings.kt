@@ -114,6 +114,9 @@ object RuStrings : Strings {
     override val baselineOtherDevice =
         "Фон этого места собран другим прибором. Для нынешнего он собирается заново: " +
             "чувствительность приборов разная, и чужой уровень для него означал бы не то же самое"
+    override val doseOneDevice =
+        "Доза посчитана по нынешнему прибору. За эти же сутки писал и другой: сложить их нельзя " +
+            "— приборы пишут независимо, и одни и те же часы попали бы в счёт дважды"
     override val allDevices = "Все приборы"
     override val noRecordsForDevice = "У этого прибора таких записей нет"
     override val unmarkedRecordsNote =

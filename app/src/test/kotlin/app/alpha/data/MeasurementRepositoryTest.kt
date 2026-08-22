@@ -75,6 +75,20 @@ internal class FakeSampleDao : SampleDao {
     override suspend fun rangeList(from: Long, to: Long): List<SampleEntity> =
         inserted.filter { it.timestamp in from..to }.sortedBy { it.timestamp }
     override suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> = emptyList()
+    override suspend fun downsampledRangeForDevice(
+        from: Long,
+        to: Long,
+        bucketMillis: Long,
+        deviceSerial: String?,
+    ): List<DownsampledSample> = emptyList()
+
+    override suspend fun otherDeviceSamplesInRange(
+        from: Long,
+        to: Long,
+        deviceSerial: String,
+    ): Long = inserted.count {
+        it.timestamp in from..to && it.deviceSerial != null && it.deviceSerial != deviceSerial
+    }.toLong()
     override suspend fun downsampledRangeForProfile(profileId: Long, from: Long, to: Long, bucketMillis: Long, deviceSerial: String?): List<DownsampledSample> = emptyList()
     override suspend fun doseBucketRange(from: Long, to: Long, bucketMillis: Long): List<DoseBucketAggregate> = emptyList()
     override suspend fun countRateBucketRange(from: Long, to: Long, bucketMillis: Long): List<ValueBucketAggregate> = emptyList()

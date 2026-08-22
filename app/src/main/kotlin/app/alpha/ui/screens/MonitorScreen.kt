@@ -226,6 +226,7 @@ fun MonitorScreen(
     val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
     val baselineState by graph.serviceStatus.baseline.collectAsState()
     val baselineOtherDevice by graph.serviceStatus.baselineOtherDevice.collectAsState()
+    val connectedSerial = (connection as? ConnectionState.Connected)?.info?.serialNumber
     val deviation by graph.serviceStatus.deviation.collectAsState()
     val thresholds by graph.settings.alarmThresholds
         .collectAsState(initial = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f))
@@ -294,6 +295,9 @@ fun MonitorScreen(
     var charts by remember { mutableStateOf(cache.charts) }
     var trend by remember { mutableStateOf<TrendAvailability?>(null) }
     var doseTodayMicroSv by remember { mutableStateOf<Double?>(null) }
+    // За эти же сутки писал ещё какой-то прибор: доза относится к одному, и
+    // молчать об этом нельзя — иначе число читается как «всё, что набрано».
+    var doseTodayOtherDevices by remember { mutableStateOf(false) }
     // Цикл перечитывания привязан к жизненному циклу. Сбой чтения не рвёт
     // цикл: ошибка уходит в журнал, следующий проход пробует снова; возврат на
     // передний план запускает обновление, не дожидаясь очередных 15 с.
@@ -402,7 +406,9 @@ fun MonitorScreen(
                             .map { TrendPoint(it.midMillis, it.median) },
                     )
                 }
-                val loadedDose = withContext(Dispatchers.IO) { loadDoseToday(graph) }
+                val loadedDose = withContext(Dispatchers.IO) {
+                    loadDoseToday(graph, connectedSerial)
+                }
                 Triple(loadedCharts, loadedTrend, loadedDose)
             }
             outcome.getOrNull()?.let { (loadedCharts, loadedTrend, loadedDose) ->
@@ -410,7 +416,8 @@ fun MonitorScreen(
                 cache.charts = loadedCharts
                 cache.earliestMillis = earliestMillis
                 trend = loadedTrend
-                doseTodayMicroSv = loadedDose
+                doseTodayMicroSv = loadedDose.first
+                doseTodayOtherDevices = loadedDose.second
                 // Отметка для отладочного отчёта: по ней видно, жив ли цикл
                 // обновления.
                 graph.serviceStatus.onChartsRefreshed(System.currentTimeMillis())
@@ -533,6 +540,7 @@ fun MonitorScreen(
                 status = status,
                 baselineState = baselineState,
                 baselineOtherDevice = baselineOtherDevice,
+                doseTodayOtherDevices = doseTodayOtherDevices,
                 unit = unit,
                 stale = !stream.live,
                 stream = stream,
@@ -901,6 +909,8 @@ internal fun HeroCard(
     baselineState: BaselineState?,
     /** Фон места собран другим прибором, а для нынешнего идёт заново. */
     baselineOtherDevice: Boolean = false,
+    /** За эти сутки писал ещё какой-то прибор: доза относится к одному. */
+    doseTodayOtherDevices: Boolean = false,
     unit: DoseUnitSetting,
     stale: Boolean,
     /** То же состояние потока, что у чипа в шапке. */
@@ -1121,6 +1131,11 @@ internal fun HeroCard(
             // прибором. Без этой строки собранный фон выглядит потерянным.
             if (baselineOtherDevice) {
                 Hint(text = strings.baselineOtherDevice)
+            }
+            // Доза относится к ОДНОМУ прибору: складывать дозу двух нельзя,
+            // и число не должно читаться как «всё, что набрано за сутки».
+            if (doseTodayOtherDevices) {
+                Hint(text = strings.doseOneDevice)
             }
             }
 
@@ -1434,14 +1449,27 @@ private fun BatteryBanner() {
  * считается от начала суток, а не по окну графика, и минутных корзин для неё
  * достаточно.
  */
-private suspend fun loadDoseToday(graph: AppGraph): Double {
+/**
+ * Накопленная за сегодня доза ОДНОГО прибора.
+ *
+ * Складывать дозу двух приборов нельзя: они пишут автономно, и после слива
+ * памяти второго те же часы покрыты дважды — сумма посчитала бы одну и ту же
+ * дозу два раза. Поэтому доза относится к прибору, которым измеряют, а о
+ * записях других приборов за те же сутки экран говорит отдельно.
+ *
+ * @return доза и признак «за эти сутки писал ещё кто-то».
+ */
+private suspend fun loadDoseToday(graph: AppGraph, deviceSerial: String?): Pair<Double, Boolean> {
     val now = System.currentTimeMillis()
     val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault())
         .toInstant().toEpochMilli()
-    val buckets = graph.measurementRepository.downsampledSamples(
+    val buckets = graph.measurementRepository.downsampledSamplesOf(
         from = startOfDay,
         to = now,
         bucketMillis = 60_000L,
+        deviceSerial = deviceSerial,
     )
-    return ChartMapping.integrateDoseMicroSv(buckets)
+    val others = deviceSerial != null &&
+        graph.measurementRepository.hasOtherDeviceSamples(startOfDay, now, deviceSerial)
+    return ChartMapping.integrateDoseMicroSv(buckets) to others
 }

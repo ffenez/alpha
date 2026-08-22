@@ -349,6 +349,25 @@ class MeasurementRepository(
     suspend fun samplesList(from: Long, to: Long): List<SampleEntity> =
         sampleDao.rangeList(from, to)
 
+    /**
+     * Корзины измерений одного прибора; null — всех.
+     *
+     * Накопленная доза считается по ОДНОМУ прибору: приборы пишут автономно,
+     * и после слива памяти второго те же часы покрыты дважды — сложение
+     * посчитало бы одну дозу два раза.
+     */
+    suspend fun downsampledSamplesOf(
+        from: Long,
+        to: Long,
+        bucketMillis: Long,
+        deviceSerial: String?,
+    ): List<DownsampledSample> =
+        sampleDao.downsampledRangeForDevice(from, to, bucketMillis, deviceSerial)
+
+    /** Есть ли в отрезке измерения других приборов. */
+    suspend fun hasOtherDeviceSamples(from: Long, to: Long, deviceSerial: String): Boolean =
+        sampleDao.otherDeviceSamplesInRange(from, to, deviceSerial) > 0L
+
     suspend fun downsampledSamples(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample> =
         sampleDao.downsampledRange(from, to, bucketMillis)
 

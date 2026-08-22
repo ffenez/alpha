@@ -230,6 +230,41 @@ interface SampleDao {
     suspend fun downsampledRange(from: Long, to: Long, bucketMillis: Long): List<DownsampledSample>
 
     /**
+     * То же, но только по одному прибору; null — по всем.
+     *
+     * Нужно накопленной дозе: приборы записывают автономно, и после слива
+     * памяти второго прибора одни и те же часы оказываются покрыты дважды.
+     * Сложить их значило бы посчитать одну и ту же дозу два раза.
+     */
+    @Query(
+        """
+        SELECT (timestamp / :bucketMillis) * :bucketMillis AS bucketStart,
+               AVG(doseRate) AS avgDoseRate,
+               MAX(doseRate) AS maxDoseRate,
+               AVG(countRate) AS avgCountRate,
+               COUNT(*) AS sampleCount
+        FROM samples
+        WHERE timestamp BETWEEN :from AND :to
+              AND (:deviceSerial IS NULL OR deviceSerial = :deviceSerial)
+        GROUP BY timestamp / :bucketMillis
+        ORDER BY bucketStart
+        """,
+    )
+    suspend fun downsampledRangeForDevice(
+        from: Long,
+        to: Long,
+        bucketMillis: Long,
+        deviceSerial: String?,
+    ): List<DownsampledSample>
+
+    /** Есть ли в отрезке измерения ДРУГИХ приборов — «доза посчитана не за всё». */
+    @Query(
+        "SELECT COUNT(*) FROM samples WHERE timestamp BETWEEN :from AND :to " +
+            "AND deviceSerial IS NOT NULL AND deviceSerial <> :deviceSerial",
+    )
+    suspend fun otherDeviceSamplesInRange(from: Long, to: Long, deviceSerial: String): Long
+
+    /**
      * Bucketed moments for the fullscreen dose chart. One index range scan and
      * a streaming group-by inside SQLite; the caller asks for a bounded number
      * of buckets, so a 30-day window costs the same as a 15-minute one.

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0630Title: String
+    val v0630Summary: String
+
     val v0620Title: String
     val v0620Summary: String
 
@@ -480,6 +483,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0630Title = "Доза считается по одному прибору"
+    override val v0630Summary =
+        "Накопленная доза теперь считается по одному прибору — тому, которым вы измеряете. " +
+        "Складывать дозу двух приборов нельзя: они пишут автономно, и после слива памяти " +
+        "второго одни и те же часы попали бы в счёт дважды; если за те же сутки писал ещё кто-то, " +
+        "приложение говорит об этом рядом с числом."
 
     override val v0620Title = "Фон места принадлежит прибору, которым он снят"
     override val v0620Summary =
@@ -1548,6 +1558,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0630Title = "The dose is counted for one instrument"
+    override val v0630Summary =
+        "Accumulated dose is now counted for one instrument — the one you are measuring with. " +
+        "Doses of two instruments cannot be added: they record autonomously, and once the second " +
+        "one's memory is drained the same hours would be counted twice; if another instrument " +
+        "also recorded that day, the app says so next to the number."
 
     override val v0620Title = "A place's background belongs to the instrument that measured it"
     override val v0620Summary =

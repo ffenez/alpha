@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.alpha.AppGraph
+import app.alpha.device.ConnectionState
 import app.alpha.data.DoseUnitSetting
 import app.alpha.ui.components.BarChart
 import app.alpha.ui.components.BarChartSpec
@@ -104,6 +105,12 @@ fun DoseScreen(graph: AppGraph, onBack: () -> Unit) {
                 Text(text = strings.readingJournal, style = type.bodySmall, color = colors.muted)
             }
             return@Column
+        }
+
+        // Ограничение, меняющее прочтение числа, стоит рядом с числом, а не
+        // в справке: доза относится к одному прибору.
+        if (m.otherDevices) {
+            Hint(text = strings.doseOneDevice)
         }
 
         val periodDays = DosePeriods.LENGTHS[periodIndex]
@@ -279,6 +286,11 @@ private fun percent(fraction: Float): String =
 private data class DoseModel(
     /** Сутки, старые первыми. */
     val dailyDose: List<DailyDose.Day>,
+    /**
+     * За те же сутки писал и другой прибор. Доза считается по одному:
+     * приборы пишут независимо, и сложение посчитало бы одни часы дважды.
+     */
+    val otherDevices: Boolean = false,
     val toMillis: Long,
     /** Сколько секунд сегодняшних суток прошло — знаменатель покрытия. */
     val todayElapsedSeconds: Long,
@@ -299,16 +311,24 @@ private suspend fun loadDose(graph: AppGraph): DoseModel {
     // Часовые корзины: точное интегрирование AVG×COUNT при любой ширине.
     // Корзина относится к тем суткам, в которых НАЧАЛАСЬ; в поясах со
     // сдвигом в полчаса это переносит через полночь не больше часа записи.
-    val hourly = graph.measurementRepository.downsampledSamples(
+    // Доза — по ОДНОМУ прибору: приборы пишут автономно, и после слива
+    // памяти второго те же часы покрыты дважды.
+    val serial = (graph.serviceStatus.connection.value as? ConnectionState.Connected)
+        ?.info?.serialNumber
+    val hourly = graph.measurementRepository.downsampledSamplesOf(
         from = from,
         to = now,
         bucketMillis = 3_600_000L,
+        deviceSerial = serial,
     )
+    val others = serial != null &&
+        graph.measurementRepository.hasOtherDeviceSamples(from, now, serial)
     val today = LocalDate.now(zone)
     val startOfDay = today.atStartOfDay(zone).toInstant().toEpochMilli()
     val firstDay = today.minusDays((DOSE_DAYS - 1).toLong())
     return DoseModel(
         dailyDose = DailyDose.perDay(hourly, now, zone, DOSE_DAYS),
+        otherDevices = others,
         toMillis = now,
         todayElapsedSeconds = ((now - startOfDay) / 1000L).coerceAtLeast(0L),
         firstDayStartMillis = firstDay.atStartOfDay(zone).toInstant().toEpochMilli(),

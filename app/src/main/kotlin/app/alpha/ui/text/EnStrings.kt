@@ -123,6 +123,10 @@ object EnStrings : Strings {
         "The background of this place was collected by another instrument. For the current one " +
             "it is being collected again: instruments differ in sensitivity, and a level from " +
             "another one would not mean the same here"
+    override val doseOneDevice =
+        "The dose is counted for the current instrument. Another one also recorded during the " +
+            "same day: they cannot be added up — instruments record independently, and the same " +
+            "hours would be counted twice"
     override val allDevices = "All instruments"
     override val noRecordsForDevice = "This instrument has no records of this kind"
     override val unmarkedRecordsNote =
