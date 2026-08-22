@@ -284,6 +284,8 @@ data class EventEntity(
     val timestamp: Long,
     /** [SOURCE_DEVICE] or [SOURCE_HOTSPOT]. */
     val source: String,
+    /** Серийник прибора, которым сделана запись; null — прибор неизвестен. */
+    val deviceSerial: String? = null,
     /** Device event code ([app.alpha.protocol.EventId]) or 0 for hotspots. */
     val code: Int,
     val name: String,
@@ -456,6 +458,15 @@ data class MeasurementSessionEntity(
     val startedAt: Long,
     /** Null while the session is still running. */
     val endedAt: Long? = null,
+    /**
+     * Серийник прибора, которым сделана запись; null — прибор неизвестен
+     * (запись прежней версии или прибор не был опознан).
+     *
+     * Пометка своя, а не вычисляемая по измерениям отрезка: отнесение по
+     * времени перестаёт работать, когда измерений уже нет (уборка журнала,
+     * срез хранения), а запись остаётся.
+     */
+    val deviceSerial: String? = null,
 )
 
 /** A recorded track (GPS walk with the dosimeter). */
@@ -478,6 +489,8 @@ data class TrackSessionEntity(
      * следующем запуске и помечается прерванным.
      */
     val interrupted: Boolean = false,
+    /** Серийник прибора, которым сделана запись; null — прибор неизвестен. */
+    val deviceSerial: String? = null,
 )
 
 @Entity(

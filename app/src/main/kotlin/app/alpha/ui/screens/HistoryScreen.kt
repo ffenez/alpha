@@ -906,14 +906,13 @@ fun HistoryScreen(
                 if (deviceSerial == null) return@LaunchedEffect
                 for (entry in entries) {
                     if (attribution.containsKey(entry.key)) continue
-                    attribution[entry.key] = when (entry) {
-                        is FeedEntry.Spectrum -> entry.entity.deviceSerial
-                        else -> withContext(Dispatchers.IO) {
-                            graph.measurementRepository.deviceInRange(
-                                entry.range.first,
-                                entry.range.last,
-                            )
-                        }
+                    // Своя пометка записи вернее отнесения по времени: она
+                    // остаётся, даже когда измерения убраны уборкой журнала.
+                    attribution[entry.key] = entry.deviceSerial ?: withContext(Dispatchers.IO) {
+                        graph.measurementRepository.deviceInRange(
+                            entry.range.first,
+                            entry.range.last,
+                        )
                     }
                 }
             }
@@ -2066,6 +2065,9 @@ private sealed interface FeedEntry {
     /** Устойчивое имя записи — ключ карты «чей это прибор». */
     val key: String
 
+    /** Прибор, помеченный в самой записи; null — пометки нет. */
+    val deviceSerial: String? get() = null
+
     /**
      * Отрезок, по которому запись относят к прибору. У точечной записи это
      * окрестность её момента: измерения идут раз в секунду, и минуты хватает,
@@ -2076,6 +2078,7 @@ private sealed interface FeedEntry {
     data class Session(val group: SessionGroup) : FeedEntry {
         override val timestamp: Long get() = group.startedAt
         override val key: String get() = "session:${group.ids.firstOrNull() ?: group.startedAt}"
+        override val deviceSerial: String? get() = group.deviceSerial
         override val range: LongRange
             get() = group.startedAt..(group.endedAt ?: (group.startedAt + POINT_MARGIN))
     }
@@ -2083,6 +2086,7 @@ private sealed interface FeedEntry {
     data class Deviation(val event: EventEntity) : FeedEntry {
         override val timestamp: Long get() = event.timestamp
         override val key: String get() = "event:${event.id}"
+        override val deviceSerial: String? get() = event.deviceSerial
         override val range: LongRange
             get() = event.timestamp..(event.endTimestamp ?: (event.timestamp + POINT_MARGIN))
     }
@@ -2090,6 +2094,7 @@ private sealed interface FeedEntry {
     data class Route(val route: RouteSummary) : FeedEntry {
         override val timestamp: Long get() = route.startedAt
         override val key: String get() = "route:${route.id}"
+        override val deviceSerial: String? get() = route.deviceSerial
         override val range: LongRange
             get() = route.startedAt..(route.endedAt ?: (route.startedAt + POINT_MARGIN))
     }
@@ -2097,6 +2102,7 @@ private sealed interface FeedEntry {
     data class Spectrum(val entity: SpectrumSnapshotEntity) : FeedEntry {
         override val timestamp: Long get() = entity.timestamp
         override val key: String get() = "spectrum:${entity.id}"
+        override val deviceSerial: String? get() = entity.deviceSerial
     }
 
     data class Study(

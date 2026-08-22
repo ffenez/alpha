@@ -31,6 +31,8 @@ data class SessionGroup(
     val ids: List<Long>,
     val profileId: Long?,
     val profileName: String?,
+    /** Прибор, которым велась запись; null — пометки нет (прежняя версия). */
+    val deviceSerial: String? = null,
     val startedAt: Long,
     /** null — измерение идёт прямо сейчас. */
     val endedAt: Long?,
@@ -115,6 +117,10 @@ object SessionGroups {
             ids = pieces.map { it.id },
             profileId = newest.profileId,
             profileName = newest.profileName,
+            // Прибор берётся у НОВЕЙШЕЙ записи группы: склеенные куски — это
+            // одно измерение, и прибор у них один; если он всё же сменился,
+            // верен последний.
+            deviceSerial = newest.deviceSerial,
             startedAt = oldest.startedAt,
             endedAt = newest.endedAt,
             stats = stats,

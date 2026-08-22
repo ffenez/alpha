@@ -219,6 +219,8 @@ data class BackupSession(
     val startedAt: Long,
     val endedAt: Long?,
     val profileName: String?,
+    /** Прибор, которым велась запись; null — пометки нет. */
+    val deviceSerial: String? = null,
 ) {
     val key: String get() = BackupKey.of(startedAt)
 
@@ -227,6 +229,7 @@ data class BackupSession(
             .field("startedAt", startedAt)
             .field("endedAt", endedAt)
             .field("profile", profileName)
+            .field("dev", deviceSerial)
             .endObject()
     }
 
@@ -235,6 +238,7 @@ data class BackupSession(
             startedAt = o.long("startedAt") ?: 0L,
             endedAt = o.long("endedAt"),
             profileName = o.str("profile"),
+            deviceSerial = o.str("dev"),
         )
     }
 }
@@ -303,6 +307,8 @@ data class BackupEvent(
     val doseRate: Float?,
     val latitude: Double?,
     val longitude: Double?,
+    /** Прибор, которым сделана запись; null — пометки нет. */
+    val deviceSerial: String? = null,
 ) {
     val key: String get() = BackupKey.of(timestamp, source, code, name)
 
@@ -317,6 +323,7 @@ data class BackupEvent(
             .field("dose", doseRate)
             .field("lat", latitude)
             .field("lon", longitude)
+            .field("dev", deviceSerial)
             .endObject()
     }
 
@@ -331,6 +338,7 @@ data class BackupEvent(
             doseRate = o.float("dose"),
             latitude = o.double("lat"),
             longitude = o.double("lon"),
+            deviceSerial = o.str("dev"),
         )
     }
 }
@@ -462,6 +470,8 @@ data class BackupRoute(
     val endedAt: Long?,
     val distanceMeters: Double?,
     val interrupted: Boolean,
+    /** Прибор, которым записан маршрут; null — пометки нет. */
+    val deviceSerial: String? = null,
 ) {
     val key: String get() = BackupKey.of(startedAt, name)
 
@@ -472,6 +482,7 @@ data class BackupRoute(
             .field("endedAt", endedAt)
             .field("distance", distanceMeters)
             .field("interrupted", interrupted)
+            .field("dev", deviceSerial)
             .endObject()
     }
 
@@ -482,6 +493,7 @@ data class BackupRoute(
             endedAt = o.long("endedAt"),
             distanceMeters = o.double("distance"),
             interrupted = o.bool("interrupted") ?: false,
+            deviceSerial = o.str("dev"),
         )
     }
 }

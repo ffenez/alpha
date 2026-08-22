@@ -325,7 +325,7 @@ class MeasurementService : Service() {
                         sessionId = previousSession,
                         endedAt = lastSample?.timestampMillis ?: System.currentTimeMillis(),
                     )
-                    sessionId = graph.sessionRepository.open(profile?.id)
+                    sessionId = graph.sessionRepository.open(profile?.id, connectedSerial())
                 }
             }
         }
@@ -471,6 +471,10 @@ class MeasurementService : Service() {
         }
     }
 
+    /** Серийник подключённого прибора; null — прибора нет. */
+    private fun connectedSerial(): String? =
+        (graph.serviceStatus.connection.value as? ConnectionState.Connected)?.info?.serialNumber
+
     /** Серийник прибора, по которому считается «обычно здесь». */
     @Volatile
     private var lastBaselineSerial: String? = null
@@ -482,8 +486,7 @@ class MeasurementService : Service() {
         // уровень — а на нём стоят пороги тревог.
         // Разрыв связи не меняет того, чей это фон: пока не подключён другой
         // прибор, «обычно здесь» остаётся фоном последнего.
-        val serial = (graph.serviceStatus.connection.value as? ConnectionState.Connected)
-            ?.info?.serialNumber
+        val serial = connectedSerial()
             ?.also { lastBaselineSerial = it }
             ?: lastBaselineSerial
         val state = graph.baselineRepository.state(profileId, serial)
@@ -619,7 +622,10 @@ class MeasurementService : Service() {
                 postEpisodeNotification(transition.event)
                 if (!journalEpisodes) return
                 scope.launch {
-                    val id = graph.measurementRepository.openEpisode(transition.event)
+                    val id = graph.measurementRepository.openEpisode(
+                        event = transition.event,
+                        deviceSerial = connectedSerial(),
+                    )
                     synchronized(alarmLock) { episodeRowId = id }
                 }
             }
@@ -756,7 +762,7 @@ class MeasurementService : Service() {
             }
             is SessionGate.Action.Reopen -> scope.launch {
                 sessionId?.let { graph.sessionRepository.close(it, action.closeAt) }
-                sessionId = graph.sessionRepository.open(activeProfileId)
+                sessionId = graph.sessionRepository.open(activeProfileId, connectedSerial())
             }
             is SessionGate.Action.Close -> {
                 val current = sessionId
@@ -1143,7 +1149,7 @@ class MeasurementService : Service() {
             }
             return id
         }
-        val id = graph.trackRepository.startSession(name = "")
+        val id = graph.trackRepository.startSession(name = "", deviceSerial = connectedSerial())
         // Пока шла вставка, запись могли остановить — пустой маршрут убирается.
         if (!tracking) {
             graph.trackRepository.discardIfEmpty(id)
@@ -1353,6 +1359,7 @@ class MeasurementService : Service() {
                     latitude = location?.latitude,
                     longitude = location?.longitude,
                     baselineHighMicroSvH = baseline?.doseHighMicroSvH,
+                    deviceSerial = connectedSerial(),
                 )
             }
         }

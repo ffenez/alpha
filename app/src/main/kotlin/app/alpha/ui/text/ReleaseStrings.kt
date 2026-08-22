@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0660Title: String
+    val v0660Summary: String
+
     val v0650Title: String
     val v0650Summary: String
 
@@ -489,6 +492,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0660Title = "Записи журнала помнят свой прибор сами"
+    override val v0660Summary =
+        "Сеансы, маршруты и события теперь несут собственную пометку прибора, а не определяются " +
+        "по измерениям того же отрезка. Разница видна после уборки журнала: запись остаётся, " +
+        "измерений уже нет, и прежде прибор у неё пропадал — теперь пометка едет вместе с " +
+        "записью и переживает резервную копию."
 
     override val v0650Title = "Прибор можно забыть — с записями или без них"
     override val v0650Summary =
@@ -1578,6 +1588,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0660Title = "Journal records remember their instrument themselves"
+    override val v0660Summary =
+        "Sessions, routes and events now carry their own instrument mark instead of being matched " +
+        "by the measurements of the same interval. The difference shows after the journal is " +
+        "swept: the record stays, the measurements are gone, and its instrument used to vanish " +
+        "with them — now the mark travels with the record and survives a backup."
 
     override val v0650Title = "An instrument can be forgotten, with or without its records"
     override val v0650Summary =

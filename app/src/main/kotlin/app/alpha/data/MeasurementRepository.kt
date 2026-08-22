@@ -84,7 +84,7 @@ class MeasurementRepository(
         val rare = records.filterIsInstance<RareData>().map { it.toEntity(deviceSerial) }
         if (rare.isNotEmpty()) rareDataDao.insertAll(rare)
 
-        val events = records.filterIsInstance<Event>().map { it.toEntity() }
+        val events = records.filterIsInstance<Event>().map { it.toEntity(deviceSerial) }
         if (events.isNotEmpty()) eventDao.insertAll(events)
         return RecordOutcome(inserted = inserted, dropped = dropped)
     }
@@ -137,11 +137,13 @@ class MeasurementRepository(
         latitude: Double?,
         longitude: Double?,
         baselineHighMicroSvH: Float? = null,
+        deviceSerial: String? = null,
     ) {
         eventDao.insert(
             EventEntity(
                 timestamp = timestamp,
                 source = EventEntity.SOURCE_HOTSPOT,
+                deviceSerial = deviceSerial,
                 code = 0,
                 name = "HOTSPOT",
                 param1 = ((baselineHighMicroSvH ?: 0f) * 1000f).toInt(),
@@ -162,10 +164,11 @@ class MeasurementRepository(
      *
      * @return id строки — по нему эпизод обновляется и закрывается
      */
-    suspend fun openEpisode(event: LevelEvent): Long = eventDao.insert(
+    suspend fun openEpisode(event: LevelEvent, deviceSerial: String? = null): Long = eventDao.insert(
         EventEntity(
             timestamp = event.startMillis,
             source = sourceOf(event.kind),
+            deviceSerial = deviceSerial,
             code = 0,
             name = event.kind.name,
             param1 = ((event.baselineHighMicroSvH ?: 0f) * 1000f).toInt(),

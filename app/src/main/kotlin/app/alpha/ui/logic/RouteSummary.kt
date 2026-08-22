@@ -24,6 +24,8 @@ data class RouteSummary(
     val endedAt: Long?,
     /** Запись оборвалась (сбой, выключение), а не была остановлена. */
     val interrupted: Boolean = false,
+    /** Прибор, которым записан маршрут; null — пометки нет. */
+    val deviceSerial: String? = null,
     val distanceMeters: Double?,
     val measurementCount: Int,
     val avgDoseMicroSvH: Float?,

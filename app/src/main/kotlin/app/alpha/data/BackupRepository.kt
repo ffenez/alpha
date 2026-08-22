@@ -210,7 +210,12 @@ class BackupRepository(
         val names = profileNames()
         BackupPage(
             items = rows.map {
-                BackupSession(it.startedAt, it.endedAt, it.profileId?.let(names::get))
+                BackupSession(
+                    startedAt = it.startedAt,
+                    endedAt = it.endedAt,
+                    profileName = it.profileId?.let(names::get),
+                    deviceSerial = it.deviceSerial,
+                )
             },
             nextCursor = rows.lastOrNull()?.id,
         )
@@ -254,6 +259,7 @@ class BackupRepository(
                     doseRate = row.doseRate,
                     latitude = row.latitude,
                     longitude = row.longitude,
+                    deviceSerial = row.deviceSerial,
                 )
             },
             nextCursor = rows.lastOrNull()?.id,
@@ -324,7 +330,14 @@ class BackupRepository(
             ?: trackDao.sessionPage(cursor, limit)
         BackupPage(
             items = rows.map {
-                BackupRoute(it.name, it.startedAt, it.endedAt, it.distanceMeters, it.interrupted)
+                BackupRoute(
+                    name = it.name,
+                    startedAt = it.startedAt,
+                    endedAt = it.endedAt,
+                    distanceMeters = it.distanceMeters,
+                    interrupted = it.interrupted,
+                    deviceSerial = it.deviceSerial,
+                )
             },
             nextCursor = rows.lastOrNull()?.id,
         )
@@ -595,6 +608,7 @@ class BackupRepository(
                     profileId = session.profileName?.let { profileIdsByName[it] },
                     startedAt = session.startedAt,
                     endedAt = session.endedAt,
+                    deviceSerial = session.deviceSerial,
                 ),
             )
             added++
@@ -644,6 +658,7 @@ class BackupRepository(
                         doseRate = it.doseRate,
                         latitude = it.latitude,
                         longitude = it.longitude,
+                        deviceSerial = it.deviceSerial,
                     )
                 },
             )
@@ -725,6 +740,7 @@ class BackupRepository(
                     endedAt = route.endedAt,
                     distanceMeters = route.distanceMeters,
                     interrupted = route.interrupted,
+                    deviceSerial = route.deviceSerial,
                 ),
             )
             routeIdsByKey[route.key] = id

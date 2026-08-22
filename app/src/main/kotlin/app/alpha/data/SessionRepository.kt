@@ -43,6 +43,8 @@ data class SessionSummary(
     val profileId: Long?,
     /** Profile display name («Дом / Спальня»); null = «без профиля». */
     val profileName: String?,
+    /** Прибор, которым велась запись; null — пометки нет (прежняя версия). */
+    val deviceSerial: String? = null,
     val startedAt: Long,
     /** Open sessions report the current time as a provisional end. */
     val endedAt: Long?,
@@ -136,8 +138,19 @@ class SessionRepository(
 
     // --- lifecycle (service) ---
 
-    suspend fun open(profileId: Long?): Long =
-        sessionDao.insert(MeasurementSessionEntity(profileId = profileId, startedAt = clock()))
+    /**
+     * @param deviceSerial чей прибор ведёт запись; null — прибор неизвестен.
+     *   Пометка своя, потому что отнесение по измерениям отрезка перестаёт
+     *   работать, как только измерения убраны уборкой журнала.
+     */
+    suspend fun open(profileId: Long?, deviceSerial: String? = null): Long =
+        sessionDao.insert(
+            MeasurementSessionEntity(
+                profileId = profileId,
+                startedAt = clock(),
+                deviceSerial = deviceSerial,
+            ),
+        )
 
     /**
      * Продолжить последнюю запись или начать новую.
@@ -282,6 +295,7 @@ class SessionRepository(
             id = session.id,
             profileId = session.profileId,
             profileName = profile?.let { ProfileTree.displayName(it, profiles) },
+            deviceSerial = session.deviceSerial,
             startedAt = session.startedAt,
             endedAt = session.endedAt,
             stats = stats,

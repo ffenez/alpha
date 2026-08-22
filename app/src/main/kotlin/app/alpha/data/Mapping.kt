@@ -53,9 +53,10 @@ fun RareData.toEntity(deviceSerial: String? = null): RareDataEntity = RareDataEn
     deviceSerial = deviceSerial,
 )
 
-fun Event.toEntity(): EventEntity = EventEntity(
+fun Event.toEntity(deviceSerial: String? = null): EventEntity = EventEntity(
     timestamp = timestampMillis,
     source = EventEntity.SOURCE_DEVICE,
+    deviceSerial = deviceSerial,
     code = eventCode,
     name = eventId.name,
     param1 = eventParam1,

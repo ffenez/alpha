@@ -56,6 +56,18 @@ object MigrationSql {
      * Ключ — серийник: он приходит от прибора, тогда как BLE-адрес у части
      * телефонов случайный, а имя в эфире человек может сменить.
      */
+    /**
+     * 25 → 26: своя пометка прибора у сеансов, маршрутов и событий.
+     *
+     * Отнесение по измерениям того же отрезка работает, пока измерения целы;
+     * после уборки журнала запись остаётся, а прибор у неё пропадает.
+     */
+    val FROM_25_TO_26: List<String> = listOf(
+        "ALTER TABLE `measurement_sessions` ADD COLUMN `deviceSerial` TEXT",
+        "ALTER TABLE `track_sessions` ADD COLUMN `deviceSerial` TEXT",
+        "ALTER TABLE `events` ADD COLUMN `deviceSerial` TEXT",
+    )
+
     val FROM_24_TO_25: List<String> = listOf(
         "CREATE TABLE IF NOT EXISTS `devices` (" +
             "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +

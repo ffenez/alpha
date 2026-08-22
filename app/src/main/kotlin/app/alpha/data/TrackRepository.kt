@@ -28,8 +28,11 @@ class TrackRepository(
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
 
-    suspend fun startSession(name: String): Long =
-        trackDao.insertSession(TrackSessionEntity(name = name, startedAt = clock()))
+    /** @param deviceSerial чей прибор пишет маршрут; null — неизвестен. */
+    suspend fun startSession(name: String, deviceSerial: String? = null): Long =
+        trackDao.insertSession(
+            TrackSessionEntity(name = name, startedAt = clock(), deviceSerial = deviceSerial),
+        )
 
     suspend fun endSession(sessionId: Long) {
         trackDao.endSession(sessionId, endedAt = clock())
@@ -176,6 +179,7 @@ class TrackRepository(
             startedAt = session.startedAt,
             endedAt = session.endedAt,
             interrupted = session.interrupted,
+            deviceSerial = session.deviceSerial,
             distanceMeters = distance,
             measurementCount = row.pointCount,
             avgDoseMicroSvH = row.avgDoseRaw
