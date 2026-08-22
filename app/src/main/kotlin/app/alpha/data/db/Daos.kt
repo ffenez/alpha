@@ -149,6 +149,20 @@ interface SampleDao {
      * вставке при любой поправке часов.
      */
     /** Начало истории измерений; null — измерений нет вовсе. */
+    /**
+     * Каким прибором сделаны измерения в отрезке; null — измерений с
+     * пометкой прибора там нет.
+     *
+     * Приложение ведёт один прибор за раз, поэтому первой помеченной строки
+     * достаточно: смешанных отрезков не бывает, а перебор всех строк отрезка
+     * стоил бы на порядок дороже ради того же ответа.
+     */
+    @Query(
+        "SELECT deviceSerial FROM samples WHERE timestamp BETWEEN :from AND :to " +
+            "AND deviceSerial IS NOT NULL LIMIT 1",
+    )
+    suspend fun deviceInRange(from: Long, to: Long): String?
+
     @Query("SELECT MIN(timestamp) FROM samples")
     suspend fun earliestTimestamp(): Long?
 

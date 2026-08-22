@@ -328,6 +328,13 @@ class MeasurementRepository(
 
     fun samples(from: Long, to: Long): Flow<List<SampleEntity>> = sampleDao.observeRange(from, to)
 
+    /**
+     * Каким прибором записан отрезок; null — в нём нет помеченных измерений
+     * (запись сделана до появления пометки или прибор не был опознан).
+     */
+    suspend fun deviceInRange(fromMillis: Long, toMillis: Long): String? =
+        sampleDao.deviceInRange(fromMillis, toMillis)
+
     /** Начало истории измерений; null — измерений нет вовсе. */
     suspend fun earliestSampleMillis(): Long? = sampleDao.earliestTimestamp()
 

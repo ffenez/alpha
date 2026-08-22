@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0610Title: String
+    val v0610Summary: String
+
     val v0600Title: String
     val v0600Summary: String
 
@@ -474,6 +477,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0610Title = "Журнал умеет показывать записи одного прибора"
+    override val v0610Summary =
+        "В журнале появился выбор прибора — но только когда приборов больше одного: одному " +
+        "выбирать не из чего. Записи без пометки прибора остаются видны во «всех приборах» и не " +
+        "приписываются никому, а снимок спектра помнит свой прибор сам, остальным он " +
+        "определяется по измерениям того же отрезка."
 
     override val v0600Title = "Приложение помнит ваши приборы по именам"
     override val v0600Summary =
@@ -1528,6 +1538,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0610Title = "The journal can show one instrument's records"
+    override val v0610Summary =
+        "The journal now has an instrument selector — but only when there is more than one " +
+        "instrument, since with one there is nothing to choose. Records with no instrument mark " +
+        "stay visible under \"all instruments\" and are attributed to nobody, while a spectrum " +
+        "snapshot remembers its own instrument and the rest are matched by the measurements of " +
+        "the same interval."
 
     override val v0600Title = "The app remembers your instruments by name"
     override val v0600Summary =

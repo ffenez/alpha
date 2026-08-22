@@ -121,6 +121,9 @@ import kotlinx.coroutines.delay
 import app.alpha.ui.components.AppTextField
 import app.alpha.ui.components.RouteThumbnail
 import app.alpha.ui.logic.HistoryFeed
+import app.alpha.data.DeviceRegistry
+import androidx.compose.runtime.mutableStateMapOf
+import app.alpha.ui.logic.DeviceFeedFilter
 import app.alpha.ui.logic.HistoryFilter
 import app.alpha.ui.logic.RouteFormat
 import app.alpha.ui.logic.RouteShape
@@ -240,6 +243,10 @@ fun HistoryScreen(
     // Что показывает журнал: сессия, маршрут и снимок спектра — разные вещи,
     // и фильтр отвечает на вопрос «нужно вот это».
     var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
+    // Фильтр по прибору появляется только когда приборов больше одного:
+    // одному прибору выбирать не из чего, и строка была бы шумом.
+    val devices by graph.deviceRegistry.devices().collectAsState(initial = emptyList())
+    var deviceSerial by rememberSaveable { mutableStateOf<String?>(null) }
     /** Раскрытый эпизод журнала; null — лист закрыт. */
     var openedEpisode by remember { mutableStateOf<EventEntity?>(null) }
     var pages by remember { mutableIntStateOf(1) }
@@ -835,6 +842,22 @@ fun HistoryScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
+        if (devices.size >= 2) {
+            val names = devices.map { DeviceRegistry.label(it, devices, strings.instrumentTitle) }
+            Segmented(
+                options = listOf(strings.allDevices) + names,
+                selectedIndex = devices.indexOfFirst { it.serialNumber == deviceSerial } + 1,
+                onSelect = { index ->
+                    deviceSerial = if (index == 0) null else devices[index - 1].serialNumber
+                },
+                scrollable = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (deviceSerial != null) {
+                Hint(text = strings.unmarkedRecordsNote)
+            }
+        }
+
         val m = model
         if (m == null) {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -875,6 +898,27 @@ fun HistoryScreen(
                 }
             }
 
+            // Чей прибор у записи: снимок помнит его сам, у остальных он
+            // берётся по измерениям того же отрезка. Считается только когда
+            // фильтр включён — иначе это лишние запросы на каждую перерисовку.
+            val attribution = remember { mutableStateMapOf<String, String?>() }
+            LaunchedEffect(deviceSerial, entries.map { it.key }) {
+                if (deviceSerial == null) return@LaunchedEffect
+                for (entry in entries) {
+                    if (attribution.containsKey(entry.key)) continue
+                    attribution[entry.key] = when (entry) {
+                        is FeedEntry.Spectrum -> entry.entity.deviceSerial
+                        else -> withContext(Dispatchers.IO) {
+                            graph.measurementRepository.deviceInRange(
+                                entry.range.first,
+                                entry.range.last,
+                            )
+                        }
+                    }
+                }
+            }
+            val shown = DeviceFeedFilter.select(entries, deviceSerial) { attribution[it.key] }
+
             openedEpisode?.let { episode ->
                 EpisodeSheet(
                     event = episode,
@@ -891,10 +935,22 @@ fun HistoryScreen(
                 )
             }
 
-            if (entries.isEmpty()) {
-                EmptyFeedCard(filter)
+            if (shown.isEmpty()) {
+                // Пусто по прибору и пусто вообще — разные вещи: во втором
+                // случае у прибора просто нет таких записей.
+                if (deviceSerial != null && entries.isNotEmpty()) {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = strings.noRecordsForDevice,
+                            style = type.bodySmall,
+                            color = colors.ink2,
+                        )
+                    }
+                } else {
+                    EmptyFeedCard(filter)
+                }
             } else {
-                for (day in HistoryFeed.group(entries, timestamp = { it.timestamp })) {
+                for (day in HistoryFeed.group(shown, timestamp = { it.timestamp })) {
                     Text(
                         text = HistoryFormat.dayHeader(day.startOfDayMillis, now, s = h),
                         style = type.labelSmall,
@@ -2007,20 +2063,40 @@ internal fun spectrumExportGroups(
 private sealed interface FeedEntry {
     val timestamp: Long
 
+    /** Устойчивое имя записи — ключ карты «чей это прибор». */
+    val key: String
+
+    /**
+     * Отрезок, по которому запись относят к прибору. У точечной записи это
+     * окрестность её момента: измерения идут раз в секунду, и минуты хватает,
+     * чтобы попасть в поток, но не хватит, чтобы захватить соседний сеанс.
+     */
+    val range: LongRange get() = (timestamp - POINT_MARGIN)..(timestamp + POINT_MARGIN)
+
     data class Session(val group: SessionGroup) : FeedEntry {
         override val timestamp: Long get() = group.startedAt
+        override val key: String get() = "session:${group.ids.firstOrNull() ?: group.startedAt}"
+        override val range: LongRange
+            get() = group.startedAt..(group.endedAt ?: (group.startedAt + POINT_MARGIN))
     }
 
     data class Deviation(val event: EventEntity) : FeedEntry {
         override val timestamp: Long get() = event.timestamp
+        override val key: String get() = "event:${event.id}"
+        override val range: LongRange
+            get() = event.timestamp..(event.endTimestamp ?: (event.timestamp + POINT_MARGIN))
     }
 
     data class Route(val route: RouteSummary) : FeedEntry {
         override val timestamp: Long get() = route.startedAt
+        override val key: String get() = "route:${route.id}"
+        override val range: LongRange
+            get() = route.startedAt..(route.endedAt ?: (route.startedAt + POINT_MARGIN))
     }
 
     data class Spectrum(val entity: SpectrumSnapshotEntity) : FeedEntry {
         override val timestamp: Long get() = entity.timestamp
+        override val key: String get() = "spectrum:${entity.id}"
     }
 
     data class Study(
@@ -2028,8 +2104,17 @@ private sealed interface FeedEntry {
         val result: FoodScreening.Result?,
     ) : FeedEntry {
         override val timestamp: Long get() = experiment.createdAt
+        override val key: String get() = "study:${experiment.id}"
     }
 }
+
+/**
+ * Полуширина окрестности точечной записи при отнесении её к прибору, мс —
+ * **инженерный параметр**. Минута: поток идёт раз в секунду, поэтому попасть
+ * в него минута даёт с огромным запасом, а захватить соседний сеанс (их
+ * разделяют разрывы записи) она не успевает.
+ */
+private const val POINT_MARGIN = 60_000L
 
 /** «16 авг 19:37 · 15 ч 49 мин» — когда началось и сколько длилось. */
 private fun sessionSubtitle(group: SessionGroup, now: Long, h: HistoryStrings): String {

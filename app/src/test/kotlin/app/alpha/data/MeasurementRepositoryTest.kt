@@ -59,6 +59,10 @@ internal class FakeSampleDao : SampleDao {
     override fun observeRange(from: Long, to: Long): Flow<List<SampleEntity>> = flowOf(emptyList())
     override suspend fun earliestTimestamp(): Long? = inserted.minOfOrNull { it.timestamp }
 
+    override suspend fun deviceInRange(from: Long, to: Long): String? = inserted
+        .firstOrNull { it.timestamp in from..to && it.deviceSerial != null }
+        ?.deviceSerial
+
     override suspend fun rangeCensus(from: Long, to: Long): RangeCensus {
         val window = inserted.filter { it.timestamp in from..to }
         return RangeCensus(

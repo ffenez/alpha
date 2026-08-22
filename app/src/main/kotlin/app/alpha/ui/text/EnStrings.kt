@@ -119,6 +119,11 @@ object EnStrings : Strings {
             "snapshots and templates do remember their instrument."
     override fun deviceCurrent(name: String) = "$name — current"
 
+    override val allDevices = "All instruments"
+    override val noRecordsForDevice = "This instrument has no records of this kind"
+    override val unmarkedRecordsNote =
+        "Records with no instrument mark are shown only under \"all instruments\": which " +
+            "instrument made them is unknown"
     override val knownDevices = "Your instruments"
     override val foundNearby = "Found nearby"
     override val renameDevice = "Rename"

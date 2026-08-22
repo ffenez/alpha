@@ -191,6 +191,11 @@ interface Strings {
     val switchDeviceMixNote: String
     fun deviceCurrent(name: String): String
 
+    /** Фильтр журнала по прибору: появляется, когда приборов больше одного. */
+    val allDevices: String
+    val noRecordsForDevice: String
+    val unmarkedRecordsNote: String
+
     /** Список приборов: известные, найденные рядом, когда виделись. */
     val knownDevices: String
     val foundNearby: String
@@ -751,7 +756,7 @@ interface Strings {
 fun Strings.allTexts(): List<String> = listOf(
     exitApp, exitAppNote, exitAppConfirm,
     switchDevice, switchDeviceNote, switchDeviceMixNote, deviceCurrent("RadiaCode"),
-    knownDevices, foundNearby, renameDevice, deviceLastSeen("вчера 18:42"),
+    allDevices, noRecordsForDevice, unmarkedRecordsNote, knownDevices, foundNearby, renameDevice, deviceLastSeen("вчера 18:42"),
     historySync("2 ч"),
     rawOffsetsTitle, rawOffsetsToggle, rawOffsetsNote, rawOffsetsSave, rawOffsetsClear,
     rawOffsetsCollected(42),

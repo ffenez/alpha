@@ -111,6 +111,10 @@ object RuStrings : Strings {
             "прибор помнят."
     override fun deviceCurrent(name: String) = "$name — текущий"
 
+    override val allDevices = "Все приборы"
+    override val noRecordsForDevice = "У этого прибора таких записей нет"
+    override val unmarkedRecordsNote =
+        "Записи без пометки прибора видны только во «всех приборах»: чей это прибор, неизвестно"
     override val knownDevices = "Ваши приборы"
     override val foundNearby = "Найдены рядом"
     override val renameDevice = "Переименовать"
