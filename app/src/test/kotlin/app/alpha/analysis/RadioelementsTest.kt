@@ -2,6 +2,7 @@ package app.alpha.analysis
 
 import app.alpha.device.DeviceModel
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -9,23 +10,44 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Радиоэлементный разбор на РЕАЛЬНОМ спектре прибора (10 ч, 4,16 млн
- * импульсов) — на синтетике такую задачу проверять бессмысленно: весь вопрос
- * в том, как ведёт себя континуум под слабыми линиями настоящего фона.
+ * Радиоэлементный разбор: калий, уран и торий по трём линиям.
+ *
+ * Весь вопрос здесь в КОНТИНУУМЕ под слабыми линиями, поэтому спектр построен
+ * ([SyntheticSpectra]) с тремя заданными свойствами:
+ *
+ *  - площади линий K-40, Bi-214 и Tl-208 известны точно — есть с чем сравнивать
+ *    измеренные;
+ *  - континуум спадает круто (в 120 раз по шкале), как комптоновский подпор
+ *    настоящего фона;
+ *  - линия Tl-208 стоит у самого верха шкалы, где ВЕРХНЕЙ боковой полосы не
+ *    существует.
+ *
+ * Именно на этом движок и переведён с боковых полос на [SnipContinuum]:
+ * проверка ниже пересчитывает оба варианта и показывает, что полосы дают
+ * отрицательную площадь урана и никакой — тория.
  */
 class RadioelementsTest {
 
+    /** Заложенные линии: элемент → (энергия, кэВ; площадь, импульсы). */
+    private val trueLines = mapOf(
+        Radioelements.Element.K to (Radioelements.K40_KEV.toDouble() to 12_000.0),
+        Radioelements.Element.U to (Radioelements.BI214_KEV.toDouble() to 3_000.0),
+        Radioelements.Element.TH to (Radioelements.TL208_KEV.toDouble() to 2_000.0),
+    )
+
     private val counts: List<Int> by lazy {
-        javaClass.classLoader
-            .getResourceAsStream("spectra/alpha-20260819-143354.csv")
-            ?.bufferedReader()?.use { reader ->
-                reader.readLines().drop(1).filter { it.isNotBlank() }
-                    .map { it.split(",")[2].trim().toInt() }
-            }
-            ?: error("fixture не найден")
+        SyntheticSpectra.build(
+            lines = trueLines.values.map { (energyKeV, area) ->
+                SyntheticSpectra.Line(energyKeV, counts = area, tailFraction = 0.10)
+            },
+            continuum = 900.0,
+            continuumSlope = 120.0,
+            scale = 1.0,
+            seed = 31337,
+        )
     }
 
-    private val calibration = EnergyCalibration(6.8822712f, 2.3377426f, 3.8714259e-4f)
+    private val calibration = SyntheticSpectra.CALIBRATION
     private val seconds = 36_059L
     private val resolution = DeviceModel.UNKNOWN.peakResolution662
 
@@ -34,12 +56,25 @@ class RadioelementsTest {
     private fun of(element: Radioelements.Element) =
         measures().firstOrNull { it.element == element }
 
+    /**
+     * Площадь в окне по классической оценке «среднее двух боковых полос» —
+     * тот вариант, от которого движок отказался. NaN, если полоса не помещается
+     * в шкалу.
+     */
+    private fun sidebandNet(measure: Radioelements.Measure): Double {
+        val lo = calibration.channelAt(measure.fromKeV).toInt()
+        val hi = ceil(calibration.channelAt(measure.toKeV)).toInt()
+        val width = hi - lo + 1
+        val left = (lo - width) until lo
+        val right = (hi + 1)..(hi + width)
+        if (left.first < 0 || right.last >= counts.size) return Double.NaN
+        val leftMean = left.sumOf { counts[it].toDouble() } / left.count()
+        val rightMean = right.sumOf { counts[it].toDouble() } / right.count()
+        return (lo..hi).sumOf { counts[it].toDouble() } - (leftMean + rightMean) / 2.0 * width
+    }
+
     @Test
     fun `все три линии измеримы и площади положительны`() {
-        // Оценка континуума по боковым полосам давала на этом же спектре
-        // ОТРИЦАТЕЛЬНЫЕ площади урана и тория: полоса выше 2615 кэВ за краем
-        // шкалы, а сам континуум падает круто. Ради этого движок и переведён
-        // на SNIP.
         val all = measures()
         assertEquals(3, all.size, "линии: ${all.map { it.element }}")
         for (measure in all) {
@@ -50,6 +85,38 @@ class RadioelementsTest {
             assertTrue(
                 measure.detected,
                 "${measure.element}: ${measure.netCounts} ниже предела ${measure.criticalCounts}",
+            )
+        }
+    }
+
+    @Test
+    fun `боковые полосы на этом континууме дали бы отрицательный уран и никакой торий`() {
+        // Ради этого движок и переведён на SNIP. Уран: в нижнюю полосу окна
+        // попадает соседняя структура, а континуум падает круто, поэтому хорда
+        // по полосам проходит выше подложки и съедает всю линию. Торий: полоса
+        // выше 2769 кэВ за краем шкалы, и оценки просто нет.
+        val uranium = assertNotNull(of(Radioelements.Element.U))
+        val thorium = assertNotNull(of(Radioelements.Element.TH))
+        assertTrue(sidebandNet(uranium) < 0.0, "полосы дали урану ${sidebandNet(uranium)}")
+        assertTrue(sidebandNet(thorium).isNaN(), "у тория нашлась верхняя полоса")
+        assertTrue(uranium.netCounts > 0f && thorium.netCounts > 0f)
+    }
+
+    @Test
+    fun `измеренная площадь восстанавливает заложенную с известным смещением`() {
+        // В окно ±1,4 FWHM попадает 99 % площади линии, поэтому сравнивать
+        // можно прямо с заложенным числом. Смещение вверх — свойство подложки
+        // SNIP: она проходит НИЖЕ истинного континуума под линией, и её остаток
+        // приписывается линии. На этом спектре превышение 17 % (K-40), 29 %
+        // (Tl-208) и 59 % (Bi-214, у которого подложка между двумя линиями
+        // проседает сильнее всего). Границы держат порядок смещения, чтобы оно
+        // не выросло молча.
+        for (measure in measures()) {
+            val expected = trueLines.getValue(measure.element).second
+            val ratio = measure.netCounts / expected
+            assertTrue(
+                ratio in 0.95..1.75,
+                "${measure.element}: ${measure.netCounts} против заложенных $expected (×$ratio)",
             )
         }
     }
@@ -78,35 +145,6 @@ class RadioelementsTest {
             (sharper.toKeV - sharper.fromKeV) < (k.toKeV - k.fromKeV),
             "окно не сузилось: ${sharper.toKeV - sharper.fromKeV}",
         )
-    }
-
-    @Test
-    fun `калий этого фона набирается быстрее урана и тория`() {
-        // Порядок скоростей — свойство природного фона, а не реализации: калий
-        // даёт больше всего, торий меньше урана в этой записи. Числа названы,
-        // чтобы падение теста означало изменение движка, а не «что-то не так».
-        val k = assertNotNull(of(Radioelements.Element.K)).cps
-        val u = assertNotNull(of(Radioelements.Element.U)).cps
-        val th = assertNotNull(of(Radioelements.Element.TH)).cps
-        assertTrue(k > u && u > th, "K $k · eU $u · eTh $th")
-        assertTrue(k in 0.2f..0.6f, "калий $k c⁻¹")
-        assertTrue(u in 0.02f..0.15f, "уран $u c⁻¹")
-        assertTrue(th in 0.01f..0.10f, "торий $th c⁻¹")
-    }
-
-    @Test
-    fun `получасовая станция даёт заявленную точность`() {
-        // То, ради чего съёмка вообще возможна этим прибором: за 30 минут
-        // калий набирается процентов на пять, торий — на десяток-полтора.
-        val station = 1_800L
-        for (measure in measures()) {
-            val counts = measure.cps * station
-            val relative = 1f / kotlin.math.sqrt(counts)
-            assertTrue(
-                relative < 0.25f,
-                "${measure.element}: за 30 мин ${counts.toInt()} имп, ошибка ${relative * 100} %",
-            )
-        }
     }
 
     @Test
@@ -173,7 +211,7 @@ class RadioelementsTest {
     private fun baseOf(measure: Radioelements.Measure): Float {
         val continuum = SnipContinuum.of(counts, calibration, resolution)
         val lo = calibration.channelAt(measure.fromKeV).toInt()
-        val hi = kotlin.math.ceil(calibration.channelAt(measure.toKeV)).toInt()
+        val hi = ceil(calibration.channelAt(measure.toKeV)).toInt()
         var base = 0f
         for (ch in lo..hi) base += continuum[ch]
         return base

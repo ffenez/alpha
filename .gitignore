@@ -36,3 +36,6 @@ report.txt
 /PUBLIC_RELEASE_AUDIT.md
 /README_RELEASE_TASK.md
 /docs/
+
+# Данные прибора для локальной проверки: в репозиторий не попадают никогда.
+local/
