@@ -55,7 +55,9 @@ have caught in that measuring time.
 | **Measuring** | One screen, two questions: *observation* compares against what is usual for the place, *search* against a point you mark yourself. |
 | **Search** | Clicks, a tone that rises with the ratio, vibration. They run from the measurement service, so they do not fall silent when the screen goes off. |
 | **Journal** | One record per episode — start, end, duration, range — instead of a row per trigger. |
-| **Spectrum** | Live accumulation, snapshots, background subtraction, continuum removal, peak search, isotope *candidates*, spectral ranges, spectrogram. |
+| **Spectrum** | Live accumulation, snapshots, background subtraction, continuum removal, peak search, isotope *candidates*, spectral ranges, spectrogram, and saving the chart as a large image. |
+| **Decomposition** | The whole spectrum is explained by shapes you recorded yourself — a thorium mantle, potassium salt, the instrument's own background — each with its share and uncertainty. Shares, not becquerels. |
+| **Instruments** | Several detectors, one at a time: each keeps its own name, and the background of a place, the accumulated dose and the journal filter follow the instrument that measured them. |
 | **Activity** | With a certified source an efficiency curve is built; after that a matched peak gives activity in becquerels with its uncertainty. |
 | **Map** | Track recording as a colour trail, an accumulated grid over many trips, and route comparison. |
 | **Dose** | Dose collected over 7, 30 and 90 days, and how much of that time was actually measured. |
@@ -73,6 +75,9 @@ have caught in that measuring time.
   limit is not an answer.
 - **Peaks.** Area and significance come from side bands, the line centre from
   an asymmetric fit, and only for peaks strong enough to fit.
+- **The instrument is measured, not assumed.** Line width and the drift of the
+  energy scale with the instrument's own temperature are measured from its own
+  spectra; a datasheet number is one figure per model, and two units differ.
 - **Gaps.** A break in the data is drawn as a break. A day without measurements
   is empty, not zero.
 
