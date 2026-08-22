@@ -174,6 +174,14 @@ interface Strings {
     val searchWordsAbout: List<String>
     val settingsAbout: String
 
+    /** Журнал сырых смещений прибора — диагностика привязки времени. */
+    val rawOffsetsTitle: String
+    val rawOffsetsToggle: String
+    val rawOffsetsNote: String
+    val rawOffsetsSave: String
+    val rawOffsetsClear: String
+    fun rawOffsetsCollected(lines: Int): String
+
     /** Смена прибора: приложение ведёт один прибор за раз. */
     val switchDevice: String
     val switchDeviceNote: String
@@ -734,6 +742,8 @@ interface Strings {
 fun Strings.allTexts(): List<String> = listOf(
     exitApp, exitAppNote, exitAppConfirm,
     switchDevice, switchDeviceNote, switchDeviceMixNote, deviceCurrent("RadiaCode"),
+    rawOffsetsTitle, rawOffsetsToggle, rawOffsetsNote, rawOffsetsSave, rawOffsetsClear,
+    rawOffsetsCollected(42),
     tabHome, tabSpectrum, tabMap, tabHistory, back, close, settings,
     connected, connecting, reconnecting, serviceOff, noLink, noData,
     doseRate, countRate, hardness, trendPerHour, doseToday, placeFingerprint,

@@ -256,6 +256,8 @@ data class BackupMeasurement(
     val realTimeFlags: Int,
     val profileName: String?,
     val baselineExcluded: String?,
+    /** Чей это прибор; null — строка снята до появления признака. */
+    val deviceSerial: String?,
 ) {
     val key: String get() = BackupKey.of(timestamp)
 
@@ -270,6 +272,7 @@ data class BackupMeasurement(
             .field("rf", realTimeFlags)
             .field("p", profileName)
             .field("x", baselineExcluded)
+            .field("dev", deviceSerial)
             .endObject()
     }
 
@@ -284,6 +287,7 @@ data class BackupMeasurement(
             realTimeFlags = o.int("rf") ?: 0,
             profileName = o.str("p"),
             baselineExcluded = o.str("x"),
+            deviceSerial = o.str("dev"),
         )
     }
 }
@@ -421,6 +425,8 @@ data class BackupRare(
     val batteryPercent: Float,
     val durationSeconds: Long,
     val flags: Int,
+    /** Чей это прибор; null — строка снята до появления признака. */
+    val deviceSerial: String?,
 ) {
     val key: String get() = BackupKey.of(timestamp)
 
@@ -432,6 +438,7 @@ data class BackupRare(
             .field("battery", batteryPercent)
             .field("duration", durationSeconds)
             .field("flags", flags)
+            .field("dev", deviceSerial)
             .endObject()
     }
 
@@ -443,6 +450,7 @@ data class BackupRare(
             batteryPercent = o.float("battery") ?: 0f,
             durationSeconds = o.long("duration") ?: 0L,
             flags = o.int("flags") ?: 0,
+            deviceSerial = o.str("dev"),
         )
     }
 }

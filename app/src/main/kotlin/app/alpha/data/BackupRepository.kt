@@ -232,6 +232,7 @@ class BackupRepository(
                     realTimeFlags = row.realTimeFlags,
                     profileName = row.profileId?.let(names::get),
                     baselineExcluded = row.baselineExcluded,
+                    deviceSerial = row.deviceSerial,
                 )
             },
             nextCursor = rows.lastOrNull()?.id,
@@ -311,6 +312,7 @@ class BackupRepository(
                     batteryPercent = it.batteryPercent,
                     durationSeconds = it.durationSeconds,
                     flags = it.flags,
+                    deviceSerial = it.deviceSerial,
                 )
             },
             nextCursor = rows.lastOrNull()?.id,
@@ -614,6 +616,7 @@ class BackupRepository(
                 realTimeFlags = item.realTimeFlags,
                 profileId = item.profileName?.let { profileIdsByName[it] },
                 baselineExcluded = item.baselineExcluded,
+                deviceSerial = item.deviceSerial,
             )
         }
         val ids = sampleDao.insertAll(rows)
@@ -699,6 +702,7 @@ class BackupRepository(
                     batteryPercent = it.batteryPercent,
                     durationSeconds = it.durationSeconds,
                     flags = it.flags,
+                    deviceSerial = it.deviceSerial,
                 )
             },
         )

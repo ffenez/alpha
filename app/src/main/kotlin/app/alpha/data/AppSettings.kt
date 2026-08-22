@@ -437,6 +437,17 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
+     * Журнал сырых смещений записей прибора: разовая диагностика привязки
+     * времени. Живёт в настройках, потому что включать его надо ДО
+     * подключения, а приложение к этому моменту может быть перезапущено.
+     */
+    val rawOffsetLog: Flow<Boolean> = dataStore.data.map { it[RAW_OFFSET_LOG] ?: false }
+
+    suspend fun setRawOffsetLog(enabled: Boolean) {
+        dataStore.edit { it[RAW_OFFSET_LOG] = enabled }
+    }
+
+    /**
      * Измеренный температурный ход шкалы ([GainDriftRecord]) — одна плоская
      * строка, как и принятая модель разрешения.
      */
@@ -845,6 +856,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val LAST_DEVICE_ADDRESS = stringPreferencesKey("last_device_address")
         private val START_ON_BOOT = booleanPreferencesKey("start_on_boot")
         private val AUTO_BACKGROUND_OFF = booleanPreferencesKey("auto_background_off")
+        private val RAW_OFFSET_LOG = booleanPreferencesKey("raw_offset_log")
         private val GAIN_DRIFT = stringPreferencesKey("gain_drift")
         /** Pre-metadata reference (bare CPS); only ever removed now. */
         private val SEARCH_BACKGROUND_CPS = floatPreferencesKey("search_background_cps")

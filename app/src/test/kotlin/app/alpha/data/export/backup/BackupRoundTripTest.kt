@@ -181,6 +181,9 @@ class BackupRoundTripTest {
         realTimeFlags = 0,
         profileName = if (index % 2 == 0) "Дом" else null,
         baselineExcluded = null,
+        // Признак прибора обязан пережить копию: без него записи двух
+        // кристаллов после восстановления уже не разделить.
+        deviceSerial = if (index % 3 == 0) "RC-110-000000" else null,
     )
 
     private fun fullSource(measurements: Int = 5_000) = FakeSource(
@@ -224,7 +227,7 @@ class BackupRoundTripTest {
         events = listOf(
             BackupEvent(now + 500, "deviation", 2, "выше обычного", 0, 0, 0.4f, 55.7, 37.6),
         ),
-        rare = listOf(BackupRare(now, 12.5f, 24f, 84f, 3_600, 0)),
+        rare = listOf(BackupRare(now, 12.5f, 24f, 84f, 3_600, 0, "RC-110-000000")),
         stations = listOf(
             BackupStation(now, now, 55.75, 37.61, 8f, 100, 1013.2f, "у камня"),
             BackupStation(now + 60_000, now + 60_000, 55.76, 37.62, 12f, null, null, null),

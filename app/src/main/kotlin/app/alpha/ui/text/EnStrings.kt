@@ -97,12 +97,24 @@ object EnStrings : Strings {
     override val searchWordsAbout = listOf("version", "licences", "licenses", "updates")
     override val settingsAbout = "About"
 
+    override val rawOffsetsTitle = "Instrument record offsets"
+    override val rawOffsetsToggle = "Record the offsets"
+    override val rawOffsetsNote =
+        "The instrument sends records with its own offsets, and the app converts them to phone " +
+            "time through an empirical base. This log writes the offsets with no correction at " +
+            "all — the oldest one shows how deep the instrument remembers. Turn it on BEFORE " +
+            "connecting: what was accumulated arrives in the first replies."
+    override val rawOffsetsSave = "Save the log"
+    override val rawOffsetsClear = "Clear"
+    override fun rawOffsetsCollected(lines: Int) = "lines: $lines"
+
     override val switchDevice = "Switch the instrument"
     override val switchDeviceNote =
         "The current link is closed, the new instrument becomes the current one and is remembered"
     override val switchDeviceMixNote =
-        "The measurement log is shared: rows from different instruments lie in one series and " +
-            "are not separated. Spectrum snapshots and templates do remember their instrument."
+        "The measurement log is shared: rows from different instruments run in one series, each " +
+            "marked with its own instrument — the chart cannot split them yet. Spectrum " +
+            "snapshots and templates do remember their instrument."
     override fun deviceCurrent(name: String) = "$name — current"
 
     override val exitApp = "Exit the app"

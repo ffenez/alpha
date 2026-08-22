@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0580Title: String
+    val v0580Summary: String
+
     val v0570Title: String
     val v0570Summary: String
 
@@ -465,6 +468,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0580Title = "Смещения прибора и признак прибора у измерений"
+    override val v0580Summary =
+        "Диагностика: журнал сырых смещений прибора — включите его ДО подключения, и приложение " +
+        "запишет, что именно прислал прибор, без единой поправки; по самому старому смещению " +
+        "видно, насколько глубоко прибор помнит. Измерения теперь помечаются приславшим их " +
+        "прибором, так что после смены прибора записи можно будет разделить."
 
     override val v0570Title = "Выход, смена прибора и спектр картинкой"
     override val v0570Summary =
@@ -1498,6 +1508,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0580Title = "Instrument offsets and an instrument mark on measurements"
+    override val v0580Summary =
+        "Diagnostics: a log of the instrument's raw record offsets — turn it on BEFORE " +
+        "connecting and the app writes down exactly what the instrument sent, with no " +
+        "correction; the oldest offset shows how deep the instrument remembers. Measurements " +
+        "now carry the instrument that sent them, so after a switch the rows can be told apart."
 
     override val v0570Title = "An exit, an instrument switch and the spectrum as an image"
     override val v0570Summary =

@@ -36,6 +36,18 @@ object MigrationSql {
      * `deviation` остаются как есть — это измерения, а не мусор
      * (`history_semantic_events_redesign.md`, раздел о миграции).
      */
+    /**
+     * 22 → 23: признак прибора у секундного потока.
+     *
+     * Приборы можно менять, а журнал измерений один. Без признака записи двух
+     * кристаллов сливаются необратимо; столбец добавляется пустым — у старых
+     * строк прибор неизвестен, и выдумывать его нельзя.
+     */
+    val FROM_22_TO_23: List<String> = listOf(
+        "ALTER TABLE `samples` ADD COLUMN `deviceSerial` TEXT",
+        "ALTER TABLE `rare_data` ADD COLUMN `deviceSerial` TEXT",
+    )
+
     val FROM_21_TO_22: List<String> = listOf(
         "CREATE TABLE IF NOT EXISTS `spectrum_templates` (" +
             "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +

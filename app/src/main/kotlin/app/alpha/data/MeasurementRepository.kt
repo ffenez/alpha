@@ -47,13 +47,19 @@ class MeasurementRepository(
      */
     data class RecordOutcome(val inserted: Int, val dropped: Int)
 
+    /**
+     * @param deviceSerial чей это поток. Пишется в каждую строку: приборы
+     *   можно менять, а журнал один, и без признака записи двух кристаллов
+     *   уже не разделить.
+     */
     suspend fun record(
         records: List<DataBufRecord>,
         profileId: Long? = null,
+        deviceSerial: String? = null,
         admission: (RealTimeData) -> String? = { null },
     ): RecordOutcome {
         val samples = records.filterIsInstance<RealTimeData>()
-            .map { it.toEntity(profileId, admission(it)) }
+            .map { it.toEntity(profileId, admission(it), deviceSerial) }
         var inserted = 0
         var dropped = 0
         if (samples.isNotEmpty()) {
@@ -74,7 +80,7 @@ class MeasurementRepository(
             dropped = rejected.size - retried.size
         }
 
-        val rare = records.filterIsInstance<RareData>().map { it.toEntity() }
+        val rare = records.filterIsInstance<RareData>().map { it.toEntity(deviceSerial) }
         if (rare.isNotEmpty()) rareDataDao.insertAll(rare)
 
         val events = records.filterIsInstance<Event>().map { it.toEntity() }

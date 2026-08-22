@@ -72,6 +72,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import app.alpha.AppGraph
 import app.alpha.ui.components.ConfirmDialog
+import app.alpha.device.RawOffsetLog
 import app.alpha.service.MeasurementService
 import app.alpha.baseline.AlarmSensitivity
 import app.alpha.baseline.AlarmThresholds
@@ -797,6 +798,74 @@ private fun SoundSection(graph: AppGraph) {
  * Отчёт о состоянии приложения для разбора наблюдений. Выключен по умолчанию:
  * инструмент разбора, а не повседневная функция.
  */
+/**
+ * Журнал сырых смещений прибора — разовая диагностика привязки времени.
+ *
+ * Прибор хранит автономные наблюдения и отдаёт их после подключения тем же
+ * ответом, что и живые данные, а метка считается от эмпирической базы,
+ * снятой сообществом на одной модели. Журнал показывает, что прислал прибор,
+ * БЕЗ единой поправки: по самому старому смещению видна глубина его памяти.
+ *
+ * Включать надо ДО подключения — иначе первые ответы, в которых и приходит
+ * накопленное, пройдут мимо.
+ */
+@Composable
+private fun RawOffsetSection(graph: AppGraph) {
+    val colors = LocalAppColors.current
+    val strings = LocalStrings.current
+    val type = LocalAppTypography.current
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val enabled by graph.settings.rawOffsetLog.collectAsState(initial = false)
+    var notice by remember { mutableStateOf<String?>(null) }
+
+    val saveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                notice = if (writeTextToUri(context, uri, RawOffsetLog.dump())) {
+                    strings.archiveSaved
+                } else {
+                    strings.archiveFailed
+                }
+            }
+        }
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+            SectionTitle(strings.rawOffsetsTitle)
+            BlockToggleRow(strings.rawOffsetsToggle, enabled) { on ->
+                scope.launch { graph.settings.setRawOffsetLog(on) }
+            }
+            Hint(text = strings.rawOffsetsNote, style = type.bodySmall, color = colors.ink2)
+            // Число строк — не украшение: по нему видно, пишется ли журнал
+            // вообще, до того как файл сохранён и открыт.
+            Text(
+                text = strings.rawOffsetsCollected(RawOffsetLog.size),
+                style = type.footnote,
+                color = colors.muted,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
+                AppButton(
+                    text = strings.rawOffsetsSave,
+                    enabled = RawOffsetLog.size > 0,
+                    onClick = { saveLauncher.launch("alpha-raw-offsets.txt") },
+                )
+                AppButton(
+                    text = strings.rawOffsetsClear,
+                    enabled = RawOffsetLog.size > 0,
+                    onClick = { RawOffsetLog.clear() },
+                )
+            }
+            notice?.let {
+                Text(text = it, style = type.bodySmall, color = colors.ink2)
+            }
+        }
+    }
+}
+
 @Composable
 private fun DebugSection(graph: AppGraph) {
     val colors = LocalAppColors.current
@@ -825,6 +894,8 @@ private fun DebugSection(graph: AppGraph) {
             }
         }
     }
+
+    RawOffsetSection(graph)
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {

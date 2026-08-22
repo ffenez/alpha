@@ -21,6 +21,7 @@ import app.alpha.data.SessionRepository
 import app.alpha.data.SpectrogramRepository
 import app.alpha.data.TrackRepository
 import app.alpha.analysis.evidence.AcceptedResolution
+import app.alpha.device.RawOffsetLog
 import app.alpha.analysis.evidence.ResolutionSource
 import app.alpha.context.ContextController
 import app.alpha.context.ContextHub
@@ -378,6 +379,13 @@ class AppGraph private constructor(
      * читают поиск пиков и допуски совпадения, и оба должны видеть одно и то
      * же — поэтому подписка ровно одна и живёт в графе.
      */
+    /** Единственный писатель флага диагностического журнала смещений. */
+    private fun watchRawOffsetLog() {
+        appScope.launch {
+            settings.rawOffsetLog.collect { RawOffsetLog.enabled = it }
+        }
+    }
+
     private fun watchResolutionModel() {
         appScope.launch {
             settings.measuredResolutionRaw.collect {
@@ -395,6 +403,7 @@ class AppGraph private constructor(
 
     init {
         watchResolutionModel()
+        watchRawOffsetLog()
     }
 
     companion object {

@@ -772,7 +772,16 @@ class MeasurementService : Service() {
         deviceJobs += scope.launch {
             newDevice.records.collect { records ->
                 val now = System.currentTimeMillis()
-                val outcome = graph.measurementRepository.record(records, activeProfileId) { sample ->
+                // Серийник берётся у ТОГО прибора, чей это поток, а не у
+                // «текущего соединения»: между приходом записей и их записью
+                // прибор может смениться.
+                val serial = (newDevice.connectionState.value as? ConnectionState.Connected)
+                    ?.info?.serialNumber
+                val outcome = graph.measurementRepository.record(
+                    records = records,
+                    profileId = activeProfileId,
+                    deviceSerial = serial,
+                ) { sample ->
                     admissionOf(sample, now).storageKey
                 }
                 // Покадровая трасса обмена отличает «записи не пришли» от

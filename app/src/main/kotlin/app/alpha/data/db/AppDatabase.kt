@@ -29,7 +29,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SurveyStationEntity::class,
         SpectrumTemplateEntity::class,
     ],
-    version = 22,
+    version = 23,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -65,7 +65,7 @@ abstract class AppDatabase : RoomDatabase() {
          * — не для миграций (у копии своя версия формата), а чтобы при разборе
          * жалобы было видно, из какой базы копия снята.
          */
-        const val VERSION = 22
+        const val VERSION = 23
 
         /** Имя файла базы: его же спрашивает экран «сколько занято». */
         const val NAME = "alpha.db"
@@ -196,6 +196,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MigrationSql.FROM_22_TO_23.forEach(db::execSQL)
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
                 .addMigrations(
@@ -220,6 +226,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_19_20,
                     MIGRATION_20_21,
                     MIGRATION_21_22,
+                    MIGRATION_22_23,
                 )
                 .build()
     }

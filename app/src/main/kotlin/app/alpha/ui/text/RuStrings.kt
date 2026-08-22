@@ -89,12 +89,24 @@ object RuStrings : Strings {
     override val searchWordsAbout = listOf("версия", "лицензии", "обновления")
     override val settingsAbout = "О приложении"
 
+    override val rawOffsetsTitle = "Смещения записей прибора"
+    override val rawOffsetsToggle = "Записывать смещения"
+    override val rawOffsetsNote =
+        "Прибор присылает записи со своими смещениями, а приложение переводит их в время " +
+            "телефона по эмпирической базе. Журнал пишет смещения без единой поправки — по " +
+            "самому старому видно, насколько глубоко прибор помнит. Включите ДО подключения: " +
+            "накопленное приходит первыми ответами."
+    override val rawOffsetsSave = "Сохранить журнал"
+    override val rawOffsetsClear = "Очистить"
+    override fun rawOffsetsCollected(lines: Int) = "строк: $lines"
+
     override val switchDevice = "Сменить прибор"
     override val switchDeviceNote =
         "Связь с нынешним прибором закроется, новый станет текущим и запомнится"
     override val switchDeviceMixNote =
-        "Журнал измерений общий: записи разных приборов лежат в одном ряду и не разделяются. " +
-            "Снимки спектра и шаблоны свой прибор помнят."
+        "Журнал измерений общий: записи разных приборов идут одним рядом, хотя каждая помечена " +
+            "своим прибором — разделять их график пока не умеет. Снимки спектра и шаблоны свой " +
+            "прибор помнят."
     override fun deviceCurrent(name: String) = "$name — текущий"
 
     override val exitApp = "Выйти из приложения"

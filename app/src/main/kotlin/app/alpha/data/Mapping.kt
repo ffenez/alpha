@@ -14,6 +14,7 @@ import app.alpha.protocol.Spectrum
 fun RealTimeData.toEntity(
     profileId: Long? = null,
     baselineExcluded: String? = null,
+    deviceSerial: String? = null,
 ): SampleEntity = SampleEntity(
     timestamp = timestampMillis,
     doseRate = doseRate,
@@ -24,15 +25,17 @@ fun RealTimeData.toEntity(
     realTimeFlags = realTimeFlags,
     profileId = profileId,
     baselineExcluded = baselineExcluded,
+    deviceSerial = deviceSerial,
 )
 
-fun RareData.toEntity(): RareDataEntity = RareDataEntity(
+fun RareData.toEntity(deviceSerial: String? = null): RareDataEntity = RareDataEntity(
     timestamp = timestampMillis,
     dose = dose,
     temperature = temperature,
     batteryPercent = chargeLevel,
     durationSeconds = durationSeconds,
     flags = flags,
+    deviceSerial = deviceSerial,
 )
 
 fun Event.toEntity(): EventEntity = EventEntity(

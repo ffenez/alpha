@@ -83,6 +83,14 @@ class DeviceConnection private constructor(
     suspend fun readDataBuf(): DataBufResult {
         val payload = readVs(Vs.DATA_BUF)
         var result = DataBufDecoder.decode(payload, baseTimeMillis + clockCorrectionMillis)
+        // Диагностика пишет смещения ДО пере-якорения: смысл журнала в том,
+        // что прислал прибор, а не в том, что из этого сделала поправка.
+        RawOffsetLog.reply(
+            nowMillis = clock(),
+            records = result.records,
+            correctionMillis = clockCorrectionMillis,
+            baseTimeMillis = baseTimeMillis,
+        )
         // Якорь ставится ТОЛЬКО по RealTimeData: в одном ответе приходят
         // записи разных групп (RealTimeData, RawData, DoseRateDB, RareData),
         // и прибор стамповает их по-разному — максимум по всем записям
@@ -214,6 +222,11 @@ class DeviceConnection private constructor(
                 ),
             )
 
+            RawOffsetLog.session(
+                nowMillis = clock(),
+                baseTimeMillis = baseTimeMillis,
+                serial = serial,
+            )
             return DeviceConnection(
                 client = client,
                 info = DeviceInfo(

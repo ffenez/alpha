@@ -53,6 +53,16 @@ data class SampleEntity(
      * way — exclusion only keeps an anomaly from becoming «the new normal».
      */
     val baselineExcluded: String? = null,
+    /**
+     * Серийник прибора, чьё это измерение; null — прибор не был опознан или
+     * строка записана до появления признака.
+     *
+     * Приложение ведёт один прибор за раз, но приборы можно менять, и без
+     * признака записи двух кристаллов сливались бы в один ряд необратимо.
+     * Признак пишется всегда; читатели (график, статистика) пока его не
+     * фильтруют — сначала данные, потом разделение.
+     */
+    val deviceSerial: String? = null,
 )
 
 /** Battery / temperature / accumulated dose status (every few minutes). */
@@ -72,6 +82,8 @@ data class RareDataEntity(
     /** Measurement duration reported by the device, seconds. */
     val durationSeconds: Long,
     val flags: Int,
+    /** Серийник прибора, приславшего эти батарею и температуру. */
+    val deviceSerial: String? = null,
 )
 
 /**
