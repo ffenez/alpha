@@ -26,6 +26,7 @@ import app.alpha.ui.components.AppIcons
 import app.alpha.ui.components.Chip
 import app.alpha.ui.components.ProfilePickerDialog
 import app.alpha.ui.components.Segmented
+import app.alpha.device.ConnectionState
 import app.alpha.device.DeviceConnection
 import app.alpha.ui.logic.ChartMetric
 import app.alpha.ui.logic.HistoryFormat
@@ -86,7 +87,8 @@ fun InstrumentScreen(
     val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
     val live by graph.serviceStatus.lastSample.collectAsState()
     val connectedAt by graph.serviceStatus.connectedAtMillis.collectAsState()
-    val historyAge by graph.serviceStatus.historyAgeMillis.collectAsState()
+    // Возраст истории — часть состояния связи, а не отдельный поток.
+    val historyAge = (connection as? ConnectionState.Connected)?.historyAgeMillis ?: 0L
     val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
     val activeProfile by graph.profileRepository.activeProfile().collectAsState(initial = null)
     val contextState by graph.contextHub.state.collectAsState()

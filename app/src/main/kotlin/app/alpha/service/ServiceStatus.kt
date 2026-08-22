@@ -47,19 +47,6 @@ class ServiceStatus {
         private set
 
     /**
-     * Возраст новейшей записи прибора, мс: пока прибор отдаёт накопленное в
-     * своей памяти, он больше окна синхронности. Экран говорит об этом
-     * прямо — иначе «нет новых данных» и «идёт слив истории» выглядят
-     * одинаково.
-     */
-    private val _historyAgeMillis = MutableStateFlow(0L)
-    val historyAgeMillis: StateFlow<Long> = _historyAgeMillis.asStateFlow()
-
-    fun onHistoryAge(millis: Long) {
-        _historyAgeMillis.value = millis
-    }
-
-    /**
      * Фон места собран ДРУГИМ прибором, а для нынешнего собирается заново.
      * Отличает «здесь ещё не измеряли» от «здесь измерял другой прибор».
      */
@@ -266,6 +253,46 @@ class ServiceStatus {
      * приборе, включая свой, — на экране им места нет, а в отчёте они первое,
      * что нужно посмотреть.
      */
+    /**
+     * Слив накопленного прибором за сеанс: что пришло из памяти прибора и что
+     * из этого записалось. Отличает «истории не было» от «история пришла, но
+     * не легла в базу».
+     */
+    @Volatile
+    var historyRecords: Int = 0
+        private set
+
+    @Volatile
+    var historyInserted: Int = 0
+        private set
+
+    @Volatile
+    var historyDropped: Int = 0
+        private set
+
+    /** Самая старая запись слива, мс назад от момента приёма. */
+    @Volatile
+    var historyDeepestMillis: Long = 0L
+        private set
+
+    /** Когда слив закончился (возраст ушёл в окно живого); null — не заканчивался. */
+    @Volatile
+    var historySyncedAtMillis: Long? = null
+        private set
+
+    fun onHistoryBatch(ageMillis: Long, records: Int, inserted: Int, dropped: Int, nowMillis: Long) {
+        historyRecords += records
+        historyInserted += inserted
+        historyDropped += dropped
+        if (ageMillis > historyDeepestMillis) historyDeepestMillis = ageMillis
+        historySyncedAtMillis = null
+    }
+
+    /** Слив догнал живое время. */
+    fun onHistorySynced(nowMillis: Long) {
+        if (historyRecords > 0 && historySyncedAtMillis == null) historySyncedAtMillis = nowMillis
+    }
+
     @Volatile
     var seqGapTotal: Int = 0
         internal set

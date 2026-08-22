@@ -31,7 +31,22 @@ sealed interface ConnectionState {
     /** Connection attempt (including the protocol init sequence) in progress. */
     data class Connecting(val attempt: Int) : ConnectionState
 
-    data class Connected(val info: DeviceInfo) : ConnectionState
+    /**
+     * Связь есть.
+     *
+     * @param historyAgeMillis возраст новейшей записи прибора: пока он больше
+     *   [DeviceConnection.SYNC_WINDOW_MILLIS], прибор отдаёт накопленное в
+     *   своей памяти. Это часть СОСТОЯНИЯ связи, а не отдельный флаг рядом с
+     *   ней: «связь есть, но данные ещё историчные» — это одно положение дел,
+     *   и читатели не должны собирать его из двух источников.
+     */
+    data class Connected(
+        val info: DeviceInfo,
+        val historyAgeMillis: Long = 0L,
+    ) : ConnectionState {
+        /** Слив накопленного догнал живое время. */
+        val live: Boolean get() = historyAgeMillis <= DeviceConnection.SYNC_WINDOW_MILLIS
+    }
 
     /** Link lost; next attempt after [delayMillis]. */
     data class Reconnecting(val attempt: Int, val delayMillis: Long) : ConnectionState

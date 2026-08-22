@@ -74,6 +74,17 @@ data class DebugSnapshot(
     val seqGapTotal: Int,
     val reconnectCount: Int,
     /**
+     * Слив памяти прибора за сеанс: сколько записей пришло из истории,
+     * сколько легло, сколько отброшено и какой глубины была самая старая.
+     * Ноль записей означает, что истории не было, а не что она потерялась.
+     */
+    val historyRecords: Int = 0,
+    val historyInserted: Int = 0,
+    val historyDropped: Int = 0,
+    val historyDeepestSeconds: Long = 0,
+    /** Догнал ли слив живое время; null — слива не было или он не закончился. */
+    val historySyncedAgoSeconds: Long? = null,
+    /**
      * Покадровая трасса обмена, свежие такты последними: отличает «записи не
      * пришли» от «пришли, но не записались».
      */
@@ -284,6 +295,17 @@ object DebugReport {
         appendLine("переподключений за сеанс: ${snapshot.reconnectCount}")
         val dropped = snapshot.streamTicks.sumOf { it.dropped }
         appendLine("записей отброшено при вставке: $dropped")
+        appendLine(
+            "из памяти прибора: ${snapshot.historyRecords} записей, " +
+                "записано ${snapshot.historyInserted}, отброшено ${snapshot.historyDropped}",
+        )
+        if (snapshot.historyRecords > 0) {
+            appendLine("самая старая запись слива: ${snapshot.historyDeepestSeconds} с назад")
+            appendLine(
+                "слив догнал живое: " +
+                    (snapshot.historySyncedAgoSeconds?.let { "$it с назад" } ?: "ещё нет"),
+            )
+        }
         appendLine(
             "графики Главной обновлялись: " + (
                 snapshot.chartsRefreshedAgoSeconds?.let { "${it} с назад" } ?: "ни разу"

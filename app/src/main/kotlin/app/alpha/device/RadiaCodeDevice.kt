@@ -218,6 +218,14 @@ class RadiaCodeDevice(
                 val result = conn.readDataBuf()
                 if (result.seqGaps > 0) seqGapTotal += result.seqGaps
                 _historyAgeMillis.value = conn.newestAgeMillis
+                // Возраст едет в самом состоянии связи: «связь есть, но идёт
+                // слив истории» — одно положение дел, а не два флага.
+                (_connectionState.value as? ConnectionState.Connected)?.let { current ->
+                    if (current.historyAgeMillis != conn.newestAgeMillis) {
+                        _connectionState.value =
+                            current.copy(historyAgeMillis = conn.newestAgeMillis)
+                    }
+                }
                 dispatch(result.records, live = conn.synchronised)
                 consecutiveFailures = 0
             } catch (e: DeviceTimeoutException) {

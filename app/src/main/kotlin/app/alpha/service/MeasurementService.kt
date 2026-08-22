@@ -56,6 +56,7 @@ import app.alpha.protocol.Spectrum
 import app.alpha.data.db.SpectrumSnapshotEntity
 import app.alpha.data.studyInstrument
 import app.alpha.device.ConnectionState
+import app.alpha.device.DeviceConnection
 import app.alpha.device.DoseUnits
 import app.alpha.device.RadiaCodeDevice
 import app.alpha.ui.logic.DoseFormat
@@ -804,6 +805,20 @@ class MeasurementService : Service() {
                 ) { sample ->
                     admissionOf(sample, now).storageKey
                 }
+                // Слив накопленного считается отдельно от живого потока: в
+                // отчёте должно быть видно, пришла ли история и легла ли.
+                val historyAge = newDevice.historyAgeMillis.value
+                if (historyAge > DeviceConnection.SYNC_WINDOW_MILLIS) {
+                    graph.serviceStatus.onHistoryBatch(
+                        ageMillis = historyAge,
+                        records = records.size,
+                        inserted = outcome.inserted,
+                        dropped = outcome.dropped,
+                        nowMillis = now,
+                    )
+                } else {
+                    graph.serviceStatus.onHistorySynced(now)
+                }
                 // Покадровая трасса обмена отличает «записи не пришли» от
                 // «пришли, но не записались».
                 graph.streamTrace.add(
@@ -818,9 +833,6 @@ class MeasurementService : Service() {
                     ),
                 )
             }
-        }
-        deviceJobs += scope.launch {
-            newDevice.historyAgeMillis.collect { graph.serviceStatus.onHistoryAge(it) }
         }
         deviceJobs += scope.launch {
             // Встреча с прибором записывается один раз на подключение: список

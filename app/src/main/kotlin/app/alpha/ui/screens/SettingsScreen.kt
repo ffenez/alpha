@@ -1093,6 +1093,12 @@ private suspend fun buildDebugReport(
         spectrumSeconds = spectrum?.durationSeconds,
         seqGapTotal = graph.serviceStatus.seqGapTotal,
         reconnectCount = graph.serviceStatus.reconnectCount,
+        historyRecords = graph.serviceStatus.historyRecords,
+        historyInserted = graph.serviceStatus.historyInserted,
+        historyDropped = graph.serviceStatus.historyDropped,
+        historyDeepestSeconds = graph.serviceStatus.historyDeepestMillis / 1000L,
+        historySyncedAgoSeconds = graph.serviceStatus.historySyncedAtMillis
+            ?.let { (now - it) / 1000L },
         streamTicks = graph.streamTrace.snapshot(),
         chartPasses = graph.chartTrace.snapshot(),
         chartsRefreshedAgoSeconds = graph.serviceStatus.chartsRefreshedAtMillis

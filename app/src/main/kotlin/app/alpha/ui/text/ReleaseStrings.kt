@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0640Title: String
+    val v0640Summary: String
+
     val v0630Title: String
     val v0630Summary: String
 
@@ -483,6 +486,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0640Title = "Слив истории виден в состоянии связи и в отчёте"
+    override val v0640Summary =
+        "Состояние связи теперь само говорит, что идёт слив памяти прибора, — вместо отдельного " +
+        "флага рядом с ним, поэтому все экраны видят одно и то же положение дел. В отладочном " +
+        "отчёте появились числа этого слива: сколько записей пришло из памяти прибора, сколько " +
+        "легло в журнал, сколько отброшено и какой глубины была самая старая."
 
     override val v0630Title = "Доза считается по одному прибору"
     override val v0630Summary =
@@ -1558,6 +1568,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0640Title = "The drain is visible in the connection state and the report"
+    override val v0640Summary =
+        "The connection state itself now says that the instrument's memory is being drained, " +
+        "instead of a separate flag beside it, so every screen sees one and the same state of " +
+        "affairs. The debug report gained the numbers of that drain: how many records came from " +
+        "the instrument's memory, how many were stored, how many dropped, and how deep the " +
+        "oldest one was."
 
     override val v0630Title = "The dose is counted for one instrument"
     override val v0630Summary =
