@@ -63,7 +63,25 @@ data class SampleEntity(
      * фильтруют — сначала данные, потом разделение.
      */
     val deviceSerial: String? = null,
-)
+    /**
+     * Когда телефон получил запись, мс эпохи; null — строка старше признака.
+     *
+     * Хранится ОТДЕЛЬНО от [timestamp]: время измерения принадлежит прибору,
+     * время получения — телефону, и подменять одно другим нельзя. Разница
+     * между ними и есть признак того, что запись пришла из памяти прибора.
+     */
+    val receivedAt: Long? = null,
+    /**
+     * [SOURCE_LIVE] — запись пришла в момент измерения; [SOURCE_HISTORY] — из
+     * автономной памяти прибора; null — строка записана до появления признака.
+     */
+    val source: String? = null,
+) {
+    companion object {
+        const val SOURCE_LIVE = "live"
+        const val SOURCE_HISTORY = "history"
+    }
+}
 
 /** Battery / temperature / accumulated dose status (every few minutes). */
 @Entity(

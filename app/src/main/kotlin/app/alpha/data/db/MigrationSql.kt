@@ -43,6 +43,18 @@ object MigrationSql {
      * кристаллов сливаются необратимо; столбец добавляется пустым — у старых
      * строк прибор неизвестен, и выдумывать его нельзя.
      */
+    /**
+     * 23 → 24: время получения и происхождение записи.
+     *
+     * Прибор отдаёт накопленное в своей памяти тем же ответом, что и живое.
+     * Различать их обязательно: по исторической записи нельзя поднимать
+     * тревогу, а её время принадлежит прибору, а не моменту приёма.
+     */
+    val FROM_23_TO_24: List<String> = listOf(
+        "ALTER TABLE `samples` ADD COLUMN `receivedAt` INTEGER",
+        "ALTER TABLE `samples` ADD COLUMN `source` TEXT",
+    )
+
     val FROM_22_TO_23: List<String> = listOf(
         "ALTER TABLE `samples` ADD COLUMN `deviceSerial` TEXT",
         "ALTER TABLE `rare_data` ADD COLUMN `deviceSerial` TEXT",

@@ -26,12 +26,15 @@ import app.alpha.ui.components.AppIcons
 import app.alpha.ui.components.Chip
 import app.alpha.ui.components.ProfilePickerDialog
 import app.alpha.ui.components.Segmented
+import app.alpha.device.DeviceConnection
 import app.alpha.ui.logic.ChartMetric
+import app.alpha.ui.logic.HistoryFormat
 import app.alpha.ui.logic.InstrumentIndicator
 import app.alpha.ui.logic.InstrumentMode
 import app.alpha.ui.logic.ProfileTree
 import app.alpha.ui.logic.StreamState
 import app.alpha.ui.text.LocalStrings
+import app.alpha.ui.text.HistoryCatalogue
 import app.alpha.ui.text.MonitorCatalogue
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
@@ -83,6 +86,7 @@ fun InstrumentScreen(
     val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
     val live by graph.serviceStatus.lastSample.collectAsState()
     val connectedAt by graph.serviceStatus.connectedAtMillis.collectAsState()
+    val historyAge by graph.serviceStatus.historyAgeMillis.collectAsState()
     val profiles by graph.profileRepository.profiles().collectAsState(initial = emptyList())
     val activeProfile by graph.profileRepository.activeProfile().collectAsState(initial = null)
     val contextState by graph.contextHub.state.collectAsState()
@@ -131,6 +135,19 @@ fun InstrumentScreen(
                 )
                 Spacer(Modifier.weight(1f))
                 ConnectedFlash(connectedAt)
+                // Слив накопленного прибором — состояние, а не тишина: без
+                // этой строки «данные не идут» и «идёт история» не отличить.
+                if (historyAge > DeviceConnection.SYNC_WINDOW_MILLIS) {
+                    Chip(
+                        text = strings.historySync(
+                            HistoryFormat.duration(
+                                historyAge / 1000L,
+                                HistoryCatalogue.of(strings.language),
+                            ),
+                        ),
+                        color = colors.dataText,
+                    )
+                }
                 ConnectionChip(connection, serviceRunning, stream)
                 StreamChip(stream)
                 Icon(

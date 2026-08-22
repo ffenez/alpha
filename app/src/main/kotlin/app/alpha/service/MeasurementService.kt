@@ -781,6 +781,7 @@ class MeasurementService : Service() {
                     records = records,
                     profileId = activeProfileId,
                     deviceSerial = serial,
+                    receivedAtMillis = now,
                 ) { sample ->
                     admissionOf(sample, now).storageKey
                 }
@@ -798,6 +799,9 @@ class MeasurementService : Service() {
                     ),
                 )
             }
+        }
+        deviceJobs += scope.launch {
+            newDevice.historyAgeMillis.collect { graph.serviceStatus.onHistoryAge(it) }
         }
         deviceJobs += scope.launch {
             newDevice.realTimeData.collect { sample ->

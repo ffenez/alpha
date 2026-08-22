@@ -129,6 +129,46 @@ class DeviceConnectionTest {
     }
 
     @Test
+    fun `накопленное прибором не прибивается к моменту подключения`() = runTest {
+        // Прибор хранит автономные наблюдения и отдаёт их первыми ответами.
+        // Новейшая запись такой порции сама историческая: якорь по ней
+        // означал бы, что всё накопленное случилось сейчас.
+        val fake = FakeRadiaCode()
+        val twoHoursAgo10ms = -((128_000L + 2 * 3_600_000L) / 10).toInt()
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 1, tsOffset10ms = twoHoursAgo10ms, countRate = 10f, doseRate = 0.0004f,
+        )
+        val (conn, _) = establish(fake)
+
+        val result = conn.readDataBuf()
+
+        assertEquals(0L, conn.clockCorrectionMillis, "базу подвинула историческая запись")
+        assertEquals(now - 2 * 3_600_000L, result.records.single().timestampMillis)
+        assertTrue(!conn.synchronised, "слив накопленного не может считаться живым потоком")
+    }
+
+    @Test
+    fun `догнав живое, база снова стягивается измерением`() = runTest {
+        val fake = FakeRadiaCode()
+        val hourAgo10ms = -((128_000L + 3_600_000L) / 10).toInt()
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 1, tsOffset10ms = hourAgo10ms, countRate = 10f, doseRate = 0.0004f,
+        )
+        // Вторая порция уже живая: смещение соответствует моменту приёма.
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 2, tsOffset10ms = -12_700, countRate = 11f, doseRate = 0.0005f,
+        )
+        val (conn, _) = establish(fake)
+
+        conn.readDataBuf()
+        assertEquals(0L, conn.clockCorrectionMillis)
+
+        val live = conn.readDataBuf()
+        assertTrue(conn.synchronised, "живой ответ обязан считаться живым")
+        assertEquals(now, live.records.single().timestampMillis)
+    }
+
+    @Test
     fun `earlier records of the same reply keep their spacing`() = runTest {
         // Сдвигается ВЕСЬ ответ целиком: интервалы между записями — это
         // измерение прибора, и переписывать их нельзя.

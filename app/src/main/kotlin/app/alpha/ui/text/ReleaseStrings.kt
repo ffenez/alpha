@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0590Title: String
+    val v0590Summary: String
+
     val v0580Title: String
     val v0580Summary: String
 
@@ -468,6 +471,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0590Title = "История прибора встаёт на своё время"
+    override val v0590Summary =
+        "История, накопленная прибором в его памяти, больше не расплющивается в момент " +
+        "подключения: пока прибор отдаёт накопленное, метки остаются такими, какими их сделал " +
+        "прибор, а в шапке видно «история · 2 ч». Записи из памяти не считаются текущим " +
+        "показанием и не поднимают тревог задним числом."
 
     override val v0580Title = "Смещения прибора и признак прибора у измерений"
     override val v0580Summary =
@@ -1508,6 +1518,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0590Title = "The instrument's history lands on its own time"
+    override val v0590Summary =
+        "The history the instrument keeps in its own memory is no longer flattened into the " +
+        "moment of connection: while the backlog is handed over the timestamps stay as the " +
+        "instrument made them, and the header shows \"history · 2 h\". Records from memory are " +
+        "not treated as the current reading and raise no retroactive alarms."
 
     override val v0580Title = "Instrument offsets and an instrument mark on measurements"
     override val v0580Summary =

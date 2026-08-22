@@ -81,6 +81,14 @@ class RadiaCodeDevice(
     /** Device-side events (alarms, power, resets). */
     val events: SharedFlow<Event> = _events.asSharedFlow()
 
+    /**
+     * Слив накопленного прибором: сколько времени назад сделана новейшая
+     * запись. Ноль — поток живой. По этому числу экран говорит «синхронизация
+     * истории», а служба не пускает историю в тревоги.
+     */
+    private val _historyAgeMillis = MutableStateFlow(0L)
+    val historyAgeMillis: StateFlow<Long> = _historyAgeMillis.asStateFlow()
+
     private val _records = MutableSharedFlow<List<DataBufRecord>>(extraBufferCapacity = 64)
     /** Every decoded DATA_BUF batch, for persistence. */
     val records: SharedFlow<List<DataBufRecord>> = _records.asSharedFlow()
@@ -209,7 +217,8 @@ class RadiaCodeDevice(
             try {
                 val result = conn.readDataBuf()
                 if (result.seqGaps > 0) seqGapTotal += result.seqGaps
-                dispatch(result.records)
+                _historyAgeMillis.value = conn.newestAgeMillis
+                dispatch(result.records, live = conn.synchronised)
                 consecutiveFailures = 0
             } catch (e: DeviceTimeoutException) {
                 consecutiveFailures = noteReadFailure(e, consecutiveFailures)
@@ -237,9 +246,17 @@ class RadiaCodeDevice(
         return failures
     }
 
-    private suspend fun dispatch(records: List<DataBufRecord>) {
+    /**
+     * @param live догнал ли слив накопленного живое время.
+     *
+     * Записи из памяти прибора идут в хранилище ([records]) и не идут в
+     * потоки «прямо сейчас»: показание двухчасовой давности — не текущее
+     * показание, и тревога по нему была бы тревогой задним числом.
+     */
+    private suspend fun dispatch(records: List<DataBufRecord>, live: Boolean) {
         if (records.isEmpty()) return
         _records.emit(records)
+        if (!live) return
         for (record in records) {
             when (record) {
                 is RealTimeData -> _realTimeData.emit(record)

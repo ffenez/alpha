@@ -97,6 +97,8 @@ object EnStrings : Strings {
     override val searchWordsAbout = listOf("version", "licences", "licenses", "updates")
     override val settingsAbout = "About"
 
+    override fun historySync(depth: String) = "history · $depth"
+
     override val rawOffsetsTitle = "Instrument record offsets"
     override val rawOffsetsToggle = "Record the offsets"
     override val rawOffsetsNote =

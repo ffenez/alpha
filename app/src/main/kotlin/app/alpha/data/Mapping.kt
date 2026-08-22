@@ -6,15 +6,22 @@ import app.alpha.data.db.SampleEntity
 import app.alpha.data.db.SpectrumSnapshotEntity
 import app.alpha.protocol.Event
 import app.alpha.protocol.RareData
+import app.alpha.device.DeviceConnection
 import app.alpha.protocol.RealTimeData
 import app.alpha.protocol.Spectrum
 
 /** DATA_BUF records -> Room entities. Timestamps come pre-resolved from base_time. */
 
+/**
+ * @param receivedAtMillis когда телефон получил запись; null — не известно.
+ *   Разница с временем измерения решает, живая это запись или из памяти
+ *   прибора: порог тот же, по которому связь считает слив догнавшим живое.
+ */
 fun RealTimeData.toEntity(
     profileId: Long? = null,
     baselineExcluded: String? = null,
     deviceSerial: String? = null,
+    receivedAtMillis: Long? = null,
 ): SampleEntity = SampleEntity(
     timestamp = timestampMillis,
     doseRate = doseRate,
@@ -26,6 +33,14 @@ fun RealTimeData.toEntity(
     profileId = profileId,
     baselineExcluded = baselineExcluded,
     deviceSerial = deviceSerial,
+    receivedAt = receivedAtMillis,
+    source = receivedAtMillis?.let { received ->
+        if (received - timestampMillis > DeviceConnection.SYNC_WINDOW_MILLIS) {
+            SampleEntity.SOURCE_HISTORY
+        } else {
+            SampleEntity.SOURCE_LIVE
+        }
+    },
 )
 
 fun RareData.toEntity(deviceSerial: String? = null): RareDataEntity = RareDataEntity(

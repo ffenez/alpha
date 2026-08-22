@@ -56,10 +56,11 @@ class MeasurementRepository(
         records: List<DataBufRecord>,
         profileId: Long? = null,
         deviceSerial: String? = null,
+        receivedAtMillis: Long? = null,
         admission: (RealTimeData) -> String? = { null },
     ): RecordOutcome {
         val samples = records.filterIsInstance<RealTimeData>()
-            .map { it.toEntity(profileId, admission(it), deviceSerial) }
+            .map { it.toEntity(profileId, admission(it), deviceSerial, receivedAtMillis) }
         var inserted = 0
         var dropped = 0
         if (samples.isNotEmpty()) {

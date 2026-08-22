@@ -89,6 +89,8 @@ object RuStrings : Strings {
     override val searchWordsAbout = listOf("версия", "лицензии", "обновления")
     override val settingsAbout = "О приложении"
 
+    override fun historySync(depth: String) = "история · $depth"
+
     override val rawOffsetsTitle = "Смещения записей прибора"
     override val rawOffsetsToggle = "Записывать смещения"
     override val rawOffsetsNote =

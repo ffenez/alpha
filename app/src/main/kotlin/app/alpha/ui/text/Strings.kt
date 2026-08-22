@@ -174,6 +174,9 @@ interface Strings {
     val searchWordsAbout: List<String>
     val settingsAbout: String
 
+    /** Слив накопленного прибором: «история · 2 ч». */
+    fun historySync(depth: String): String
+
     /** Журнал сырых смещений прибора — диагностика привязки времени. */
     val rawOffsetsTitle: String
     val rawOffsetsToggle: String
@@ -742,6 +745,7 @@ interface Strings {
 fun Strings.allTexts(): List<String> = listOf(
     exitApp, exitAppNote, exitAppConfirm,
     switchDevice, switchDeviceNote, switchDeviceMixNote, deviceCurrent("RadiaCode"),
+    historySync("2 ч"),
     rawOffsetsTitle, rawOffsetsToggle, rawOffsetsNote, rawOffsetsSave, rawOffsetsClear,
     rawOffsetsCollected(42),
     tabHome, tabSpectrum, tabMap, tabHistory, back, close, settings,

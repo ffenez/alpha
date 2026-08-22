@@ -46,6 +46,19 @@ class ServiceStatus {
     var chartsRefreshCount: Int = 0
         private set
 
+    /**
+     * Возраст новейшей записи прибора, мс: пока прибор отдаёт накопленное в
+     * своей памяти, он больше окна синхронности. Экран говорит об этом
+     * прямо — иначе «нет новых данных» и «идёт слив истории» выглядят
+     * одинаково.
+     */
+    private val _historyAgeMillis = MutableStateFlow(0L)
+    val historyAgeMillis: StateFlow<Long> = _historyAgeMillis.asStateFlow()
+
+    fun onHistoryAge(millis: Long) {
+        _historyAgeMillis.value = millis
+    }
+
     /** Измеренная поправка часов прибора, мс (0 = база не корректировалась). */
     @Volatile
     var deviceClockCorrectionMillis: Long = 0L
