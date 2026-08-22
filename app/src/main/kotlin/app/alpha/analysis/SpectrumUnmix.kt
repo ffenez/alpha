@@ -178,6 +178,15 @@ object SpectrumUnmix {
         val offsetKeV: Double,
         /** Остатки по каналам в единицах σ — где именно модель не сошлась. */
         val residualSigma: List<Double>,
+        /**
+         * Дошла ли подгонка до оптимума, а не до потолка итераций.
+         *
+         * На реальных данных потолок недостижим (сходимость занимает десятки
+         * итераций), но результат, полученный упором в счётчик, — это не
+         * максимум правдоподобия, и молчать об этом нельзя: доли тогда
+         * означают «где остановились», а не «сколько получилось».
+         */
+        val converged: Boolean = true,
     ) {
         /** Модель описывает данные: отклонение статистики в пределах порога. */
         val consistent: Boolean get() = abs(cashDeviation) <= CONSISTENT_SIGMAS
@@ -468,7 +477,8 @@ object SpectrumUnmix {
         val n = counts.size
         val k = templates.size
         val total = counts.sumOf { it.toDouble() }
-        val scales = emScales(counts, templates, equalShareStart(counts, templates), ITERATIONS)
+        val fit = emFit(counts, templates, equalShareStart(counts, templates), ITERATIONS)
+        val scales = fit.scales
 
         val model = modelOf(templates, scales, n)
 
@@ -526,6 +536,7 @@ object SpectrumUnmix {
             gain = gain,
             offsetKeV = offset,
             residualSigma = residual.toList(),
+            converged = fit.converged,
         )
     }
 
@@ -676,12 +687,22 @@ object SpectrumUnmix {
      *   рабочий режим.
      * @return доли, неотрицательные по построению.
      */
+    /** Результат итераций: доли и дошли ли они до оптимума, а не до потолка. */
+    private class EmResult(val scales: DoubleArray, val converged: Boolean)
+
     private fun emScales(
         counts: List<Int>,
         templates: List<List<Double>>,
         start: DoubleArray,
         maxIterations: Int,
-    ): DoubleArray {
+    ): DoubleArray = emFit(counts, templates, start, maxIterations).scales
+
+    private fun emFit(
+        counts: List<Int>,
+        templates: List<List<Double>>,
+        start: DoubleArray,
+        maxIterations: Int,
+    ): EmResult {
         val n = counts.size
         val k = templates.size
         val scales = start.copyOf()
@@ -716,12 +737,14 @@ object SpectrumUnmix {
                 if (shift > moved) moved = shift
                 scales[index] = next
             }
-            if (moved < CONVERGENCE) break
+            if (moved < CONVERGENCE) return EmResult(scales, converged = true)
             // Единственная форма приходит в оптимум первой же итерацией: у неё
             // множитель равен ΣN/ΣT независимо от старта.
             if (k > 1 && iteration % ACCELERATE_EVERY == 0) newtonJump(counts, templates, scales)
         }
-        return scales
+        // Потолок достигнут: на реальных данных это недостижимо, но молчать об
+        // этом нельзя — доли тогда не оптимум, а место, где остановились.
+        return EmResult(scales, converged = false)
     }
 
     /**

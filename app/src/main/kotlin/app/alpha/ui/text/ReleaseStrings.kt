@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0670Title: String
+    val v0670Summary: String
+
     val v0660Title: String
     val v0660Summary: String
 
@@ -492,6 +495,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0670Title = "Погрешность доли разложена на составляющие"
+    override val v0670Summary =
+        "Погрешность доли теперь разложена на составляющие: сколько в ней шума самих данных и " +
+        "сколько шума шаблона — по этому видно, что делать дальше, копить измерение или " +
+        "досни́мать шаблон. И если подгонка остановилась на счёте итераций, а не в оптимуме, " +
+        "экран говорит об этом прямо, а не выдаёт остановку за результат."
 
     override val v0660Title = "Записи журнала помнят свой прибор сами"
     override val v0660Summary =
@@ -1588,6 +1598,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0670Title = "The uncertainty of a share is broken into its parts"
+    override val v0670Summary =
+        "The uncertainty of a share is now broken into its parts: how much of it is the noise of " +
+        "the data and how much the noise of the template — which tells you what to do next, " +
+        "accumulate longer or extend the template. And if the fit stopped at the iteration count " +
+        "rather than at the optimum, the screen says so instead of passing a halt off as a result."
 
     override val v0660Title = "Journal records remember their instrument themselves"
     override val v0660Summary =

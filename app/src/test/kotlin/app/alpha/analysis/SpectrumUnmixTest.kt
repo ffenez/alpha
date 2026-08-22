@@ -180,6 +180,30 @@ class SpectrumUnmixTest {
     }
 
     @Test
+    fun `сошедшаяся подгонка так и говорит`() {
+        // Признак сходимости — не украшение: результат, полученный упором в
+        // счётчик итераций, не является максимумом правдоподобия, и отличить
+        // его снаружи иначе нечем.
+        val target = background.second
+        val adapted = assertNotNull(
+            SpectrumTemplate.adapt(thorium, target, background.first.size, 0.084f),
+        )
+        val random = Random(20260822)
+        val measured = adapted.map { poisson(it * 0.30, random) }
+
+        val result = assertNotNull(
+            SpectrumUnmix.of(
+                counts = measured,
+                calibration = target,
+                resolution662 = 0.084f,
+                templates = listOf(thorium),
+                fitScale = false,
+            ),
+        )
+        assertTrue(result.converged, "подгонка на реальной форме обязана сходиться")
+    }
+
+    @Test
     fun `неполный состав виден по статистике, а не по доле объяснённого`() {
         // Фон прибора — это калий, урановый и ториевый ряды вместе. Разложение
         // ОДНИМ ториевым шаблоном обязано быть отвергнуто статистикой, хотя

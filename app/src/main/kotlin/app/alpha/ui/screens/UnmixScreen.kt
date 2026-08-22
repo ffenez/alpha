@@ -397,6 +397,28 @@ private fun ResultCard(result: SpectrumUnmix.Result, t: UnmixStrings) {
                     style = type.bodySmall,
                     color = if (component.detected && separable) colors.ink else colors.muted,
                 )
+                // Из чего сложилась погрешность доли: шум самих данных и шум
+                // шаблона. Разделение говорит, что делать дальше — копить
+                // измерение или досни́мать шаблон.
+                if (separable && component.detected) {
+                    val scale = component.scale.coerceAtLeast(1e-9)
+                    Hint(
+                        text = t.sigmaBudget(
+                            data = Uncertainty.num1(
+                                (100.0 * component.sigmaData / scale * percent / 100.0).toFloat(),
+                            ),
+                            template = Uncertainty.num1(
+                                (100.0 * component.sigmaTemplate / scale * percent / 100.0)
+                                    .toFloat(),
+                            ),
+                        ),
+                    )
+                }
+            }
+            // Подгонка, упёршаяся в счётчик итераций, — это не результат:
+            // доли означают «где остановились», а не «сколько получилось».
+            if (!result.converged) {
+                Text(text = t.notConverged, style = type.bodySmall, color = colors.warn)
             }
             // Согласие — вердикт; доля объяснённого стоит рядом как справка, а
             // не как критерий.

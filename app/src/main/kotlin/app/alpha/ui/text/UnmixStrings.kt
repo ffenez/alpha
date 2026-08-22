@@ -82,6 +82,12 @@ interface UnmixStrings {
     /** «объяснено 96 % счёта» — вспомогательное число. */
     fun explained(percent: String): String
 
+    /** Подгонка остановилась на счётчике итераций, а не в оптимуме. */
+    val notConverged: String
+
+    /** «из них шум данных 1,7 %, шум шаблона 1,1 %» — бюджет неопределённости. */
+    fun sigmaBudget(data: String, template: String): String
+
     /** Согласие модели с данными в единицах σ статистики Кэша. */
     fun agreementOk(sigmas: String): String
     fun agreementBad(sigmas: String): String
@@ -165,6 +171,13 @@ object UnmixRu : UnmixStrings {
         "$name — не отличается от нуля (заметно было бы от $limitPercent %)"
 
     override fun explained(percent: String) = "объяснено $percent % счёта"
+
+    override val notConverged =
+        "подгонка остановилась на счёте итераций: доли означают, где она остановилась, а не " +
+            "найденный оптимум"
+
+    override fun sigmaBudget(data: String, template: String) =
+        "из них шум данных $data %, шум шаблона $template %"
 
     override fun agreementOk(sigmas: String) =
         "модель описывает спектр: отклонение статистики ${sigmas}σ"
@@ -270,6 +283,13 @@ object UnmixEn : UnmixStrings {
 
     override fun explained(percent: String) = "$percent % of the counts explained"
 
+    override val notConverged =
+        "the fit stopped at the iteration count: the shares mean where it stopped, not the " +
+            "optimum it found"
+
+    override fun sigmaBudget(data: String, template: String) =
+        "of it data noise $data %, template noise $template %"
+
     override fun agreementOk(sigmas: String) =
         "the model describes the spectrum: statistic deviation ${sigmas}σ"
 
@@ -323,6 +343,7 @@ fun UnmixStrings.allTexts(): List<String> = listOf(
     fitnessOwn, fitnessForeign, fitnessRefused,
     componentShare("Th-232", "38", "2"), componentBelowLimit("Cs-137", "4"),
     componentIndistinguishable("Cs-137"),
+    notConverged, sigmaBudget("1,7", "1,1"),
     explained("96"), agreementOk("1,2"), agreementBad("8,4"),
     scaleFitted("0,98", "+5"), scaleAsMeasured,
     methodTitle, methodWhole, methodPoisson, methodScale, methodDevice, methodResolution,
