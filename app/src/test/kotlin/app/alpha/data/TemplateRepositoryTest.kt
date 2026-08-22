@@ -211,6 +211,58 @@ class TemplateRepositoryTest {
             .fwhmKeV!!
 
     @Test
+    fun `собранный фон заводится сам и заменяется только заметно длиннее`() = runTest {
+        val dao = FakeDao()
+        val repository = TemplateRepository(dao)
+        val (counts, calibration) = thorium
+
+        assertTrue(
+            repository.refreshAutoBackground(
+                counts = counts,
+                calibration = calibration,
+                seconds = 10_000L,
+                resolution662 = 0.084f,
+                deviceSerial = "RC-110-000000",
+                deviceName = null,
+                atMillis = 1_700_000_000_000L,
+            ),
+            "первый собранный фон обязан появиться",
+        )
+        assertEquals(SpectrumTemplateEntity.SOURCE_AUTO, dao.rows.single().source)
+
+        // Прибавка в проценты не повод переписывать библиотеку: форма от неё
+        // точнее не станет.
+        assertTrue(
+            !repository.refreshAutoBackground(
+                counts = counts,
+                calibration = calibration,
+                seconds = 11_000L,
+                resolution662 = 0.084f,
+                deviceSerial = "RC-110-000000",
+                deviceName = null,
+                atMillis = 1_700_000_100_000L,
+            ),
+            "фон переписан ради 10 % накопления",
+        )
+        assertEquals(10_000L, dao.rows.single().durationSeconds)
+
+        assertTrue(
+            repository.refreshAutoBackground(
+                counts = counts,
+                calibration = calibration,
+                seconds = 20_000L,
+                resolution662 = 0.084f,
+                deviceSerial = "RC-110-000000",
+                deviceName = null,
+                atMillis = 1_700_000_200_000L,
+            ),
+            "вдвое более длинное накопление обязано заменить прежнее",
+        )
+        assertEquals(1, dao.rows.size, "собранный фон обязан оставаться одной записью")
+        assertEquals(20_000L, dao.rows.single().durationSeconds)
+    }
+
+    @Test
     fun `счёт шаблона возвращается из базы без потерь`() = runTest {
         val dao = FakeDao()
         val entity = recorded(dao, serial = "RC-110-000000")

@@ -269,10 +269,18 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
                         h = h,
                         // Досъёмка возможна только для шаблона ЭТОГО прибора:
                         // складывать формы разных кристаллов нельзя.
-                        canAppend = fitness == TemplateRepository.Fitness.OWN && live != null,
+                        // Досъёмка бессмысленна для собранного фона: он и так
+                        // обновляется сам по мере накопления снимков.
+                        canAppend = fitness == TemplateRepository.Fitness.OWN && live != null &&
+                            entity.source != SpectrumTemplateEntity.SOURCE_AUTO,
                         onAppend = { appendTarget = entity },
                         onDelete = {
                             scope.launch {
+                                // Удалённый собранный фон не возвращается: иначе
+                                // удаление выглядело бы как поломка.
+                                if (entity.source == SpectrumTemplateEntity.SOURCE_AUTO) {
+                                    graph.settings.setAutoBackgroundOff(true)
+                                }
                                 graph.templateRepository.delete(entity.id)
                                 result = null
                             }
@@ -302,7 +310,11 @@ private fun TemplateRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = t.templateLine(
-                    name = entity.name,
+                    name = if (entity.source == SpectrumTemplateEntity.SOURCE_AUTO) {
+                        t.autoBackgroundName
+                    } else {
+                        entity.name
+                    },
                     duration = HistoryFormat.duration(entity.durationSeconds, h),
                     device = entity.deviceName ?: t.deviceUnknown,
                 ),
@@ -316,6 +328,9 @@ private fun TemplateRow(
                     EntityMenuItem(t.deleteTemplate, onClick = onDelete),
                 ),
             )
+        }
+        if (entity.source == SpectrumTemplateEntity.SOURCE_AUTO) {
+            Hint(text = t.autoBackgroundNote)
         }
         // Годность к ЭТОМУ прибору — критическая строка: чужая форма меняет
         // состав молча, и промолчать о ней нельзя.

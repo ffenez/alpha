@@ -126,6 +126,7 @@ internal fun CalibrationDataset.Accumulation.toEngine(id: String) = CalibrationA
  */
 suspend fun studyInstrument(graph: AppGraph, nowMillis: Long): Boolean {
     val model = loadCalibration(graph)
+    refreshAutoBackground(graph, model, nowMillis)
     val stored = AcceptedResolution.decode(graph.settings.measuredResolutionRaw.first())
     val next = ResolutionAdoption.decide(
         fit = model.report.fit,
@@ -136,4 +137,27 @@ suspend fun studyInstrument(graph: AppGraph, nowMillis: Long): Boolean {
     ) ?: return false
     graph.settings.setMeasuredResolutionRaw(next.encode())
     return true
+}
+
+/**
+ * Собственный фон прибора в библиотеке шаблонов — тем же материалом и тем же
+ * фоновым проходом.
+ *
+ * Без единого шаблона разложение показывать нечего, а фон есть у любого
+ * прибора и уже накоплен снимками. Человек, удаливший эту запись, получает
+ * отказ навсегда ([AppSettings.autoBackgroundOff]): возвращаться она не имеет
+ * права.
+ */
+suspend fun refreshAutoBackground(graph: AppGraph, model: CalibrationModel, nowMillis: Long): Boolean {
+    if (graph.settings.autoBackgroundOff.first()) return false
+    val long = model.selection.long ?: return false
+    return graph.templateRepository.refreshAutoBackground(
+        counts = long.counts,
+        calibration = long.calibration,
+        seconds = long.seconds,
+        resolution662 = model.startResolution662,
+        deviceSerial = model.deviceSerial,
+        deviceName = null,
+        atMillis = nowMillis,
+    )
 }

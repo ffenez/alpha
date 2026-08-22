@@ -436,6 +436,18 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         }
     }
 
+    /**
+     * Отказ от собственного фона, который приложение собирает само: человек
+     * удалил эту запись из библиотеки шаблонов, и возвращать её нельзя —
+     * иначе удаление выглядело бы как поломка.
+     */
+    val autoBackgroundOff: Flow<Boolean> =
+        dataStore.data.map { it[AUTO_BACKGROUND_OFF] ?: false }
+
+    suspend fun setAutoBackgroundOff(off: Boolean) {
+        dataStore.edit { it[AUTO_BACKGROUND_OFF] = off }
+    }
+
     val hintsVisible: Flow<Boolean> =
         dataStore.data.map { it[HINTS_VISIBLE] ?: false }
 
@@ -820,6 +832,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         const val DEFAULT_CUSTOM_L2_MICRO_SV_H = 1.00f
         private val LAST_DEVICE_ADDRESS = stringPreferencesKey("last_device_address")
         private val START_ON_BOOT = booleanPreferencesKey("start_on_boot")
+        private val AUTO_BACKGROUND_OFF = booleanPreferencesKey("auto_background_off")
         /** Pre-metadata reference (bare CPS); only ever removed now. */
         private val SEARCH_BACKGROUND_CPS = floatPreferencesKey("search_background_cps")
         private val SEARCH_BACKGROUND = stringPreferencesKey("search_background")

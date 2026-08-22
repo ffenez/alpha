@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0530Title: String
+    val v0530Summary: String
+
     val v0520Title: String
     val v0520Summary: String
 
@@ -450,6 +453,12 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0530Title = "Фон прибора появляется в библиотеке сам"
+    override val v0530Summary =
+        "Собственный фон прибора заводится в библиотеке шаблонов сам и обновляется по мере " +
+        "накопления снимков: разложению есть с чем работать без единого действия. Удалённый " +
+        "фон обратно не возвращается — приложение принимает отказ."
 
     override val v0520Title = "Прибор изучается сам, без нажатий"
     override val v0520Summary =
@@ -1448,6 +1457,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0530Title = "The instrument background appears by itself"
+    override val v0530Summary =
+        "The instrument's own background now appears in the template library on its own and " +
+        "refreshes as snapshots accumulate: the decomposition has something to work with " +
+        "without a single action. A background you delete does not come back — the refusal is " +
+        "taken as final."
 
     override val v0520Title = "The instrument studies itself, with no taps"
     override val v0520Summary =

@@ -114,6 +114,54 @@ class TemplateRepository(private val dao: SpectrumTemplateDao) {
         return merged.seconds
     }
 
+    /**
+     * Собственный фон прибора, собранный из уже накопленных снимков.
+     *
+     * Без единого шаблона разложение показать нечего, а первый шаблон, который
+     * есть у всякого прибора, — это его собственный фон: он и так копится
+     * снимками каждые десять минут. Поэтому фон заводится и обновляется сам.
+     *
+     * Обновление не «докладывает», а ЗАМЕНЯЕТ: суммы соседних окон истории
+     * пересекаются, и сложение посчитало бы одни и те же импульсы дважды.
+     *
+     * @return true, если запись появилась или обновилась.
+     */
+    suspend fun refreshAutoBackground(
+        counts: List<Int>,
+        calibration: EnergyCalibration,
+        seconds: Long,
+        resolution662: Float,
+        deviceSerial: String?,
+        deviceName: String?,
+        atMillis: Long,
+    ): Boolean {
+        if (counts.isEmpty() || seconds <= 0L) return false
+        val existing = dao.all().firstOrNull {
+            it.source == SpectrumTemplateEntity.SOURCE_AUTO &&
+                it.deviceSerial?.equals(deviceSerial, ignoreCase = true) == true
+        }
+        // Прежняя запись заменяется только заметно лучшей: иначе библиотека
+        // переписывалась бы каждые шесть часов ради тех же самых чисел.
+        if (existing != null && seconds < AUTO_GROWTH * existing.durationSeconds) return false
+        val entity = SpectrumTemplateEntity(
+            id = existing?.id ?: 0L,
+            name = AUTO_BACKGROUND_NAME,
+            createdAt = atMillis,
+            deviceSerial = deviceSerial,
+            deviceName = deviceName,
+            a0 = calibration.a0,
+            a1 = calibration.a1,
+            a2 = calibration.a2,
+            durationSeconds = seconds,
+            resolution662 = measuredResolution(counts, calibration, resolution662),
+            channelCount = counts.size,
+            counts = SpectrumBlob.encode(counts),
+            source = SpectrumTemplateEntity.SOURCE_AUTO,
+        )
+        if (existing == null) dao.insert(entity) else dao.update(entity)
+        return true
+    }
+
     /** Как шаблон видит движок разложения. */
     fun template(entity: SpectrumTemplateEntity): SpectrumTemplate {
         val counts = SpectrumBlob.decode(entity.counts)
@@ -150,6 +198,21 @@ class TemplateRepository(private val dao: SpectrumTemplateDao) {
         }
 
     companion object {
+
+        /**
+         * Имя записи собственного фона. В базе оно не переводится (как и
+         * прочие метки), а на экране подписывается языком интерфейса по
+         * признаку [SpectrumTemplateEntity.SOURCE_AUTO].
+         */
+        const val AUTO_BACKGROUND_NAME = "auto-background"
+
+        /**
+         * Во сколько раз новое накопление должно быть длиннее прежнего, чтобы
+         * заменить его, — **инженерный параметр**. Полтора: неопределённость
+         * формы падает как 1/√t, то есть выигрыш около 20 %; ради меньшего
+         * переписывать библиотеку незачем.
+         */
+        const val AUTO_GROWTH = 1.5
 
         /**
          * Разрешение прибора, ИЗМЕРЕННОЕ по самому спектру шаблона.

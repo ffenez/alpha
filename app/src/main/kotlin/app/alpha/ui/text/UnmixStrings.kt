@@ -51,6 +51,10 @@ interface UnmixStrings {
     val needTemplates: String
     val failed: String
 
+    /** Собственный фон прибора, собранный приложением без участия человека. */
+    val autoBackgroundName: String
+    val autoBackgroundNote: String
+
     /** «Th-232 · 7,7 ч · RadiaCode-110» — что за форма и откуда. */
     fun templateLine(name: String, duration: String, device: String): String
     val deviceUnknown: String
@@ -97,8 +101,8 @@ object UnmixRu : UnmixStrings {
     override val emptyTitle = "Шаблонов пока нет"
     override val emptyBody =
         "Шаблон — это спектр известного источника, снятый вашим прибором: ториевая сетка, " +
-            "калийная соль, урановое стекло, чистый фон. Накопите такой спектр и нажмите " +
-            "«Записать шаблон»; из двух-трёх форм уже собирается состав."
+            "калийная соль, урановое стекло. Собственный фон приложение соберёт само из " +
+            "накопленных снимков, остальные формы записываются кнопкой ниже."
 
     override val recordTemplate = "Записать шаблон"
     override val recordHint = "Берётся то, что накоплено сейчас, вместе с калибровкой прибора"
@@ -128,6 +132,10 @@ object UnmixRu : UnmixStrings {
     override val needSpectrum = "Нечего записывать: накопленного спектра нет"
     override val needTemplates = "Нужен хотя бы один шаблон, пригодный этому прибору"
     override val failed = "Разложить не удалось: шаблоны не приводятся к этой шкале"
+
+    override val autoBackgroundName = "Фон прибора"
+    override val autoBackgroundNote =
+        "собран сам из накопленных снимков и обновляется по мере накопления"
 
     override fun templateLine(name: String, duration: String, device: String) =
         "$name · $duration · $device"
@@ -226,6 +234,10 @@ object UnmixEn : UnmixStrings {
     override val needTemplates = "At least one template fit for this instrument is needed"
     override val failed = "Decomposition failed: the templates do not adapt to this scale"
 
+    override val autoBackgroundName = "Instrument background"
+    override val autoBackgroundNote =
+        "assembled on its own from the recorded snapshots and refreshed as they accumulate"
+
     override fun templateLine(name: String, duration: String, device: String) =
         "$name · $duration · $device"
 
@@ -293,6 +305,7 @@ fun UnmixStrings.allTexts(): List<String> = listOf(
     importTemplate, importUnreadable, importNotRecognised, importNoScale, importNoTime,
     importedDefaultName, imported("Th-232"),
     needSpectrum, needTemplates, failed,
+    autoBackgroundName, autoBackgroundNote,
     templateLine("Th-232", "7,7 ч", "RadiaCode-110"), deviceUnknown,
     resolutionMeasured("8,1", "4,4"),
     fitnessOwn, fitnessForeign, fitnessRefused,

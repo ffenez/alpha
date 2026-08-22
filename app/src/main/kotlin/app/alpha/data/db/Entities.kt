@@ -186,13 +186,20 @@ data class SpectrumTemplateEntity(
     val channelCount: Int,
     /** Счёт по каналам, i32 LE. */
     val counts: ByteArray,
-    /** Откуда взят: [SOURCE_MEASURED] или [SOURCE_IMPORTED]. */
+    /** Откуда взят: [SOURCE_MEASURED], [SOURCE_IMPORTED] или [SOURCE_AUTO]. */
     val source: String,
     val note: String? = null,
 ) {
     companion object {
         const val SOURCE_MEASURED = "measured"
         const val SOURCE_IMPORTED = "imported"
+
+        /**
+         * Собран приложением из уже накопленных снимков — собственный фон
+         * прибора. Отличается от [SOURCE_MEASURED] тем, что обновляется сам и
+         * не требует, чтобы человек что-то нажимал.
+         */
+        const val SOURCE_AUTO = "auto"
     }
 }
 
