@@ -111,6 +111,9 @@ object RuStrings : Strings {
             "прибор помнят."
     override fun deviceCurrent(name: String) = "$name — текущий"
 
+    override val baselineOtherDevice =
+        "Фон этого места собран другим прибором. Для нынешнего он собирается заново: " +
+            "чувствительность приборов разная, и чужой уровень для него означал бы не то же самое"
     override val allDevices = "Все приборы"
     override val noRecordsForDevice = "У этого прибора таких записей нет"
     override val unmarkedRecordsNote =

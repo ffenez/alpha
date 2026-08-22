@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0620Title: String
+    val v0620Summary: String
+
     val v0610Title: String
     val v0610Summary: String
 
@@ -477,6 +480,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0620Title = "Фон места принадлежит прибору, которым он снят"
+    override val v0620Summary =
+        "«Обычно здесь» считается по тому прибору, которым вы измеряете: чувствительность " +
+        "моделей отличается в два с половиной раза, и чужой уровень означал бы не то же самое, " +
+        "а на нём стоят пороги тревог. Если место уже изучено другим прибором, приложение так и " +
+        "говорит — счёт для нынешнего идёт заново, а не «данных нет»."
 
     override val v0610Title = "Журнал умеет показывать записи одного прибора"
     override val v0610Summary =
@@ -1538,6 +1548,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0620Title = "A place's background belongs to the instrument that measured it"
+    override val v0620Summary =
+        "\"Usually here\" is now computed from the instrument you are measuring with: models " +
+        "differ in sensitivity by a factor of two and a half, and a level from another one would " +
+        "not mean the same — while the alarm thresholds stand on it. If the place was already " +
+        "studied by another instrument, the app says so instead of showing no data."
 
     override val v0610Title = "The journal can show one instrument's records"
     override val v0610Summary =

@@ -163,6 +163,23 @@ interface SampleDao {
     )
     suspend fun deviceInRange(from: Long, to: Long): String?
 
+    /**
+     * Сколько измерений профиля в окне сделано ДРУГИМИ приборами: по этому
+     * числу экран отличает «здесь ещё не измеряли» от «здесь измерял другой
+     * прибор».
+     */
+    @Query(
+        "SELECT COUNT(*) FROM samples WHERE placeId = :profileId " +
+            "AND timestamp BETWEEN :from AND :to AND deviceSerial IS NOT NULL " +
+            "AND deviceSerial <> :deviceSerial",
+    )
+    suspend fun otherDeviceSamples(
+        profileId: Long,
+        from: Long,
+        to: Long,
+        deviceSerial: String,
+    ): Long
+
     @Query("SELECT MIN(timestamp) FROM samples")
     suspend fun earliestTimestamp(): Long?
 
@@ -305,15 +322,23 @@ interface SampleDao {
         FROM samples
         WHERE placeId = :profileId AND timestamp BETWEEN :from AND :to
               AND baselineExcluded IS NULL
+              AND (:deviceSerial IS NULL OR deviceSerial = :deviceSerial)
         GROUP BY timestamp / :bucketMillis
         ORDER BY bucketStart
         """,
     )
+    /**
+     * @param deviceSerial чей прибор считать «обычным здесь»; null — все.
+     *   Разделение обязательно: чувствительность у моделей разная (30 против
+     *   77 имп/с на мкЗв/ч), и фон, снятый одним прибором, для другого
+     *   означал бы другой уровень.
+     */
     suspend fun downsampledRangeForProfile(
         profileId: Long,
         from: Long,
         to: Long,
         bucketMillis: Long,
+        deviceSerial: String?,
     ): List<DownsampledSample>
 
     /** Exclusion breakdown for one profile («Почему?» and профиль summary). */
@@ -322,6 +347,7 @@ interface SampleDao {
         SELECT baselineExcluded AS reason, COUNT(*) AS samples
         FROM samples
         WHERE placeId = :profileId AND timestamp BETWEEN :from AND :to
+              AND (:deviceSerial IS NULL OR deviceSerial = :deviceSerial)
               AND baselineExcluded IS NOT NULL
         GROUP BY baselineExcluded
         ORDER BY samples DESC
@@ -331,6 +357,7 @@ interface SampleDao {
         profileId: Long,
         from: Long,
         to: Long,
+        deviceSerial: String?,
     ): List<ExclusionCount>
 
     /** Exclusion breakdown over a plain time range (session journal rows). */

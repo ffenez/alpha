@@ -54,7 +54,16 @@ class FingerprintRepository(
      * Текущее окно профиля: медианы дозы и счёта плюс спектр, накопленный за
      * то же время. Null, когда допущенных измерений в окне нет вовсе.
      */
-    suspend fun window(profileId: Long, windowMillis: Long = DEFAULT_WINDOW_MILLIS): FingerprintWindow? {
+    /**
+     * @param deviceSerial чей прибор описывает место; null — все. Эталон
+     *   места — свойство пары «место + прибор»: отклик кристалла входит в
+     *   форму спектра и в скорость счёта.
+     */
+    suspend fun window(
+        profileId: Long,
+        windowMillis: Long = DEFAULT_WINDOW_MILLIS,
+        deviceSerial: String? = null,
+    ): FingerprintWindow? {
         val to = clock()
         val from = to - windowMillis
         val buckets = sampleDao.downsampledRangeForProfile(
@@ -62,6 +71,7 @@ class FingerprintRepository(
             from = from,
             to = to,
             bucketMillis = BUCKET_MILLIS,
+            deviceSerial = deviceSerial,
         )
         if (buckets.isEmpty()) return null
         val admittedSeconds = sampleDao.admittedCountForProfile(profileId, from, to).toLong()

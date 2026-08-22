@@ -470,11 +470,30 @@ class MeasurementService : Service() {
         }
     }
 
+    /** Серийник прибора, по которому считается «обычно здесь». */
+    @Volatile
+    private var lastBaselineSerial: String? = null
+
     private suspend fun refreshBaseline() {
         val profileId = activeProfileId ?: return
-        val state = graph.baselineRepository.state(profileId)
+        // «Обычно здесь» считается по ЭТОМУ прибору: чувствительность моделей
+        // отличается в два с половиной раза, и чужой фон означал бы другой
+        // уровень — а на нём стоят пороги тревог.
+        // Разрыв связи не меняет того, чей это фон: пока не подключён другой
+        // прибор, «обычно здесь» остаётся фоном последнего.
+        val serial = (graph.serviceStatus.connection.value as? ConnectionState.Connected)
+            ?.info?.serialNumber
+            ?.also { lastBaselineSerial = it }
+            ?: lastBaselineSerial
+        val state = graph.baselineRepository.state(profileId, serial)
         baselineState = state
         graph.serviceStatus.onBaseline(state)
+        // Место, изученное другим прибором, — не то же самое, что неизученное
+        // место: человеку надо сказать, почему счёт пошёл заново.
+        graph.serviceStatus.onBaselineOtherDevice(
+            state !is BaselineState.Active && serial != null &&
+                graph.baselineRepository.measuredByOtherDevice(profileId, serial),
+        )
         ensureFingerprint(profileId, state)
     }
 

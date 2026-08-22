@@ -59,6 +59,17 @@ class ServiceStatus {
         _historyAgeMillis.value = millis
     }
 
+    /**
+     * Фон места собран ДРУГИМ прибором, а для нынешнего собирается заново.
+     * Отличает «здесь ещё не измеряли» от «здесь измерял другой прибор».
+     */
+    private val _baselineOtherDevice = MutableStateFlow(false)
+    val baselineOtherDevice: StateFlow<Boolean> = _baselineOtherDevice.asStateFlow()
+
+    fun onBaselineOtherDevice(value: Boolean) {
+        _baselineOtherDevice.value = value
+    }
+
     /** Измеренная поправка часов прибора, мс (0 = база не корректировалась). */
     @Volatile
     var deviceClockCorrectionMillis: Long = 0L

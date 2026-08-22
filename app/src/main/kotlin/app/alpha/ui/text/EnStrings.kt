@@ -119,6 +119,10 @@ object EnStrings : Strings {
             "snapshots and templates do remember their instrument."
     override fun deviceCurrent(name: String) = "$name — current"
 
+    override val baselineOtherDevice =
+        "The background of this place was collected by another instrument. For the current one " +
+            "it is being collected again: instruments differ in sensitivity, and a level from " +
+            "another one would not mean the same here"
     override val allDevices = "All instruments"
     override val noRecordsForDevice = "This instrument has no records of this kind"
     override val unmarkedRecordsNote =

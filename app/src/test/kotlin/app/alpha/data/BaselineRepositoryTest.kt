@@ -25,13 +25,16 @@ class BaselineRepositoryTest {
 
     private class RecordingSampleDao : SampleDao by FakeSampleDao() {
         var lastFrom: Long? = null
+        var lastDeviceSerial: String? = null
 
         override suspend fun downsampledRangeForProfile(
             profileId: Long,
             from: Long,
             to: Long,
             bucketMillis: Long,
+            deviceSerial: String?,
         ): List<DownsampledSample> {
+            lastDeviceSerial = deviceSerial
             lastFrom = from
             return emptyList()
         }
@@ -40,6 +43,7 @@ class BaselineRepositoryTest {
             profileId: Long,
             from: Long,
             to: Long,
+            deviceSerial: String?,
         ): List<ExclusionCount> {
             lastFrom = from
             return emptyList()
@@ -118,6 +122,22 @@ class BaselineRepositoryTest {
 
         repository.state(profileId = 7)
         assertEquals(now - 14L * 24 * 3600_000L, assertNotNull(samples.lastFrom))
+    }
+
+    @Test
+    fun `фон места считается по указанному прибору`() = runTest {
+        // Чувствительность моделей отличается в два с половиной раза: фон,
+        // снятый одним прибором, для другого означал бы другой уровень.
+        val samples = RecordingSampleDao()
+        val profiles = FakeProfileDao(profile)
+        val repository = BaselineRepository(samples, profiles) { now }
+
+        repository.state(profileId = 7, deviceSerial = "RC-110-000000")
+        assertEquals("RC-110-000000", samples.lastDeviceSerial)
+
+        // Без прибора поведение прежнее: считаются все измерения места.
+        repository.state(profileId = 7)
+        assertNull(samples.lastDeviceSerial)
     }
 
     @Test

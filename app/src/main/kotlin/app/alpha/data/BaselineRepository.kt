@@ -29,7 +29,14 @@ class BaselineRepository(
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
 
-    suspend fun state(profileId: Long): BaselineState {
+    /**
+     * @param deviceSerial чей прибор описывает «обычно здесь»; null — все.
+     *
+     * Разделение по прибору не косметика: чувствительность моделей отличается
+     * в два с половиной раза, и фон места, снятый одним прибором, для другого
+     * означал бы другой уровень — а на этом уровне стоят пороги тревог.
+     */
+    suspend fun state(profileId: Long, deviceSerial: String? = null): BaselineState {
         val to = clock()
         val from = windowStart(profileId, to)
         val buckets = sampleDao.downsampledRangeForProfile(
@@ -37,6 +44,7 @@ class BaselineRepository(
             from = from,
             to = to,
             bucketMillis = BUCKET_MILLIS,
+            deviceSerial = deviceSerial,
         )
         return BaselineComputer.compute(
             buckets.map {
@@ -54,10 +62,10 @@ class BaselineRepository(
      * first. Sample counts are reported as seconds — the device records at
      * 1 Hz, so one sample is one second of measurement.
      */
-    suspend fun exclusions(profileId: Long): List<ExclusionSummary> {
+    suspend fun exclusions(profileId: Long, deviceSerial: String? = null): List<ExclusionSummary> {
         val to = clock()
         val from = windowStart(profileId, to)
-        return sampleDao.exclusionCountsForProfile(profileId, from, to).mapNotNull { row ->
+        return sampleDao.exclusionCountsForProfile(profileId, from, to, deviceSerial).mapNotNull { row ->
             BaselineExclusion.fromStorage(row.reason)?.let {
                 ExclusionSummary(it, row.samples.toLong())
             }
@@ -102,6 +110,18 @@ class BaselineRepository(
     /** «Оставить как есть» — remembered so the offer stops coming back. */
     suspend fun declineShift(profileId: Long) {
         profileDao.setShiftDeclined(profileId, clock())
+    }
+
+    /**
+     * Есть ли у места измерения ДРУГИХ приборов в окне.
+     *
+     * Отвечает на вопрос экрана: «здесь ещё не измеряли» или «здесь измерял
+     * другой прибор, и его фон этому прибору не подходит».
+     */
+    suspend fun measuredByOtherDevice(profileId: Long, deviceSerial: String): Boolean {
+        val to = clock()
+        val from = windowStart(profileId, to)
+        return sampleDao.otherDeviceSamples(profileId, from, to, deviceSerial) > 0L
     }
 
     private fun windowMillis(): Long = BaselineConfig.WINDOW_DAYS * 24L * 3600_000L

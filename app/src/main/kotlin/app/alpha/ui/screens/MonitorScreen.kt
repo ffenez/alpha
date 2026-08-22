@@ -225,6 +225,7 @@ fun MonitorScreen(
     val connection by graph.serviceStatus.connection.collectAsState()
     val serviceRunning by graph.serviceStatus.serviceRunning.collectAsState()
     val baselineState by graph.serviceStatus.baseline.collectAsState()
+    val baselineOtherDevice by graph.serviceStatus.baselineOtherDevice.collectAsState()
     val deviation by graph.serviceStatus.deviation.collectAsState()
     val thresholds by graph.settings.alarmThresholds
         .collectAsState(initial = alarmThresholds(AlarmSensitivity.NORMAL, 0f, 0f))
@@ -531,6 +532,7 @@ fun MonitorScreen(
                 doseTodayMicroSv = doseTodayMicroSv,
                 status = status,
                 baselineState = baselineState,
+                baselineOtherDevice = baselineOtherDevice,
                 unit = unit,
                 stale = !stream.live,
                 stream = stream,
@@ -897,6 +899,8 @@ internal fun HeroCard(
     doseTodayMicroSv: Double?,
     status: MonitorStatus,
     baselineState: BaselineState?,
+    /** Фон места собран другим прибором, а для нынешнего идёт заново. */
+    baselineOtherDevice: Boolean = false,
     unit: DoseUnitSetting,
     stale: Boolean,
     /** То же состояние потока, что у чипа в шапке. */
@@ -1112,6 +1116,11 @@ internal fun HeroCard(
                         MetricTileBox(tile, Modifier.weight(1f))
                     }
                 }
+            }
+            // Почему счёт фона пошёл заново: место изучено, но ДРУГИМ
+            // прибором. Без этой строки собранный фон выглядит потерянным.
+            if (baselineOtherDevice) {
+                Hint(text = strings.baselineOtherDevice)
             }
             }
 
