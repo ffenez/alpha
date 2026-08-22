@@ -804,6 +804,15 @@ class MeasurementService : Service() {
             newDevice.historyAgeMillis.collect { graph.serviceStatus.onHistoryAge(it) }
         }
         deviceJobs += scope.launch {
+            // Встреча с прибором записывается один раз на подключение: список
+            // приборов должен помнить его и тогда, когда он не в эфире.
+            newDevice.connectionState.collect { state ->
+                if (state is ConnectionState.Connected) {
+                    graph.deviceRegistry.seen(state.info, System.currentTimeMillis())
+                }
+            }
+        }
+        deviceJobs += scope.launch {
             newDevice.realTimeData.collect { sample ->
                 graph.serviceStatus.onClockCorrection(newDevice.clockCorrectionMillis)
                 lastSample = sample

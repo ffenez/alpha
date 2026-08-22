@@ -30,6 +30,16 @@ import app.alpha.service.MeasurementService
 import app.alpha.ui.components.AppCloseButton
 import app.alpha.ui.components.AppDivider
 import app.alpha.ui.components.Hint
+import androidx.compose.runtime.rememberCoroutineScope
+import app.alpha.data.DeviceRegistry
+import app.alpha.data.db.DeviceEntity
+import app.alpha.ui.components.Chip
+import app.alpha.ui.components.EntityMenuButton
+import app.alpha.ui.components.EntityMenuItem
+import app.alpha.ui.components.RenameDialog
+import app.alpha.ui.logic.HistoryFormat
+import kotlinx.coroutines.launch
+import app.alpha.ui.text.HistoryCatalogue
 import app.alpha.ui.text.LocalStrings
 import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
@@ -64,6 +74,11 @@ fun DevicePickerSheet(graph: AppGraph, onDismiss: () -> Unit) {
 
     val connection by graph.serviceStatus.connection.collectAsState()
     val currentAddress = (connection as? ConnectionState.Connected)?.info?.address
+
+    val known by graph.deviceRegistry.devices().collectAsState(initial = emptyList())
+    val currentSerial = (connection as? ConnectionState.Connected)?.info?.serialNumber
+    var renaming by remember { mutableStateOf<DeviceEntity?>(null) }
+    val scope = rememberCoroutineScope()
 
     val found = remember { mutableStateOf<Map<String, DiscoveredRadiaCode>>(emptyMap()) }
     var scanError by remember { mutableStateOf(false) }
@@ -103,7 +118,46 @@ fun DevicePickerSheet(graph: AppGraph, onDismiss: () -> Unit) {
                 .padding(Dimens.space4),
             verticalArrangement = Arrangement.spacedBy(Dimens.space3),
         ) {
-            val devices = found.value.values.sortedByDescending { it.rssi }
+            // Сначала уже известные приборы: к ним возвращаются, их узнают по
+            // имени, и они остаются в списке, когда не в эфире.
+            if (known.isNotEmpty()) {
+                Text(text = strings.knownDevices, style = type.label, color = colors.ink2)
+                known.forEachIndexed { index, device ->
+                    if (index > 0) AppDivider()
+                    KnownDeviceRow(
+                        title = DeviceRegistry.label(device, known, strings.instrumentTitle),
+                        subtitle = if (device.serialNumber == currentSerial) {
+                            strings.deviceCurrent(strings.instrumentTitle)
+                        } else {
+                            strings.deviceLastSeen(
+                                HistoryFormat.dayTime(
+                                    millis = device.lastSeenAt,
+                                    nowMillis = System.currentTimeMillis(),
+                                    s = HistoryCatalogue.of(strings.language),
+                                ),
+                            )
+                        },
+                        current = device.serialNumber == currentSerial,
+                        canConnect = device.address != null && device.serialNumber != currentSerial,
+                        onConnect = {
+                            device.address?.let { address ->
+                                picked = address
+                                ContextCompat.startForegroundService(
+                                    context,
+                                    MeasurementService.startIntent(context, address),
+                                )
+                                onDismiss()
+                            }
+                        },
+                        onRename = { renaming = device },
+                    )
+                }
+                AppDivider()
+                Text(text = strings.foundNearby, style = type.label, color = colors.ink2)
+            }
+            val devices = found.value.values
+                .filterNot { device -> known.any { it.address == device.address } }
+                .sortedByDescending { it.rssi }
             if (devices.isEmpty() && !scanError) {
                 Text(text = strings.scanning, style = type.bodySmall, color = colors.ink2)
             }
@@ -151,5 +205,54 @@ fun DevicePickerSheet(graph: AppGraph, onDismiss: () -> Unit) {
             )
             Hint(text = strings.switchDeviceNote)
         }
+    }
+
+    renaming?.let { device ->
+        RenameDialog(
+            title = strings.renameDevice,
+            initial = device.displayName.orEmpty(),
+            placeholder = device.model ?: strings.instrumentTitle,
+            onSave = { name ->
+                scope.launch { graph.deviceRegistry.rename(device.id, name) }
+                renaming = null
+            },
+            onDismiss = { renaming = null },
+        )
+    }
+}
+
+/**
+ * Известный прибор в списке: имя, когда виделись, и «⋮» с переименованием.
+ *
+ * Действие в строке одно — подключиться. Переименование редкое, поэтому оно
+ * под «⋮», как и в остальном приложении.
+ */
+@Composable
+private fun KnownDeviceRow(
+    title: String,
+    subtitle: String,
+    current: Boolean,
+    canConnect: Boolean,
+    onConnect: () -> Unit,
+    onRename: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val type = LocalAppTypography.current
+    val strings = LocalStrings.current
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = type.label,
+                color = if (current) colors.dataText else colors.ink,
+            )
+            Text(text = subtitle, style = type.footnote, color = colors.muted)
+        }
+        if (canConnect) {
+            Chip(text = strings.connect, color = colors.ink2, onClick = onConnect)
+        }
+        EntityMenuButton(
+            menu = listOf(EntityMenuItem(strings.renameDevice, onClick = onRename)),
+        )
     }
 }

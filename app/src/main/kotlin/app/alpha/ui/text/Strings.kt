@@ -191,6 +191,12 @@ interface Strings {
     val switchDeviceMixNote: String
     fun deviceCurrent(name: String): String
 
+    /** Список приборов: известные, найденные рядом, когда виделись. */
+    val knownDevices: String
+    val foundNearby: String
+    val renameDevice: String
+    fun deviceLastSeen(moment: String): String
+
     /** Выход из приложения: связь с прибором и служба закрываются. */
     val exitApp: String
     val exitAppNote: String
@@ -745,6 +751,7 @@ interface Strings {
 fun Strings.allTexts(): List<String> = listOf(
     exitApp, exitAppNote, exitAppConfirm,
     switchDevice, switchDeviceNote, switchDeviceMixNote, deviceCurrent("RadiaCode"),
+    knownDevices, foundNearby, renameDevice, deviceLastSeen("вчера 18:42"),
     historySync("2 ч"),
     rawOffsetsTitle, rawOffsetsToggle, rawOffsetsNote, rawOffsetsSave, rawOffsetsClear,
     rawOffsetsCollected(42),

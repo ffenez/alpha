@@ -111,6 +111,11 @@ object RuStrings : Strings {
             "прибор помнят."
     override fun deviceCurrent(name: String) = "$name — текущий"
 
+    override val knownDevices = "Ваши приборы"
+    override val foundNearby = "Найдены рядом"
+    override val renameDevice = "Переименовать"
+    override fun deviceLastSeen(moment: String) = "виделись $moment"
+
     override val exitApp = "Выйти из приложения"
     override val exitAppNote = "Закрывает приложение и связь с прибором"
     override val exitAppConfirm =

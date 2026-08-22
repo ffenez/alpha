@@ -72,6 +72,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import app.alpha.AppGraph
 import app.alpha.ui.components.ConfirmDialog
+import app.alpha.data.DeviceRegistry
 import app.alpha.device.RawOffsetLog
 import app.alpha.service.MeasurementService
 import app.alpha.baseline.AlarmSensitivity
@@ -1557,11 +1558,19 @@ private fun DeviceStatusCard(graph: AppGraph) {
     }
     val freshness = Freshness.of(sample?.timestamp, nowMillis)
     val connected = connection as? ConnectionState.Connected
+    // Прибор называется своим именем, если человек его дал: серийник —
+    // техническая подробность и стоит ниже, отдельной строкой.
+    val known by graph.deviceRegistry.devices().collectAsState(initial = emptyList())
+    val deviceTitle = known
+        .firstOrNull { it.serialNumber == connected?.info?.serialNumber }
+        ?.let { DeviceRegistry.label(it, known, strings.instrumentTitle) }
+        ?: connected?.info?.model?.displayName
+        ?: strings.instrumentTitle
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             Text(
-                text = connected?.info?.model?.displayName ?: strings.instrumentTitle,
+                text = deviceTitle,
                 style = type.title,
                 color = colors.ink,
             )

@@ -119,6 +119,11 @@ object EnStrings : Strings {
             "snapshots and templates do remember their instrument."
     override fun deviceCurrent(name: String) = "$name — current"
 
+    override val knownDevices = "Your instruments"
+    override val foundNearby = "Found nearby"
+    override val renameDevice = "Rename"
+    override fun deviceLastSeen(moment: String) = "last seen $moment"
+
     override val exitApp = "Exit the app"
     override val exitAppNote = "Closes the app and the link to the instrument"
     override val exitAppConfirm =

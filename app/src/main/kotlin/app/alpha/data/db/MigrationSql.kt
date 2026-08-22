@@ -50,6 +50,26 @@ object MigrationSql {
      * Различать их обязательно: по исторической записи нельзя поднимать
      * тревогу, а её время принадлежит прибору, а не моменту приёма.
      */
+    /**
+     * 24 → 25: приборы, с которыми приложение работало.
+     *
+     * Ключ — серийник: он приходит от прибора, тогда как BLE-адрес у части
+     * телефонов случайный, а имя в эфире человек может сменить.
+     */
+    val FROM_24_TO_25: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `devices` (" +
+            "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+            "`serialNumber` TEXT NOT NULL, " +
+            "`displayName` TEXT, " +
+            "`model` TEXT, " +
+            "`firmware` TEXT, " +
+            "`address` TEXT, " +
+            "`firstSeenAt` INTEGER NOT NULL, " +
+            "`lastSeenAt` INTEGER NOT NULL)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_devices_serialNumber` " +
+            "ON `devices` (`serialNumber`)",
+    )
+
     val FROM_23_TO_24: List<String> = listOf(
         "ALTER TABLE `samples` ADD COLUMN `receivedAt` INTEGER",
         "ALTER TABLE `samples` ADD COLUMN `source` TEXT",

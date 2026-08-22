@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0600Title: String
+    val v0600Summary: String
+
     val v0590Title: String
     val v0590Summary: String
 
@@ -471,6 +474,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0600Title = "Приложение помнит ваши приборы по именам"
+    override val v0600Summary =
+        "Приложение помнит приборы: каждый получает имя, которое задаёте вы, и остаётся в " +
+        "списке, даже когда не в эфире — выбор прибора стал списком ваших приборов, а не только " +
+        "найденных рядом. Имя стоит там, где раньше была модель; серийник остался технической " +
+        "строкой и в название не лезет."
 
     override val v0590Title = "История прибора встаёт на своё время"
     override val v0590Summary =
@@ -1518,6 +1528,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0600Title = "The app remembers your instruments by name"
+    override val v0600Summary =
+        "The app now remembers instruments: each gets a name you give it and stays in the list " +
+        "even when it is not on the air — picking an instrument is now a list of yours, not only " +
+        "of what is nearby. The name stands where the model used to; the serial stays a " +
+        "technical line and never becomes the title."
 
     override val v0590Title = "The instrument's history lands on its own time"
     override val v0590Summary =

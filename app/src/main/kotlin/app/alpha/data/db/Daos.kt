@@ -578,6 +578,28 @@ interface SessionDao {
 }
 
 @Dao
+interface DeviceDao {
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(device: DeviceEntity): Long
+
+    @Update
+    suspend fun update(device: DeviceEntity)
+
+    @Query("SELECT * FROM devices ORDER BY lastSeenAt DESC")
+    fun observeAll(): Flow<List<DeviceEntity>>
+
+    @Query("SELECT * FROM devices ORDER BY lastSeenAt DESC")
+    suspend fun all(): List<DeviceEntity>
+
+    @Query("SELECT * FROM devices WHERE serialNumber = :serial LIMIT 1")
+    suspend fun bySerial(serial: String): DeviceEntity?
+
+    @Query("DELETE FROM devices WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
 interface SpectrumTemplateDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

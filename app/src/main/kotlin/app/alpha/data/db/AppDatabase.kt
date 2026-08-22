@@ -28,8 +28,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         EnvironmentEntity::class,
         SurveyStationEntity::class,
         SpectrumTemplateEntity::class,
+        DeviceEntity::class,
     ],
-    version = 24,
+    version = 25,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -52,6 +53,9 @@ abstract class AppDatabase : RoomDatabase() {
     /** Шаблоны для полноспектрального разложения. */
     abstract fun templateDao(): SpectrumTemplateDao
 
+    /** Приборы, с которыми приложение работало. */
+    abstract fun deviceDao(): DeviceDao
+
     /** Derived pre-aggregation of ADR 004 (minute scalars, hourly sketches). */
     abstract fun preAggregateDao(): PreAggregateDao
 
@@ -65,7 +69,7 @@ abstract class AppDatabase : RoomDatabase() {
          * — не для миграций (у копии своя версия формата), а чтобы при разборе
          * жалобы было видно, из какой базы копия снята.
          */
-        const val VERSION = 24
+        const val VERSION = 25
 
         /** Имя файла базы: его же спрашивает экран «сколько занято». */
         const val NAME = "alpha.db"
@@ -208,6 +212,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MigrationSql.FROM_24_TO_25.forEach(db::execSQL)
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
                 .addMigrations(
@@ -234,6 +244,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_21_22,
                     MIGRATION_22_23,
                     MIGRATION_23_24,
+                    MIGRATION_24_25,
                 )
                 .build()
     }

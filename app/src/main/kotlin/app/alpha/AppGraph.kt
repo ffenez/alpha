@@ -3,6 +3,7 @@ package app.alpha
 import app.alpha.data.EnvironmentRepository
 import app.alpha.data.SurveyRepository
 import app.alpha.data.TemplateRepository
+import app.alpha.data.DeviceRegistry
 import app.alpha.data.export.CrashLog
 import app.alpha.sensors.PhoneSensors
 import java.io.File
@@ -128,6 +129,9 @@ class AppGraph private constructor(
      * граф только держит один экземпляр на процесс.
      */
     val phoneSensors: PhoneSensors by lazy { PhoneSensors(context) }
+
+    /** Приборы, с которыми приложение работало. */
+    val deviceRegistry: DeviceRegistry by lazy { DeviceRegistry(database.deviceDao()) }
 
     /** Библиотека шаблонов полноспектрального разложения. */
     val templateRepository: TemplateRepository by lazy {
