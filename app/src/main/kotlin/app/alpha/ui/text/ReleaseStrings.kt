@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0560Title: String
+    val v0560Summary: String
+
     val v0550Title: String
     val v0550Summary: String
 
@@ -459,6 +462,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0560Title = "Подгонка знает, где у прибора шкала"
+    override val v0560Summary =
+        "Разложение ищет шкалу там, где она у прибора на самом деле: измеренный температурный " +
+        "ход подсказывает подгонке, где искать, и сдвиг, до которого прежняя сетка не " +
+        "дотягивалась, больше не компенсируется лишними формами. Вводить для этого ничего не " +
+        "нужно — и ход, и температуру приложение берёт само."
 
     override val v0550Title = "Состав считается до конца, а не до счётчика"
     override val v0550Summary =
@@ -1478,6 +1488,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0560Title = "The fit knows where the instrument keeps its scale"
+    override val v0560Summary =
+        "The decomposition now looks for the scale where the instrument actually keeps it: the " +
+        "measured temperature drift tells the fit where to search, and a shift the old grid " +
+        "could not reach is no longer compensated by extra shapes. Nothing has to be entered — " +
+        "both the drift and the temperature are taken by the app itself."
 
     override val v0550Title = "The composition is computed to the end"
     override val v0550Summary =

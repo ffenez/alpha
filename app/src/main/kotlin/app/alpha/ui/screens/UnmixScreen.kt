@@ -30,6 +30,7 @@ import app.alpha.analysis.EnergyCalibration
 import app.alpha.analysis.SpectrumUnmix
 import app.alpha.analysis.evidence.ResolutionModel
 import app.alpha.analysis.evidence.ResolutionSource
+import app.alpha.data.GainDriftRecord
 import app.alpha.data.TemplateRepository
 import app.alpha.data.db.SpectrumTemplateEntity
 import app.alpha.device.ConnectionState
@@ -104,6 +105,15 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
     // фона в собственных накоплениях (диагностика прибора) и держит в
     // ResolutionSource — паспортное число одно на модель, а кристалл у каждого
     // прибора свой. Модель действует, только если снята на этом же приборе.
+    // Где искать шкалу: измеренный температурный ход, пересчитанный на
+    // нынешнюю температуру прибора. Человек для этого ничего не вводит —
+    // ход измеряется фоновым проходом, температуру присылает сам прибор.
+    val driftRaw by graph.settings.gainDriftRaw.collectAsState(initial = null)
+    val rare by graph.measurementRepository.latestRareData().collectAsState(initial = null)
+    val prior = remember(driftRaw, rare?.temperature, serial) {
+        scalePrior(GainDriftRecord.decode(driftRaw), rare?.temperature?.toDouble(), serial)
+    }
+
     val measured = ResolutionSource.active?.model()
     val resolution = measured
         ?.let { (it.fwhmKeV(REFERENCE_KEV.toDouble()) / REFERENCE_KEV).toFloat() }
@@ -129,7 +139,7 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
         if (!spectral || running || templates.isEmpty()) return@LaunchedEffect
         while (true) {
             val outcome = withContext(Dispatchers.Default) {
-                decompose(graph, serial, resolution, measured)
+                decompose(graph, serial, resolution, measured, prior)
             }
             result = outcome
             failed = outcome == null && live != null
@@ -152,7 +162,7 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
                 running = true
                 scope.launch {
                     message = withContext(Dispatchers.Default) {
-                        appendToTemplate(graph, target, resolution, measured, t, h)
+                        appendToTemplate(graph, target, resolution, measured, prior, t, h)
                     }
                     result = null
                     running = false
@@ -455,6 +465,7 @@ private suspend fun appendToTemplate(
     entity: SpectrumTemplateEntity,
     resolution662: Float,
     resolution: ResolutionModel?,
+    prior: SpectrumUnmix.ScalePrior?,
     t: UnmixStrings,
     h: app.alpha.ui.text.HistoryStrings,
 ): String {
@@ -471,6 +482,7 @@ private suspend fun appendToTemplate(
         resolution662 = resolution662,
         templates = listOf(repository.template(entity)),
         targetResolution = resolution,
+        scalePrior = prior,
     ) ?: return t.appendRefused
     val seconds = repository.accumulate(
         entity = entity,
@@ -507,6 +519,7 @@ private suspend fun decompose(
     serial: String?,
     resolution662: Float,
     resolution: ResolutionModel?,
+    prior: SpectrumUnmix.ScalePrior?,
 ): SpectrumUnmix.Result? {
     val spectrum = graph.spectrumHub.state.value.spectrum ?: return null
     val repository = graph.templateRepository
@@ -520,7 +533,27 @@ private suspend fun decompose(
         resolution662 = resolution662,
         templates = usable.map { repository.template(it) },
         targetResolution = resolution,
+        scalePrior = prior,
     )
+}
+
+/**
+ * Ожидаемое положение шкалы для подгонки: измеренный ход прибора,
+ * пересчитанный на его нынешнюю температуру.
+ *
+ * Ход принадлежит кристаллу, поэтому запись чужого прибора не берётся.
+ * Температуры нет (прибор не подключён) — берётся опорная точка самой
+ * зависимости: это всё равно измеренное положение шкалы, а не догадка.
+ */
+private fun scalePrior(
+    record: GainDriftRecord?,
+    temperatureC: Double?,
+    serial: String?,
+): SpectrumUnmix.ScalePrior? {
+    val drift = record?.drift ?: return null
+    if (record.deviceSerial != null && serial != null && record.deviceSerial != serial) return null
+    val temperature = temperatureC ?: drift.referenceC
+    return SpectrumUnmix.ScalePrior(gain = drift.at(temperature), sigma = drift.sigmaAt(temperature))
 }
 
 /** Верхняя линия ториевого ряда (Tl-208): дальний край шкалы прибора серии. */

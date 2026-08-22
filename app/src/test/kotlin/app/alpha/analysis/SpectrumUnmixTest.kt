@@ -127,6 +127,59 @@ class SpectrumUnmixTest {
     }
 
     @Test
+    fun `предсказание шкалы достаёт сдвиг, до которого не дотягивается сетка`() {
+        // Прибор ушёл на −4 %: это дальше края сетки по умолчанию (±3 %), и
+        // без подсказки подгонка упирается в собственный край, компенсируя
+        // остаток формой. Измеренный температурный ход говорит, ГДЕ искать, —
+        // и тот же спектр раскладывается верно.
+        val target = background.second
+        val drift = 0.96
+        val drifted = EnergyCalibration(
+            a0 = (target.a0 * drift).toFloat(),
+            a1 = (target.a1 * drift).toFloat(),
+            a2 = (target.a2 * drift).toFloat(),
+        )
+        val adapted = assertNotNull(
+            SpectrumTemplate.adapt(thorium, drifted, background.first.size, 0.084f),
+        )
+        val random = Random(31)
+        val measured = adapted.map { poisson(it * 0.5, random) }
+
+        val blind = assertNotNull(
+            SpectrumUnmix.of(
+                counts = measured,
+                calibration = target,
+                resolution662 = 0.084f,
+                templates = listOf(thorium),
+            ),
+        )
+        assertTrue(
+            abs(blind.gain - drift) > 0.005,
+            "без предсказания сдвиг за краем сетки не должен находиться, вышло ${blind.gain}",
+        )
+
+        val guided = assertNotNull(
+            SpectrumUnmix.of(
+                counts = measured,
+                calibration = target,
+                resolution662 = 0.084f,
+                templates = listOf(thorium),
+                // Предсказание неточное намеренно: оно двигает окно поиска, а
+                // величину по-прежнему определяют данные.
+                scalePrior = SpectrumUnmix.ScalePrior(gain = 0.962, sigma = 0.002),
+            ),
+        )
+        assertTrue(
+            abs(guided.gain - drift) <= 0.005,
+            "с предсказанием усиление найдено как ${guided.gain} вместо $drift",
+        )
+        assertTrue(
+            guided.cash < blind.cash,
+            "верная шкала обязана описывать данные лучше: ${guided.cash} против ${blind.cash}",
+        )
+    }
+
+    @Test
     fun `неполный состав виден по статистике, а не по доле объяснённого`() {
         // Фон прибора — это калий, урановый и ториевый ряды вместе. Разложение
         // ОДНИМ ториевым шаблоном обязано быть отвергнуто статистикой, хотя
