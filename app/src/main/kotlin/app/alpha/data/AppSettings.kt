@@ -437,6 +437,18 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
     }
 
     /**
+     * Измеренный температурный ход шкалы ([GainDriftRecord]) — одна плоская
+     * строка, как и принятая модель разрешения.
+     */
+    val gainDriftRaw: Flow<String?> = dataStore.data.map { it[GAIN_DRIFT] }
+
+    suspend fun setGainDriftRaw(encoded: String?) {
+        dataStore.edit { prefs ->
+            if (encoded == null) prefs.remove(GAIN_DRIFT) else prefs[GAIN_DRIFT] = encoded
+        }
+    }
+
+    /**
      * Отказ от собственного фона, который приложение собирает само: человек
      * удалил эту запись из библиотеки шаблонов, и возвращать её нельзя —
      * иначе удаление выглядело бы как поломка.
@@ -833,6 +845,7 @@ class AppSettings(private val dataStore: DataStore<Preferences>) : ActiveProfile
         private val LAST_DEVICE_ADDRESS = stringPreferencesKey("last_device_address")
         private val START_ON_BOOT = booleanPreferencesKey("start_on_boot")
         private val AUTO_BACKGROUND_OFF = booleanPreferencesKey("auto_background_off")
+        private val GAIN_DRIFT = stringPreferencesKey("gain_drift")
         /** Pre-metadata reference (bare CPS); only ever removed now. */
         private val SEARCH_BACKGROUND_CPS = floatPreferencesKey("search_background_cps")
         private val SEARCH_BACKGROUND = stringPreferencesKey("search_background")

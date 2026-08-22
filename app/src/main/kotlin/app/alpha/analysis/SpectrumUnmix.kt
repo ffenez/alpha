@@ -58,6 +58,20 @@ import kotlin.random.Random
  * пересемплированном шаблоне и меряет разброс ответа, учитывая и уширение, и
  * перекладку.
  *
+ * ## Почему предел обнаружения считается при НУЛЕВОЙ доле
+ *
+ * Предел Карри ([Component.criticalScale]) отвечает на вопрос «какой множитель
+ * ещё объясним отсутствием этой формы», то есть относится к гипотезе H₀ «доли
+ * нет». Значит и разброс оценки берётся при нулевой доле, а не при найденной:
+ * подставить в предел готовую [Component.sigma] нельзя — она измерена вокруг
+ * найденного оптимума и на заметной доле систематически другая.
+ *
+ * Вклад данных в этот разброс кривизна даёт аналитически (`Σ T²/M₀`, где `M₀` —
+ * модель БЕЗ этой формы), а вклад шума шаблонов — тем же бутстрэпом, что и
+ * [Component.sigmaTemplate], но подгонкой при `a = 0`. Без этой добавки короткий
+ * шаблон получает такой же порог, как длинный, и [Component.detected] говорит
+ * «есть» там, где полная неопределённость этого уже не держит.
+ *
  * ## Чего здесь нет
  *
  * Активности в беккерелях. Разложение говорит, какая доля счёта объясняется
@@ -85,8 +99,13 @@ object SpectrumUnmix {
         val counts: Double,
         /**
          * Предел Карри для множителя: ниже него доля неотличима от нуля.
-         * Считается по статистике ДАННЫХ; шум шаблона в него не входит, поэтому
-         * на коротком шаблоне предел оптимистичен.
+         *
+         * `1,645·√(σ_данные,0² + σ_шаблоны,0²)`, обе величины — разброс оценки
+         * множителя при гипотезе «этой формы нет»: данные дают его кривизной
+         * правдоподобия по модели БЕЗ этой формы, шаблоны — бутстрэпом при
+         * нулевой доле. При разложении с ОДНОЙ формой модели без неё не
+         * существует, оба слагаемых нулевые, и предел равен нулю: сравнивать
+         * единственную форму не с чем.
          */
         val criticalScale: Double,
     ) {
@@ -156,6 +175,7 @@ object SpectrumUnmix {
 
         var best: Result? = null
         var bestScale: EnergyCalibration? = null
+        var bestShapes: List<List<Double>>? = null
         val gains = if (fitScale) GAIN_GRID else listOf(1.0)
         val offsets = if (fitScale) OFFSET_GRID else listOf(0.0)
         // Единственное место приведения: бутстрэп обязан гонять реплики ТЕМ ЖЕ
@@ -184,44 +204,74 @@ object SpectrumUnmix {
                 if (best == null || fitted.cash < best!!.cash) {
                     best = fitted
                     bestScale = shifted
+                    bestShapes = adapted
                 }
             }
         }
         val found = best ?: return null
         val scale = bestScale ?: return found
-        return withTemplateSigma(found, counts, templates, scale, adaptTo)
+        val shapes = bestShapes ?: return found
+        return withTemplateSigma(found, counts, templates, shapes, scale, adaptTo)
     }
 
     /**
-     * Дополнить неопределённость долей вкладом статистики шаблонов.
+     * Дополнить вкладом статистики шаблонов и неопределённость долей, и предел
+     * обнаружения.
      *
      * Реплика: сырой счёт КАЖДОГО шаблона пересемплируется поканально из
-     * Пуассона со средним, равным измеренному счёту канала, шаблон заново
-     * приводится к прибору и доли заново подгоняются EM. Разброс долей по
-     * репликам и есть [Component.sigmaTemplate].
+     * Пуассона со средним, равным измеренному счёту канала, шаблоны заново
+     * приводятся к прибору. Дальше одна и та же реплика читается дважды.
      *
-     * Усиление и смещение при этом ФИКСИРОВАНЫ на найденных: масштабные
-     * параметры определены счётом всего спектра, их собственный разброс от шума
-     * шаблона мал против шага сетки, а повторение перебора умножило бы стоимость
-     * разложения на размер сетки.
+     * 1. **Разброс найденной доли** — [Component.sigmaTemplate]: доли заново
+     *    подгоняются EM со старта в найденном оптимуме.
+     * 2. **Разброс доли при гипотезе H₀** — добавка к [Component.criticalScale]:
+     *    для каждой формы EM подгоняет фон БЕЗ неё, а её собственная доля
+     *    оценивается [zeroScale] на остатке. Предел Карри относится к гипотезе
+     *    «доли нет», поэтому её разброс и меряется при нулевой доле, а не берётся
+     *    от найденной.
      *
+     * Данные в репликах НЕ пересемплируются: их вклад в предел уже посчитан
+     * аналитически по кривизне (`zeroCurvature` в [fit]), и пересемплировка
+     * добавила бы его второй раз.
+     *
+     * Усиление и смещение ФИКСИРОВАНЫ на найденных: масштабные параметры
+     * определены счётом всего спектра, их собственный разброс от шума шаблона мал
+     * против шага сетки, а повторение перебора умножило бы стоимость разложения
+     * на размер сетки.
+     *
+     * @param shapes формы основной подгонки — шаблоны, приведённые к прибору при
+     *   найденной шкале.
      * @param adapt приведение шаблона к прибору — то же самое, которым получены
-     *   формы основной подгонки.
-     * @return тот же результат с заполненным [Component.sigmaTemplate]; при
-     *   отказе приведения пересемплированного шаблона — исходный результат
-     *   (вклад шаблона остаётся нулевым, σ занижена, но состав не меняется).
+     *   [shapes].
+     * @return тот же результат с заполненным [Component.sigmaTemplate] и пределом,
+     *   поднятым на шум шаблонов; при отказе приведения пересемплированного
+     *   шаблона — исходный результат (вклад шаблона остаётся нулевым, σ и предел
+     *   занижены, но состав не меняется).
      */
     private fun withTemplateSigma(
         result: Result,
         counts: List<Int>,
         templates: List<SpectrumTemplate>,
+        shapes: List<List<Double>>,
         calibration: EnergyCalibration,
         adapt: (SpectrumTemplate, EnergyCalibration) -> List<Double>?,
     ): Result {
         val k = templates.size
         val start = DoubleArray(k) { result.components[it].scale }
+        // Фон гипотезы H₀ на НАСТОЯЩИХ шаблонах: он же старт EM в репликах.
+        // Пересемплировка шаблона двигает фон на доли процента, поэтому реплике
+        // хватает BOOTSTRAP_ITERATIONS вместо полного счёта итераций.
+        val zeroStart = Array(k) { index ->
+            val rest = withoutIndex(shapes, index)
+            if (rest.isEmpty()) {
+                DoubleArray(0)
+            } else {
+                emScales(counts, rest, equalShareStart(counts, rest), ITERATIONS)
+            }
+        }
         val random = Random(bootstrapSeed(counts))
         val replicas = Array(k) { DoubleArray(BOOTSTRAP_REPLICAS) }
+        val zeroReplicas = Array(k) { DoubleArray(BOOTSTRAP_REPLICAS) }
         for (replica in 0 until BOOTSTRAP_REPLICAS) {
             val resampled = templates.map { template ->
                 val jittered = template.copy(
@@ -230,13 +280,85 @@ object SpectrumUnmix {
                 adapt(jittered, calibration) ?: return result
             }
             val scales = emScales(counts, resampled, start, BOOTSTRAP_ITERATIONS)
-            for (index in 0 until k) replicas[index][replica] = scales[index]
+            for (index in 0 until k) {
+                replicas[index][replica] = scales[index]
+                zeroReplicas[index][replica] =
+                    zeroScale(counts, resampled, index, zeroStart[index])
+            }
         }
         return result.copy(
             components = result.components.mapIndexed { index, component ->
-                component.copy(sigmaTemplate = deviation(replicas[index]))
+                // 1,645·√(σ_данные,0² + σ_шаблоны,0²) = √(предел_данных² + 1,645²·σ²).
+                val templateLimit = SIGMAS * deviation(zeroReplicas[index])
+                val dataLimit = component.criticalScale
+                component.copy(
+                    sigmaTemplate = deviation(replicas[index]),
+                    criticalScale = sqrt(dataLimit * dataLimit + templateLimit * templateLimit),
+                )
             },
         )
+    }
+
+    /**
+     * Оценка доли формы [index] при гипотезе H₀ на одной бутстрэп-реплике.
+     *
+     * Фон гипотезы подгоняется EM по всем формам, КРОМЕ [index], а сама доля
+     * берётся одним шагом взвешенной проекции остатка на форму:
+     * `a = Σ(N − M₀)·T/M₀ ÷ Σ T²/M₀` — это решение линеаризованного уравнения
+     * правдоподобия Пуассона в точке `a = 0`, то есть ровно тот отклик, который
+     * шум шаблонов наводит на «пустую» долю.
+     *
+     * Полной EM с этой формой тут быть не может: мультипликативная итерация
+     * умножает текущую долю на поправку, и из нулевого старта не выходит вовсе, а
+     * ненулевой старт означал бы уже другую гипотезу.
+     *
+     * Фон в знаменателе ограничен снизу [MIN_ZERO_MODEL] — без этого предел
+     * определяли бы несколько почти пустых каналов верхней части шкалы.
+     *
+     * @param start доли фона в порядке форм без [index]; пустой — форма
+     *   единственная.
+     * @return оценка доли; 0, когда фона нет (единственная форма) или форма
+     *   нигде не имеет положительного счёта.
+     */
+    private fun zeroScale(
+        counts: List<Int>,
+        templates: List<List<Double>>,
+        index: Int,
+        start: DoubleArray,
+    ): Double {
+        if (start.isEmpty()) return 0.0
+        val rest = withoutIndex(templates, index)
+        val scales = emScales(counts, rest, start, BOOTSTRAP_ITERATIONS)
+        val shape = templates[index]
+        var numerator = 0.0
+        var denominator = 0.0
+        for (channel in counts.indices) {
+            val t = shape[channel]
+            if (t <= 0.0) continue
+            var background = 0.0
+            for (other in rest.indices) background += scales[other] * rest[other][channel]
+            val model = max(background, MIN_ZERO_MODEL)
+            numerator += (counts[channel] - model) * t / model
+            denominator += t * t / model
+        }
+        return if (denominator > 0.0) numerator / denominator else 0.0
+    }
+
+    /** Формы без [index], исходный порядок сохранён. */
+    private fun withoutIndex(templates: List<List<Double>>, index: Int): List<List<Double>> =
+        templates.filterIndexed { position, _ -> position != index }
+
+    /**
+     * Старт EM: каждая форма несёт равную долю измеренного счёта. Нулевой старт
+     * у мультипликативных итераций — ловушка: ноль умножается в ноль.
+     */
+    private fun equalShareStart(counts: List<Int>, templates: List<List<Double>>): DoubleArray {
+        val total = counts.sumOf { it.toDouble() }
+        val k = templates.size
+        return DoubleArray(k) { index ->
+            val templateSum = templates[index].sum()
+            if (templateSum > 0.0) total / (k * templateSum) else 0.0
+        }
     }
 
     /**
@@ -304,14 +426,8 @@ object SpectrumUnmix {
     ): Result {
         val n = counts.size
         val k = templates.size
-        // Старт: каждая форма несёт равную долю измеренного счёта. Нулевой
-        // старт у мультипликативных итераций — ловушка: ноль умножается в ноль.
         val total = counts.sumOf { it.toDouble() }
-        val start = DoubleArray(k) { index ->
-            val templateSum = templates[index].sum()
-            if (templateSum > 0.0) total / (k * templateSum) else 0.0
-        }
-        val scales = emScales(counts, templates, start, ITERATIONS)
+        val scales = emScales(counts, templates, equalShareStart(counts, templates), ITERATIONS)
 
         val model = DoubleArray(n)
         for (channel in 0 until n) {
@@ -331,8 +447,9 @@ object SpectrumUnmix {
                 if (t <= 0.0) continue
                 val m = model[channel]
                 if (m > 0.0) curvature += counts[channel] * t * t / (m * m)
-                // При отсутствии этой формы её место занимают остальные:
-                // предел Карри считается по модели БЕЗ неё.
+                // При отсутствии этой формы её место занимают остальные: вклад
+                // ДАННЫХ в предел Карри считается по модели БЕЗ неё. Вклад шума
+                // шаблонов добавляет withTemplateSigma.
                 val without = m - scales[index] * t
                 if (without > 0.0) zeroCurvature += without * t * t / (without * without)
             }
@@ -465,6 +582,19 @@ object SpectrumUnmix {
 
     /** Ниже этого значения модель считается нулевой — логарифм не берётся. */
     private const val MIN_MODEL = 1e-9
+
+    /**
+     * Пол модели гипотезы H₀ в проекции [zeroScale], импульсы.
+     *
+     * Вес канала в проекции равен `T²/M₀` и при `M₀ → 0` расходится: в верхней
+     * части шкалы фоновая форма набирает доли импульса, и такой вес держится не
+     * на измерении, а на одном-двух импульсах шаблона — от реплики к реплике он
+     * менялся на порядок и тянул за собой весь предел. **Один импульс** — та же
+     * граница, что у масштаба остатков (`sqrt(max(m, 1))` в [fit]): ниже одного
+     * ожидаемого импульса пуассоновский канал не отличает 0 от 1, и разрешать
+     * модель мельче нечем. Ценой служит консервативный вес самых пустых каналов.
+     */
+    private const val MIN_ZERO_MODEL = 1.0
 
     /** Сколько итераций EM: дальше множители меняются меньше промилле. */
     private const val ITERATIONS = 200

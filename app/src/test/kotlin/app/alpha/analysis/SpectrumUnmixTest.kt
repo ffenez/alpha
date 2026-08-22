@@ -227,6 +227,151 @@ class SpectrumUnmixTest {
         assertEquals(first.sigmaTemplate, second.sigmaTemplate, 0.0)
     }
 
+    @Test
+    fun `короткий шаблон поднимает предел обнаружения`() {
+        // Тот же спектр раскладывается двумя формами: фон прибора (71 ч) и линия
+        // Tl-208 из измеренного ториевого спектра. Линия берётся вместо всего
+        // ториевого шаблона потому, что предел обнаружения — вопрос об ОТДЕЛЬНОЙ
+        // форме: широкий ториевый континуум частично повторяет фон, и «нулевая»
+        // доля у него определена самой подгонкой, а не порогом.
+        //
+        // Шаблон линии прореживается в 30 раз — 15-минутное накопление вместо
+        // 7,7-часового. Доля обязана остаться той же, а предел — вырасти: при
+        // нулевой доле разброс проекции задан в том числе шумом самого шаблона.
+        val target = background.second
+        val measured = lineSpectrum(share = 0.015, seed = 20260821)
+
+        val full = unmixPair(measured, target, line).components[1]
+        val short = unmixPair(measured, target, thin(line, 30, Random(11))).components[1]
+
+        // Множитель короткого шаблона в 30 раз больше — сравниваются пороги,
+        // приведённые к своему множителю.
+        val fullLimit = full.criticalScale / full.scale
+        val shortLimit = short.criticalScale / short.scale
+        assertTrue(
+            shortLimit > 1.8 * fullLimit,
+            "предел короткого шаблона $shortLimit против $fullLimit у полного",
+        )
+        val tolerance = 3.0 * (short.sigma / short.scale + full.sigma / full.scale)
+        assertTrue(
+            abs(short.scale / 30.0 - full.scale) <= tolerance * full.scale,
+            "доли разошлись: ${short.scale / 30.0} против ${full.scale}",
+        )
+        // Тот же спектр — тот же порог: экран пересчитывает разложение постоянно.
+        val again = unmixPair(measured, target, thin(line, 30, Random(11))).components[1]
+        assertEquals(short.criticalScale, again.criticalScale, 0.0)
+    }
+
+    @Test
+    fun `слабая доля не держится на коротком шаблоне`() {
+        // Доля подобрана у самого предела: линия даёт около восьми импульсов.
+        // Полный шаблон её удерживает, короткий — нет, причём ОБА множителя лежат
+        // между двумя порогами: у короткого шаблона он даже больше, и по прежнему
+        // порогу (только по данным) он тоже был бы «обнаружен». Разницу делает
+        // именно поднявшийся порог, а не подгонка.
+        val target = background.second
+        val measured = lineSpectrum(share = 0.0008, seed = 38)
+
+        val full = unmixPair(measured, target, line).components[1]
+        val short = unmixPair(measured, target, thin(line, 30, Random(11))).components[1]
+
+        assertTrue(full.detected, "доля ${full.scale} не найдена при пороге ${full.criticalScale}")
+        assertTrue(
+            !short.detected,
+            "доля ${short.scale} признана найденной при пороге ${short.criticalScale}",
+        )
+        assertTrue(
+            short.scale / 30.0 > full.criticalScale,
+            "множитель ${short.scale / 30.0} и без шума шаблона не дотягивал бы " +
+                "до порога ${full.criticalScale} — тест проверял бы подгонку",
+        )
+        val tolerance = 3.0 * (short.sigma / 30.0 + full.sigma)
+        assertTrue(
+            abs(short.scale / 30.0 - full.scale) <= tolerance,
+            "доли разошлись: ${short.scale / 30.0} против ${full.scale}",
+        )
+    }
+
+    @Test
+    fun `у единственной формы предел не меняется`() {
+        // Модели «без этой формы» не существует: сравнивать не с чем, и вклад
+        // шаблонов в предел равен нулю — так же, как вклад данных.
+        val target = background.second
+        val adapted = assertNotNull(
+            SpectrumTemplate.adapt(thorium, target, background.first.size, 0.084f),
+        )
+        val measured = Random(20260821).let { random -> adapted.map { poisson(it * 0.30, random) } }
+
+        val component = assertNotNull(unmix(measured, target, thorium)).components.single()
+        assertEquals(0.0, component.criticalScale, 0.0)
+        // Реплики при этом строились: нулевой предел — не пропущенный бутстрэп.
+        assertTrue(component.sigmaTemplate > 0.0, "бутстрэп шаблона не отработал")
+    }
+
+    /**
+     * Форма линии Tl-208: из измеренного ториевого спектра оставлена область
+     * 2400–2800 кэВ. Это по-прежнему реальная форма прибора, но почти
+     * ортогональная фону — на ней вопрос «есть или нет» решает порог, а не
+     * вырождение с фоновым континуумом.
+     */
+    private val line: SpectrumTemplate by lazy {
+        val calibration = thorium.calibration
+        thorium.copy(
+            name = "Tl-208",
+            counts = thorium.counts.mapIndexed { channel, value ->
+                val energy = calibration.a0 + calibration.a1 * channel +
+                    calibration.a2 * channel * channel
+                if (energy in 2400f..2800f) value else 0
+            },
+        )
+    }
+
+    /** «Измерение»: фон прибора с добавкой [share] от формы линии. */
+    private fun lineSpectrum(share: Double, seed: Int): List<Int> {
+        val target = background.second
+        val channels = background.first.size
+        val backgroundShape = assertNotNull(
+            SpectrumTemplate.adapt(backgroundTemplate, target, channels, 0.084f),
+        )
+        val lineShape = assertNotNull(SpectrumTemplate.adapt(line, target, channels, 0.084f))
+        val random = Random(seed)
+        return backgroundShape.indices.map {
+            poisson(backgroundShape[it] * backgroundShare + lineShape[it] * share, random)
+        }
+    }
+
+    /**
+     * Сколько фона в «измерении»: 0,05 от 71-часового накопления — около
+     * 3,5 часов, обычная экспозиция для разбора состава.
+     */
+    private val backgroundShare = 0.05
+
+    /** Собственный фон прибора как шаблон: 71 ч, 6,3 млн импульсов. */
+    private val backgroundTemplate: SpectrumTemplate by lazy {
+        SpectrumTemplate(
+            name = "фон",
+            counts = background.first,
+            calibration = background.second,
+            seconds = 255_600L,
+            resolution662 = 0.084f,
+            deviceName = "RadiaCode",
+        )
+    }
+
+    private fun unmixPair(
+        measured: List<Int>,
+        calibration: EnergyCalibration,
+        second: SpectrumTemplate,
+    ) = assertNotNull(
+        SpectrumUnmix.of(
+            counts = measured,
+            calibration = calibration,
+            resolution662 = 0.084f,
+            templates = listOf(backgroundTemplate, second),
+            fitScale = false,
+        ),
+    )
+
     private fun unmix(
         measured: List<Int>,
         calibration: EnergyCalibration,

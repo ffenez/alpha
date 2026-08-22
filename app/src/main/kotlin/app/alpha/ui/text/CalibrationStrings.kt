@@ -84,6 +84,15 @@ interface CalibrationStrings {
     val accept: String
     val revert: String
 
+    /** Температурный ход шкалы, измеренный по линии K-40. */
+    val driftTitle: String
+    fun driftLine(energyKeV: String, shift: String, temperature: String): String
+    fun driftSlope(perDegree: String, sigma: String, points: Int, from: String, to: String): String
+    fun driftNow(temperature: String, shift: String, sigma: String): String
+    val driftNotResolved: String
+    val driftNone: String
+    val driftNote: String
+
     /**
      * Поправка энергетической шкалы: заголовок, предложение с числами,
      * состояние принятой поправки и отказ.
@@ -253,6 +262,26 @@ object CalibrationRu : CalibrationStrings {
 
     override val accept = "Принять измеренную модель"
     override val revert = "Вернуть приближение"
+
+    override val driftTitle = "Шкала и температура прибора"
+    override fun driftLine(energyKeV: String, shift: String, temperature: String) =
+        "линия $energyKeV кэВ стоит на $shift % от таблицы при $temperature °C"
+
+    override fun driftSlope(perDegree: String, sigma: String, points: Int, from: String, to: String) =
+        "ход $perDegree ± $sigma % на градус · накоплений: $points · от $from до $to °C"
+
+    override fun driftNow(temperature: String, shift: String, sigma: String) =
+        "сейчас $temperature °C — ожидается $shift ± $sigma %"
+
+    override val driftNotResolved =
+        "ход от нуля не отличается: измеренного размаха температур на это не хватило"
+    override val driftNone =
+        "Пока не измерено: нужны несколько многочасовых накоплений при разной температуре прибора"
+    override val driftNote =
+        "Считается по линии K-40 в уже накопленных снимках и температуре, которую присылает сам " +
+            "прибор. По одной линии наклон шкалы и сдвиг нуля неразделимы, поэтому названо " +
+            "положение линии на её энергии, а не усиление всей шкалы. Показанные энергии это " +
+            "число не меняет."
     override val correctionTitle = "Поправка энергетической шкалы"
     override val correctionNote = "Приложение может показывать энергии со своей поправкой, " +
         "совмещающей найденные линии с табличными. Калибровку самого прибора это не " +
@@ -463,6 +492,28 @@ object CalibrationEn : CalibrationStrings {
 
     override val accept = "Use the measured model"
     override val revert = "Go back to the approximation"
+
+    override val driftTitle = "Scale and instrument temperature"
+    override fun driftLine(energyKeV: String, shift: String, temperature: String) =
+        "the $energyKeV keV line sits at $shift % of the table value at $temperature °C"
+
+    override fun driftSlope(perDegree: String, sigma: String, points: Int, from: String, to: String) =
+        "slope $perDegree ± $sigma % per degree · accumulations: $points · from $from to $to °C"
+
+    override fun driftNow(temperature: String, shift: String, sigma: String) =
+        "now $temperature °C — expected $shift ± $sigma %"
+
+    override val driftNotResolved =
+        "the slope is not different from zero: the temperature range covered was too narrow"
+    override val driftNone =
+        "Not measured yet: it needs several multi-hour accumulations at different instrument " +
+            "temperatures"
+    override val driftNote =
+        "Computed from the K-40 line in the snapshots already recorded and from the temperature " +
+            "the instrument itself reports. With a single line the scale gain and the zero " +
+            "offset are inseparable, so what is named is the position of that line at its own " +
+            "energy, not a gain of the whole scale. This number does not change the energies " +
+            "shown."
     override val correctionTitle = "Energy scale correction"
     override val correctionNote = "The app can show energies with its own correction that lines " +
         "the found peaks up with the table. This does not change the instrument's own " +
@@ -589,6 +640,8 @@ fun CalibrationStrings.allTexts(): List<String> = listOf(
     refusalNotEnoughLines(2, 3), refusalNarrowSpan("340", "500"),
     refusalNotMonotone, refusalNegativeNoise, refusalPrefix("…"),
     accept, revert, acceptedState("12.08", 4), acceptedNote,
+    driftTitle, driftLine("1460,8", "-2,1", "24"), driftSlope("-0,15", "0,04", 9, "18", "27"),
+    driftNow("26", "-2,4", "0,3"), driftNotResolved, driftNone, driftNote,
     acceptedAutoState("12.08", 4), acceptedAutoNote,
     correctionTitle, correctionNote, correctionOffer("31,2", "1,4", 3), correctionShift("1460,8", "+30,8"),
     correctionAccept, correctionRevert, correctionAcceptedState("12.08", 3), correctionNotOffered,

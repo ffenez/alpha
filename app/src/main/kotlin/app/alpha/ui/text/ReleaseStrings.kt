@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0540Title: String
+    val v0540Summary: String
+
     val v0530Title: String
     val v0530Summary: String
 
@@ -453,6 +456,14 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0540Title = "Порог обнаружения и температурный ход шкалы"
+    override val v0540Summary =
+        "Порог «доля неотличима от нуля» теперь учитывает и шум самих шаблонов: на " +
+        "пятнадцатиминутном шаблоне он вдвое выше, чем на семичасовом, и слабая доля больше не " +
+        "объявляется найденной там, где неопределённость её не держит. Приложение также само " +
+        "измеряет, как шкала прибора уходит от его температуры, и показывает это на экране " +
+        "калибровки."
 
     override val v0530Title = "Фон прибора появляется в библиотеке сам"
     override val v0530Summary =
@@ -1457,6 +1468,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0540Title = "Detection threshold and the scale's temperature drift"
+    override val v0540Summary =
+        "The \"not different from zero\" threshold now includes the noise of the templates " +
+        "themselves: on a fifteen-minute template it is twice as high as on a seven-hour one, " +
+        "and a weak share is no longer declared found where the uncertainty does not support " +
+        "it. The app also measures on its own how the instrument scale moves with its " +
+        "temperature, and shows it on the calibration screen."
 
     override val v0530Title = "The instrument background appears by itself"
     override val v0530Summary =

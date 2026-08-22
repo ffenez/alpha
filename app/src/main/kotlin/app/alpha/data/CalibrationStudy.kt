@@ -52,21 +52,27 @@ data class CalibrationModel(
  * Длиннее не нужно — калибровка прибора за месяцы меняется, и сумма за
  * полгода описывала бы уже не тот прибор, что сейчас в руках.
  */
-private const val WINDOW_DAYS = 30
+internal const val WINDOW_DAYS = 30
 
 /**
  * Читает уже накопленные снимки, складывает из них два накопления и отдаёт
  * разбор. Ничего не пишет.
  */
-suspend fun loadCalibration(graph: AppGraph): CalibrationModel {
-    val now = System.currentTimeMillis()
-    val from = now - WINDOW_DAYS * 24L * RadonTrend.HOUR_MILLIS
-    // Прореживание до одного снимка в час не теряет ни импульса: разность
-    // последних снимков соседних часов покрывает час целиком.
+/**
+ * Снимки прибора за окно, прорежённые до одного в час.
+ *
+ * Прореживание не теряет ни импульса: разность последних снимков соседних
+ * часов покрывает час целиком, а чтение блобов экономит.
+ */
+internal suspend fun hourlySnapshots(
+    graph: AppGraph,
+    fromMillis: Long,
+    toMillis: Long,
+): List<RadonTrend.Snapshot> {
     val metas = graph.measurementRepository
-        .deviceSnapshotMeta(from - RadonTrend.HOUR_MILLIS, now)
+        .deviceSnapshotMeta(fromMillis - RadonTrend.HOUR_MILLIS, toMillis)
         .map { RadonTrend.Meta(it.id, it.timestamp, it.durationSeconds) }
-    val snapshots = RadonTrend.selectHourlyIds(metas).mapNotNull { id ->
+    return RadonTrend.selectHourlyIds(metas).mapNotNull { id ->
         graph.measurementRepository.spectrumById(id)?.let { entity ->
             val s = entity.toSpectrum()
             RadonTrend.Snapshot(
@@ -77,6 +83,15 @@ suspend fun loadCalibration(graph: AppGraph): CalibrationModel {
             )
         }
     }
+}
+
+suspend fun loadCalibration(
+    graph: AppGraph,
+    prepared: List<RadonTrend.Snapshot>? = null,
+): CalibrationModel {
+    val now = System.currentTimeMillis()
+    val from = now - WINDOW_DAYS * 24L * RadonTrend.HOUR_MILLIS
+    val snapshots = prepared ?: hourlySnapshots(graph, from, now)
     val selection = CalibrationDataset.select(CalibrationDataset.intervals(snapshots))
     val connected = graph.serviceStatus.connection.value as? ConnectionState.Connected
     val model = connected?.info?.model
@@ -125,8 +140,16 @@ internal fun CalibrationDataset.Accumulation.toEngine(id: String) = CalibrationA
  * сказано, что модель снята автоматически, и где её можно снять.
  */
 suspend fun studyInstrument(graph: AppGraph, nowMillis: Long): Boolean {
-    val model = loadCalibration(graph)
+    // Снимки читаются ОДИН раз на весь проход: это сотни блобов, и второе
+    // чтение ради того же материала было бы чистой тратой.
+    val snapshots = hourlySnapshots(
+        graph = graph,
+        fromMillis = nowMillis - WINDOW_DAYS * 24L * RadonTrend.HOUR_MILLIS,
+        toMillis = nowMillis,
+    )
+    val model = loadCalibration(graph, snapshots)
     refreshAutoBackground(graph, model, nowMillis)
+    measureDrift(graph, model.deviceSerial, snapshots, nowMillis)
     val stored = AcceptedResolution.decode(graph.settings.measuredResolutionRaw.first())
     val next = ResolutionAdoption.decide(
         fit = model.report.fit,
@@ -160,4 +183,25 @@ suspend fun refreshAutoBackground(graph: AppGraph, model: CalibrationModel, nowM
         deviceName = null,
         atMillis = nowMillis,
     )
+}
+
+/**
+ * Температурный ход шкалы — тем же проходом и тем же материалом.
+ *
+ * Результат только СОХРАНЯЕТСЯ и показывается: подставлять его в показанные
+ * энергии нельзя по той же причине, по которой поправка шкалы включается
+ * человеком — иначе подпись зависела бы от температуры в момент измерения.
+ */
+internal suspend fun measureDrift(
+    graph: AppGraph,
+    serial: String?,
+    snapshots: List<RadonTrend.Snapshot>,
+    nowMillis: Long,
+): Boolean {
+    val drift = GainDriftStudy.measure(graph, snapshots) ?: return false
+    graph.settings.setGainDriftRaw(
+        GainDriftRecord(drift = drift, deviceSerial = serial, measuredAtMillis = nowMillis)
+            .encode(),
+    )
+    return true
 }

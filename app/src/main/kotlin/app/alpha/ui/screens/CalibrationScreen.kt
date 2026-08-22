@@ -39,6 +39,7 @@ import app.alpha.analysis.evidence.CalibrationReport
 import app.alpha.analysis.evidence.SqrtResolution
 import app.alpha.analysis.evidence.AcceptedResolution
 import app.alpha.data.CalibrationModel
+import app.alpha.data.GainDriftRecord
 import app.alpha.data.loadCalibration
 import app.alpha.analysis.evidence.ResolutionFitOutcome
 import app.alpha.analysis.evidence.ResolutionModel
@@ -99,6 +100,9 @@ fun CalibrationScreen(graph: AppGraph, onBack: () -> Unit) {
     val correctionRaw by graph.settings.scaleCorrectionRaw.collectAsState(initial = null)
     val correctionRecord = remember(correctionRaw) { ScaleCorrectionRecord.decode(correctionRaw) }
     val accepted = remember(acceptedRaw) { AcceptedResolution.decode(acceptedRaw) }
+    val driftRaw by graph.settings.gainDriftRaw.collectAsState(initial = null)
+    val driftRecord = remember(driftRaw) { GainDriftRecord.decode(driftRaw) }
+    val rare by graph.measurementRepository.latestRareData().collectAsState(initial = null)
 
     // Без собственной прокрутки: экран живёт внутри прокручиваемой колонки
     // Настроек, и вложенный verticalScroll получает бесконечную высоту —
@@ -162,6 +166,8 @@ fun CalibrationScreen(graph: AppGraph, onBack: () -> Unit) {
                     scope.launch { graph.settings.setMeasuredResolutionRaw(null) }
                 },
                 correction = correctionRecord,
+                drift = driftRecord,
+                instrumentTemperatureC = rare?.temperature?.toDouble(),
                 onAcceptCorrection = { offer ->
                     scope.launch {
                         graph.settings.setScaleCorrectionRaw(
@@ -192,6 +198,10 @@ internal fun CalibrationContent(
     onRevert: () -> Unit,
     /** Принятая поправка шкалы; null — шкала показывается как у прибора. */
     correction: ScaleCorrectionRecord? = null,
+    /** Измеренный температурный ход шкалы; null — ещё не измерен. */
+    drift: GainDriftRecord? = null,
+    /** Температура прибора прямо сейчас, °C; null — прибор не подключён. */
+    instrumentTemperatureC: Double? = null,
     onAcceptCorrection: (ScaleCorrection) -> Unit = {},
     onRevertCorrection: () -> Unit = {},
 ) {
@@ -225,6 +235,66 @@ internal fun CalibrationContent(
         blendNote(model.report, s)?.let {
             Text(text = it, style = type.footnote, color = colors.muted)
         }
+    }
+
+    // Температурный ход шкалы: приложение измеряет его само и только
+    // показывает — подставлять его в подписи энергий нельзя по той же
+    // причине, по которой поправка шкалы включается человеком.
+    Section(s.driftTitle) {
+        val record = drift?.takeIf { row ->
+            // Ход принадлежит кристаллу: чужой показывать нельзя.
+            row.deviceSerial == null || model.deviceSerial == null ||
+                row.deviceSerial == model.deviceSerial
+        }
+        if (record == null) {
+            Text(text = s.driftNone, style = type.bodySmall, color = colors.ink2)
+        } else {
+            val value = record.drift
+            Text(
+                text = s.driftLine(
+                    energyKeV = CalibrationView.number(value.lineKeV, 1),
+                    shift = CalibrationView.signed(100.0 * (value.atReference - 1.0), 1),
+                    temperature = CalibrationView.number(value.referenceC, 0),
+                ),
+                style = type.valueSmall,
+                color = colors.ink,
+            )
+            Text(
+                text = if (value.slopeResolved) {
+                    s.driftSlope(
+                        perDegree = CalibrationView.signed(100.0 * value.perDegree, 2),
+                        sigma = CalibrationView.number(100.0 * value.perDegreeSigma, 2),
+                        points = value.points,
+                        from = CalibrationView.number(value.minC, 0),
+                        to = CalibrationView.number(value.maxC, 0),
+                    )
+                } else {
+                    s.driftNotResolved
+                },
+                style = type.bodySmall,
+                color = colors.ink2,
+            )
+            // Предсказание на текущую температуру — то, ради чего ход и
+            // меряется: оно говорит, насколько шкала уехала ПРЯМО СЕЙЧАС.
+            if (instrumentTemperatureC != null && value.slopeResolved) {
+                Text(
+                    text = s.driftNow(
+                        temperature = CalibrationView.number(instrumentTemperatureC, 0),
+                        shift = CalibrationView.signed(
+                            100.0 * (value.at(instrumentTemperatureC) - 1.0),
+                            1,
+                        ),
+                        sigma = CalibrationView.number(
+                            100.0 * value.sigmaAt(instrumentTemperatureC),
+                            1,
+                        ),
+                    ),
+                    style = type.bodySmall,
+                    color = colors.ink,
+                )
+            }
+        }
+        Hint(text = s.driftNote)
     }
 
     // Поправка шкалы — ЯВНОЕ действие: предложение с числами «до и после»
