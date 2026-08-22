@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0570Title: String
+    val v0570Summary: String
+
     val v0560Title: String
     val v0560Summary: String
 
@@ -462,6 +465,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0570Title = "Выход, смена прибора и спектр картинкой"
+    override val v0570Summary =
+        "В настройках появились выход из приложения и смена прибора: приложение ведёт один " +
+        "прибор за раз, переключение закрывает связь со старым, а журнал измерений остаётся " +
+        "общим — об этом сказано на самом экране. Полноэкранный спектр сохраняется картинкой " +
+        "3000×2000: на ней видно то, что в html-отчёте не разглядеть и неудобно пересылать."
 
     override val v0560Title = "Подгонка знает, где у прибора шкала"
     override val v0560Summary =
@@ -1488,6 +1498,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0570Title = "An exit, an instrument switch and the spectrum as an image"
+    override val v0570Summary =
+        "Settings now have an exit and an instrument switch: the app works with one instrument " +
+        "at a time, switching closes the old link, and the measurement log stays shared — the " +
+        "screen says so. The fullscreen spectrum can be saved as a 3000×2000 image, which shows " +
+        "what an HTML report cannot and is easier to send."
 
     override val v0560Title = "The fit knows where the instrument keeps its scale"
     override val v0560Summary =

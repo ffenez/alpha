@@ -18,14 +18,19 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.alpha.analysis.SpectrumDisplay
@@ -96,6 +101,92 @@ data class SpectrumChartSpec(
     val lineMark: SpectrumLineMark? = null,
 )
 
+/**
+ * Цвета и типографика поля спектра, отвязанные от `CompositionLocal`.
+ *
+ * Рисование спектра живёт в двух средах: композиция берёт цвета из
+ * [LocalAppColors]/[LocalAppTypography], отрисовка в картинку
+ * ([app.alpha.ui.components.SpectrumImage]) идёт вне композиции, где ни того,
+ * ни другого нет. Стиль — единственный вход рисования по оформлению, поэтому
+ * картинка и экран не могут разойтись по виду.
+ */
+@Immutable
+data class SpectrumPlotStyle(
+    /** Плоскость поля. На экране её кладёт `Modifier.chartField()`, в картинке — сам рендер. */
+    val field: Color,
+    /** Фон под подписью отметки линии (подложка поверх кривой). */
+    val bg: Color,
+    /** Сетка, метки пиков, отметка линии. */
+    val ink2: Color,
+    /** Подписи осей и фон-наложение. */
+    val muted: Color,
+    /** Кривая и её заливка. */
+    val data: Color,
+    /** Континуум SNIP; на экране этим же цветом идёт курсор. */
+    val dataText: Color,
+    /** Метка выделенного кандидата. */
+    val warn: Color,
+    /** Подписи осей и меток. */
+    val axisText: TextStyle,
+)
+
+/** Стиль поля из текущей темы. */
+@Composable
+fun rememberSpectrumPlotStyle(): SpectrumPlotStyle {
+    val colors = LocalAppColors.current
+    val axis = LocalAppTypography.current.axis
+    return remember(colors, axis) {
+        SpectrumPlotStyle(
+            field = colors.chartField,
+            bg = colors.bg,
+            ink2 = colors.ink2,
+            muted = colors.muted,
+            data = colors.data,
+            dataText = colors.dataText,
+            warn = colors.warn,
+            axisText = axis,
+        )
+    }
+}
+
+/**
+ * Поля осей в пикселях. Считаются один раз и служат и рисованию, и жестам:
+ * подписи стоят ВНУТРИ поля и забирают левый край, поэтому доля от ширины узла
+ * указывала бы мимо канала под пальцем.
+ */
+@Immutable
+internal data class SpectrumPlotMetrics(
+    val padLeft: Float,
+    val padRight: Float,
+    val padTop: Float,
+    val padBottom: Float,
+    /** Высота строки подписи оси, px. */
+    val labelHeight: Float,
+    /** Значение → подпись для горизонтальных линий сетки. */
+    val yLabels: List<Pair<Float, String>>,
+)
+
+internal fun spectrumPlotMetrics(
+    spec: SpectrumChartSpec,
+    style: SpectrumPlotStyle,
+    textMeasurer: TextMeasurer,
+    density: Density,
+): SpectrumPlotMetrics {
+    val yLabels = spec.scale.ticks(spec.yTop).map { value -> value to compactCount(value) }
+    val labelHeight = textMeasurer.measure("0", style.axisText).size.height.toFloat()
+    val padLeft = (yLabels.maxOfOrNull { textMeasurer.measure(it.second, style.axisText).size.width } ?: 0) +
+        with(density) { 4.dp.toPx() }
+    return SpectrumPlotMetrics(
+        padLeft = padLeft,
+        padRight = with(density) { 4.dp.toPx() },
+        // Сверху остаётся место под подписи пиков, снизу — под подписи кэВ.
+        padTop = with(density) { 18.dp.toPx() },
+        padBottom = labelHeight + with(density) { 3.dp.toPx() },
+        labelHeight = labelHeight,
+        yLabels = yLabels,
+    )
+}
+
 /** Bottom of the log scale (mirrors the mockup: fractions of a count clamp here). */
 private const val LOG_FLOOR = 0.6f
 
@@ -137,7 +228,7 @@ fun SpectrumChart(
     fieldControls: @Composable BoxScope.() -> Unit = {},
 ) {
     val colors = LocalAppColors.current
-    val axisStyle = LocalAppTypography.current.axis
+    val style = rememberSpectrumPlotStyle()
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
     // Ключ `Unit` у `pointerInput` означает, что блок запускается один раз за
@@ -154,23 +245,15 @@ fun SpectrumChart(
     val markPresent = rememberUpdatedState(spec.lineMark != null)
     val resetZoom = rememberUpdatedState(onResetZoom)
 
-    // Поля осей считаются один раз и служат рисованию и жестам: подписи стоят
-    // внутри поля и забирают левый край, поэтому доля от ширины узла указывала
-    // бы мимо канала под пальцем.
-    val yLabels = remember(spec.scale, spec.yTop) {
-        spec.scale.ticks(spec.yTop).map { value -> value to compactCount(value) }
+    // Те же поля, которыми рисует [drawSpectrumPlot]: жесты и курсор обязаны
+    // считать долю от ширины ПОЛЯ, а не узла.
+    val metrics = remember(spec.scale, spec.yTop, style, density) {
+        spectrumPlotMetrics(spec, style, textMeasurer, density)
     }
-    val labelHeightPx = remember(axisStyle) {
-        textMeasurer.measure("0", axisStyle).size.height.toFloat()
-    }
-    val padLeftPx = remember(yLabels, axisStyle, density) {
-        (yLabels.maxOfOrNull { textMeasurer.measure(it.second, axisStyle).size.width } ?: 0) +
-            with(density) { 4.dp.toPx() }
-    }
-    val padRightPx = with(density) { 4.dp.toPx() }
-    // Сверху остаётся место под подписи пиков, снизу — под подписи кэВ.
-    val padTopPx = with(density) { 18.dp.toPx() }
-    val padBottomPx = labelHeightPx + with(density) { 3.dp.toPx() }
+    val padLeftPx = metrics.padLeft
+    val padRightPx = metrics.padRight
+    val padTopPx = metrics.padTop
+    val padBottomPx = metrics.padBottom
     // Пиксель касания → доля ширины ПОЛЯ (подписи оси стоят внутри поля).
     val fractionOf: (Float, Int) -> Float = { xPx, nodeWidthPx ->
         SpectrumPlot.plotFraction(xPx, padLeftPx, nodeWidthPx - padLeftPx - padRightPx)
@@ -217,206 +300,7 @@ fun SpectrumChart(
                     },
                 ),
         ) {
-            if (spec.columns.isEmpty() || spec.yTop <= 0f) return@Canvas
-
-            // Подписи оси задаёт масштаб: декады у логарифма, четверти у
-            // линейного, неравномерные значения у степенного. Поля посчитаны в
-            // композиции — теми же числами живут жесты и курсор.
-            val labelHeight = labelHeightPx
-            val padL = padLeftPx
-            val padR = padRightPx
-            val padT = padTopPx
-            val padB = padBottomPx
-            val plotW = size.width - padL - padR
-            val plotH = size.height - padT - padB
-            if (plotW <= 0 || plotH <= 0) return@Canvas
-            val bottom = padT + plotH
-
-            fun y(value: Float): Float =
-                SpectrumPlot.yPx(value, spec.yTop, spec.scale, padT, plotH)
-
-            val n = spec.columns.size
-            fun x(index: Int): Float = SpectrumPlot.columnXPx(index, n, padL, plotW)
-
-            val grid = colors.ink2.copy(alpha = 0.14f)
-
-            // 1a. Тонкая сетка внутри декады (только логарифм): без неё 30 и
-            // 80 между 10 и 100 неразличимы.
-            if (spec.scale is SpectrumScale.Log) {
-                val minor = colors.ink2.copy(alpha = 0.06f)
-                for (value in SpectrumScale.Log.minorTicks(spec.yTop)) {
-                    val yy = y(value)
-                    drawLine(minor, Offset(padL, yy), Offset(size.width - padR, yy), 1f)
-                }
-            }
-
-            for ((value, label) in yLabels) {
-                val yy = y(value)
-                drawLine(grid, Offset(padL, yy), Offset(size.width - padR, yy), 1f)
-                val measured = textMeasurer.measure(label, axisStyle)
-                drawText(
-                    textLayoutResult = measured,
-                    color = colors.muted,
-                    topLeft = Offset(
-                        padL - 4.dp.toPx() - measured.size.width,
-                        yy - measured.size.height / 2f,
-                    ),
-                )
-            }
-
-            for (tick in spec.energyTicks) {
-                val xx = padL + tick.fraction * plotW
-                drawLine(grid, Offset(xx, padT), Offset(xx, bottom), 1f)
-                val measured = textMeasurer.measure("${tick.keV}", axisStyle)
-                drawText(
-                    textLayoutResult = measured,
-                    color = colors.muted,
-                    topLeft = Offset(
-                        (xx - measured.size.width / 2f)
-                            .coerceIn(0f, size.width - measured.size.width),
-                        size.height - labelHeight,
-                    ),
-                )
-            }
-
-            // Линия рисуется отрезками, а не одним путём через все колонки.
-            // Колонка бывает двух видов: «нет данных» (NaN — в колонку не попал
-            // ни один канал) и «измерен ноль». На логарифмической оси ноля на
-            // шкале нет, и оба случая рвут линию: между соседними каналами с
-            // данными она непрерывна, на месте пустых — разрыв.
-            val logScale = spec.scale is SpectrumScale.Log
-            fun segmentsOf(values: List<Float>): List<List<Int>> =
-                SpectrumPlot.segments(values.take(n), logScale)
-
-            spec.overlay?.let { overlay ->
-                val path = Path()
-                for (segment in segmentsOf(overlay)) {
-                    segment.forEachIndexed { position, index ->
-                        val point = Offset(x(index), y(overlay[index]))
-                        if (position == 0) path.moveTo(point.x, point.y) else {
-                            path.lineTo(point.x, point.y)
-                        }
-                    }
-                }
-                drawPath(
-                    path = path,
-                    color = colors.muted.copy(alpha = 0.7f),
-                    style = Stroke(width = 1.2.dp.toPx(), join = StrokeJoin.Round),
-                )
-            }
-
-            spec.continuum?.let { continuum ->
-                val path = Path()
-                for (segment in segmentsOf(continuum)) {
-                    segment.forEachIndexed { position, index ->
-                        val point = Offset(x(index), y(continuum[index]))
-                        if (position == 0) path.moveTo(point.x, point.y) else {
-                            path.lineTo(point.x, point.y)
-                        }
-                    }
-                }
-                drawPath(
-                    path = path,
-                    color = colors.dataText.copy(alpha = 0.6f),
-                    style = Stroke(
-                        width = 1.dp.toPx(),
-                        join = StrokeJoin.Round,
-                        pathEffect = PathEffect.dashPathEffect(
-                            floatArrayOf(4.dp.toPx(), 4.dp.toPx()),
-                        ),
-                    ),
-                )
-            }
-
-            val line = Path()
-            val area = Path()
-            for (segment in segmentsOf(spec.columns)) {
-                segment.forEachIndexed { position, index ->
-                    val point = Offset(x(index), y(spec.columns[index]))
-                    if (position == 0) line.moveTo(point.x, point.y) else {
-                        line.lineTo(point.x, point.y)
-                    }
-                }
-                // Заливка посегментная: общий путь соединил бы концы разрывов
-                // по низу поля.
-                area.moveTo(x(segment.first()), bottom)
-                for (index in segment) area.lineTo(x(index), y(spec.columns[index]))
-                area.lineTo(x(segment.last()), bottom)
-                area.close()
-            }
-            drawPath(path = area, color = colors.data.copy(alpha = 0.16f))
-            drawPath(
-                path = line,
-                color = colors.data,
-                style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
-            )
-
-            // 5. Метки пиков: штрих и подпись над вершиной; янтарный — только
-            // у выделенного кандидата.
-            for (peak in spec.peaks) {
-                if (peak.columnIndex !in spec.columns.indices) continue
-                var top = Float.MAX_VALUE
-                for (j in (peak.columnIndex - 3)..(peak.columnIndex + 3)) {
-                    val v = spec.columns.getOrNull(j) ?: continue
-                    // Колонка без данных в поиске вершины не участвует: NaN
-                    // отравил бы сравнение.
-                    if (v.isNaN()) continue
-                    top = minOf(top, y(v))
-                }
-                if (top == Float.MAX_VALUE) continue
-                val xx = x(peak.columnIndex)
-                val color = if (peak.highlighted) colors.warn else colors.ink2
-                drawLine(
-                    color = color,
-                    start = Offset(xx, (top - 3.dp.toPx()).coerceAtLeast(labelHeight + 2.dp.toPx())),
-                    end = Offset(xx, (top - 9.dp.toPx()).coerceAtLeast(labelHeight + 2.dp.toPx())),
-                    strokeWidth = 2.dp.toPx(),
-                )
-                val measured = textMeasurer.measure(peak.label, axisStyle)
-                drawText(
-                    textLayoutResult = measured,
-                    color = color,
-                    topLeft = Offset(
-                        (xx - measured.size.width / 2f)
-                            .coerceIn(0f, size.width - measured.size.width),
-                        (top - 11.dp.toPx() - measured.size.height).coerceAtLeast(0f),
-                    ),
-                )
-            }
-
-            // 5b. Отметка линии из справки: пунктир во всё поле и подпись в
-            // верхней полосе. Пунктир и приглушённый цвет отличают её от пика
-            // (короткий штрих) и от курсора (сплошная линия цвета данных).
-            spec.lineMark?.let { mark ->
-                val xx = padL + mark.fraction.coerceIn(0f, 1f) * plotW
-                val dashPx = 4.dp.toPx()
-                drawLine(
-                    color = colors.ink2.copy(alpha = 0.75f),
-                    start = Offset(xx, padT),
-                    end = Offset(xx, bottom),
-                    strokeWidth = 1.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(dashPx, dashPx)),
-                )
-                val measured = textMeasurer.measure(mark.label, axisStyle)
-                val pad = 2.dp.toPx()
-                val left = (xx + 3.dp.toPx())
-                    .coerceAtMost(size.width - padR - measured.size.width - pad)
-                    .coerceAtLeast(padL + pad)
-                // Подпись стоит в верхней полосе поля: внизу она спорит с
-                // подписями оси кэВ.
-                val top = pad
-                // Подложка цветом фона: подпись стоит поверх кривой и сетки.
-                drawRect(
-                    color = colors.bg.copy(alpha = 0.85f),
-                    topLeft = Offset(left - pad, top - pad / 2f),
-                    size = Size(measured.size.width + 2f * pad, measured.size.height + pad),
-                )
-                drawText(
-                    textLayoutResult = measured,
-                    color = colors.ink2,
-                    topLeft = Offset(left, top),
-                )
-            }
+            drawSpectrumPlot(spec, style, textMeasurer)
         }
 
         // 6. Курсор — свой слой: читается в рисовании через [State], поэтому
@@ -510,6 +394,225 @@ fun SpectrumChart(
         // 8. Управление на поле — последним слоем: кнопка получает нажатие
         // раньше обработчиков жестов.
         fieldControls()
+    }
+}
+
+/**
+ * Рисует поле спектра целиком: сетку и подписи осей, наложение записанного
+ * фона, континуум SNIP, кривую с заливкой, метки пиков и отметку линии.
+ *
+ * Курсор, жесты и управление на поле сюда не входят — это слои композиции.
+ * Плоскость поля ([SpectrumPlotStyle.field]) тоже не рисуется: на экране её
+ * кладёт `Modifier.chartField()`, в картинке — [SpectrumImage].
+ *
+ * Пустой [SpectrumChartSpec.columns] или неположительный
+ * [SpectrumChartSpec.yTop] дают пустое поле.
+ */
+internal fun DrawScope.drawSpectrumPlot(
+    spec: SpectrumChartSpec,
+    style: SpectrumPlotStyle,
+    textMeasurer: TextMeasurer,
+) {
+    if (spec.columns.isEmpty() || spec.yTop <= 0f) return
+
+    // Подписи оси задаёт масштаб: декады у логарифма, четверти у линейного,
+    // неравномерные значения у степенного.
+    val metrics = spectrumPlotMetrics(spec, style, textMeasurer, this)
+    val yLabels = metrics.yLabels
+    val labelHeight = metrics.labelHeight
+    val padL = metrics.padLeft
+    val padR = metrics.padRight
+    val padT = metrics.padTop
+    val padB = metrics.padBottom
+    val plotW = size.width - padL - padR
+    val plotH = size.height - padT - padB
+    if (plotW <= 0 || plotH <= 0) return
+    val bottom = padT + plotH
+
+    fun y(value: Float): Float =
+        SpectrumPlot.yPx(value, spec.yTop, spec.scale, padT, plotH)
+
+    val n = spec.columns.size
+    fun x(index: Int): Float = SpectrumPlot.columnXPx(index, n, padL, plotW)
+
+    val grid = style.ink2.copy(alpha = 0.14f)
+
+    // 1a. Тонкая сетка внутри декады (только логарифм): без неё 30 и
+    // 80 между 10 и 100 неразличимы.
+    if (spec.scale is SpectrumScale.Log) {
+        val minor = style.ink2.copy(alpha = 0.06f)
+        for (value in SpectrumScale.Log.minorTicks(spec.yTop)) {
+            val yy = y(value)
+            drawLine(minor, Offset(padL, yy), Offset(size.width - padR, yy), 1f)
+        }
+    }
+
+    for ((value, label) in yLabels) {
+        val yy = y(value)
+        drawLine(grid, Offset(padL, yy), Offset(size.width - padR, yy), 1f)
+        val measured = textMeasurer.measure(label, style.axisText)
+        drawText(
+            textLayoutResult = measured,
+            color = style.muted,
+            topLeft = Offset(
+                padL - 4.dp.toPx() - measured.size.width,
+                yy - measured.size.height / 2f,
+            ),
+        )
+    }
+
+    for (tick in spec.energyTicks) {
+        val xx = padL + tick.fraction * plotW
+        drawLine(grid, Offset(xx, padT), Offset(xx, bottom), 1f)
+        val measured = textMeasurer.measure("${tick.keV}", style.axisText)
+        drawText(
+            textLayoutResult = measured,
+            color = style.muted,
+            topLeft = Offset(
+                (xx - measured.size.width / 2f)
+                    .coerceIn(0f, size.width - measured.size.width),
+                size.height - labelHeight,
+            ),
+        )
+    }
+
+    // Линия рисуется отрезками, а не одним путём через все колонки.
+    // Колонка бывает двух видов: «нет данных» (NaN — в колонку не попал
+    // ни один канал) и «измерен ноль». На логарифмической оси ноля на
+    // шкале нет, и оба случая рвут линию: между соседними каналами с
+    // данными она непрерывна, на месте пустых — разрыв.
+    val logScale = spec.scale is SpectrumScale.Log
+    fun segmentsOf(values: List<Float>): List<List<Int>> =
+        SpectrumPlot.segments(values.take(n), logScale)
+
+    spec.overlay?.let { overlay ->
+        val path = Path()
+        for (segment in segmentsOf(overlay)) {
+            segment.forEachIndexed { position, index ->
+                val point = Offset(x(index), y(overlay[index]))
+                if (position == 0) path.moveTo(point.x, point.y) else {
+                    path.lineTo(point.x, point.y)
+                }
+            }
+        }
+        drawPath(
+            path = path,
+            color = style.muted.copy(alpha = 0.7f),
+            style = Stroke(width = 1.2.dp.toPx(), join = StrokeJoin.Round),
+        )
+    }
+
+    spec.continuum?.let { continuum ->
+        val path = Path()
+        for (segment in segmentsOf(continuum)) {
+            segment.forEachIndexed { position, index ->
+                val point = Offset(x(index), y(continuum[index]))
+                if (position == 0) path.moveTo(point.x, point.y) else {
+                    path.lineTo(point.x, point.y)
+                }
+            }
+        }
+        drawPath(
+            path = path,
+            color = style.dataText.copy(alpha = 0.6f),
+            style = Stroke(
+                width = 1.dp.toPx(),
+                join = StrokeJoin.Round,
+                pathEffect = PathEffect.dashPathEffect(
+                    floatArrayOf(4.dp.toPx(), 4.dp.toPx()),
+                ),
+            ),
+        )
+    }
+
+    val line = Path()
+    val area = Path()
+    for (segment in segmentsOf(spec.columns)) {
+        segment.forEachIndexed { position, index ->
+            val point = Offset(x(index), y(spec.columns[index]))
+            if (position == 0) line.moveTo(point.x, point.y) else {
+                line.lineTo(point.x, point.y)
+            }
+        }
+        // Заливка посегментная: общий путь соединил бы концы разрывов
+        // по низу поля.
+        area.moveTo(x(segment.first()), bottom)
+        for (index in segment) area.lineTo(x(index), y(spec.columns[index]))
+        area.lineTo(x(segment.last()), bottom)
+        area.close()
+    }
+    drawPath(path = area, color = style.data.copy(alpha = 0.16f))
+    drawPath(
+        path = line,
+        color = style.data,
+        style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+    )
+
+    // 5. Метки пиков: штрих и подпись над вершиной; янтарный — только
+    // у выделенного кандидата.
+    for (peak in spec.peaks) {
+        if (peak.columnIndex !in spec.columns.indices) continue
+        var top = Float.MAX_VALUE
+        for (j in (peak.columnIndex - 3)..(peak.columnIndex + 3)) {
+            val v = spec.columns.getOrNull(j) ?: continue
+            // Колонка без данных в поиске вершины не участвует: NaN
+            // отравил бы сравнение.
+            if (v.isNaN()) continue
+            top = minOf(top, y(v))
+        }
+        if (top == Float.MAX_VALUE) continue
+        val xx = x(peak.columnIndex)
+        val color = if (peak.highlighted) style.warn else style.ink2
+        drawLine(
+            color = color,
+            start = Offset(xx, (top - 3.dp.toPx()).coerceAtLeast(labelHeight + 2.dp.toPx())),
+            end = Offset(xx, (top - 9.dp.toPx()).coerceAtLeast(labelHeight + 2.dp.toPx())),
+            strokeWidth = 2.dp.toPx(),
+        )
+        val measured = textMeasurer.measure(peak.label, style.axisText)
+        drawText(
+            textLayoutResult = measured,
+            color = color,
+            topLeft = Offset(
+                (xx - measured.size.width / 2f)
+                    .coerceIn(0f, size.width - measured.size.width),
+                (top - 11.dp.toPx() - measured.size.height).coerceAtLeast(0f),
+            ),
+        )
+    }
+
+    // 5b. Отметка линии из справки: пунктир во всё поле и подпись в
+    // верхней полосе. Пунктир и приглушённый цвет отличают её от пика
+    // (короткий штрих) и от курсора (сплошная линия цвета данных).
+    spec.lineMark?.let { mark ->
+        val xx = padL + mark.fraction.coerceIn(0f, 1f) * plotW
+        val dashPx = 4.dp.toPx()
+        drawLine(
+            color = style.ink2.copy(alpha = 0.75f),
+            start = Offset(xx, padT),
+            end = Offset(xx, bottom),
+            strokeWidth = 1.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(dashPx, dashPx)),
+        )
+        val measured = textMeasurer.measure(mark.label, style.axisText)
+        val pad = 2.dp.toPx()
+        val left = (xx + 3.dp.toPx())
+            .coerceAtMost(size.width - padR - measured.size.width - pad)
+            .coerceAtLeast(padL + pad)
+        // Подпись стоит в верхней полосе поля: внизу она спорит с
+        // подписями оси кэВ.
+        val top = pad
+        // Подложка цветом фона: подпись стоит поверх кривой и сетки.
+        drawRect(
+            color = style.bg.copy(alpha = 0.85f),
+            topLeft = Offset(left - pad, top - pad / 2f),
+            size = Size(measured.size.width + 2f * pad, measured.size.height + pad),
+        )
+        drawText(
+            textLayoutResult = measured,
+            color = style.ink2,
+            topLeft = Offset(left, top),
+        )
     }
 }
 

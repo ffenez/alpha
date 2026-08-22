@@ -252,7 +252,7 @@ private fun ScanStep(graph: AppGraph) {
 }
 
 @Composable
-private fun DeviceRow(
+internal fun DeviceRow(
     device: DiscoveredRadiaCode,
     connecting: Boolean,
     enabled: Boolean,

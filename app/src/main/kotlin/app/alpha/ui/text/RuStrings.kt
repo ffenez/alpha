@@ -88,6 +88,20 @@ object RuStrings : Strings {
         )
     override val searchWordsAbout = listOf("версия", "лицензии", "обновления")
     override val settingsAbout = "О приложении"
+
+    override val switchDevice = "Сменить прибор"
+    override val switchDeviceNote =
+        "Связь с нынешним прибором закроется, новый станет текущим и запомнится"
+    override val switchDeviceMixNote =
+        "Журнал измерений общий: записи разных приборов лежат в одном ряду и не разделяются. " +
+            "Снимки спектра и шаблоны свой прибор помнят."
+    override fun deviceCurrent(name: String) = "$name — текущий"
+
+    override val exitApp = "Выйти из приложения"
+    override val exitAppNote = "Закрывает приложение и связь с прибором"
+    override val exitAppConfirm =
+        "Связь с прибором прервётся, служба остановится, идущая запись закроется. Всё, что уже " +
+            "записано, останется."
     override val settingsAboutSub = "версия, обновления, лицензии, диагностика"
 
     override val languageTitle = "Язык"

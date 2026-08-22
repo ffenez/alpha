@@ -1,5 +1,15 @@
 package app.alpha.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import app.alpha.ui.components.EntityMenuButton
+import app.alpha.ui.components.EntityMenuItem
+import app.alpha.ui.components.SpectrumImage
+import app.alpha.ui.components.rememberSpectrumPlotStyle
+import app.alpha.data.export.SpectrumExport
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -174,6 +184,38 @@ fun SpectrumFullScreen(
 
     var window by remember { mutableStateOf(options.window()) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
+
+    // Сохранение картинкой: рисуется то же, что на поле, но в размер, где
+    // видна структура — отчёт в html переслать тяжелее, чем картинку.
+    val context = LocalContext.current
+    val imageScope = rememberCoroutineScope()
+    val plotStyle = rememberSpectrumPlotStyle()
+    val savedSpec = remember { mutableStateOf<SpectrumChartSpec?>(null) }
+    var imageNotice by remember { mutableStateOf<String?>(null) }
+    val imageLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png"),
+    ) { uri ->
+        val spec = savedSpec.value
+        if (uri != null && spec != null) {
+            imageScope.launch {
+                // Растр 3000×2000 — это 24 МБ и заметное время: рисование и
+                // кодирование уходят с главного потока.
+                val bytes = withContext(Dispatchers.Default) {
+                    SpectrumImage.renderPng(context, spec, plotStyle)
+                }
+                imageNotice = if (writeBytesToUri(context, uri, bytes)) {
+                    t.imageSaved
+                } else {
+                    t.imageFailed
+                }
+            }
+        }
+    }
+    imageNotice?.let { notice ->
+        SpectrumFileNoticeDialog(
+            notice = SpectrumFileNotice(title = notice, lines = emptyList()),
+        ) { imageNotice = null }
+    }
     var cursorActive by rememberSaveable { mutableStateOf(false) }
     // Положение курсора живёт в своём State: его читает слой рисования и
     // карточка, поэтому скраб не пересобирает экран.
@@ -318,6 +360,16 @@ fun SpectrumFullScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Chip(text = "i", color = colors.ink2, onClick = { infoOpen = true })
+                // Редкое действие — под «⋮», а не ещё одним чипом в ряду.
+                EntityMenuButton(
+                    menu = listOf(
+                        EntityMenuItem(t.saveImage) {
+                            imageLauncher.launch(
+                                SpectrumExport.fileName(System.currentTimeMillis(), "png"),
+                            )
+                        },
+                    ),
+                )
             }
             // Переключатели картинки: они переехали сюда с маленького поля,
             // где занимали угол графика и попадали под палец при зуме.
@@ -370,25 +422,29 @@ fun SpectrumFullScreen(
                     },
                 )
             }
+            // Спектр описан ОДНИМ значением: его рисует поле и его же уносит
+            // картинка — иначе сохранённое расходилось бы с показанным.
+            val chartSpec = SpectrumChartSpec(
+                columns = frame.columns,
+                overlay = frame.overlay,
+                continuum = frame.continuum,
+                scale = scale,
+                yTop = frame.yTop,
+                peaks = peakMarks,
+                energyTicks = SpectrumDisplay.energyTicks(frame.visible),
+                lineMark = markFraction?.let { fraction ->
+                    SpectrumLineMark(
+                        fraction = fraction,
+                        label = t.lineMarkLabel(
+                            SpectrumFormat.energyCell(aliveMark!!.energyKeV),
+                        ),
+                    )
+                },
+            )
+            savedSpec.value = chartSpec
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 SpectrumChart(
-                    spec = SpectrumChartSpec(
-                        columns = frame.columns,
-                        overlay = frame.overlay,
-                        continuum = frame.continuum,
-                        scale = scale,
-                        yTop = frame.yTop,
-                        peaks = peakMarks,
-                        energyTicks = SpectrumDisplay.energyTicks(frame.visible),
-                        lineMark = markFraction?.let { fraction ->
-                            SpectrumLineMark(
-                                fraction = fraction,
-                                label = t.lineMarkLabel(
-                                    SpectrumFormat.energyCell(aliveMark!!.energyKeV),
-                                ),
-                            )
-                        },
-                    ),
+                    spec = chartSpec,
                     modifier = Modifier.fillMaxSize(),
                     // Высоту задаёт поле, а не компонент: полноэкранный режим —
                     // это режим ПРОСМОТРА, поле здесь единственный вес.

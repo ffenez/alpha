@@ -269,6 +269,11 @@ interface SpectrumStrings {
 
     // --- файловые операции (импорт RC-XML) ---
     val acknowledge: String
+    /** Сохранение поля спектра картинкой большого размера. */
+    val saveImage: String
+    val imageSaved: String
+    val imageFailed: String
+
     val importFailed: String
     val importTooLarge: String
     val importUnreadable: String
@@ -625,6 +630,10 @@ object SpectrumRu : SpectrumStrings {
     override fun snapshotSavedAt(time: String) = "снимок сохранён в $time — он виден в Истории"
 
     override val acknowledge = "Понятно"
+    override val saveImage = "Сохранить картинкой"
+    override val imageSaved = "Картинка сохранена"
+    override val imageFailed = "Картинку сохранить не удалось"
+
     override val importFailed = "Импорт не удался"
     override val importTooLarge = "Файл больше 20 МБ — это не похоже на спектр RadiaCode."
     override val importUnreadable = "Файл не удалось прочитать — попробуйте выбрать его ещё раз."
@@ -1050,6 +1059,10 @@ object SpectrumEn : SpectrumStrings {
         "snapshot saved at $time — it is in History"
 
     override val acknowledge = "Got it"
+    override val saveImage = "Save as an image"
+    override val imageSaved = "Image saved"
+    override val imageFailed = "Could not save the image"
+
     override val importFailed = "Import failed"
     override val importTooLarge =
         "The file is over 20 MB — that does not look like a RadiaCode spectrum."
@@ -1286,6 +1299,7 @@ val SpectrumCatalogue = AreaCatalogue(ru = SpectrumRu, en = SpectrumEn)
  * забытая строка означала бы непроверенный текст.
  */
 fun SpectrumStrings.allTexts(): List<String> = listOf(
+    saveImage, imageSaved, imageFailed,
     spectrumSummary("Дом", "191 ч", "17,0 млн имп"), noProfileShort, backgroundTag,
     infoDurationTitle, infoDurationRule, infoDurationMinute, infoDurationMinutes,
     infoDurationHalfHour, infoDurationHours, infoDurationCompare,

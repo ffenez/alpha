@@ -96,6 +96,20 @@ object EnStrings : Strings {
         )
     override val searchWordsAbout = listOf("version", "licences", "licenses", "updates")
     override val settingsAbout = "About"
+
+    override val switchDevice = "Switch the instrument"
+    override val switchDeviceNote =
+        "The current link is closed, the new instrument becomes the current one and is remembered"
+    override val switchDeviceMixNote =
+        "The measurement log is shared: rows from different instruments lie in one series and " +
+            "are not separated. Spectrum snapshots and templates do remember their instrument."
+    override fun deviceCurrent(name: String) = "$name — current"
+
+    override val exitApp = "Exit the app"
+    override val exitAppNote = "Closes the app and the link to the instrument"
+    override val exitAppConfirm =
+        "The link to the instrument will be dropped, the service will stop and a running record " +
+            "will be closed. Everything already recorded stays."
     override val settingsAboutSub = "version, updates, licences, diagnostics"
 
     override val languageTitle = "Language"

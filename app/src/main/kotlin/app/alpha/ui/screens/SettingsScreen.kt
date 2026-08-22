@@ -2,6 +2,9 @@
 
 package app.alpha.ui.screens
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.clickable
@@ -68,6 +71,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import app.alpha.AppGraph
+import app.alpha.ui.components.ConfirmDialog
+import app.alpha.service.MeasurementService
 import app.alpha.baseline.AlarmSensitivity
 import app.alpha.baseline.AlarmThresholds
 import app.alpha.baseline.BaselineState
@@ -463,7 +468,54 @@ private fun SettingsRoot(
                 }
             }
         }
+        ExitRow()
     }
+}
+
+/**
+ * Выход из приложения — отдельной строкой в самом низу настроек.
+ *
+ * Кнопка нужна не «для порядка»: измерение живёт в службе переднего плана и
+ * продолжается после сворачивания экрана, поэтому закрыть приложение жестом
+ * нельзя — служба переживёт и это. Строка стоит последней и спрашивает
+ * подтверждение: она рвёт связь с прибором и закрывает идущую запись.
+ */
+@Composable
+private fun ExitRow() {
+    val strings = LocalStrings.current
+    val context = LocalContext.current
+    var confirm by remember { mutableStateOf(false) }
+
+    SettingsSection {
+        SettingRow(
+            title = strings.exitApp,
+            subtitle = strings.exitAppNote,
+            onClick = { confirm = true },
+        )
+    }
+    if (confirm) {
+        ConfirmDialog(
+            title = strings.exitApp,
+            body = strings.exitAppConfirm,
+            confirmText = strings.exitApp,
+            onConfirm = {
+                confirm = false
+                // Именно startService с ACTION_STOP, а не stopService: служба
+                // сама закрывает запись и снимает уведомление, а stopService
+                // оборвал бы её мимо этого пути.
+                context.startService(MeasurementService.stopIntent(context))
+                context.findActivity()?.finishAndRemoveTask()
+            },
+            onDismiss = { confirm = false },
+        )
+    }
+}
+
+/** Activity под слоями ContextWrapper; null — композиция вне Activity. */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /**
@@ -1386,9 +1438,18 @@ private fun DeviceScreen(
     val scope = rememberCoroutineScope()
     val startOnBoot by graph.settings.startOnBoot.collectAsState(initial = false)
 
+    var picker by remember { mutableStateOf(false) }
+    if (picker) DevicePickerSheet(graph) { picker = false }
+
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.space3)) {
         DeviceStatusCard(graph)
         SettingsSection {
+            SettingRow(
+                title = strings.switchDevice,
+                subtitle = strings.switchDeviceNote,
+                onClick = { picker = true },
+            )
+            SettingsDivider()
             SwitchSettingRow(
                 title = strings.startOnBootTitle,
                 subtitle = strings.startOnBootNote,

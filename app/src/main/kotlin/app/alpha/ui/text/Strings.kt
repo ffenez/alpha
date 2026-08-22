@@ -173,6 +173,17 @@ interface Strings {
     val searchWordsData: List<String>
     val searchWordsAbout: List<String>
     val settingsAbout: String
+
+    /** Смена прибора: приложение ведёт один прибор за раз. */
+    val switchDevice: String
+    val switchDeviceNote: String
+    val switchDeviceMixNote: String
+    fun deviceCurrent(name: String): String
+
+    /** Выход из приложения: связь с прибором и служба закрываются. */
+    val exitApp: String
+    val exitAppNote: String
+    val exitAppConfirm: String
     val settingsAboutSub: String
 
     // --- настройки: язык ---
@@ -721,6 +732,8 @@ interface Strings {
  * classpath нет, а забытая строка означала бы непроверенный текст.
  */
 fun Strings.allTexts(): List<String> = listOf(
+    exitApp, exitAppNote, exitAppConfirm,
+    switchDevice, switchDeviceNote, switchDeviceMixNote, deviceCurrent("RadiaCode"),
     tabHome, tabSpectrum, tabMap, tabHistory, back, close, settings,
     connected, connecting, reconnecting, serviceOff, noLink, noData,
     doseRate, countRate, hardness, trendPerHour, doseToday, placeFingerprint,
