@@ -1,5 +1,8 @@
 package app.alpha.analysis
 
+import app.alpha.analysis.evidence.MeasuredResolution
+import app.alpha.analysis.evidence.ResolutionModel
+import app.alpha.analysis.evidence.SqrtResolution
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.max
@@ -48,11 +51,6 @@ data class SpectrumTemplate(
     val resolution662: Float,
     /** Модель прибора, на котором снят шаблон; null — не указана. */
     val deviceName: String? = null,
-    /**
-     * Разрешение прибора шаблона как функция энергии, измеренная по его же
-     * линиям; null — измерить не удалось, работает [resolution662].
-     */
-    val curve: ResolutionCurve? = null,
 ) {
     val totalCounts: Long get() = counts.sumOf { it.toLong() }
 
@@ -87,7 +85,7 @@ data class SpectrumTemplate(
             targetCalibration: EnergyCalibration,
             targetChannels: Int,
             targetResolution662: Float,
-            targetCurve: ResolutionCurve? = null,
+            targetResolution: ResolutionModel? = null,
         ): List<Double>? {
             if (targetChannels < MIN_CHANNELS || template.counts.size < MIN_CHANNELS) return null
             // Разрешение цели ХУЖЕ — значит уширяем. Небольшой запас: шаблон и
@@ -97,7 +95,7 @@ data class SpectrumTemplate(
 
             val widened = widen(
                 template = template,
-                target = targetCurve ?: ResolutionCurve.ofResolution662(targetResolution662),
+                target = targetResolution ?: SqrtResolution(targetResolution662.toDouble()),
             )
             return rebin(widened, template.calibration, targetCalibration, targetChannels)
         }
@@ -160,23 +158,25 @@ data class SpectrumTemplate(
          * Уширение линий шаблона до разрешения цели.
          *
          * Ширина зависит от энергии, поэтому ядро свёртки своё для каждого
-         * канала. Ширина берётся из [ResolutionCurve] — измеренной, если она
-         * есть, и паспортной формы FWHM ∝ √E, если нет. Разница не
-         * косметическая: на 2615 кэВ паспортная форма расходится с измеренной
-         * на десятки процентов ширины, и уширение по ней либо не доводит линию
-         * до нужной, либо размазывает её сверх меры.
+         * канала. Ширина цели берётся из действующей модели разрешения
+         * ([ResolutionModel]): если приложение измерило её по линиям прибора
+         * ([MeasuredResolution]), уширение идёт по измеренному ходу, а не по
+         * паспортному √E, который у верхнего края шкалы расходится с
+         * измеренным на десятки процентов ширины. Шаблон описывается своим
+         * измеренным числом на 662 кэВ: многолинейной модели чужого прибора у
+         * нас нет.
          */
-        private fun widen(template: SpectrumTemplate, target: ResolutionCurve): DoubleArray {
+        private fun widen(template: SpectrumTemplate, target: ResolutionModel): DoubleArray {
             val n = template.counts.size
             val out = DoubleArray(n)
             val cal = template.calibration
-            val own = template.curve ?: ResolutionCurve.ofResolution662(template.resolution662)
+            val own = SqrtResolution(template.resolution662.toDouble())
             for (i in 0 until n) {
                 val value = template.counts[i].toDouble()
                 if (value <= 0.0) continue
                 val energy = cal.energyAt(i.toFloat())
-                val targetFwhm = target.fwhmAt(energy)
-                val ownFwhm = own.fwhmAt(energy)
+                val targetFwhm = target.fwhmKeV(energy.toDouble()).toFloat()
+                val ownFwhm = own.fwhmKeV(energy.toDouble()).toFloat()
                 val extra = targetFwhm * targetFwhm - ownFwhm * ownFwhm
                 if (extra <= 0f) {
                     out[i] += value

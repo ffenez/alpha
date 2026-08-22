@@ -1,5 +1,7 @@
 package app.alpha.analysis
 
+import app.alpha.analysis.evidence.MeasuredResolution
+import app.alpha.analysis.evidence.ResolutionModel
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
@@ -133,9 +135,9 @@ object SpectrumUnmix {
      * @param calibration калибровка ЭТОГО прибора (стартовая точка для поиска
      *   усиления и смещения).
      * @param resolution662 разрешение этого прибора на 662 кэВ.
-     * @param targetCurve разрешение этого прибора как функция энергии, если оно
-     *   измерено по его собственным спектрам; null — работает паспортная форма
-     *   FWHM ∝ √E от [resolution662].
+     * @param targetResolution действующая модель разрешения этого прибора,
+     *   если приложение измерило её по линиям ([MeasuredResolution]); null —
+     *   работает паспортная форма FWHM ∝ √E от [resolution662].
      * @param templates формы, по которым раскладываем; шаблон, который не
      *   приводится к этому прибору, молча не пропадает — он выбрасывает всю
      *   попытку, потому что состав без одной из форм означает другое.
@@ -147,7 +149,7 @@ object SpectrumUnmix {
         resolution662: Float,
         templates: List<SpectrumTemplate>,
         fitScale: Boolean = true,
-        targetCurve: ResolutionCurve? = null,
+        targetResolution: ResolutionModel? = null,
     ): Result? {
         if (counts.size < SpectrumTemplate.MIN_CHANNELS || templates.isEmpty()) return null
         if (counts.sumOf { it.toLong() } <= 0L) return null
@@ -165,7 +167,7 @@ object SpectrumUnmix {
                 targetCalibration = target,
                 targetChannels = counts.size,
                 targetResolution662 = resolution662,
-                targetCurve = targetCurve,
+                targetResolution = targetResolution,
             )
         }
         for (gain in gains) {

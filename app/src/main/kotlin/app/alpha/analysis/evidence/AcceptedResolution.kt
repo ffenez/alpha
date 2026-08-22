@@ -27,6 +27,12 @@ data class AcceptedResolution(
     val highestKeV: Double,
     /** Версия математики, которой получены коэффициенты. */
     val algorithmVersion: Int,
+    /**
+     * Принята фоновым разбором, а не человеком. Различие рабочее: свою
+     * запись фон обновляет сам, а принятую вручную не трогает
+     * ([ResolutionAdoption]).
+     */
+    val automatic: Boolean = false,
 ) {
     fun model(): MeasuredResolution = MeasuredResolution(a, b, c)
 
@@ -40,6 +46,7 @@ data class AcceptedResolution(
         "lo" to lowestKeV.toString(),
         "hi" to highestKeV.toString(),
         "v" to algorithmVersion.toString(),
+        "auto" to if (automatic) "1" else "0",
     ).joinToString(";") { "${it.first}=${it.second}" }
 
     companion object {
@@ -66,6 +73,9 @@ data class AcceptedResolution(
                 lowestKeV = fields["lo"]?.toDoubleOrNull() ?: 0.0,
                 highestKeV = fields["hi"]?.toDoubleOrNull() ?: 0.0,
                 algorithmVersion = fields["v"]?.toIntOrNull() ?: 0,
+                // Записи прежних версий поля не имеют: они приняты человеком,
+                // и фон не вправе их переписывать.
+                automatic = fields["auto"] == "1",
             )
         }
     }

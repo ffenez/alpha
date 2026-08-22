@@ -27,8 +27,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import app.alpha.AppGraph
 import app.alpha.analysis.EnergyCalibration
-import app.alpha.analysis.ResolutionCurve
 import app.alpha.analysis.SpectrumUnmix
+import app.alpha.analysis.evidence.ResolutionModel
+import app.alpha.analysis.evidence.ResolutionSource
 import app.alpha.data.TemplateRepository
 import app.alpha.data.db.SpectrumTemplateEntity
 import app.alpha.device.ConnectionState
@@ -54,6 +55,7 @@ import app.alpha.ui.theme.Dimens
 import app.alpha.ui.theme.LocalAppColors
 import app.alpha.ui.theme.LocalAppTypography
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -89,6 +91,7 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
 
     var message by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<SpectrumUnmix.Result?>(null) }
+    var failed by remember { mutableStateOf(false) }
     var running by remember { mutableStateOf(false) }
     var methodOpen by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
@@ -97,14 +100,14 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
     val hub by graph.spectrumHub.state.collectAsState()
     val live = hub.spectrum?.takeIf { it.counts.isNotEmpty() && it.durationSeconds > 0L }
 
-    // Разрешение ЭТОГО прибора, измеренное по его собственным шаблонам:
-    // паспортное число одно на модель, а кристалл и фотоприёмник у каждого
-    // прибора свои. Пересчитывается, когда библиотека меняется.
-    var curve by remember { mutableStateOf<ResolutionCurve?>(null) }
-    LaunchedEffect(templates.size, serial) {
-        curve = graph.templateRepository.deviceCurve(serial)
-    }
-    val resolution = curve?.resolution662 ?: model.peakResolution662
+    // Разрешение ЭТОГО прибора: приложение измеряет его по линиям природного
+    // фона в собственных накоплениях (диагностика прибора) и держит в
+    // ResolutionSource — паспортное число одно на модель, а кристалл у каждого
+    // прибора свой. Модель действует, только если снята на этом же приборе.
+    val measured = ResolutionSource.active?.model()
+    val resolution = measured
+        ?.let { (it.fwhmKeV(REFERENCE_KEV.toDouble()) / REFERENCE_KEV).toFloat() }
+        ?: model.peakResolution662
 
     val context = LocalContext.current
     val importLauncher = rememberLauncherForActivityResult(
@@ -115,6 +118,22 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
                 message = importTemplateFile(graph, context, uri, t)
                 reload++
             }
+        }
+    }
+
+    // Разложение считается само, пока экран открыт: подгонка занимает
+    // десятки миллисекунд, а нажимать «посчитать» над накоплением, которое
+    // прибывает каждую секунду, пришлось бы без конца. Пересчёт
+    // приостанавливается на время досъёмки — она переписывает шаблон.
+    LaunchedEffect(templates.size, resolution, spectral, running) {
+        if (!spectral || running || templates.isEmpty()) return@LaunchedEffect
+        while (true) {
+            val outcome = withContext(Dispatchers.Default) {
+                decompose(graph, serial, resolution, measured)
+            }
+            result = outcome
+            failed = outcome == null && live != null
+            delay(AUTO_INTERVAL_MILLIS)
         }
     }
 
@@ -133,7 +152,7 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
                 running = true
                 scope.launch {
                     message = withContext(Dispatchers.Default) {
-                        appendToTemplate(graph, target, resolution, curve, t, h)
+                        appendToTemplate(graph, target, resolution, measured, t, h)
                     }
                     result = null
                     running = false
@@ -221,15 +240,21 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
                     style = type.labelSmall,
                     color = colors.ink2,
                 )
-                curve?.let { measured ->
+                measured?.let { widths ->
                     Hint(
                         text = t.resolutionMeasured(
-                            at662 = Uncertainty.num1(100f * measured.resolution662),
+                            at662 = Uncertainty.num1(100f * resolution),
                             at2615 = Uncertainty.num1(
-                                100f * measured.fwhmAt(HIGH_LINE_KEV) / HIGH_LINE_KEV,
+                                (100.0 * widths.fwhmKeV(HIGH_LINE_KEV.toDouble()) / HIGH_LINE_KEV)
+                                    .toFloat(),
                             ),
                         ),
                     )
+                }
+                // Отказ разложения — критическая строка: без неё экран просто
+                // молчал бы, и молчание читалось бы как «состава нет».
+                if (failed) {
+                    Text(text = t.failed, style = type.footnote, color = colors.warn)
                 }
                 for (entity in templates) {
                     val fitness = graph.templateRepository.fitness(
@@ -254,21 +279,6 @@ fun UnmixScreen(graph: AppGraph, onBack: () -> Unit) {
                         },
                     )
                 }
-                AppButton(
-                    text = t.run,
-                    enabled = !running && spectral,
-                    onClick = {
-                        running = true
-                        scope.launch {
-                            val outcome = withContext(Dispatchers.Default) {
-                                decompose(graph, serial, resolution, curve)
-                            }
-                            result = outcome
-                            if (outcome == null) message = t.failed
-                            running = false
-                        }
-                    },
-                )
             }
         }
 
@@ -424,7 +434,7 @@ private suspend fun appendToTemplate(
     graph: AppGraph,
     entity: SpectrumTemplateEntity,
     resolution662: Float,
-    curve: ResolutionCurve?,
+    resolution: ResolutionModel?,
     t: UnmixStrings,
     h: app.alpha.ui.text.HistoryStrings,
 ): String {
@@ -440,7 +450,7 @@ private suspend fun appendToTemplate(
         calibration = calibration,
         resolution662 = resolution662,
         templates = listOf(repository.template(entity)),
-        targetCurve = curve,
+        targetResolution = resolution,
     ) ?: return t.appendRefused
     val seconds = repository.accumulate(
         entity = entity,
@@ -476,7 +486,7 @@ private suspend fun decompose(
     graph: AppGraph,
     serial: String?,
     resolution662: Float,
-    curve: ResolutionCurve?,
+    resolution: ResolutionModel?,
 ): SpectrumUnmix.Result? {
     val spectrum = graph.spectrumHub.state.value.spectrum ?: return null
     val repository = graph.templateRepository
@@ -489,9 +499,19 @@ private suspend fun decompose(
         calibration = EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2),
         resolution662 = resolution662,
         templates = usable.map { repository.template(it) },
-        targetCurve = curve,
+        targetResolution = resolution,
     )
 }
 
 /** Верхняя линия ториевого ряда (Tl-208): дальний край шкалы прибора серии. */
 private const val HIGH_LINE_KEV = 2615f
+
+/** Cs-137: энергия, к которой приведено «разрешение в процентах». */
+private const val REFERENCE_KEV = 662f
+
+/**
+ * Как часто пересчитывается состав — **инженерный параметр**. Полминуты: за
+ * это время накопление успевает измениться заметно для долей, а сама подгонка
+ * с перебором шкалы занимает около сорока миллисекунд.
+ */
+private const val AUTO_INTERVAL_MILLIS = 30_000L

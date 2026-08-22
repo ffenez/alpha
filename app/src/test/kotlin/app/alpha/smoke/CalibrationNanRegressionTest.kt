@@ -7,7 +7,7 @@ import app.alpha.analysis.evidence.CalibrationReport
 import app.alpha.analysis.evidence.ResolutionFitOutcome
 import app.alpha.analysis.evidence.ResolutionFitResult
 import app.alpha.ui.screens.CalibrationContent
-import app.alpha.ui.screens.CalibrationModel
+import app.alpha.data.CalibrationModel
 import app.alpha.ui.text.CalibrationCatalogue
 import app.alpha.ui.text.HistoryCatalogue
 import org.junit.Rule

@@ -54,6 +54,7 @@ import app.alpha.ui.text.stringsFor
 import app.alpha.analysis.SpectrumEpoch
 import app.alpha.protocol.Spectrum
 import app.alpha.data.db.SpectrumSnapshotEntity
+import app.alpha.data.studyInstrument
 import app.alpha.device.ConnectionState
 import app.alpha.device.DoseUnits
 import app.alpha.device.RadiaCodeDevice
@@ -205,6 +206,23 @@ class MeasurementService : Service() {
     @Volatile
     private var journalEpisodes = true
 
+    /** Сбой любой задачи службы уходит в журнал, а не в системный обработчик. */
+    private fun recordFailure(error: Throwable) {
+        runCatching {
+            CrashLog.append(
+                graph.crashLogFile,
+                CrashLog.entry(
+                    atMillis = System.currentTimeMillis(),
+                    stamp = CRASH_STAMP.format(
+                        java.time.Instant.now().atZone(java.time.ZoneId.systemDefault()),
+                    ),
+                    threadName = Thread.currentThread().name,
+                    error = error,
+                ),
+            )
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph.get(this)
@@ -213,21 +231,7 @@ class MeasurementService : Service() {
         // обработчик, а тот убивает процесс вместе с экраном — так падало
         // удаление идущей записи маршрута. Падение при этом не прячется:
         // оно записывается в журнал сбоев, который уезжает в отладочный архив.
-        val failures = CoroutineExceptionHandler { _, error ->
-            runCatching {
-                CrashLog.append(
-                    graph.crashLogFile,
-                    CrashLog.entry(
-                        atMillis = System.currentTimeMillis(),
-                        stamp = CRASH_STAMP.format(
-                            java.time.Instant.now().atZone(java.time.ZoneId.systemDefault()),
-                        ),
-                        threadName = Thread.currentThread().name,
-                        error = error,
-                    ),
-                )
-            }
-        }
+        val failures = CoroutineExceptionHandler { _, error -> recordFailure(error) }
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + failures)
         Notifications.ensureChannels(this)
         graph.serviceStatus.onServiceStarted()
@@ -349,6 +353,20 @@ class MeasurementService : Service() {
             while (true) {
                 refreshBaseline()
                 delay(BASELINE_REFRESH_MILLIS)
+            }
+        }
+        scope.launch {
+            // Диагностика прибора считается сама и в фоне: разбор тридцати
+            // суток снимков занимает секунды и не должен ждать, пока человек
+            // откроет экран. Первый прогон отложен — при старте службы важнее
+            // подключиться к прибору.
+            delay(STUDY_START_DELAY_MILLIS)
+            while (true) {
+                // Сбой разбора не имеет права оборвать сам цикл: следующая
+                // попытка через шесть часов может застать больше материала.
+                runCatching { studyInstrument(graph, System.currentTimeMillis()) }
+                    .onFailure { recordFailure(it) }
+                delay(STUDY_INTERVAL_MILLIS)
             }
         }
         scope.launch {
@@ -1402,6 +1420,21 @@ class MeasurementService : Service() {
         )
 
         private const val BASELINE_REFRESH_MILLIS = 10L * 60_000L
+
+        /**
+         * Через сколько после старта службы считается диагностика прибора —
+         * **инженерный параметр**. Две минуты: подключение, первые записи и
+         * восстановление маршрута идут раньше, а разбор истории может ждать.
+         */
+        private const val STUDY_START_DELAY_MILLIS = 2L * 60_000L
+
+        /**
+         * Как часто повторяется разбор — **инженерный параметр**. Шесть часов:
+         * материал прибывает снимком раз в 10 минут, и заметная прибавка линий
+         * набегает за часы, а не за минуты; чаще — это чтение сотен блобов
+         * ради того же ответа.
+         */
+        private const val STUDY_INTERVAL_MILLIS = 6L * 3_600_000L
 
         /**
          * Как часто прорежается старая история спектрограммы (ADR 007). Раз в

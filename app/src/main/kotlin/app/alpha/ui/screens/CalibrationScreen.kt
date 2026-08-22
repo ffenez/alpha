@@ -38,6 +38,8 @@ import app.alpha.analysis.evidence.CalibrationAccumulation
 import app.alpha.analysis.evidence.CalibrationReport
 import app.alpha.analysis.evidence.SqrtResolution
 import app.alpha.analysis.evidence.AcceptedResolution
+import app.alpha.data.CalibrationModel
+import app.alpha.data.loadCalibration
 import app.alpha.analysis.evidence.ResolutionFitOutcome
 import app.alpha.analysis.evidence.ResolutionModel
 import app.alpha.data.toSpectrum
@@ -66,89 +68,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Что экран показывает: собранный материал и разбор движка по нему.
- */
-@Immutable
-data class CalibrationModel(
-    val selection: CalibrationDataset.Selection,
-    val report: CalibrationReport,
-    /** Разрешение прибора, от которого стартовал поиск линий. */
-    val startResolution662: Float,
-    /**
-     * Опубликовал ли вендор разрешение ЭТОГО прибора. Нет — стартовое число
-     * консервативная оценка серии, и называть её вендорской нельзя.
-     */
-    val resolutionPublished: Boolean,
-    /**
-     * Считает ли прибор спектр по каналам. У пластикового сцинтиллятора
-     * (Zero) фотопиков нет, значит опорных линий не будет никогда, и обещать
-     * «материал соберётся сам» ему нельзя.
-     */
-    val spectrometer: Boolean,
-    val deviceSerial: String?,
-)
-
-/**
- * Сколько истории читается под диагностику — **инженерный параметр экрана**.
- * Тридцать суток при одном снимке в час это 720 строк: столько же, сколько
- * читает месячное окно графика (ADR 004), то есть заведомо посильный объём.
- * Длиннее не нужно — калибровка прибора за месяцы меняется, и сумма за
- * полгода описывала бы уже не тот прибор, что сейчас в руках.
- */
 /** Шагов при отрисовке кривой: 25 кэВ на шаг при шкале 3000 кэВ. */
 private const val CURVE_STEPS = 120
-
-private const val WINDOW_DAYS = 30
-
-/**
- * Читает уже накопленные снимки, складывает из них два накопления и отдаёт
- * разбор. Ничего не пишет.
- */
-suspend fun loadCalibration(graph: AppGraph): CalibrationModel {
-    val now = System.currentTimeMillis()
-    val from = now - WINDOW_DAYS * 24L * RadonTrend.HOUR_MILLIS
-    // Прореживание до одного снимка в час не теряет ни импульса: разность
-    // последних снимков соседних часов покрывает час целиком.
-    val metas = graph.measurementRepository
-        .deviceSnapshotMeta(from - RadonTrend.HOUR_MILLIS, now)
-        .map { RadonTrend.Meta(it.id, it.timestamp, it.durationSeconds) }
-    val snapshots = RadonTrend.selectHourlyIds(metas).mapNotNull { id ->
-        graph.measurementRepository.spectrumById(id)?.let { entity ->
-            val s = entity.toSpectrum()
-            RadonTrend.Snapshot(
-                timestampMillis = entity.timestamp,
-                durationSeconds = s.durationSeconds,
-                counts = s.counts,
-                calibration = EnergyCalibration(s.a0, s.a1, s.a2),
-            )
-        }
-    }
-    val selection = CalibrationDataset.select(CalibrationDataset.intervals(snapshots))
-    val connected = graph.serviceStatus.connection.value as? ConnectionState.Connected
-    val model = connected?.info?.model
-    val resolution662 = model?.peakResolution662
-        ?: app.alpha.analysis.PeakDetection.RESOLUTION_662
-    val accumulations = buildList {
-        selection.long?.let { add(it.toEngine(CalibrationDataset.SOURCE_LONG)) }
-        selection.radonRich?.let { add(it.toEngine(CalibrationDataset.SOURCE_RADON)) }
-    }
-    return CalibrationModel(
-        selection = selection,
-        report = BackgroundCalibration.analyse(
-            accumulations = accumulations,
-            // Стартовая модель задаёт только РАЗМЕР окон поиска; измеренные
-            // ширины от неё не зависят, иначе подгонка была бы тавтологией.
-            startResolution = SqrtResolution(resolution662.toDouble()),
-        ),
-        startResolution662 = resolution662,
-        resolutionPublished = model?.resolution662 != null,
-        // Прибор не подключён — модель неизвестна, и запрещать проверку по
-        // догадке нельзя: спектрометром считается всё, кроме опознанного Zero.
-        spectrometer = model?.isSpectrometer ?: true,
-        deviceSerial = connected?.info?.serialNumber,
-    )
-}
 
 /**
  * «Калибровка (диагностика)» — Настройки → Прибор.
@@ -459,13 +380,17 @@ private fun ResolutionSection(
             model.deviceSerial != null && accepted.deviceSerial != null &&
                 model.deviceSerial != accepted.deviceSerial ->
                 s.otherDevice(accepted.deviceSerial)
+            accepted.automatic -> s.acceptedAutoState(
+                date = app.alpha.ui.logic.HistoryFormat.day(accepted.acceptedAtMillis),
+                points = accepted.points,
+            )
             else -> s.acceptedState(
                 date = app.alpha.ui.logic.HistoryFormat.day(accepted.acceptedAtMillis),
                 points = accepted.points,
             )
         }
         Text(text = state, style = type.bodySmall, color = colors.ink2)
-        Hint(text = s.acceptedNote)
+        Hint(text = if (accepted?.automatic == true) s.acceptedAutoNote else s.acceptedNote)
 
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.space2)) {
             if (fit != null) {
@@ -702,17 +627,6 @@ private fun blendNote(report: CalibrationReport, s: CalibrationStrings): String?
         nuclide = blended.line.nuclide,
     )
 }
-
-private fun CalibrationDataset.Accumulation.toEngine(id: String) = CalibrationAccumulation(
-    id = id,
-    counts = counts,
-    calibration = calibration,
-    seconds = seconds,
-    intervalCount = intervalCount,
-    hoursCovered = hoursCovered,
-    fromMillis = fromMillis,
-    toMillis = toMillis,
-)
 
 /** Одна десятая — общий вид чисел этого экрана. */
 private fun oneDecimal(value: Double): String =

@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0520Title: String
+    val v0520Summary: String
+
     val v0510Title: String
     val v0510Summary: String
 
@@ -447,6 +450,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0520Title = "Прибор изучается сам, без нажатий"
+    override val v0520Summary =
+        "Приложение само разбирает накопленные снимки и принимает измеренную по ним модель " +
+        "разрешения прибора: раньше это ждало, пока вы откроете экран калибровки и нажмёте " +
+        "«принять». Состав спектра тоже больше не ждёт нажатия — пока экран разложения открыт, " +
+        "он пересчитывается сам, а принятое вами вручную фон не перебивает."
 
     override val v0510Title = "Шаблоны прибора учатся на его же спектрах"
     override val v0510Summary =
@@ -1438,6 +1448,14 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0520Title = "The instrument studies itself, with no taps"
+    override val v0520Summary =
+        "The app now works through the recorded snapshots on its own and adopts the resolution " +
+        "model measured on them: this used to wait until you opened the calibration screen and " +
+        "pressed accept. The composition no longer waits for a press either — while the " +
+        "decomposition screen is open it recomputes itself, and what you accepted by hand is " +
+        "never overridden."
 
     override val v0510Title = "Templates learn from the instrument's own spectra"
     override val v0510Summary =

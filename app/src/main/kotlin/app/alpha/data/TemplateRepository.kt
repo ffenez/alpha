@@ -1,8 +1,8 @@
 package app.alpha.data
 
 import app.alpha.analysis.EnergyCalibration
+import app.alpha.analysis.Peak
 import app.alpha.analysis.PeakDetection
-import app.alpha.analysis.ResolutionCurve
 import app.alpha.analysis.SpectrumTemplate
 import app.alpha.data.db.SpectrumTemplateDao
 import app.alpha.data.db.SpectrumTemplateEntity
@@ -125,34 +125,7 @@ class TemplateRepository(private val dao: SpectrumTemplateDao) {
             seconds = entity.durationSeconds,
             resolution662 = entity.resolution662,
             deviceName = entity.deviceName,
-            curve = ResolutionCurve.fit(points(counts, calibration, entity.resolution662)),
         )
-    }
-
-    /**
-     * Разрешение ПРИБОРА как функция энергии, измеренное по всем шаблонам,
-     * снятым этим же прибором.
-     *
-     * Чем больше шаблонов и чем они длиннее, тем больше линий с надёжно
-     * измеренной шириной — поэтому кривая уточняется сама собой по мере
-     * работы. Шаблоны чужих приборов сюда не входят: ширина линии принадлежит
-     * кристаллу, а не веществу.
-     *
-     * @return null, если своих шаблонов нет или линий не хватило; вызывающий
-     *   берёт паспортное число модели.
-     */
-    suspend fun deviceCurve(serial: String?): ResolutionCurve? {
-        if (serial.isNullOrBlank()) return null
-        val own = dao.all().filter { it.deviceSerial?.equals(serial, ignoreCase = true) == true }
-        if (own.isEmpty()) return null
-        val points = own.flatMap { entity ->
-            points(
-                counts = SpectrumBlob.decode(entity.counts),
-                calibration = EnergyCalibration(entity.a0, entity.a1, entity.a2),
-                fallback = entity.resolution662,
-            )
-        }
-        return ResolutionCurve.fit(points)
     }
 
     /** Годность шаблона для прибора, на котором его собираются применить. */
@@ -191,38 +164,31 @@ class TemplateRepository(private val dao: SpectrumTemplateDao) {
             calibration: EnergyCalibration,
             fallback: Float,
         ): Float {
-            val measured = points(counts, calibration, fallback)
-                .maxByOrNull { it.weight }
+            val measured = lines(counts, calibration, fallback)
+                .maxByOrNull { it.significance }
                 ?: return fallback
-            val resolution = measured.fwhmKeV /
-                kotlin.math.sqrt(ResolutionCurve.REFERENCE_KEV * measured.energyKeV)
+            val fwhm = measured.fwhmKeV ?: return fallback
+            val resolution = fwhm / kotlin.math.sqrt(REFERENCE_KEV * measured.energyKeV)
             return if (resolution in MIN_RESOLUTION..MAX_RESOLUTION) resolution else fallback
         }
 
         /**
-         * Линии спектра с измеренной шириной — точки для [ResolutionCurve].
-         *
-         * Вес точки — значимость линии: ширина слабой линии определена её же
-         * шумом, и в общей подгонке она не должна тянуть на себя.
+         * Линии спектра с ИЗМЕРЕННОЙ шириной — те, по которым вообще можно
+         * судить о разрешении прибора.
          */
-        fun points(
+        fun lines(
             counts: List<Int>,
             calibration: EnergyCalibration,
             fallback: Float,
-        ): List<ResolutionCurve.Point> = PeakDetection.detect(
+        ): List<Peak> = PeakDetection.detect(
             counts = counts,
             calibration = calibration,
             resolution662 = fallback,
             minEnergyKeV = DeviceModel.UNKNOWN.peakFloorKeV,
-        ).mapNotNull { peak ->
-            val fwhm = peak.fwhmKeV ?: return@mapNotNull null
-            if (peak.energyKeV <= MIN_RESOLUTION_ENERGY_KEV) return@mapNotNull null
-            ResolutionCurve.Point(
-                energyKeV = peak.energyKeV,
-                fwhmKeV = fwhm,
-                weight = peak.significance,
-            )
-        }
+        ).filter { it.fwhmKeV != null && it.energyKeV > MIN_RESOLUTION_ENERGY_KEV }
+
+        /** Энергия Cs-137, к которой приведено «разрешение в процентах». */
+        const val REFERENCE_KEV = 662f
 
         /**
          * Ниже этой энергии ширина линии определяется порогом регистрации, а

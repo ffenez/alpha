@@ -98,6 +98,10 @@ interface CalibrationStrings {
     val correctionNotOffered: String
     val correctionAcceptedNote: String
     fun acceptedState(date: String, points: Int): String
+
+    /** Та же строка для модели, которую приложение сняло и приняло само. */
+    fun acceptedAutoState(date: String, points: Int): String
+    val acceptedAutoNote: String
     val acceptedNote: String
     /**
      * Чем сейчас описывается ширина линий, пока измеренной модели нет.
@@ -266,6 +270,14 @@ object CalibrationRu : CalibrationStrings {
         "показаны с ней, и об этом сказано у шкалы спектра."
     override fun acceptedState(date: String, points: Int) =
         "действует измеренная модель · принята $date · по линиям: $points"
+
+    override fun acceptedAutoState(date: String, points: Int) =
+        "действует измеренная модель · снята сама $date · по линиям: $points"
+
+    override val acceptedAutoNote =
+        "Модель снимается по линиям природного фона в уже накопленных снимках и обновляется " +
+            "сама. «Вернуть приближение» отключает её; после этого она заменится только по " +
+            "вашему решению."
 
     override val acceptedNote =
         "Принять — значит, что поиск пиков и допуски совпадения станут ждать линии " +
@@ -470,6 +482,14 @@ object CalibrationEn : CalibrationStrings {
     override fun acceptedState(date: String, points: Int) =
         "the measured model is in use · accepted $date · lines used: $points"
 
+    override fun acceptedAutoState(date: String, points: Int) =
+        "the measured model is in use · taken on its own $date · lines used: $points"
+
+    override val acceptedAutoNote =
+        "The model is measured on natural background lines in the snapshots already recorded, " +
+            "and it refreshes itself. \"Go back to the approximation\" turns it off; after that " +
+            "it is replaced only by your decision."
+
     override val acceptedNote =
         "Using it means peak search and match tolerances will expect lines of the MEASURED " +
             "width instead of the approximated one. It does not change the instrument's own " +
@@ -569,6 +589,7 @@ fun CalibrationStrings.allTexts(): List<String> = listOf(
     refusalNotEnoughLines(2, 3), refusalNarrowSpan("340", "500"),
     refusalNotMonotone, refusalNegativeNoise, refusalPrefix("…"),
     accept, revert, acceptedState("12.08", 4), acceptedNote,
+    acceptedAutoState("12.08", 4), acceptedAutoNote,
     correctionTitle, correctionNote, correctionOffer("31,2", "1,4", 3), correctionShift("1460,8", "+30,8"),
     correctionAccept, correctionRevert, correctionAcceptedState("12.08", 3), correctionNotOffered,
     correctionAcceptedNote, approximationState("8,4", true), approximationState("8,4", false),

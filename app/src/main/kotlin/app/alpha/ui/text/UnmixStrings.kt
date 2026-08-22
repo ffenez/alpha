@@ -28,7 +28,6 @@ interface UnmixStrings {
     val recordHint: String
     val templatesTitle: String
     val deleteTemplate: String
-    val run: String
 
     /** Досъёмка: шаблон того же прибора становится точнее с каждым сеансом. */
     val appendTemplate: String
@@ -105,7 +104,6 @@ object UnmixRu : UnmixStrings {
     override val recordHint = "Берётся то, что накоплено сейчас, вместе с калибровкой прибора"
     override val templatesTitle = "Шаблоны"
     override val deleteTemplate = "Удалить"
-    override val run = "Разложить"
 
     override val appendTemplate = "Дополнить"
     override val appendConfirmTitle = "Дополнить шаблон"
@@ -203,7 +201,6 @@ object UnmixEn : UnmixStrings {
     override val recordHint = "Takes what is accumulated now, together with the instrument calibration"
     override val templatesTitle = "Templates"
     override val deleteTemplate = "Delete"
-    override val run = "Decompose"
 
     override val appendTemplate = "Add to it"
     override val appendConfirmTitle = "Add to the template"
@@ -290,7 +287,7 @@ val UnmixCatalogue = AreaCatalogue(ru = UnmixRu, en = UnmixEn)
 
 fun UnmixStrings.allTexts(): List<String> = listOf(
     title, subtitle, emptyTitle, emptyBody,
-    recordTemplate, recordHint, templatesTitle, deleteTemplate, run,
+    recordTemplate, recordHint, templatesTitle, deleteTemplate,
     appendTemplate, appendConfirmTitle, appendConfirmBody("Th-232", "7,7 ч", "30 мин"),
     appended("Th-232", "8,2 ч", "0,99"), appendRefused, appendTooShort,
     importTemplate, importUnreadable, importNotRecognised, importNoScale, importNoTime,

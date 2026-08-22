@@ -174,44 +174,41 @@ class TemplateRepositoryTest {
             ),
         ).map { it.roundToInt() }
 
+        val before = strongestWidth(counts, calibration)
+
         val aligned = recorded(dao, serial = "RC-110-000000")
         repository.accumulate(aligned, second, calibration, 27_714L, gain = drift, offsetKeV = 0.0)
-        val alignedLines = linesAbove(merged(dao), calibration, HIGH_ENERGY_KEV)
+        val alignedWidth = strongestWidth(merged(dao), calibration)
 
         val blind = recorded(dao, serial = "RC-110-000000")
         repository.accumulate(blind, second, calibration, 27_714L, gain = 1.0, offsetKeV = 0.0)
-        val blindLines = linesAbove(merged(dao), calibration, HIGH_ENERGY_KEV)
+        val blindWidth = strongestWidth(merged(dao), calibration)
 
-        // Выравнивание кладёт линию на линию: выше 2000 кэВ у ториевого
-        // источника остаётся одна линия — 2615 кэВ.
-        assertEquals(
-            1,
-            alignedLines.size,
-            "после выравнивания линии выше 2000 кэВ: ${alignedLines.map { it.energyKeV }}",
-        )
-        // Слепое сложение кладёт рядом с линией её же сдвинутую копию: ширину
-        // такой пары измерить нечем, и линия 2615 кэВ из спектра пропадает —
-        // именно ту величину, ради которой шаблон и снимают, сложение и теряет.
+        // Выравнивание кладёт линию на линию: ширина остаётся прежней.
         assertTrue(
-            blindLines.size < alignedLines.size,
-            "слепое ${blindLines.map { it.energyKeV }} против выровненного " +
-                "${alignedLines.map { it.energyKeV }}",
+            alignedWidth <= 1.05f * before,
+            "выравнивание уширило линию: было $before кэВ, стало $alignedWidth кэВ",
+        )
+        // Слепое сложение кладёт рядом с линией её же сдвинутую копию: пара
+        // сливается в структуру заметно шире исходной — то самое разрешение,
+        // ради которого шаблон и снимают, при этом теряется.
+        assertTrue(
+            blindWidth > 1.05f * alignedWidth,
+            "выровненное $alignedWidth кэВ, слепое $blindWidth кэВ",
         )
     }
 
     /** Счёт сохранённого шаблона. */
     private fun merged(dao: FakeDao): List<Int> = SpectrumBlob.decode(dao.rows.single().counts)
 
-    /** Линии выше заданной энергии — там сдвиг шкалы виден как отдельная линия. */
-    private fun linesAbove(counts: List<Int>, calibration: EnergyCalibration, energyKeV: Float) =
-        TemplateRepository.points(counts, calibration, 0.084f)
-            .filter { it.energyKeV > energyKeV }
-
     /**
-     * Выше этой энергии у ториевого источника одна линия — 2615 кэВ (Tl-208).
-     * Появление второй означает, что сложение раздвоило её.
+     * Ширина самой значимой линии спектра, кэВ. Именно её и портит сложение
+     * без выравнивания: слабые линии тонут в шуме раньше, чем это станет видно.
      */
-    private val HIGH_ENERGY_KEV = 2000f
+    private fun strongestWidth(counts: List<Int>, calibration: EnergyCalibration): Float =
+        TemplateRepository.lines(counts, calibration, 0.084f)
+            .maxBy { it.significance }
+            .fwhmKeV!!
 
     @Test
     fun `счёт шаблона возвращается из базы без потерь`() = runTest {
