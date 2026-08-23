@@ -293,6 +293,15 @@ class ServiceStatus {
         if (historyRecords > 0 && historySyncedAtMillis == null) historySyncedAtMillis = nowMillis
     }
 
+    /**
+     * Записи с невозможной меткой времени, отброшенные за сеанс. Ноль и
+     * «мусора не было» — одно и то же; отсутствие строки читалось бы как
+     * «неизвестно».
+     */
+    @Volatile
+    var garbageRecords: Int = 0
+        internal set
+
     @Volatile
     var seqGapTotal: Int = 0
         internal set

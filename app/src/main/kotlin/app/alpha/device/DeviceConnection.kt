@@ -83,6 +83,55 @@ class DeviceConnection private constructor(
     /** Сырое смещение новейшей записи прошлого ответа — признак «прибор пишет». */
     private var lastNewestRawMillis: Long? = null
 
+    /** Была ли база уже поставлена по измерению в этом сеансе. */
+    private var anchored: Boolean = false
+
+    /** Когда поток последний раз был живым — по нему видно, что он застрял. */
+    private var lastSyncMillis: Long = clock()
+
+    /**
+     * Сколько записей отброшено как мусор за сеанс: метка вне всякого
+     * правдоподобия. Число уходит в отладочный отчёт — «мусора не было» и
+     * «мусор молча выброшен» должны различаться.
+     */
+    @Volatile
+    var garbageRecords: Int = 0
+        private set
+
+    /**
+     * Может ли запись с такой меткой существовать.
+     *
+     * Снизу — глубина собственной памяти прибора с запасом: он хранит около
+     * тысячи часов, и запись старше этого не бывает. Сверху — минуты: до
+     * первого якоря живые записи лежат впереди на эмпирические 128 с, а
+     * дальше в будущее не уходит ничто.
+     */
+    private fun plausible(timestampMillis: Long): Boolean {
+        val age = clock() - timestampMillis
+        return age >= -FUTURE_TOLERANCE_MILLIS && age <= MEMORY_DEPTH_MILLIS
+    }
+
+    /**
+     * Принять ли новую базу.
+     *
+     * Первый якорь сеанса двигает базу на минуты — ровно на ту эмпирическую
+     * константу, которую он и уточняет. Дальше база живая и может ползти
+     * только на секунды: это дрейф часов, а не прыжок. Прыжок означает
+     * испорченную метку, и его место — в мусоре, а не во времени сеанса.
+     *
+     * Отдельный случай — застрявший поток: если живых записей нет дольше
+     * [STUCK_MILLIS], база уже неверна, и её надо ставить заново по любой
+     * правдоподобной записи. Без этого одна испорченная метка уводила время
+     * до конца сеанса (полевой отчёт: «история 979 ч 59 мин», связь на
+     * экране потеряна, помогал только перезапуск).
+     */
+    private fun accepts(corrected: Long): Boolean {
+        val shift = kotlin.math.abs(corrected - clockCorrectionMillis)
+        if (!anchored) return shift <= FIRST_ANCHOR_MILLIS
+        if (clock() - lastSyncMillis >= STUCK_MILLIS) return true
+        return synchronised && shift <= DRIFT_MILLIS
+    }
+
     /**
      * Возраст новейшей записи последнего ответа, мс: сколько времени назад её
      * сделал прибор. Ноль — поток живой, часы — идёт слив накопленного.
@@ -94,10 +143,10 @@ class DeviceConnection private constructor(
     /**
      * Догнал ли слив живое время.
      *
-     * Проверка односторонняя намеренно. Запись из БУДУЩЕГО (возраст
-     * отрицательный) означает, что эмпирическая база завышена — её надо
-     * стянуть назад, и это делает якорь. Запись из ПРОШЛОГО глубже окна
-     * означает слив накопленного, и якорь по ней запрещён.
+     * Запись из БУДУЩЕГО (возраст отрицательный) считается живой: пока якорь
+     * не поставлен, база завышена на эмпирические 128 с, и все живые записи
+     * лежат впереди. Запись из ПРОШЛОГО глубже окна означает слив
+     * накопленного.
      */
     val synchronised: Boolean get() = newestAgeMillis <= SYNC_WINDOW_MILLIS
 
@@ -113,6 +162,20 @@ class DeviceConnection private constructor(
             correctionMillis = clockCorrectionMillis,
             baseTimeMillis = baseTimeMillis,
         )
+        // Мусорные метки выбрасываются ДО всего остального: прибор изредка
+        // присылает запись со смещением в сотни суток (полевой журнал: одна
+        // запись на +980 ч и одна на −3550 ч за сеанс). Такая метка не
+        // измерение: попав в базу, она рисует точку в месяце отсюда, а попав
+        // в якорь — уводит время всего сеанса.
+        val dropped = result.records.count { !plausible(it.timestampMillis) }
+        if (dropped > 0) {
+            garbageRecords += dropped
+            result = DataBufResult(
+                records = result.records.filter { plausible(it.timestampMillis) },
+                seqGaps = result.seqGaps,
+            )
+        }
+
         // Якорь ставится ТОЛЬКО по RealTimeData: в одном ответе приходят
         // записи разных групп (RealTimeData, RawData, DoseRateDB, RareData),
         // и прибор стамповает их по-разному — максимум по всем записям
@@ -124,11 +187,13 @@ class DeviceConnection private constructor(
         if (newest != null) {
             val rawNewest = newest - clockCorrectionMillis
             newestAgeMillis = clock() - newest
-            if (lastNewestRawMillis != rawNewest && synchronised) {
+            val corrected = clock() - rawNewest
+            if (lastNewestRawMillis != rawNewest && accepts(corrected)) {
                 lastNewestRawMillis = rawNewest
-                val corrected = clock() - rawNewest
                 if (corrected != clockCorrectionMillis) {
                     clockCorrectionMillis = corrected
+                    anchored = true
+                    lastSyncMillis = clock()
                     // Ответ перечитывается с исправленной базой: записи одного
                     // ответа не должны нести метки из двух эпох.
                     result = DataBufDecoder.decode(
@@ -137,6 +202,7 @@ class DeviceConnection private constructor(
                     )
                 }
             }
+            if (synchronised) lastSyncMillis = clock()
         }
         return result
     }
@@ -275,6 +341,44 @@ class DeviceConnection private constructor(
          * порог использует rcrtlog как признак «слив догнал живое».
          */
         const val SYNC_WINDOW_MILLIS = 5_000L
+
+        /**
+         * Насколько далеко вперёд может лежать метка живой записи —
+         * **инженерный параметр**. Пять минут: до первого якоря все живые
+         * записи стоят впереди на эмпирические 128 с, и запас втрое покрывает
+         * разброс этой константы между моделями (на Zero сообщество наблюдало
+         * до двух минут).
+         */
+        const val FUTURE_TOLERANCE_MILLIS = 5L * 60_000L
+
+        /**
+         * Насколько старой может быть запись прибора — **инженерный
+         * параметр**. Тысяча сто часов: вендор заявляет около тысячи часов
+         * автономной записи, остальное — запас.
+         */
+        const val MEMORY_DEPTH_MILLIS = 1_100L * 3_600_000L
+
+        /**
+         * Насколько первый якорь сеанса вправе подвинуть базу — **инженерный
+         * параметр**. Пять минут: он уточняет эмпирическую константу 128 с, и
+         * больше её собственного разброса ему двигать нечего.
+         */
+        const val FIRST_ANCHOR_MILLIS = 5L * 60_000L
+
+        /**
+         * Насколько база вправе ползти после первого якоря — **инженерный
+         * параметр**. Десять секунд: это дрейф часов прибора за сеанс, а
+         * скачок больше означает испорченную метку.
+         */
+        const val DRIFT_MILLIS = 10_000L
+
+        /**
+         * Сколько поток может не быть живым, прежде чем базу ставят заново, —
+         * **инженерный параметр**. Минута: слив накопленного идёт порциями и
+         * догоняет живое за секунды, а минута молчания означает, что база уже
+         * неверна.
+         */
+        const val STUCK_MILLIS = 60_000L
 
         private fun u32le(v: Long): ByteArray = byteArrayOf(
             (v and 0xFF).toByte(),

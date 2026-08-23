@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0680Title: String
+    val v0680Summary: String
+
     val v0670Title: String
     val v0670Summary: String
 
@@ -495,6 +498,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0680Title = "Испорченная метка прибора больше не ломает сеанс"
+    override val v0680Summary =
+        "Одна испорченная метка времени от прибора больше не уводит весь сеанс: приложение " +
+        "отбрасывает записи, которых не может быть — из будущего или старше собственной памяти " +
+        "прибора, — и не двигает по ним время. Если время всё же уехало, оно восстанавливается " +
+        "само через минуту без живых записей, а не только перезапуском приложения."
 
     override val v0670Title = "Погрешность доли разложена на составляющие"
     override val v0670Summary =
@@ -1598,6 +1608,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0680Title = "A corrupted instrument timestamp no longer breaks the session"
+    override val v0680Summary =
+        "A single corrupted timestamp from the instrument no longer drags the whole session: " +
+        "records that cannot exist — from the future, or older than the instrument's own memory " +
+        "— are dropped and never move the clock. If the clock does drift away, it recovers by " +
+        "itself after a minute without live records, instead of only on an app restart."
 
     override val v0670Title = "The uncertainty of a share is broken into its parts"
     override val v0670Summary =

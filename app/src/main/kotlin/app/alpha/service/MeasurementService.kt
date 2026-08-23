@@ -877,6 +877,7 @@ class MeasurementService : Service() {
                 // отчёту.
                 graph.serviceStatus.lastConnectionFailure = newDevice.lastFailure
                 graph.serviceStatus.seqGapTotal = newDevice.seqGapTotal
+                graph.serviceStatus.garbageRecords = newDevice.garbageRecords
                 if (state is ConnectionState.Reconnecting) {
                     graph.serviceStatus.reconnectCount += 1
                 }

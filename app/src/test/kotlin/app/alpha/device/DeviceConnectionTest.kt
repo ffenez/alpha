@@ -129,6 +129,75 @@ class DeviceConnectionTest {
     }
 
     @Test
+    fun `испорченная метка не уводит время сеанса`() = runTest {
+        // Полевой отчёт 23.08: прибор прислал ОДНУ запись со смещением
+        // +352 797 117 (·10 мс) — почти сорок суток вперёд. База уехала на
+        // −980 ч, живые записи стали «историей 979 ч 59 мин», поток замолчал
+        // и на экране связь выглядела потерянной до перезапуска.
+        val fake = FakeRadiaCode()
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 1, tsOffset10ms = -12_700, countRate = 10f, doseRate = 0.0004f,
+        )
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 2, tsOffset10ms = 352_797_117, countRate = 11f, doseRate = 0.0005f,
+        )
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 3, tsOffset10ms = -12_700, countRate = 12f, doseRate = 0.0006f,
+        )
+        val (conn, _) = establish(fake)
+
+        conn.readDataBuf()
+        val anchored = conn.clockCorrectionMillis
+
+        val garbage = conn.readDataBuf()
+        assertEquals(0, garbage.records.size, "запись из будущего попала в результат")
+        assertEquals(1, conn.garbageRecords)
+        assertEquals(anchored, conn.clockCorrectionMillis, "испорченная метка подвинула базу")
+
+        val live = conn.readDataBuf()
+        assertEquals(now, live.records.single().timestampMillis)
+        assertTrue(conn.synchronised, "поток обязан остаться живым")
+    }
+
+    @Test
+    fun `застрявшая база восстанавливается сама`() = runTest {
+        // Если база всё же уехала, поток перестаёт быть живым. Через минуту
+        // молчания якорь ставится заново по правдоподобной записи — иначе
+        // единственным лекарством остаётся перезапуск приложения.
+        var moment = now
+        val fake = FakeRadiaCode()
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 1, tsOffset10ms = -12_700, countRate = 10f, doseRate = 0.0004f,
+        )
+        // Вторая порция приходит через две минуты и на час старше: якорь
+        // сдвинулся бы больше допустимого дрейфа, но поток уже застрял.
+        fake.dataBufPayloads += realTimeDataRecord(
+            seq = 2, tsOffset10ms = -12_700 - 360_000, countRate = 11f, doseRate = 0.0005f,
+        )
+        val link = FakeDeviceLink(fake)
+        val client = ProtocolClient(link)
+        backgroundScope.launch { link.notifications.collect(client::onNotification) }
+        val conn = DeviceConnection.establish(
+            client = client,
+            address = "AA:BB:CC:DD:EE:FF",
+            clock = { moment },
+            zone = ZoneId.of("UTC"),
+        )
+
+        conn.readDataBuf()
+        val first = conn.clockCorrectionMillis
+
+        moment += 2 * 60_000L
+        val late = conn.readDataBuf()
+
+        assertTrue(
+            conn.clockCorrectionMillis != first,
+            "база не переставилась после минуты без живых записей",
+        )
+        assertEquals(moment, late.records.single().timestampMillis)
+    }
+
+    @Test
     fun `накопленное прибором не прибивается к моменту подключения`() = runTest {
         // Прибор хранит автономные наблюдения и отдаёт их первыми ответами.
         // Новейшая запись такой порции сама историческая: якорь по ней

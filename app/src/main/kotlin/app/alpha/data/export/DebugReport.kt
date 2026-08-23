@@ -74,6 +74,12 @@ data class DebugSnapshot(
     val seqGapTotal: Int,
     val reconnectCount: Int,
     /**
+     * Записи, отброшенные из-за невозможной метки времени. Прибор изредка
+     * присылает смещение в сотни суток; такая метка не измерение, и по этому
+     * числу видно, как часто это случается.
+     */
+    val garbageRecords: Int = 0,
+    /**
      * Слив памяти прибора за сеанс: сколько записей пришло из истории,
      * сколько легло, сколько отброшено и какой глубины была самая старая.
      * Ноль записей означает, что истории не было, а не что она потерялась.
@@ -293,6 +299,7 @@ object DebugReport {
         appendLine("пропусков seq в DATA_BUF: ${snapshot.seqGapTotal}")
         appendLine("поправка часов прибора: ${snapshot.clockCorrectionMillis / 1000} с")
         appendLine("переподключений за сеанс: ${snapshot.reconnectCount}")
+        appendLine("записей с невозможной меткой: ${snapshot.garbageRecords}")
         val dropped = snapshot.streamTicks.sumOf { it.dropped }
         appendLine("записей отброшено при вставке: $dropped")
         appendLine(

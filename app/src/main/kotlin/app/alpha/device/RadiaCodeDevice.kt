@@ -103,6 +103,11 @@ class RadiaCodeDevice(
         private set
 
     /** Cumulative DATA_BUF sequence gaps this device object observed (diagnostics). */
+    /** Записи с невозможной меткой, отброшенные за сеанс (см. DeviceConnection). */
+    @Volatile
+    var garbageRecords: Int = 0
+        private set
+
     @Volatile
     var seqGapTotal: Int = 0
         private set
@@ -218,6 +223,7 @@ class RadiaCodeDevice(
                 val result = conn.readDataBuf()
                 if (result.seqGaps > 0) seqGapTotal += result.seqGaps
                 _historyAgeMillis.value = conn.newestAgeMillis
+                garbageRecords = conn.garbageRecords
                 // Возраст едет в самом состоянии связи: «связь есть, но идёт
                 // слив истории» — одно положение дел, а не два флага.
                 (_connectionState.value as? ConnectionState.Connected)?.let { current ->
