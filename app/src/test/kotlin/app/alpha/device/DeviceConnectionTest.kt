@@ -160,6 +160,38 @@ class DeviceConnectionTest {
     }
 
     @Test
+    fun `база не скачет между двумя потоками записей`() = runTest {
+        // Полевой отчёт 23.08 (другой телефон, «пропуски в главном графике»):
+        // за сорок секунд поправка часов гуляла между −108 и −163 с — размах
+        // 55 с. Метки измерений прыгали на эти же 55 с вперёд-назад, и на
+        // графике оставались дыры. Причина: якорь ставился по новейшей записи
+        // ЛЮБОГО ответа, а прибор вперемешку отдаёт живые записи и записи из
+        // своего буфера.
+        val fake = FakeRadiaCode()
+        repeat(6) { index ->
+            fake.dataBufPayloads += realTimeDataRecord(
+                seq = index * 2 + 1, tsOffset10ms = -12_700, countRate = 10f, doseRate = 0.0004f,
+            )
+            // Буферная запись на 55 с старше: якорь по ней сдвинул бы базу.
+            fake.dataBufPayloads += realTimeDataRecord(
+                seq = index * 2 + 2, tsOffset10ms = -18_200, countRate = 11f, doseRate = 0.0005f,
+            )
+        }
+        val (conn, _) = establish(fake)
+
+        conn.readDataBuf()
+        val anchored = conn.clockCorrectionMillis
+        val corrections = mutableSetOf(anchored)
+        repeat(11) { corrections += conn.readDataBuf().let { conn.clockCorrectionMillis } }
+
+        assertEquals(
+            setOf(anchored),
+            corrections,
+            "база подвинулась по буферной записи: ${corrections.sorted()}",
+        )
+    }
+
+    @Test
     fun `застрявшая база восстанавливается сама`() = runTest {
         // Если база всё же уехала, поток перестаёт быть живым. Через минуту
         // молчания якорь ставится заново по правдоподобной записи — иначе
