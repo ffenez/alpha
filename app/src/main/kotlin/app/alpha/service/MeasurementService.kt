@@ -825,6 +825,11 @@ class MeasurementService : Service() {
                 } else {
                     graph.serviceStatus.onHistorySynced(now)
                 }
+                // Осечки чтения и оборванные ответы обновляются здесь, а не по
+                // смене состояния связи: осечка состояние не меняет, и счётчик
+                // ждал бы переподключения.
+                graph.serviceStatus.readFailures = newDevice.readFailures
+                graph.serviceStatus.truncatedReplies = newDevice.truncatedReplies
                 // Покадровая трасса обмена отличает «записи не пришли» от
                 // «пришли, но не записались».
                 graph.streamTrace.add(

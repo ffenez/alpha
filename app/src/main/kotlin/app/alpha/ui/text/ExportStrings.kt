@@ -30,6 +30,8 @@ interface ExportStrings {
     val trackHint: String
     val text: String
     val textHint: String
+    val image: String
+    val imageHint: String
     // --- обмен данными: форматы для других программ ---
     val standard: String
     val standardHint: String
@@ -81,6 +83,8 @@ internal object ExportRu : ExportStrings {
     override val trackHint = "GPX · для навигаторов"
     override val text = "Текст"
     override val textHint = "TXT · чтобы вставить в сообщение"
+    override val image = "Картинка"
+    override val imageHint = "PNG · 3000×2000, видна структура спектра"
     override val standard = "Спектрометрия"
     override val standardHint = "N42 · стандартный формат для программ анализа"
     override val rawXml = "Формат прибора"
@@ -129,6 +133,8 @@ internal object ExportEn : ExportStrings {
     override val trackHint = "GPX · for navigators"
     override val text = "Text"
     override val textHint = "TXT · to paste into a message"
+    override val image = "Image"
+    override val imageHint = "PNG · 3000×2000, the spectrum structure stays visible"
     override val standard = "Spectrometry"
     override val standardHint = "N42 · the standard format of analysis software"
     override val rawXml = "Instrument format"
@@ -168,7 +174,7 @@ val ExportCatalogue = AreaCatalogue(ru = ExportRu, en = ExportEn)
 fun ExportStrings.allTexts(): List<String> = listOf(
     export,
     report, reportHint, table, tableHint, data, dataHint,
-    mapData, mapDataHint, track, trackHint, text, textHint,
+    mapData, mapDataHint, track, trackHint, text, textHint, image, imageHint,
     standard, standardHint, rawXml, rawXmlHint,
     groupReport, groupExchange, groupTable,
     oneReport, oneReportHint, separateFiles, separateFilesHint,

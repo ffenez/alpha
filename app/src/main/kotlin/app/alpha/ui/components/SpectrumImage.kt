@@ -12,6 +12,12 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import app.alpha.analysis.EnergyCalibration
+import app.alpha.data.db.SpectrumSnapshotEntity
+import app.alpha.data.toSpectrum
+import app.alpha.analysis.SpectrumDisplay
+import app.alpha.ui.logic.SpectrumFrames
+import app.alpha.ui.logic.SpectrumScale
 import java.io.ByteArrayOutputStream
 
 /**
@@ -121,6 +127,38 @@ object SpectrumImage {
         val out = ByteArrayOutputStream(1 shl 20)
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         return out.toByteArray()
+    }
+
+    /**
+     * Поле спектра по снимку — для сохранения картинкой из окна экспорта, где
+     * экранного поля нет.
+     *
+     * Вид — исходный: логарифмическая шкала, вся шкала энергий, без вычитания
+     * фона, сглаживания и разметки пиков. Картинка из журнала не знает, какие
+     * переключатели стояли на экране в момент съёмки, и додумывать их нечем;
+     * пометки на графике меняли бы физический смысл картинки, поэтому их здесь
+     * нет вовсе.
+     *
+     * Колонок — по числу каналов: при 3000 px это ≈2,8 px на канал, ради чего
+     * картинка и делается (см. [DEFAULT_WIDTH_PX]). Экранные 240 колонок здесь
+     * потеряли бы ту самую структуру.
+     */
+    fun specOf(entity: SpectrumSnapshotEntity): SpectrumChartSpec {
+        val spectrum = entity.toSpectrum()
+        val calibration = EnergyCalibration(spectrum.a0, spectrum.a1, spectrum.a2)
+        val frame = SpectrumFrames.build(
+            counts = spectrum.counts,
+            durationSeconds = spectrum.durationSeconds,
+            calibration = calibration,
+            columnCount = spectrum.counts.size,
+        )
+        return SpectrumChartSpec(
+            columns = frame.columns,
+            continuum = frame.continuum,
+            scale = SpectrumScale.Log,
+            yTop = frame.yTop,
+            energyTicks = SpectrumDisplay.energyTicks(frame.visible),
+        )
     }
 
     /** [render] + [png] с немедленным освобождением растра (пик — 24 МБ, см. [DEFAULT_HEIGHT_PX]). */

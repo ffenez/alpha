@@ -628,12 +628,23 @@ interface SessionDao {
     @Query("DELETE FROM measurement_sessions")
     suspend fun clear()
 
-    @Query("UPDATE measurement_sessions SET endedAt = :endedAt WHERE id = :sessionId")
+    /**
+     * Конец записи не может предшествовать её началу, поэтому `MAX`: запись
+     * закрывается по последнему измерению, а измерений в ней может не быть
+     * вовсе (прибор ушёл из эфира до первого показания) — тогда последнее
+     * измерение старше самой записи, и без ограничения в журнале появлялась
+     * запись длительностью −3 мин.
+     */
+    @Query("UPDATE measurement_sessions SET endedAt = MAX(:endedAt, startedAt) WHERE id = :sessionId")
     suspend fun close(sessionId: Long, endedAt: Long)
 
     /** Crash recovery: close whatever a killed service left open. */
-    @Query("UPDATE measurement_sessions SET endedAt = :endedAt WHERE endedAt IS NULL")
+    @Query("UPDATE measurement_sessions SET endedAt = MAX(:endedAt, startedAt) WHERE endedAt IS NULL")
     suspend fun closeAllOpen(endedAt: Long)
+
+    /** Уборка записей, закрытых до правила [close]: длительность ниже нуля. */
+    @Query("UPDATE measurement_sessions SET endedAt = startedAt WHERE endedAt < startedAt")
+    suspend fun repairNegativeDurations(): Int
 
     /** Newest session — the candidate a restarted service continues. */
     @Query("SELECT * FROM measurement_sessions ORDER BY startedAt DESC LIMIT 1")

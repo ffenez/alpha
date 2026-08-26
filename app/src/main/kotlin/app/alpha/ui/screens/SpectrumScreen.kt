@@ -192,8 +192,9 @@ fun SpectrumScreen(
     // У открытого снимка опрашивать нечего: частый запрос спектра делит
     // однозапросный канал с секундными показаниями.
     DisposableEffect(hub, viewing) {
-        if (!viewing) hub.attach()
-        onDispose { if (!viewing) hub.detach() }
+        val attached = !viewing
+        if (attached) hub.attach()
+        onDispose { if (attached) hub.detach() }
     }
 
     var snapshotEntity by remember { mutableStateOf<SpectrumSnapshotEntity?>(null) }

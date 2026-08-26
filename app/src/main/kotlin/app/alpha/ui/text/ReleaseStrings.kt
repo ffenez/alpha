@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0690Title: String
+    val v0690Summary: String
+
     val v0680Title: String
     val v0680Summary: String
 
@@ -498,6 +501,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0690Title = "Приложение снова учится фону места"
+    override val v0690Summary =
+        "Уход в фон с открытым Поиском оставлял приложение в режиме эксперимента: фон места " +
+        "переставал набираться, а спектр запрашивался у прибора в шесть раз чаще выбранной " +
+        "ступени. Спектр теперь сохраняется картинкой прямо из окна экспорта, а запись журнала " +
+        "не может закончиться раньше, чем началась."
 
     override val v0680Title = "Испорченная метка прибора больше не ломает сеанс"
     override val v0680Summary =
@@ -1608,6 +1618,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0690Title = "The app learns a place's background again"
+    override val v0690Summary =
+        "Going to the background with Поиск open left the app in experiment mode: the background " +
+        "of a place stopped accumulating, and the spectrum was requested from the instrument six " +
+        "times more often than the chosen rate. The spectrum can now be saved as an image " +
+        "straight from the export sheet, and a journal record can no longer end before it began."
 
     override val v0680Title = "A corrupted instrument timestamp no longer breaks the session"
     override val v0680Summary =
@@ -2745,6 +2762,93 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v0690Title, v0690Summary,
+    v0680Title, v0680Summary,
+    v0670Title, v0670Summary,
+    v0660Title, v0660Summary,
+    v0650Title, v0650Summary,
+    v0640Title, v0640Summary,
+    v0630Title, v0630Summary,
+    v0620Title, v0620Summary,
+    v0610Title, v0610Summary,
+    v0600Title, v0600Summary,
+    v0590Title, v0590Summary,
+    v0580Title, v0580Summary,
+    v0570Title, v0570Summary,
+    v0560Title, v0560Summary,
+    v0550Title, v0550Summary,
+    v0540Title, v0540Summary,
+    v0530Title, v0530Summary,
+    v0520Title, v0520Summary,
+    v0510Title, v0510Summary,
+    v0500Title, v0500Summary,
+    v0492Title, v0492Summary,
+    v0491Title, v0491Summary,
+    v0490Title, v0490Summary,
+    v0482Title, v0482Summary,
+    v0481Title, v0481Summary,
+    v0480Title, v0480Summary,
+    v0471Title, v0471Summary,
+    v0470Title, v0470Summary,
+    v0462Title, v0462Summary,
+    v0461Title, v0461Summary,
+    v0460Title, v0460Summary,
+    v0451Title, v0451Summary,
+    v0450Title, v0450Summary,
+    v0443Title, v0443Summary,
+    v0442Title, v0442Summary,
+    v0441Title, v0441Summary,
+    v0440Title, v0440Summary,
+    v0430Title, v0430Summary,
+    v0421Title, v0421Summary,
+    v0420Title, v0420Summary,
+    v0412Title, v0412Summary,
+    v0411Title, v0411Summary,
+    v0410Title, v0410Summary,
+    v0400Title, v0400Summary,
+    v0391Title, v0391Summary,
+    v0390Title, v0390Summary,
+    v0381Title, v0381Summary,
+    v0380Title, v0380Summary,
+    v0371Title, v0371Summary,
+    v0370Title, v0370Summary,
+    v0360Title, v0360Summary,
+    v0351Title, v0351Summary,
+    v0350Title, v0350Summary,
+    v0341Title, v0341Summary,
+    v0340Title, v0340Summary,
+    v0330Title, v0330Summary,
+    v0320Title, v0320Summary,
+    v0310Title, v0310Summary,
+    v0300Title, v0300Summary,
+    v0291Title, v0291Summary,
+    v0290Title, v0290Summary,
+    v0280Title, v0280Summary,
+    v0271Title, v0271Summary,
+    v0270Title, v0270Summary,
+    v0260Title, v0260Summary,
+    v0250Title, v0250Summary,
+    v0240Title, v0240Summary,
+    v0230Title, v0230Summary,
+    v0220Title, v0220Summary,
+    v0210Title, v0210Summary,
+    v0200Title, v0200Summary,
+    v0190Title, v0190Summary,
+    v0181Title, v0181Summary,
+    v0180Title, v0180Summary,
+    v0170Title, v0170Summary,
+    v0160Title, v0160Summary,
+    v0150Title, v0150Summary,
+    v0140Title, v0140Summary,
+    v0130Title, v0130Summary,
+    v0121Title, v0121Summary,
+    v0120Title, v0120Summary,
+    v0110Title, v0110Summary,
+    v0104Title, v0104Summary,
+    v0103Title, v0103Summary,
+    v0102Title, v0102Summary,
+    v0101Title, v0101Summary,
+    v0100Title, v0100Summary,
     v066Title, v066Summary,
     v065Title, v065Summary,
     v064Title, v064Summary,

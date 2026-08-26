@@ -74,6 +74,14 @@ data class DebugSnapshot(
     val seqGapTotal: Int,
     val reconnectCount: Int,
     /**
+     * Осечки чтения DATA_BUF и ответы, оборвавшиеся внутри записи. Первое —
+     * «ответ не пришёл», второе — «пришёл неполным»; вместе они отвечают на
+     * вопрос «почему показания идут рывками», который по числу
+     * переподключений не разбирается.
+     */
+    val readFailures: Int = 0,
+    val truncatedReplies: Int = 0,
+    /**
      * Записи, отброшенные из-за невозможной метки времени. Прибор изредка
      * присылает смещение в сотни суток; такая метка не измерение, и по этому
      * числу видно, как часто это случается.
@@ -299,6 +307,8 @@ object DebugReport {
         appendLine("пропусков seq в DATA_BUF: ${snapshot.seqGapTotal}")
         appendLine("поправка часов прибора: ${snapshot.clockCorrectionMillis / 1000} с")
         appendLine("переподключений за сеанс: ${snapshot.reconnectCount}")
+        appendLine("осечек чтения: ${snapshot.readFailures}")
+        appendLine("оборванных ответов: ${snapshot.truncatedReplies}")
         appendLine("записей с невозможной меткой: ${snapshot.garbageRecords}")
         val dropped = snapshot.streamTicks.sumOf { it.dropped }
         appendLine("записей отброшено при вставке: $dropped")

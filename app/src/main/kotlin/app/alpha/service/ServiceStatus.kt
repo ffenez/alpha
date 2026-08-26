@@ -306,6 +306,15 @@ class ServiceStatus {
     var seqGapTotal: Int = 0
         internal set
 
+    /** Осечки чтения DATA_BUF и оборванные ответы — для отладочного отчёта. */
+    @Volatile
+    var readFailures: Int = 0
+        internal set
+
+    @Volatile
+    var truncatedReplies: Int = 0
+        internal set
+
     @Volatile
     var reconnectCount: Int = 0
         internal set

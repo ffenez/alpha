@@ -1093,6 +1093,8 @@ private suspend fun buildDebugReport(
         spectrumSeconds = spectrum?.durationSeconds,
         seqGapTotal = graph.serviceStatus.seqGapTotal,
         reconnectCount = graph.serviceStatus.reconnectCount,
+        readFailures = graph.serviceStatus.readFailures,
+        truncatedReplies = graph.serviceStatus.truncatedReplies,
         garbageRecords = graph.serviceStatus.garbageRecords,
         historyRecords = graph.serviceStatus.historyRecords,
         historyInserted = graph.serviceStatus.historyInserted,

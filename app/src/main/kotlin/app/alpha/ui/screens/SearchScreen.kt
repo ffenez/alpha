@@ -246,9 +246,14 @@ fun SearchScreen(
     }
     // Пока Поиск на экране, его измерения — эксперимент и не учат обычный фон
     // места (спец §18).
+    // Условие снимается ОДИН раз, при заходе в эффект: `onDispose` выполняется
+    // после того, как ключ уже изменился, и чтение `resumed` там дало бы новое
+    // значение. Уход в фон с открытым Поиском оставлял наблюдателя навсегда, и
+    // все измерения до перезапуска процесса помечались экспериментом.
     DisposableEffect(resumed) {
-        if (resumed) graph.searchPresenceHub.attach()
-        onDispose { if (resumed) graph.searchPresenceHub.detach() }
+        val attached = resumed
+        if (attached) graph.searchPresenceHub.attach()
+        onDispose { if (attached) graph.searchPresenceHub.detach() }
     }
     // Silence must be explainable: these are polled once a second so the
     // screen can name the actual reason instead of just staying quiet.
@@ -278,8 +283,9 @@ fun SearchScreen(
     // retroactively once one starts. It costs one spectrum request every 5 s
     // while this screen is in the foreground, and nothing when it is not.
     DisposableEffect(resumed) {
-        if (resumed) graph.spectrumHub.attach()
-        onDispose { if (resumed) graph.spectrumHub.detach() }
+        val attached = resumed
+        if (attached) graph.spectrumHub.attach()
+        onDispose { if (attached) graph.spectrumHub.detach() }
     }
     val spectrumSlices by graph.spectrogramStore.slices.collectAsState()
     LaunchedEffect(toneActive) {

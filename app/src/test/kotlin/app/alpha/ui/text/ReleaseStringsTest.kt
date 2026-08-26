@@ -45,19 +45,32 @@ class ReleaseStringsTest {
         }
     }
 
+    /**
+     * Запись объясняет, что изменилось на экране, а не как это устроено внутри.
+     *
+     * Список разделён по языкам не ради послабления: `snapshot` и `baseline`
+     * стоят на САМИХ английских экранах, и запрет на них в списке обновлений
+     * заставил бы называть одно и то же разными словами. В русском тексте то же
+     * латинское слово остаётся жаргоном, и там запрет действует.
+     */
     @Test
     fun `no internal names leak into what the user reads`() {
-        // То же правило, что у русского списка: запись объясняет, что
-        // изменилось на экране, а не как это устроено внутри.
         val internal = listOf(
-            "baseline", "snapshot", "repository", "dao", "compose", "sql",
+            "repository", "dao", "compose", "sql",
             "buildframe", "chartmetric", "datastore",
         )
-        for (catalogue in catalogues) {
-            for (text in catalogue.allTexts()) {
-                for (name in internal) {
-                    assertTrue(!text.lowercase().contains(name), "«$name»: $text")
-                }
+        val jargonInRussian = internal + listOf("baseline", "snapshot")
+        // Слово целиком, а не подстрока: «decomposed» — обычное английское
+        // слово, а не имя из кода.
+        fun word(name: String) = Regex("""\b${Regex.escape(name)}\b""")
+        for (text in ReleaseRu.allTexts()) {
+            for (name in jargonInRussian) {
+                assertTrue(!word(name).containsMatchIn(text.lowercase()), "«$name»: $text")
+            }
+        }
+        for (text in ReleaseEn.allTexts()) {
+            for (name in internal) {
+                assertTrue(!word(name).containsMatchIn(text.lowercase()), "«$name»: $text")
             }
         }
     }

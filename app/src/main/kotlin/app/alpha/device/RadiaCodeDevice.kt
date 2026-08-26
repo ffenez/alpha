@@ -112,6 +112,15 @@ class RadiaCodeDevice(
     var seqGapTotal: Int = 0
         private set
 
+    /**
+     * Ответы DATA_BUF, оборвавшиеся внутри тела записи. Разобранная часть
+     * ответа принимается, хвост теряется — по этому числу видно, теряются ли
+     * показания на границе ответа.
+     */
+    @Volatile
+    var truncatedReplies: Int = 0
+        private set
+
     @Volatile
     private var connection: DeviceConnection? = null
 
@@ -222,6 +231,7 @@ class RadiaCodeDevice(
             try {
                 val result = conn.readDataBuf()
                 if (result.seqGaps > 0) seqGapTotal += result.seqGaps
+                if (result.truncated) truncatedReplies += 1
                 _historyAgeMillis.value = conn.newestAgeMillis
                 garbageRecords = conn.garbageRecords
                 // Возраст едет в самом состоянии связи: «связь есть, но идёт

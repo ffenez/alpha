@@ -66,15 +66,27 @@ internal enum class ExportFile(val mime: String, val extension: String) {
     /** N42: своего типа у стандарта нет, поэтому файл объявляется двоичным. */
     N42("application/octet-stream", "n42"),
     XML("application/xml", "xml"),
+    PNG("image/png", "png"),
 }
 
 /** Отдаёт текст в файл, выбранный через системный диалог. */
 internal class FileSaver(
     private val pending: MutableState<String?>,
+    private val pendingBytes: MutableState<(suspend () -> ByteArray)?>,
     private val launch: (ExportFile, String) -> Unit,
 ) {
     fun save(file: ExportFile, name: String, content: String) {
         pending.value = content
+        launch(file, name)
+    }
+
+    /**
+     * Двоичный файл. Содержимое готовится ПОСЛЕ выбора места: растр спектра —
+     * это 24 МБ в памяти и заметное время, и держать его, пока человек ходит по
+     * папкам, незачем.
+     */
+    fun saveBytes(file: ExportFile, name: String, content: suspend () -> ByteArray) {
+        pendingBytes.value = content
         launch(file, name)
     }
 }
@@ -91,11 +103,21 @@ internal fun rememberFileSaver(onDone: (Boolean) -> Unit): FileSaver {
     val context = LocalContext.current
     val scope: CoroutineScope = rememberCoroutineScope()
     val pending = remember { mutableStateOf<String?>(null) }
+    val pendingBytes = remember { mutableStateOf<(suspend () -> ByteArray)?>(null) }
     val handle: (Uri?) -> Unit = { uri ->
         val content = pending.value
+        val bytes = pendingBytes.value
         pending.value = null
+        pendingBytes.value = null
         if (uri != null && content != null) {
             scope.launch { onDone(writeTextToUri(context, uri, content)) }
+        }
+        if (uri != null && bytes != null) {
+            scope.launch {
+                // Рисование и кодирование — не на главном потоке.
+                val raster = withContext(Dispatchers.Default) { bytes() }
+                onDone(writeBytesToUri(context, uri, raster))
+            }
         }
     }
     val html = rememberLauncherForActivityResult(
@@ -126,8 +148,12 @@ internal fun rememberFileSaver(onDone: (Boolean) -> Unit): FileSaver {
         ActivityResultContracts.CreateDocument(ExportFile.XML.mime),
         handle,
     )
-    return remember(html, csv, json, geojson, gpx, n42, xml) {
-        FileSaver(pending) { file, name ->
+    val png = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(ExportFile.PNG.mime),
+        handle,
+    )
+    return remember(html, csv, json, geojson, gpx, n42, xml, png) {
+        FileSaver(pending, pendingBytes) { file, name ->
             when (file) {
                 ExportFile.HTML -> html.launch(name)
                 ExportFile.CSV -> csv.launch(name)
@@ -136,6 +162,7 @@ internal fun rememberFileSaver(onDone: (Boolean) -> Unit): FileSaver {
                 ExportFile.GPX -> gpx.launch(name)
                 ExportFile.N42 -> n42.launch(name)
                 ExportFile.XML -> xml.launch(name)
+                ExportFile.PNG -> png.launch(name)
             }
         }
     }
@@ -222,6 +249,7 @@ internal object ExportOptions {
     fun map(s: ExportStrings, onPick: () -> Unit) = ExportOption(s.mapData, s.mapDataHint, onPick)
     fun track(s: ExportStrings, onPick: () -> Unit) = ExportOption(s.track, s.trackHint, onPick)
     fun text(s: ExportStrings, onPick: () -> Unit) = ExportOption(s.text, s.textHint, onPick)
+    fun image(s: ExportStrings, onPick: () -> Unit) = ExportOption(s.image, s.imageHint, onPick)
     fun standard(s: ExportStrings, onPick: () -> Unit) =
         ExportOption(s.standard, s.standardHint, onPick)
     fun rawXml(s: ExportStrings, onPick: () -> Unit) =

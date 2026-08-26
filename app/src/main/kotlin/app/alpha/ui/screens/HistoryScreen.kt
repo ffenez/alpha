@@ -67,6 +67,8 @@ import app.alpha.data.export.RcXml
 import app.alpha.data.export.SpectrumExport
 import app.alpha.device.DoseUnits
 import app.alpha.ui.components.DisclosureArrow
+import app.alpha.ui.components.SpectrumImage
+import app.alpha.ui.components.rememberSpectrumPlotStyle
 import app.alpha.ui.components.NavArrow
 import app.alpha.ui.components.Hint
 import app.alpha.ui.components.LocalHintsVisible
@@ -1971,8 +1973,8 @@ private suspend fun reportsFor(
 }
 
 /**
- * Форматы снимка спектра: отчёт для чтения, N42 и XML для программ, CSV для
- * таблицы. Один список на Журнал и на экран спектра.
+ * Форматы снимка спектра: отчёт и картинка для чтения, N42 и XML для программ,
+ * CSV для таблицы. Один список на Журнал и на экран спектра.
  */
 @Composable
 internal fun spectrumExportGroups(
@@ -1982,7 +1984,12 @@ internal fun spectrumExportGroups(
     language: AppLanguage,
     saver: FileSaver,
     onPicked: () -> Unit,
-): List<ExportGroup> = listOf(
+): List<ExportGroup> {
+    // Картинка рисуется тем же кодом, что и поле спектра: цвета берутся из
+    // темы приложения, а не назначаются заново.
+    val imageContext = LocalContext.current
+    val imageStyle = rememberSpectrumPlotStyle()
+    return listOf(
     ExportGroup(
         title = e.groupReport,
         options = listOf(
@@ -2000,6 +2007,19 @@ internal fun spectrumExportGroups(
                         ),
                     ),
                 )
+            },
+            ExportOptions.image(e) {
+                onPicked()
+                saver.saveBytes(
+                    ExportFile.PNG,
+                    SpectrumExport.fileName(entity.timestamp, "png"),
+                ) {
+                    SpectrumImage.renderPng(
+                        context = imageContext,
+                        spec = SpectrumImage.specOf(entity),
+                        style = imageStyle,
+                    )
+                }
             },
         ),
     ),
@@ -2051,7 +2071,8 @@ internal fun spectrumExportGroups(
             },
         ),
     ),
-)
+    )
+}
 
 
 /**

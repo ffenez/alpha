@@ -196,6 +196,7 @@ class SessionRepository(
     suspend fun closeStale() {
         val endedAt = sampleDao.latestTimestamp() ?: clock()
         sessionDao.closeAllOpen(endedAt)
+        sessionDao.repairNegativeDurations()
     }
 
     // --- History queries ---

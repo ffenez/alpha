@@ -2,7 +2,9 @@ package app.alpha.protocol
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class DataBufDecoderTest {
 
@@ -158,5 +160,38 @@ class DataBufDecoderTest {
     fun `empty and truncated buffers produce no records`() {
         assertEquals(0, DataBufDecoder.decode(ByteArray(0), baseTime).records.size)
         assertEquals(0, DataBufDecoder.decode(byteArrayOf(1, 0, 0, 5, 0), baseTime).records.size)
+    }
+
+    /**
+     * Полевой случай (0.68.0, отчёт прибора): «16 bytes required, but only 6
+     * remain» — ответ оборвался внутри тела записи. Разобранные до обрыва
+     * записи — полноценные измерения, и терять их вместе с хвостом нельзя:
+     * ошибка отменяла ВЕСЬ ответ, то есть секунду показаний.
+     */
+    @Test
+    fun `a body cut off at the end keeps the records decoded before it`() {
+        val buf = LeWriter()
+            .u8(0).u8(0).u8(0).i32(-12800)
+            .f32(1.25f).f32(0.5f).u16(15).u16(23).u16(0).u8(0)
+            // seq=1, UserData (0,4): тело 16 байт, а в ответе осталось 6.
+            .u8(1).u8(0).u8(4).i32(-12750)
+            .raw(1, 2, 3, 4, 5, 6)
+            .build()
+
+        val result = DataBufDecoder.decode(buf, baseTime)
+
+        assertEquals(1, result.records.size)
+        assertIs<RealTimeData>(result.records[0])
+        assertTrue(result.truncated, "оборванный ответ не помечен")
+    }
+
+    @Test
+    fun `a whole reply is not marked truncated`() {
+        val buf = LeWriter()
+            .u8(0).u8(0).u8(0).i32(-12800)
+            .f32(1.25f).f32(0.5f).u16(15).u16(23).u16(0).u8(0)
+            .build()
+
+        assertFalse(DataBufDecoder.decode(buf, baseTime).truncated)
     }
 }
