@@ -102,11 +102,42 @@ class RadiaCodeDevice(
     var readFailures: Int = 0
         private set
 
-    /** Cumulative DATA_BUF sequence gaps this device object observed (diagnostics). */
-    /** Записи с невозможной меткой, отброшенные за сеанс (см. DeviceConnection). */
+    /**
+     * Записи с невозможной меткой, отброшенные за ВСЁ время жизни объекта.
+     *
+     * Счётчик самой сессии ([DeviceConnection.garbageRecords]) обнуляется при
+     * каждом переподключении, а их за сутки набирается под сотню: отчёт
+     * показывал бы мусор последних минут и молчал обо всём остальном. Здесь
+     * копится разница, поэтому «мусора не было» означает «за всё время».
+     */
     @Volatile
     var garbageRecords: Int = 0
         private set
+
+    /** Сколько мусора уже засчитано от текущей сессии. */
+    private var garbageCounted: Int = 0
+
+    /**
+     * ПЕРВЫЙ ответ прибора после подключения: сколько в нём записей и насколько
+     * стара самая старая. Максимум по всем подключениям объекта.
+     *
+     * Отвечает на вопрос, на который нечем было ответить: отдаёт ли прибор
+     * накопленное, пока телефона не было. Если отдаёт, первый ответ после
+     * разрыва содержит пачку записей возрастом в этот разрыв; если нет — одну
+     * свежую. Возраст берётся ДО отбраковки невозможных меток, иначе ответ
+     * «прибор ничего не отдал» и «отдал, но мы это выбросили» выглядят
+     * одинаково.
+     */
+    @Volatile
+    var firstReplyRecordsMax: Int = 0
+        private set
+
+    @Volatile
+    var firstReplyOldestSeconds: Long = 0L
+        private set
+
+    /** Ждём ли ещё первый непустой ответ этой сессии. */
+    private var firstReplyPending: Boolean = false
 
     @Volatile
     var seqGapTotal: Int = 0
@@ -219,6 +250,8 @@ class RadiaCodeDevice(
         _connectionState.value = ConnectionState.Connected(conn.info)
         backoff.reset()
         sessionEstablished = true
+        garbageCounted = 0
+        firstReplyPending = true
 
         // Осечка одного чтения — не потеря связи. Прибор занят своим экраном
         // (человек нажимает на нём кнопки), эфир мешает, ответ опоздал — всё
@@ -233,7 +266,16 @@ class RadiaCodeDevice(
                 if (result.seqGaps > 0) seqGapTotal += result.seqGaps
                 if (result.truncated) truncatedReplies += 1
                 _historyAgeMillis.value = conn.newestAgeMillis
-                garbageRecords = conn.garbageRecords
+                garbageRecords += conn.garbageRecords - garbageCounted
+                garbageCounted = conn.garbageRecords
+                if (firstReplyPending && conn.lastReplyRecords > 0) {
+                    firstReplyPending = false
+                    if (conn.lastReplyRecords > firstReplyRecordsMax) {
+                        firstReplyRecordsMax = conn.lastReplyRecords
+                    }
+                    val oldest = (conn.lastReplyOldestAgeMillis ?: 0L) / 1000L
+                    if (oldest > firstReplyOldestSeconds) firstReplyOldestSeconds = oldest
+                }
                 // Возраст едет в самом состоянии связи: «связь есть, но идёт
                 // слив истории» — одно положение дел, а не два флага.
                 (_connectionState.value as? ConnectionState.Connected)?.let { current ->

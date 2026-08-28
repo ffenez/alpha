@@ -82,6 +82,14 @@ data class DebugSnapshot(
     val readFailures: Int = 0,
     val truncatedReplies: Int = 0,
     /**
+     * Самый содержательный первый ответ прибора после подключения: сколько в
+     * нём было записей и возраст самой старой. Одна запись возрастом в секунды
+     * означает, что за время разрыва прибор ничего не сохранил ДЛЯ ПРИЛОЖЕНИЯ;
+     * пачка записей возрастом в минуты — что сохранил и отдал.
+     */
+    val firstReplyRecordsMax: Int = 0,
+    val firstReplyOldestSeconds: Long = 0,
+    /**
      * Записи, отброшенные из-за невозможной метки времени. Прибор изредка
      * присылает смещение в сотни суток; такая метка не измерение, и по этому
      * числу видно, как часто это случается.
@@ -308,6 +316,10 @@ object DebugReport {
         appendLine("поправка часов прибора: ${snapshot.clockCorrectionMillis / 1000} с")
         appendLine("переподключений за сеанс: ${snapshot.reconnectCount}")
         appendLine("осечек чтения: ${snapshot.readFailures}")
+        appendLine(
+            "первый ответ после подключения: до ${snapshot.firstReplyRecordsMax} записей, " +
+                "самая старая ${snapshot.firstReplyOldestSeconds} с назад",
+        )
         appendLine("оборванных ответов: ${snapshot.truncatedReplies}")
         appendLine("записей с невозможной меткой: ${snapshot.garbageRecords}")
         val dropped = snapshot.streamTicks.sumOf { it.dropped }

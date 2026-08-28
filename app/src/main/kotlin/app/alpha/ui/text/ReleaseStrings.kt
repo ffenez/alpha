@@ -19,6 +19,9 @@ package app.alpha.ui.text
  */
 interface ReleaseStrings {
 
+    val v0700Title: String
+    val v0700Summary: String
+
     val v0690Title: String
     val v0690Summary: String
 
@@ -501,6 +504,13 @@ interface ReleaseStrings {
 }
 
 object ReleaseRu : ReleaseStrings {
+
+    override val v0700Title = "Отчёт показывает, отдаёт ли прибор накопленное"
+    override val v0700Summary =
+        "В отладочный отчёт добавлена строка о первом ответе прибора после подключения: сколько " +
+        "в нём записей и насколько стара самая старая — по ним видно, сохранил ли прибор " +
+        "измерения, пока телефона не было рядом. Счётчик записей с невозможной меткой времени " +
+        "теперь считает за всё время, а не с последнего переподключения."
 
     override val v0690Title = "Приложение снова учится фону места"
     override val v0690Summary =
@@ -1618,6 +1628,13 @@ object ReleaseRu : ReleaseStrings {
 }
 
 object ReleaseEn : ReleaseStrings {
+
+    override val v0700Title = "The report shows whether the instrument hands over what it stored"
+    override val v0700Summary =
+        "The debug report gained a line about the instrument's first reply after connecting: how " +
+        "many records it carried and how old the oldest one was — together they show whether the " +
+        "instrument kept measurements while the phone was away. The counter of records with an " +
+        "impossible timestamp now counts over the whole time, not since the last reconnect."
 
     override val v0690Title = "The app learns a place's background again"
     override val v0690Summary =
@@ -2762,6 +2779,7 @@ val ReleaseCatalogue = AreaCatalogue(ru = ReleaseRu, en = ReleaseEn)
 
 /** Весь текст области — для проверок, действующих на каждый язык. */
 fun ReleaseStrings.allTexts(): List<String> = listOf(
+    v0700Title, v0700Summary,
     v0690Title, v0690Summary,
     v0680Title, v0680Summary,
     v0670Title, v0670Summary,

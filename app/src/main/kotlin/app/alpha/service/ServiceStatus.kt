@@ -306,6 +306,19 @@ class ServiceStatus {
     var seqGapTotal: Int = 0
         internal set
 
+    /**
+     * Первый ответ прибора после подключения — максимум по всем подключениям:
+     * сколько записей и возраст самой старой из них. По ним видно, отдаёт ли
+     * прибор накопленное за разрыв связи.
+     */
+    @Volatile
+    var firstReplyRecordsMax: Int = 0
+        internal set
+
+    @Volatile
+    var firstReplyOldestSeconds: Long = 0L
+        internal set
+
     /** Осечки чтения DATA_BUF и оборванные ответы — для отладочного отчёта. */
     @Volatile
     var readFailures: Int = 0

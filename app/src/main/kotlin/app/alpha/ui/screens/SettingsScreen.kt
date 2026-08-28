@@ -1094,6 +1094,8 @@ private suspend fun buildDebugReport(
         seqGapTotal = graph.serviceStatus.seqGapTotal,
         reconnectCount = graph.serviceStatus.reconnectCount,
         readFailures = graph.serviceStatus.readFailures,
+        firstReplyRecordsMax = graph.serviceStatus.firstReplyRecordsMax,
+        firstReplyOldestSeconds = graph.serviceStatus.firstReplyOldestSeconds,
         truncatedReplies = graph.serviceStatus.truncatedReplies,
         garbageRecords = graph.serviceStatus.garbageRecords,
         historyRecords = graph.serviceStatus.historyRecords,

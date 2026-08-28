@@ -140,6 +140,16 @@ class DeviceConnection private constructor(
     var newestAgeMillis: Long = 0L
         private set
 
+    /** Записей в последнем ответе прибора, до отбраковки невозможных меток. */
+    @Volatile
+    var lastReplyRecords: Int = 0
+        private set
+
+    /** Возраст САМОЙ СТАРОЙ записи последнего ответа, мс; null — ответ пуст. */
+    @Volatile
+    var lastReplyOldestAgeMillis: Long? = null
+        private set
+
     /**
      * Догнал ли слив живое время.
      *
@@ -162,6 +172,12 @@ class DeviceConnection private constructor(
             correctionMillis = clockCorrectionMillis,
             baseTimeMillis = baseTimeMillis,
         )
+        // Ответ, как его прислал прибор, — ДО отбраковки: по этим двум числам
+        // видно, отдаёт ли прибор накопленное за разрыв связи, и виден ответ
+        // целиком, включая записи, которые сейчас будут выброшены.
+        lastReplyRecords = result.records.size
+        lastReplyOldestAgeMillis = result.records.minOfOrNull { it.timestampMillis }
+            ?.let { clock() - it }
         // Мусорные метки выбрасываются ДО всего остального: прибор изредка
         // присылает запись со смещением в сотни суток (полевой журнал: одна
         // запись на +980 ч и одна на −3550 ч за сеанс). Такая метка не

@@ -830,6 +830,9 @@ class MeasurementService : Service() {
                 // ждал бы переподключения.
                 graph.serviceStatus.readFailures = newDevice.readFailures
                 graph.serviceStatus.truncatedReplies = newDevice.truncatedReplies
+                graph.serviceStatus.garbageRecords = newDevice.garbageRecords
+                graph.serviceStatus.firstReplyRecordsMax = newDevice.firstReplyRecordsMax
+                graph.serviceStatus.firstReplyOldestSeconds = newDevice.firstReplyOldestSeconds
                 // Покадровая трасса обмена отличает «записи не пришли» от
                 // «пришли, но не записались».
                 graph.streamTrace.add(
